@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Product, Material, MaterialType } from '../../types';
 import { Search, Plus, X, Gem, Puzzle } from 'lucide-react';
@@ -78,8 +79,8 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
         const description = item.description;
         const imageUrl = isComponent ? item.image_url : null;
         const cost = isComponent
-            ? `${(item.active_price || 0).toFixed(2)}€`
-            : `${(item.cost_per_unit || 0).toFixed(2)}€ / ${item.unit}`;
+            ? `${formatDecimal((item.active_price || 0), 2)}€`
+            : `${formatDecimal((item.cost_per_unit || 0), 2)}€ / ${item.unit}`;
 
         // Icon fallback
         const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;

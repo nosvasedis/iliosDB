@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React from 'react';
 import { LogOut, Package, CloudOff, RefreshCw, Upload } from 'lucide-react';
@@ -144,7 +145,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
             <div className="flex items-center gap-2">
               {!isOnline ? <CloudOff size={14} /> : syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
               <span>
-                {!isOnline ? 'Είστε εκτός σύνδεσης' : syncStatus === 'syncing' ? 'Συγχρονισμός...' : syncStatus === 'error' ? 'Σφάλμα συγχρονισμού' : `Εκκρεμούν ${pendingCount} αλλαγές`}
+                {!isOnline ? 'Είστε εκτός σύνδεσης' : syncStatus === 'syncing' ? 'Συγχρονισμός...' : syncStatus === 'error' ? 'Σφάλμα συγχρονισμού' : `Εκκρεμούν ${formatNumber(pendingCount)} αλλαγές`}
               </span>
             </div>
             {isOnline && syncStatus !== 'syncing' && (

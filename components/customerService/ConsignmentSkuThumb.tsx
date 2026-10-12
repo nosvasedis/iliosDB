@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { ImageIcon } from 'lucide-react';
 import type { Product } from '../../types';
@@ -26,7 +27,7 @@ export default function ConsignmentSkuThumb({
       )}
       {quantity != null && (
         <div className="absolute bottom-0 right-0 rounded-tl-lg bg-slate-900 px-1.5 py-0.5 text-[9px] font-bold leading-none text-white">
-          x{quantity}
+          x{formatNumber(quantity)}
         </div>
       )}
     </div>

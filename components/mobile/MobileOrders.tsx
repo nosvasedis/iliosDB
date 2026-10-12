@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,7 +97,7 @@ const StageBadge: React.FC<{
     return (
         <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${stageColors.bg} ${stageColors.text} ${stageColors.border}`}>
             <Icon size={compact ? 12 : 13} />
-            <span>{quantity}x</span>
+            <span>{formatNumber(quantity)}x</span>
             <span>{label}</span>
         </div>
     );
@@ -105,7 +106,7 @@ const StageBadge: React.FC<{
 const UnbatchedBadge: React.FC<{ quantity: number; compact?: boolean }> = ({ quantity, compact = false }) => (
     <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${UNBATCHED_PRODUCTION_STAGE_STYLES.bg} ${UNBATCHED_PRODUCTION_STAGE_STYLES.text} ${UNBATCHED_PRODUCTION_STAGE_STYLES.border}`}>
         <Clock size={compact ? 12 : 13} />
-        <span>{quantity}x</span>
+        <span>{formatNumber(quantity)}x</span>
         <span>Χωρίς παρτίδα παραγωγής</span>
     </div>
 );
@@ -189,8 +190,8 @@ const LegacyOrderPrintSheet: React.FC<{
                         <div className="text-sm font-black text-amber-900">Υπάρχει μερική αποστολή</div>
                         <div className="mt-1 text-xs font-medium text-amber-800">
                             {hasMultiShipments
-                                ? `Η παραγγελία έχει ${shipmentPrintPayloads.length} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
-                                : `Η παραγγελία έχει ήδη αποστολή #${shipmentPrintPayloads[0].shipment.shipment_number}. Μπορείτε να εκτυπώσετε το παραστατικό της, τα υπόλοιπα ή ολόκληρη την παραγγελία.`}
+                                ? `Η παραγγελία έχει ${formatNumber(shipmentPrintPayloads.length)} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
+                                : `Η παραγγελία έχει ήδη αποστολή #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}. Μπορείτε να εκτυπώσετε το παραστατικό της, τα υπόλοιπα ή ολόκληρη την παραγγελία.`}
                         </div>
                     </div>
                 )}
@@ -210,7 +211,7 @@ const LegacyOrderPrintSheet: React.FC<{
                                     <div className="mt-0.5 text-xs font-medium text-amber-800">
                                         {shipmentPrintPayloads.length > 1
                                             ? 'Επιλέξτε μία, όλες ή καμία αποστολή.'
-                                            : `Μόνο τα είδη της αποστολής #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
+                                            : `Μόνο τα είδη της αποστολής #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}.`}
                                     </div>
                                 </div>
                             </div>
@@ -286,7 +287,7 @@ const LegacyOrderPrintSheet: React.FC<{
                                 <h3 className="text-lg font-black text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
                             </div>
                             <p className="mt-1 text-xs font-medium text-slate-500">
-                                {orderRevisions.length} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
+                                {formatNumber(orderRevisions.length)} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
                             </p>
                         </div>
                         <button onClick={() => setShowVersionSelector(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
@@ -325,10 +326,10 @@ const LegacyOrderPrintSheet: React.FC<{
                                             </div>
                                             <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
                                                 <span>{rev.timestamp ? new Date(rev.timestamp).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</span>
-                                                <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                                <span className="font-mono font-bold text-slate-700">{formatDecimal(rev.order.total_price, 2)}€</span>
                                                 {rev.totalDiff !== null && rev.totalDiff !== 0 && (
                                                     <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                        ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                                        ({rev.totalDiff > 0 ? '+' : ''}{formatDecimal(rev.totalDiff, 2)}€)
                                                     </span>
                                                 )}
                                             </div>
@@ -384,7 +385,7 @@ const OrderPartSelectorSheet: React.FC<{
                 </div>
 
                 <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-800">
-                    Η παραγγελία έχει χωριστεί σε {shipments.length} τμήματα παραγωγής. Επιλέξτε ποια τμήματα θέλετε να συμπεριληφθούν στο εκτυπώσιμο παραστατικό.
+                    Η παραγγελία έχει χωριστεί σε {formatNumber(shipments.length)} τμήματα παραγωγής. Επιλέξτε ποια τμήματα θέλετε να συμπεριληφθούν στο εκτυπώσιμο παραστατικό.
                 </div>
 
                 <div className="mb-4 flex gap-2">
@@ -434,17 +435,17 @@ const OrderPartSelectorSheet: React.FC<{
                                     <div className="min-w-0 flex-1">
                                         <div className="font-black">{label}</div>
                                         <div className="mt-1 text-xs font-medium text-slate-600">
-                                            {shipmentBatches.length} παρτίδες • {totalQuantity} τεμ.
+                                            {formatNumber(shipmentBatches.length)} παρτίδες • {formatNumber(totalQuantity)} τεμ.
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-1.5">
                                             {shipmentBatches.slice(0, 6).map((batch) => (
                                                 <span key={batch.id} className="rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-bold text-slate-700">
-                                                    {batch.sku}{batch.variant_suffix || ''} ×{batch.quantity}
+                                                    {batch.sku}{batch.variant_suffix || ''} ×{formatNumber(batch.quantity)}
                                                 </span>
                                             ))}
                                             {shipmentBatches.length > 6 && (
                                                 <span className="rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-bold text-slate-700">
-                                                    +{shipmentBatches.length - 6} ακόμη
+                                                    +{formatNumber(shipmentBatches.length - 6)} ακόμη
                                                 </span>
                                             )}
                                         </div>
@@ -462,7 +463,7 @@ const OrderPartSelectorSheet: React.FC<{
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3.5 text-sm font-black text-white shadow-lg disabled:opacity-50"
                     >
                         <Printer size={18} />
-                        Εκτύπωση Επιλεγμένων ({selectedBatches.reduce((sum, batch) => sum + batch.quantity, 0)} τεμ.)
+                        Εκτύπωση Επιλεγμένων ({formatNumber(selectedBatches.reduce((sum, batch) => sum + batch.quantity, 0))} τεμ.)
                     </button>
                     <div className="flex gap-2">
                         <button onClick={onBack} className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">
@@ -537,7 +538,7 @@ const OrderPrintSheet: React.FC<{
             return;
         }
         onPrintLabels?.(itemsToPrint);
-        showToast(`Στάλθηκαν ${itemsToPrint.reduce((sum, item) => sum + item.quantity, 0)} τεμάχια για εκτύπωση ετικετών.`, 'success');
+        showToast(`Στάλθηκαν ${formatNumber(itemsToPrint.reduce((sum, item) => sum + item.quantity, 0))} τεμάχια για εκτύπωση ετικετών.`, 'success');
         onClose();
     };
 
@@ -597,7 +598,7 @@ const OrderPrintSheet: React.FC<{
                                 <h3 className="text-lg font-black text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
                             </div>
                             <p className="mt-1 text-xs font-medium text-slate-500">
-                                {orderRevisions.length} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
+                                {formatNumber(orderRevisions.length)} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
                             </p>
                         </div>
                         <button onClick={() => setShowVersionSelector(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
@@ -644,10 +645,10 @@ const OrderPrintSheet: React.FC<{
                                             </div>
                                             <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
                                                 <span>{rev.timestamp ? new Date(rev.timestamp).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</span>
-                                                <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                                <span className="font-mono font-bold text-slate-700">{formatDecimal(rev.order.total_price, 2)}€</span>
                                                 {rev.totalDiff !== null && rev.totalDiff !== 0 && (
                                                     <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                        ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                                        ({rev.totalDiff > 0 ? '+' : ''}{formatDecimal(rev.totalDiff, 2)}€)
                                                     </span>
                                                 )}
                                             </div>
@@ -690,8 +691,8 @@ const OrderPrintSheet: React.FC<{
                 {shouldOfferShipmentPrint && (
                     <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
                         {hasMultiShipments
-                            ? `Η παραγγελία έχει ${shipmentPrintPayloads.length} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
-                            : `Η παραγγελία έχει ήδη αποστολή #${shipmentPrintPayloads[0].shipment.shipment_number}. Μπορείτε να εκτυπώσετε το παραστατικό της ή μόνο τα υπόλοιπα.`}
+                            ? `Η παραγγελία έχει ${formatNumber(shipmentPrintPayloads.length)} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
+                            : `Η παραγγελία έχει ήδη αποστολή #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}. Μπορείτε να εκτυπώσετε το παραστατικό της ή μόνο τα υπόλοιπα.`}
                     </div>
                 )}
 
@@ -721,7 +722,7 @@ const OrderPrintSheet: React.FC<{
                                     <div className="flex items-center gap-2">
                                         <span className="font-black">{hasMultipleShipments ? 'Εκτύπωση Παραγγελίας / Τμημάτων' : 'Ολόκληρη Παραγγελία'}</span>
                                         {orderRevisions.length > 0 && !hasMultipleShipments && (
-                                            <span className="text-[9px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">{orderRevisions.length} εκδ.</span>
+                                            <span className="text-[9px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">{formatNumber(orderRevisions.length)} εκδ.</span>
                                         )}
                                     </div>
                                     <div className="mt-0.5 text-xs font-medium text-slate-600">
@@ -753,8 +754,8 @@ const OrderPrintSheet: React.FC<{
                                         </div>
                                         <div className="mt-0.5 text-xs font-medium text-amber-800">
                                             {hasMultiShipments
-                                                ? `${shipmentsQuery.data!.shipments.length} αποστολές — επιλέξτε ποια να εκτυπώσετε.`
-                                                : `Μόνο τα είδη της αποστολής #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
+                                                ? `${formatNumber(shipmentsQuery.data!.shipments.length)} αποστολές — επιλέξτε ποια να εκτυπώσετε.`
+                                                : `Μόνο τα είδη της αποστολής #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}.`}
                                         </div>
                                     </div>
                                 </div>
@@ -1037,7 +1038,7 @@ const OrderCard: React.FC<{
 
                 <div className="flex justify-between items-end border-t border-slate-50 pt-3 mt-1">
                     <div className="text-xs text-slate-500 font-medium">
-                        {order.items.length} είδη
+                        {formatNumber(order.items.length)} είδη
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-lg font-black text-slate-900">{formatCurrency(netValue)}</span>
@@ -1097,7 +1098,7 @@ const OrderCard: React.FC<{
                                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Στάδια Παραγωγής</div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <div className="text-base font-black text-slate-900">{stageProgress.totalQty} τεμ.</div>
+                                    <div className="text-base font-black text-slate-900">{formatNumber(stageProgress.totalQty)} τεμ.</div>
                                     <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">σύνολο</div>
                                 </div>
                             </div>
@@ -1109,8 +1110,8 @@ const OrderCard: React.FC<{
                                         className={`${getStageProgressBarClass(segment)} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
                                         style={{ width: `${segment.pct}%`, ...(segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined) }}
                                         title={segment.kind === 'stage'
-                                            ? `${getStageProgressLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
-                                            : `Χωρίς παρτίδα παραγωγής: ${segment.quantity} τεμ.`}
+                                            ? `${getStageProgressLabel(segment.stage, segment.pendingDispatch)}: ${formatNumber(segment.quantity)} τεμ.`
+                                            : `Χωρίς παρτίδα παραγωγής: ${formatNumber(segment.quantity)} τεμ.`}
                                     />
                                 ))}
                             </div>
@@ -1177,7 +1178,7 @@ const OrderCard: React.FC<{
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
                                     <div className="w-7 h-7 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                                        {item.quantity}x
+                                        {formatNumber(item.quantity)}x
                                     </div>
                                     <div className="font-mono text-slate-700 text-xs font-bold min-w-[60px] text-right">{formatCurrency(item.price_at_order * item.quantity)}</div>
                                 </div>
@@ -1552,7 +1553,7 @@ export default function MobileOrders({
                         <span className="text-xs">Φίλτρα</span>
                         {activeFilterCount > 0 && (
                             <span className="bg-emerald-500 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
-                                {activeFilterCount}
+                                {formatNumber(activeFilterCount)}
                             </span>
                         )}
                     </button>
@@ -1616,7 +1617,7 @@ export default function MobileOrders({
                                 title={selectAllState === 'all' ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
                             />
                             <span className="text-[11px] font-bold text-slate-500">
-                                {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
+                                {formatNumber(filteredOrders.length)} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
                             </span>
                         </div>
                     </div>

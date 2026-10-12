@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Collection, Product } from '../types';
 import {
@@ -281,13 +282,13 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                 await api.addProductsToCollection(newAssociations);
                 await invalidateProductsAndCatalog(queryClient);
                 setBulkSkus('');
-                showToast(`Προστέθηκαν ${foundCount} κωδικοί.`, 'success');
+                showToast(`Προστέθηκαν ${formatNumber(foundCount)} κωδικοί.`, 'success');
             } else if (foundCount > 0) {
-                showToast(`Οι ${foundCount} κωδικοί βρίσκονται ήδη στη συλλογή.`, 'info');
+                showToast(`Οι ${formatNumber(foundCount)} κωδικοί βρίσκονται ήδη στη συλλογή.`, 'info');
             }
 
             if (notFoundCount > 0) {
-                showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
+                showToast(`${formatNumber(notFoundCount)} κωδικοί δεν βρέθηκαν.`, 'warning');
             }
 
         } catch (e) {
@@ -334,7 +335,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
         onPrint({
             title: `Collection: ${selectedCollection.name}`,
-            subtitle: `${items.length} Κωδικοί`,
+            subtitle: `${formatNumber(items.length)} Κωδικοί`,
             date: dateStr,
             items: items
         });
@@ -418,13 +419,13 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         <div className="hidden md:flex items-center gap-2.5 rounded-2xl bg-slate-50 border border-slate-200/70 px-4 py-2">
                             <div className="flex items-center gap-1.5">
                                 <FolderKanban size={15} className="text-slate-400" />
-                                <span className="text-sm font-black text-slate-700 tabular-nums">{collectionList.length}</span>
+                                <span className="text-sm font-black text-slate-700 tabular-nums">{formatNumber(collectionList.length)}</span>
                                 <span className="text-xs font-bold text-slate-400">συλλογές</span>
                             </div>
                             <div className="h-5 w-px bg-slate-200" />
                             <div className="flex items-center gap-1.5">
                                 <Package size={15} className="text-slate-400" />
-                                <span className="text-sm font-black text-slate-700 tabular-nums">{productsInAnyCollection}</span>
+                                <span className="text-sm font-black text-slate-700 tabular-nums">{formatNumber(productsInAnyCollection)}</span>
                                 <span className="text-xs font-bold text-slate-400">προϊόντα</span>
                             </div>
                         </div>
@@ -443,7 +444,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                             <FolderKanban size={16} className={collectionsPanelOpen ? 'text-white' : 'text-slate-400'} />
                             <span className="hidden sm:inline">Συλλογές</span>
                             <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${collectionsPanelOpen ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                {collectionList.length}
+                                {formatNumber(collectionList.length)}
                             </span>
                             <ChevronDown size={15} className={`transition-transform duration-200 ${collectionsPanelOpen ? 'rotate-180' : ''}`} />
                         </button>
@@ -530,7 +531,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         <div className="flex flex-col min-h-0">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
                                 <Layers size={12} /> Λίστα Συλλογών
-                                <span className="ml-1 bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full text-[9px]">{collectionList.length}</span>
+                                <span className="ml-1 bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full text-[9px]">{formatNumber(collectionList.length)}</span>
                             </label>
                             <div className="flex-1 max-h-56 overflow-y-auto custom-scrollbar -mr-1.5 pr-1.5 space-y-1">
                                 {collectionList.map(c => {
@@ -554,7 +555,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                 {c.description && <div className="text-[10px] text-slate-400 truncate">{c.description}</div>}
                                             </div>
                                             <span className={`shrink-0 text-[10px] font-black px-1.5 py-0.5 rounded-full ${count > 0 ? 'bg-slate-100 text-slate-500' : 'text-slate-300'}`}>
-                                                {count}
+                                                {formatNumber(count)}
                                             </span>
                                             <button
                                                 type="button"
@@ -741,7 +742,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${count > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
-                                                    {count} {count === 1 ? 'προϊόν' : 'προϊόντα'}
+                                                    {formatNumber(count)} {count === 1 ? 'προϊόν' : 'προϊόντα'}
                                                 </span>
                                                 <ArrowRight size={15} className="text-slate-200 group-hover:text-[#060b00] group-hover:translate-x-1 opacity-0 group-hover:opacity-100 transition-all" />
                                             </div>
@@ -758,7 +759,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             ))}
                                             {preview.total > 3 && (
                                                 <div className="w-10 h-10 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-500 shadow-sm">
-                                                    +{preview.total - 3}
+                                                    +{formatNumber(preview.total - 3)}
                                                 </div>
                                             )}
                                             {preview.images.length === 0 && (
@@ -792,7 +793,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wide">Συλλογή</span>
                                             <span className="text-xs font-bold text-slate-400">
-                                                {productsInSelectedCollection.length} {productsInSelectedCollection.length === 1 ? 'προϊόν' : 'προϊόντα'}
+                                                {formatNumber(productsInSelectedCollection.length)} {productsInSelectedCollection.length === 1 ? 'προϊόν' : 'προϊόντα'}
                                             </span>
                                         </div>
                                         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight truncate">{selectedCollection.name}</h2>
@@ -882,7 +883,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                         title={collectionSearch ? 'Αποτελέσματα τρέχουσας αναζήτησης' : 'Σύνολο προϊόντων στη συλλογή'}
                                         className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full text-[10px] font-black"
                                     >
-                                        {visibleCollectionProducts.length}
+                                        {formatNumber(visibleCollectionProducts.length)}
                                     </span>
                                 </h3>
                                 {collectionSearch && (
@@ -923,7 +924,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                     <span className="text-[11px] font-black text-emerald-600">{formatCurrency(p.selling_price)}</span>
                                                 )}
                                                 {(p.variants?.length || 0) > 0 && (
-                                                    <span className="text-[9px] font-bold text-slate-300">· {p.variants!.length} παραλ.</span>
+                                                    <span className="text-[9px] font-bold text-slate-300">· {formatNumber(p.variants!.length)} παραλ.</span>
                                                 )}
                                             </div>
                                         </div>
@@ -996,7 +997,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                     </button>
                                 </div>
                                 <p className="text-[10px] text-purple-600/70 italic ml-1">
-                                    Το AI θα αναλύσει τα {productsInSelectedCollection.length} προϊόντα της συλλογής για να γράψει το κείμενο.
+                                    Το AI θα αναλύσει τα {formatNumber(productsInSelectedCollection.length)} προϊόντα της συλλογής για να γράψει το κείμενο.
                                 </p>
                             </div>
 

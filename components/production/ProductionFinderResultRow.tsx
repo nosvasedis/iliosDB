@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import {
     Check,
@@ -124,7 +125,7 @@ function ProductionFinderResultRow({
                                 <ImageIcon size={16} className="m-auto text-slate-300" />
                             )}
                             <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg leading-none">
-                                x{batch.quantity}
+                                x{formatNumber(batch.quantity)}
                             </div>
                         </div>
 
@@ -139,7 +140,7 @@ function ProductionFinderResultRow({
                                 />
                                 <SpecialCreationNote sku={batch.sku} note={batch.notes} compact />
                                 <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">
-                                    x{batch.quantity}
+                                    x{formatNumber(batch.quantity)}
                                 </span>
                                 {batch.size_info && (
                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1">

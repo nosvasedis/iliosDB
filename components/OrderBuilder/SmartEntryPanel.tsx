@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, ZoomIn } from 'lucide-react';
@@ -272,13 +273,13 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <span>{rangePreview.rows[0]?.displaySku}</span>
                                 <span className="text-emerald-500">→</span>
                                 <span>{rangePreview.rows[rangePreview.rows.length - 1]?.displaySku}</span>
-                                <span className="text-emerald-700">· {readyRangeCount}/{rangePreview.rows.length} έγκυρα</span>
+                                <span className="text-emerald-700">· {formatNumber(readyRangeCount)}/{formatNumber(rangePreview.rows.length)} έγκυρα</span>
                                 {rangePreview.hasSizableRows && <span className="text-slate-500">· μεγέθη</span>}
                             </div>
                         </div>
                         {invalidRangeCount > 0 ? (
                             <div className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">
-                                <AlertTriangle size={12} /> {invalidRangeCount}
+                                <AlertTriangle size={12} /> {formatNumber(invalidRangeCount)}
                             </div>
                         ) : (
                             <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
@@ -633,7 +634,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             <div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Έλεγχος εύρους</h3>
                                 <p className="text-xs text-slate-500 font-bold mt-1">
-                                    {pendingReadyCount}/{pendingRange.rows.length} έγκυρα · ποσότητα {state.scanQty}
+                                    {formatNumber(pendingReadyCount)}/{formatNumber(pendingRange.rows.length)} έγκυρα · ποσότητα {formatNumber(state.scanQty)}
                                 </p>
                             </div>
                             <button
@@ -706,7 +707,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 disabled={pendingReadyCount === 0}
                                 className="px-4 py-2 rounded-xl text-xs font-black text-white bg-[#060b00] hover:bg-black transition-colors disabled:opacity-50"
                             >
-                                Προσθήκη έγκυρων ({pendingReadyCount})
+                                Προσθήκη έγκυρων ({formatNumber(pendingReadyCount)})
                             </button>
                         </div>
                     </div>

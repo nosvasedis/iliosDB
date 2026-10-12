@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -340,7 +341,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         if (cartSearchTerm.trim() && hiddenItemCount > 0) {
             setCartSearchTerm('');
             cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            showToast(`Εμφανίστηκαν ${hiddenItemCount} κρυφές γραμμές. Ελέγξτε τις και πατήστε ξανά αποθήκευση.`, 'info');
+            showToast(`Εμφανίστηκαν ${formatNumber(hiddenItemCount)} κρυφές γραμμές. Ελέγξτε τις και πατήστε ξανά αποθήκευση.`, 'info');
             return;
         }
         if (items.length === 0) {
@@ -357,7 +358,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
             });
             if (conflicts.length > 0) {
                 setConflictingSourceIds(new Set(conflicts.map((conflict) => conflict.sourceId)));
-                showToast(`${conflicts.length} ανάγκ${conflicts.length === 1 ? 'η άλλαξε' : 'ες άλλαξαν'} ή δεσμεύτηκε αλλού. Ελέγξτε τις κόκκινες γραμμές.`, 'error');
+                showToast(`${formatNumber(conflicts.length)} ανάγκ${conflicts.length === 1 ? 'η άλλαξε' : 'ες άλλαξαν'} ή δεσμεύτηκε αλλού. Ελέγξτε τις κόκκινες γραμμές.`, 'error');
                 cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 return;
             }
@@ -427,7 +428,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                         <ChevronDown size={16} className={`ml-auto mt-1 shrink-0 transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
                     </button>
                     <div className="flex shrink-0 items-center gap-1">
-                        <span className="rounded-lg bg-white/80 px-2 py-1 text-[10px] font-black tabular-nums">{needs.length}</span>
+                        <span className="rounded-lg bg-white/80 px-2 py-1 text-[10px] font-black tabular-nums">{formatNumber(needs.length)}</span>
                         <button
                             type="button"
                             onClick={onAddAll}
@@ -482,7 +483,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                 onClick={() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                 className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 active:scale-[0.98]"
                             >
-                                <PackageCheck size={12} /> {items.length} είδη · {totalPieces} τεμ.
+                                <PackageCheck size={12} /> {formatNumber(items.length)} είδη · {formatNumber(totalPieces)} τεμ.
                             </button>
                         </div>
                     </div>
@@ -496,19 +497,19 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                 <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-2 text-indigo-700">
                         <div className="text-[8px] font-black uppercase opacity-70">Παραγωγή</div>
-                        <div className="text-base font-black tabular-nums">{productionNeeds.length}</div>
+                        <div className="text-base font-black tabular-nums">{formatNumber(productionNeeds.length)}</div>
                     </div>
                     <div className="rounded-2xl border border-blue-100 bg-blue-50 p-2 text-blue-700">
                         <div className="text-[8px] font-black uppercase opacity-70">Εκκρεμή</div>
-                        <div className="text-base font-black tabular-nums">{pendingOrderNeeds.length}</div>
+                        <div className="text-base font-black tabular-nums">{formatNumber(pendingOrderNeeds.length)}</div>
                     </div>
                     <div className="rounded-2xl border border-purple-100 bg-purple-50 p-2 text-purple-700">
                         <div className="text-[8px] font-black uppercase opacity-70">Είδη</div>
-                        <div className="text-base font-black tabular-nums">{items.length}</div>
+                        <div className="text-base font-black tabular-nums">{formatNumber(items.length)}</div>
                     </div>
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-2 text-emerald-700">
                         <div className="text-[8px] font-black uppercase opacity-70">Τεμ.</div>
-                        <div className="text-base font-black tabular-nums">{totalPieces}</div>
+                        <div className="text-base font-black tabular-nums">{formatNumber(totalPieces)}</div>
                     </div>
                 </div>
 
@@ -525,7 +526,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
                 {unassignedNeeds.length > 0 && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-900">
-                        {unassignedNeeds.length} ανάγκ{unassignedNeeds.length === 1 ? 'η δεν έχει' : 'ες δεν έχουν'} ορισμένο προμηθευτή και εξαιρέθηκε από την εντολή.
+                        {formatNumber(unassignedNeeds.length)} ανάγκ{unassignedNeeds.length === 1 ? 'η δεν έχει' : 'ες δεν έχουν'} ορισμένο προμηθευτή και εξαιρέθηκε από την εντολή.
                     </div>
                 )}
                 {needsLoading && (
@@ -640,8 +641,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                     <h3 className={sectionTitle}>Περιεχόμενα</h3>
                                 </div>
                                 <p className="mt-1 text-xs font-bold text-slate-500">
-                                    {filteredItems.length}/{items.length} γραμμές ορατές · {totalPieces} τεμάχια
-                                    {hiddenItemCount > 0 ? ` · ${hiddenItemCount} κρυφές` : ''}
+                                    {formatNumber(filteredItems.length)}/{formatNumber(items.length)} γραμμές ορατές · {formatNumber(totalPieces)} τεμάχια
+                                    {hiddenItemCount > 0 ? ` · ${formatNumber(hiddenItemCount)} κρυφές` : ''}
                                 </p>
                             </div>
                             {items.length > 0 && (
@@ -715,7 +716,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                                 onClick={() => removeSourceAllocation(index, allocation.id)}
                                                                 className="inline-flex items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700"
                                                             >
-                                                                {allocation.customer} · {allocation.quantity} <X size={9} />
+                                                                {allocation.customer} · {formatNumber(allocation.quantity)} <X size={9} />
                                                             </button>
                                                         ))}
                                                     </div>
@@ -730,7 +731,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                     <div className="mt-3 grid grid-cols-12 gap-2">
                                         <div className={showSizeInput ? 'col-span-5' : 'col-span-6'}>
                                             <label className={`${fieldLabel} mb-1 block`}>
-                                                {allocatedQty > 0 ? `Έξτρα · ${allocatedQty} δεσμευμένα` : 'Ποσότητα'}
+                                                {allocatedQty > 0 ? `Έξτρα · ${formatNumber(allocatedQty)} δεσμευμένα` : 'Ποσότητα'}
                                             </label>
                                             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                                                 <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">-</button>

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle, Search, Hash, Sparkles, Loader2 } from 'lucide-react';
@@ -314,7 +315,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 text-[11px] font-black">
                     <Sparkles size={12} />
-                    {readyItems.length} γραμμ{readyItems.length !== 1 ? 'ές' : 'ή'} · {totalReadyQty} τεμ. έτοιμα
+                    {formatNumber(readyItems.length)} γραμμ{readyItems.length !== 1 ? 'ές' : 'ή'} · {formatNumber(totalReadyQty)} τεμ. έτοιμα
                   </span>
                   {isFullOrderShipment && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 text-white px-3 py-1 text-[11px] font-black">
@@ -347,8 +348,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-bold text-slate-500">
                   {searchTerm
-                    ? `${filteredReadyItems.length} από ${readyItems.length} γραμμές`
-                    : `${readyItems.length} γραμμές προς επιλογή`}
+                    ? `${formatNumber(filteredReadyItems.length)} από ${formatNumber(readyItems.length)} γραμμές`
+                    : `${formatNumber(readyItems.length)} γραμμές προς επιλογή`}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -478,7 +479,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                       </span>
                     )}
                     <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                      <CheckCircle2 size={10} /> Έτοιμα: {item.quantity}
+                      <CheckCircle2 size={10} /> Έτοιμα: {formatNumber(item.quantity)}
                     </span>
                     <span className="text-[10px] font-mono text-slate-500">
                       {formatCurrency(price)}/τεμ.
@@ -494,7 +495,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                 {isFullOrderShipment ? (
                   <div className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
                     <div className="text-[9px] font-black uppercase tracking-wide text-emerald-600">Ποσότητα</div>
-                    <div className="text-lg font-black text-emerald-800 tabular-nums">{qty}</div>
+                    <div className="text-lg font-black text-emerald-800 tabular-nums">{formatNumber(qty)}</div>
                   </div>
                 ) : (
                   <div className={`flex items-center gap-1.5 shrink-0 rounded-xl border p-1 ${isSelected ? 'border-amber-200 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -507,7 +508,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                       <Minus size={14} />
                     </button>
                     <span className={`w-8 text-center font-black tabular-nums ${isSelected ? 'text-amber-700' : 'text-slate-500'}`}>
-                      {qty}
+                      {formatNumber(qty)}
                     </span>
                     <button
                       type="button"
@@ -546,13 +547,13 @@ export default function ShipmentCreationModal({ order, batches, products, delive
             <span className="text-right font-bold text-slate-900">{formatCurrency(financials.subtotal)}</span>
             {discountPercent > 0 && (
               <>
-                <span className="text-slate-500">Έκπτωση ({discountPercent}%)</span>
+                <span className="text-slate-500">Έκπτωση ({formatNumber(discountPercent)}%)</span>
                 <span className="text-right font-bold text-red-600">-{formatCurrency(financials.discountAmount)}</span>
               </>
             )}
             {vatRate > 0 && (
               <>
-                <span className="text-slate-500">ΦΠΑ ({Math.round(vatRate * 100)}%)</span>
+                <span className="text-slate-500">ΦΠΑ ({formatNumber(Math.round(vatRate * 100))}%)</span>
                 <span className="text-right font-bold text-slate-700">{formatCurrency(financials.vatAmount)}</span>
               </>
             )}
@@ -563,7 +564,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
           {/* Actions */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-500">
-              {totalShippingQty} τεμάχι{totalShippingQty !== 1 ? 'α' : 'ο'} {isFullOrderShipment ? 'προς ολοκληρωτική αποστολή' : 'προς αποστολή'}
+              {formatNumber(totalShippingQty)} τεμάχι{totalShippingQty !== 1 ? 'α' : 'ο'} {isFullOrderShipment ? 'προς ολοκληρωτική αποστολή' : 'προς αποστολή'}
             </span>
             <div className="flex gap-3">
               <button onClick={onClose} className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm">Ακύρωση</button>

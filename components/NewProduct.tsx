@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { Product, Material, Mold, ProductionType } from '../types';
 import { useUI } from './UIProvider';
@@ -115,7 +116,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
                                         }`}>
                                         {isPast
                                             ? <CheckCircle size={12} />
-                                            : <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isCurrent ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{step.id}</span>
+                                            : <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isCurrent ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{formatNumber(step.id)}</span>
                                         }
                                         {step.title}
                                     </div>
@@ -147,7 +148,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
                 </button>
 
                 <div className="text-xs font-bold text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                    Βήμα {state.currentStep} <span className="text-slate-300 font-normal mx-1">/</span> {state.finalStepId}
+                    Βήμα {formatNumber(state.currentStep)} <span className="text-slate-300 font-normal mx-1">/</span> {formatNumber(state.finalStepId)}
                 </div>
 
                 {state.currentStep < state.finalStepId ? (

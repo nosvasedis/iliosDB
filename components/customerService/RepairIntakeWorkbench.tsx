@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Plus, Wrench, X } from 'lucide-react';
 import type { Product, RepairItem, RepairOriginType } from '../../types';
@@ -213,7 +214,7 @@ export default function RepairIntakeWorkbench({
                 <section key={row.id} className={`${CARD} overflow-hidden`}>
                   <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-black text-slate-800">Τεμάχιο {index + 1}</h3>
+                      <h3 className="font-black text-slate-800">Τεμάχιο {formatNumber(index + 1)}</h3>
                       <RepairBadge compact />
                     </div>
                     {rows.length > 1 && !previousRepairItem && (
@@ -372,9 +373,9 @@ export default function RepairIntakeWorkbench({
             <div className={`${CARD} p-4`}>
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Σύνοψη παραλαβής</div>
               <div className="mt-3 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-500">Τεμάχια</span><span className="font-black">{rows.length}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Με SKU</span><span className="font-black">{rows.filter((row) => row.sku).length}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Με περιγραφή</span><span className="font-black">{rows.filter((row) => row.description.trim()).length}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Τεμάχια</span><span className="font-black">{formatNumber(rows.length)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Με SKU</span><span className="font-black">{formatNumber(rows.filter((row) => row.sku).length)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Με περιγραφή</span><span className="font-black">{formatNumber(rows.filter((row) => row.description.trim()).length)}</span></div>
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
                 Τα τεμάχια παραμένουν περιουσία του πελάτη και δεν μπαίνουν στο εταιρικό απόθεμα. Υλικά που θα καταναλωθούν αργότερα αφαιρούνται κανονικά.

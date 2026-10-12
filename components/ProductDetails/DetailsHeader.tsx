@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import {
     Check,
@@ -122,7 +123,7 @@ export default function DetailsHeader({
                     <span className="min-w-0 truncate text-[12px] font-bold text-slate-700">{displayedLabel}</span>
                     {canStep && (
                         <span className="shrink-0 font-mono text-[10px] text-slate-400">
-                            {normalizedViewIndex + 1}/{maxViews}
+                            {formatNumber(normalizedViewIndex + 1)}/{formatNumber(maxViews)}
                         </span>
                     )}
                     <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${isVariantPickerOpen ? 'rotate-180' : ''}`} />
@@ -158,7 +159,7 @@ export default function DetailsHeader({
                                             </div>
                                         </div>
                                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {index + 1}
+                                            {formatNumber(index + 1)}
                                         </span>
                                     </button>
                                 );

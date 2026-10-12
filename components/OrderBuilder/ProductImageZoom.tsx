@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ImageIcon, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -47,7 +48,7 @@ export default function ProductImageZoom({ imageUrl, sku, onClose }: Props) {
                             <ZoomOut size={20} />
                         </button>
                         <button type="button" aria-label="Επαναφορά ζουμ" onClick={() => setZoom(1)} className="min-w-16 p-2 rounded-lg text-sm font-bold hover:bg-white/20">
-                            {Math.round(zoom * 100)}%
+                            {formatNumber(Math.round(zoom * 100))}%
                         </button>
                         <button type="button" aria-label="Μεγέθυνση" disabled={zoom === 3 || imageFailed} onClick={() => setZoom(value => Math.min(3, value + 0.5))} className="p-2 rounded-lg hover:bg-white/20 disabled:opacity-30">
                             <ZoomIn size={20} />

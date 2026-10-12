@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem, PriceSyncPreview } from '../types';
@@ -514,7 +515,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
-            showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών.`, "success");
+            showToast(`Επιτυχής αποστολή ${formatNumber(itemsToSend.length)} ειδών.`, "success");
             setToSendQuantities({});
             setStockDecision(null);
         } catch (e) {
@@ -709,10 +710,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         const skuLabel = `${batch.sku}${batch.variant_suffix || ''}`;
         const lineText = plan.removedLine
             ? 'Η γραμμή θα αφαιρεθεί πλήρως από την παραγγελία.'
-            : `Ποσότητα γραμμής: ${plan.previousQty} → ${plan.nextQty} τεμ.`;
+            : `Ποσότητα γραμμής: ${formatNumber(plan.previousQty)} → ${formatNumber(plan.nextQty)} τεμ.`;
         if (!await confirm({
             title: 'Διαγραφή από Παραγγελία',
-            message: `Η παρτίδα ${skuLabel} (${batch.quantity} τεμ.) θα διαγραφεί από την παραγωγή και από την παραγγελία του πελάτη. ${lineText} Σύνολο παραγγελίας: ${formatCurrency(order.total_price)} → ${formatCurrency(plan.total_price)}. Η Επαναφορά αφήνει το είδος στην παραγγελία.`,
+            message: `Η παρτίδα ${skuLabel} (${formatNumber(batch.quantity)} τεμ.) θα διαγραφεί από την παραγωγή και από την παραγγελία του πελάτη. ${lineText} Σύνολο παραγγελίας: ${formatCurrency(order.total_price)} → ${formatCurrency(plan.total_price)}. Η Επαναφορά αφήνει το είδος στην παραγγελία.`,
             isDestructive: true,
             confirmText: 'Διαγραφή από Παραγγελία',
         })) return;
@@ -758,7 +759,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         const stockHint = batch.type === 'Από Stock' ? ' Η ποσότητα θα επιστραφεί και στο Φυσικό Απόθεμα.' : '';
         if (!await confirm({
             title: 'Επαναφορά παρτίδας',
-            message: `Η παρτίδα ${batchLabel} (${batch.quantity} τεμ.) θα αφαιρεθεί από την παραγωγή.${stockHint}`,
+            message: `Η παρτίδα ${batchLabel} (${formatNumber(batch.quantity)} τεμ.) θα αφαιρεθεί από την παραγωγή.${stockHint}`,
             isDestructive: true, confirmText: 'Επαναφορά'
         })) return;
         markMoving([batch.id], true);
@@ -775,7 +776,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         if (batchIds.length === 0) return;
         if (!await confirm({
             title: 'Μαζική Επαναφορά από Παραγωγή',
-            message: `${batchIds.length} ${batchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'} θα αφαιρεθούν από την παραγωγή. Τυχόν ποσότητες με πηγή το δεσμευμένο απόθεμα θα αποδεσμευτούν σύμφωνα με την κατάσταση εκπλήρωσης.`,
+            message: `${formatNumber(batchIds.length)} ${batchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'} θα αφαιρεθούν από την παραγωγή. Τυχόν ποσότητες με πηγή το δεσμευμένο απόθεμα θα αποδεσμευτούν σύμφωνα με την κατάσταση εκπλήρωσης.`,
             isDestructive: true, confirmText: 'Επαναφορά',
         })) return;
         markMoving(batchIds, true);
@@ -785,7 +786,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             }
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             clearBatchSelection(batchIds);
-            showToast(`${batchIds.length} ${batchIds.length === 1 ? 'παρτίδα επανήλθε' : 'παρτίδες επανήλθαν'} επιτυχώς.`, "success");
+            showToast(`${formatNumber(batchIds.length)} ${batchIds.length === 1 ? 'παρτίδα επανήλθε' : 'παρτίδες επανήλθαν'} επιτυχώς.`, "success");
         } catch (e) { showToast("Σφάλμα κατά τη μαζική επαναφορά.", "error"); }
         finally { markMoving(batchIds, false); }
     }, [selectedBatchIds, movingBatchIds, markMoving, clearBatchSelection, queryClient, showToast, confirm]);
@@ -794,7 +795,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         if (isWorking || shipmentHistory.length < 2) return;
         if (!await confirm({
             title: 'Συγχώνευση Τμημάτων',
-            message: `Τα ${shipmentHistory.length} τμήματα θα ενοποιηθούν σε ένα.`,
+            message: `Τα ${formatNumber(shipmentHistory.length)} τμήματα θα ενοποιηθούν σε ένα.`,
             confirmText: 'Συγχώνευση', cancelText: 'Ακύρωση',
         })) return;
         const earliestGroup = shipmentHistory[shipmentHistory.length - 1];
@@ -881,7 +882,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             await Promise.all(ops);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             clearBatchSelection(targetIds);
-            showToast(`${movedCount} μετακινήθηκαν${skippedCount > 0 ? `, ${skippedCount} παραλείφθηκαν` : ''}.`, movedCount > 0 ? "success" : "info");
+            showToast(`${formatNumber(movedCount)} μετακινήθηκαν${skippedCount > 0 ? `, ${formatNumber(skippedCount)} παραλείφθηκαν` : ''}.`, movedCount > 0 ? "success" : "info");
         } catch (e) {
             rollbackBatchesCache(snapshot);
             showToast("Σφάλμα μαζικής μετακίνησης.", "error");
@@ -897,7 +898,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         const totalQty = batchesToMerge.reduce((sum, b) => sum + b.quantity, 0);
         if (!await confirm({
             title: 'Συγχώνευση Παρτίδων',
-            message: `${batchesToMerge.length} παρτίδες → 1 × ${totalQty} τεμ.`,
+            message: `${formatNumber(batchesToMerge.length)} παρτίδες → 1 × ${formatNumber(totalQty)} τεμ.`,
             confirmText: 'Συγχώνευση'
         })) return;
         markMoving(ids, true);
@@ -964,7 +965,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             };
             await productionRepository.splitBatch(batch.id, splitTarget.maxQty - splitQty, newBatchData);
             await invalidateProductionBatches(queryClient);
-            showToast(`Διαχωρισμός ${splitQty} τεμ. επιτυχής.`, "success");
+            showToast(`Διαχωρισμός ${formatNumber(splitQty)} τεμ. επιτυχής.`, "success");
             setSplitTarget(null);
         } catch (e) { showToast("Σφάλμα.", "error"); }
         finally { markMoving([batch.id], false); }
@@ -994,7 +995,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 bulkNoteBatchIds.map(id => productionRepository.updateBatchNotes(id, bulkNoteText || null))
             );
             await invalidateProductionBatches(queryClient);
-            showToast(`Η σημείωση αποθηκεύτηκε σε ${bulkNoteBatchIds.length} παρτίδες.`, 'success');
+            showToast(`Η σημείωση αποθηκεύτηκε σε ${formatNumber(bulkNoteBatchIds.length)} παρτίδες.`, 'success');
             setBulkNoteOpen(false);
             setBulkNoteText('');
             setBulkNoteBatchIds([]);
@@ -1058,7 +1059,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 revertedBy: userName,
             });
             await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-            showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+            showToast(`Η αποστολή #${formatNumber(shipment.shipment_number)} αναιρέθηκε επιτυχώς.`, 'success');
             setShipmentUndoRequest(null);
         } catch (e: any) {
             showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
@@ -1104,7 +1105,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         setPriceSyncPreview(null);
         setIsApplyingPriceSync(false);
         showToast(
-            `Ενημερώθηκαν οι τιμές σε ${priceSyncPreview.updatedCount} είδη. Θα αποθηκευτούν όταν κλείσετε τη διαχείριση παραγωγής.`,
+            `Ενημερώθηκαν οι τιμές σε ${formatNumber(priceSyncPreview.updatedCount)} είδη. Θα αποθηκευτούν όταν κλείσετε τη διαχείριση παραγωγής.`,
             'info'
         );
     }, [priceSyncPreview, order, showToast]);
@@ -1284,14 +1285,14 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 Εκκρεμή για Παραγωγή
                                             </div>
                                             <span className="text-[11px] font-black text-amber-700 bg-white/70 border border-amber-200 px-2 py-1 rounded-md">
-                                                Ορατό υπόλοιπο: {sendSelectionSummary.visiblePendingQty}
+                                                Ορατό υπόλοιπο: {formatNumber(sendSelectionSummary.visiblePendingQty)}
                                             </span>
                                             <span className="text-[11px] font-black text-emerald-700 bg-white/70 border border-emerald-200 px-2 py-1 rounded-md">
-                                                Επιλεγμένα: {sendSelectionSummary.totalSelectedQty} τεμ. / {sendSelectionSummary.selectedLineCount} γραμμ.
+                                                Επιλεγμένα: {formatNumber(sendSelectionSummary.totalSelectedQty)} τεμ. / {formatNumber(sendSelectionSummary.selectedLineCount)} γραμμ.
                                             </span>
                                             {sendSelectionSummary.hiddenSelectedQty > 0 && (
                                                 <span className="text-[11px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md">
-                                                    +{sendSelectionSummary.hiddenSelectedQty} κρυφά από φίλτρα
+                                                    +{formatNumber(sendSelectionSummary.hiddenSelectedQty)} κρυφά από φίλτρα
                                                 </span>
                                             )}
                                         </div>
@@ -1347,9 +1348,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 Καθαρ.
                                             </button>
                                             <span className="text-[11px] font-black text-slate-500">
-                                                Επιλ: <span className="text-slate-900">{totalSelectedCount}</span>
+                                                Επιλ: <span className="text-slate-900">{formatNumber(totalSelectedCount)}</span>
                                                 {(searchTerm || filterStage !== PRODUCTION_SEND_STAGE_FILTER_ALL) && selectedVisibleActiveCount !== totalSelectedCount && (
-                                                    <span className="text-slate-400 ml-1">({selectedVisibleActiveCount} ορατές)</span>
+                                                    <span className="text-slate-400 ml-1">({formatNumber(selectedVisibleActiveCount)} ορατές)</span>
                                                 )}
                                             </span>
                                             <button
@@ -1359,7 +1360,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 title="Επαναφορά επιλεγμένων παρτίδων από παραγωγή"
                                             >
                                                 <RotateCcw size={12} strokeWidth={2.5} />
-                                                Επαναφορά ({totalSelectedCount})
+                                                Επαναφορά ({formatNumber(totalSelectedCount)})
                                             </button>
                                             <button
                                                 onClick={() => openBulkNoteModal(Array.from(selectedBatchIds))}
@@ -1368,7 +1369,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 title="Σημείωση σε όλες τις επιλεγμένες παρτίδες"
                                             >
                                                 <StickyNote size={12} />
-                                                Σημείωση ({totalSelectedCount})
+                                                Σημείωση ({formatNumber(totalSelectedCount)})
                                             </button>
                                         </div>
                                         <BulkStageActions
@@ -1462,7 +1463,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             </h3>
                             <div className="flex justify-between items-end">
                                 <div>
-                                    <div className="text-3xl font-black tracking-tight text-slate-950">{totalToSend} <span className="text-base font-medium text-slate-500">τεμ</span></div>
+                                    <div className="text-3xl font-black tracking-tight text-slate-950">{formatNumber(totalToSend)} <span className="text-base font-medium text-slate-500">τεμ</span></div>
                                     <div className="text-[10px] text-slate-500 font-bold mt-0.5">Επιλεγμένα Είδη</div>
                                 </div>
                                 <div className="text-right">
@@ -1481,17 +1482,17 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
                                 <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
                                     <div className="text-slate-500 uppercase tracking-widest">Γραμμές</div>
-                                    <div className="text-slate-950 text-sm">{sendSelectionSummary.selectedLineCount}</div>
+                                    <div className="text-slate-950 text-sm">{formatNumber(sendSelectionSummary.selectedLineCount)}</div>
                                 </div>
                                 <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
                                     <div className="text-slate-500 uppercase tracking-widest">Υπόλοιπο</div>
-                                    <div className="text-slate-950 text-sm">{sendSelectionSummary.totalPendingQty}</div>
+                                    <div className="text-slate-950 text-sm">{formatNumber(sendSelectionSummary.totalPendingQty)}</div>
                                 </div>
                             </div>
                             {sendSelectionSummary.hiddenSelectedQty > 0 && (
                                 <div className="flex items-start gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-2.5 py-2 text-[10px] font-bold text-orange-700 leading-snug">
                                     <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                                    <span>{sendSelectionSummary.hiddenSelectedQty} επιλεγμένα τεμ. είναι κρυφά από τα τρέχοντα φίλτρα.</span>
+                                    <span>{formatNumber(sendSelectionSummary.hiddenSelectedQty)} επιλεγμένα τεμ. είναι κρυφά από τα τρέχοντα φίλτρα.</span>
                                 </div>
                             )}
                         </div>
@@ -1531,8 +1532,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             {isShipmentReadinessLoading
                                                 ? 'Έλεγχος παλαιότερων αποστολών και έτοιμων παρτίδων'
                                                 : isFullyReadyToShip
-                                                ? `Όλα τα ${readyCount} τεμ. έτοιμα · ολοκλήρωση παραγγελίας`
-                                                : `${readyCount} τεμ. έτοιμα`}
+                                                ? `Όλα τα ${formatNumber(readyCount)} τεμ. έτοιμα · ολοκλήρωση παραγγελίας`
+                                                : `${formatNumber(readyCount)} τεμ. έτοιμα`}
                                         </div>
                                     </div>
                                     <Send size={12} className={`shrink-0 ${isFullyReadyToShip ? 'text-emerald-500' : 'text-amber-500'}`} />
@@ -1557,17 +1558,17 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 <div key={shipment.id} className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-sm">
                                                     <div className="flex items-center justify-between mb-1">
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full uppercase tracking-wide">#{shipment.shipment_number}</span>
+                                                            <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full uppercase tracking-wide">#{formatNumber(shipment.shipment_number)}</span>
                                                             <span className="text-[11px] font-bold text-slate-700">{prettyDate}</span>
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{totalQty} τεμ.</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{formatNumber(totalQty)} τεμ.</span>
                                                     </div>
                                                     {shipment.shipped_by && (
                                                         <div className="text-[9px] text-slate-400 mb-1.5 flex items-center gap-1"><User size={9} /> {shipment.shipped_by}</div>
                                                     )}
                                                     <div className="space-y-0.5 text-[11px]">
                                                         <div className="flex justify-between text-slate-500"><span>Καθαρή:</span><span className="font-mono font-bold">{formatCurrency(net)}</span></div>
-                                                        <div className="flex justify-between text-slate-500"><span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span><span className="font-mono font-bold">{formatCurrency(vat)}</span></div>
+                                                        <div className="flex justify-between text-slate-500"><span>ΦΠΑ ({formatDecimal((vatRate * 100), 0)}%):</span><span className="font-mono font-bold">{formatCurrency(vat)}</span></div>
                                                         <div className="flex justify-between font-black text-slate-800 border-t border-slate-100 pt-0.5 mt-0.5"><span>Σύνολο:</span><span>{formatCurrency(total)}</span></div>
                                                     </div>
                                                     {onPrintShipment && (
@@ -1585,7 +1586,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                             className="w-full py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded-lg text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors mt-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
                                                             {isUndoingShipment ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                            Αναίρεση Αποστολής #{shipment.shipment_number}
+                                                            Αναίρεση Αποστολής #{formatNumber(shipment.shipment_number)}
                                                         </button>
                                                     ) : (
                                                         <div className="mt-1.5 rounded-lg bg-slate-50 border border-slate-100 px-2 py-1.5 text-[9px] font-bold text-slate-400 flex items-start gap-1.5">
@@ -1622,11 +1623,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         <div key={dateKey} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors mb-2">
                                             <div className="flex justify-between items-start mb-1.5">
                                                 <div className="text-[11px] font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
-                                                <div className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{totalItems} τεμ.</div>
+                                                <div className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{formatNumber(totalItems)} τεμ.</div>
                                             </div>
                                             <div className="space-y-0.5 mb-2 text-[11px]">
                                                 <div className="flex justify-between text-slate-500"><span>Καθαρή:</span><span className="font-mono font-bold">{formatCurrency(net)}</span></div>
-                                                <div className="flex justify-between text-slate-500"><span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span><span className="font-mono font-bold">{formatCurrency(vat)}</span></div>
+                                                <div className="flex justify-between text-slate-500"><span>ΦΠΑ ({formatDecimal((vatRate * 100), 0)}%):</span><span className="font-mono font-bold">{formatCurrency(vat)}</span></div>
                                                 <div className="flex justify-between text-xs font-black text-slate-800 border-t border-slate-100 pt-0.5 mt-0.5"><span>Σύνολο:</span><span>{formatCurrency(total)}</span></div>
                                             </div>
                                             {onPrintAggregated && (
@@ -1659,9 +1660,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 </button>
                             </div>
                             <div className="space-y-1 text-[11px] pt-2 border-t border-slate-100">
-                                <div className="flex justify-between text-slate-500"><span>Σύνολο Παραγγελίας:</span><span className="font-bold text-slate-900">{order.items.reduce((s, i) => s + i.quantity, 0)}</span></div>
-                                <div className="flex justify-between text-slate-500"><span>Σε Παραγωγή / Έτοιμα:</span><span className="font-bold text-blue-600">{rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0)}</span></div>
-                                <div className="flex justify-between text-slate-500"><span>Υπόλοιπο:</span><span className="font-bold text-amber-600">{totalRemaining}</span></div>
+                                <div className="flex justify-between text-slate-500"><span>Σύνολο Παραγγελίας:</span><span className="font-bold text-slate-900">{formatNumber(order.items.reduce((s, i) => s + i.quantity, 0))}</span></div>
+                                <div className="flex justify-between text-slate-500"><span>Σε Παραγωγή / Έτοιμα:</span><span className="font-bold text-blue-600">{formatNumber(rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0))}</span></div>
+                                <div className="flex justify-between text-slate-500"><span>Υπόλοιπο:</span><span className="font-bold text-amber-600">{formatNumber(totalRemaining)}</span></div>
                             </div>
                         </div>
                     </div>
@@ -1682,10 +1683,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <div className="text-xs font-bold text-slate-400 uppercase mb-1">Μετακίνηση Ποσότητας</div>
                             <div className="flex items-center justify-center gap-4">
                                 <button onClick={() => setSplitQty(Math.max(1, splitQty - 1))} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-lg text-slate-600 hover:bg-slate-200">-</button>
-                                <span className="text-2xl font-black text-slate-900 w-14 text-center">{splitQty}</span>
+                                <span className="text-2xl font-black text-slate-900 w-14 text-center">{formatNumber(splitQty)}</span>
                                 <button onClick={() => setSplitQty(Math.min(splitTarget.maxQty, splitQty + 1))} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-lg text-slate-600 hover:bg-slate-200">+</button>
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-1 font-bold">από {splitTarget.maxQty}</div>
+                            <div className="text-[10px] text-slate-400 mt-1 font-bold">από {formatNumber(splitTarget.maxQty)}</div>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σε Στάδιο</label>
@@ -1729,7 +1730,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Μαζική Σημείωση</h3>
                             <button onClick={() => { if (!isSavingBulkNote) setBulkNoteOpen(false); }} disabled={isSavingBulkNote}><X size={18} className="text-slate-400" /></button>
                         </div>
-                        <p className="text-xs font-bold text-slate-500">Εφαρμογή σε {bulkNoteBatchIds.length} {bulkNoteBatchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'}.</p>
+                        <p className="text-xs font-bold text-slate-500">Εφαρμογή σε {formatNumber(bulkNoteBatchIds.length)} {bulkNoteBatchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'}.</p>
                         <textarea
                             value={bulkNoteText}
                             onChange={(e) => setBulkNoteText(e.target.value)}
@@ -1799,8 +1800,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     </h3>
                                     <p className="text-white/80 text-xs font-bold uppercase tracking-widest">
                                         {isPopupSearchActive
-                                            ? `${visiblePopupBatches.length}/${popupBatches.length} παρτίδες · ${visiblePopupTotalQty}/${popupTotalQty} τεμάχια`
-                                            : `${popupTotalQty} τεμάχια`}
+                                            ? `${formatNumber(visiblePopupBatches.length)}/${formatNumber(popupBatches.length)} παρτίδες · ${formatNumber(visiblePopupTotalQty)}/${formatNumber(popupTotalQty)} τεμάχια`
+                                            : `${formatNumber(popupTotalQty)} τεμάχια`}
                                     </p>
                                 </div>
                             </div>
@@ -1841,11 +1842,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     <Package size={13} />
                                     Αναμονή Αποστολής
                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingPopupTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
-                                        {polishingSplit.pendingCount}
+                                        {formatNumber(polishingSplit.pendingCount)}
                                     </span>
                                     {polishingSplit.pendingOnHold > 0 && (
                                         <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 ${polishingPopupTab === 'pending' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
-                                            <PauseCircle size={9} className="fill-current shrink-0" />{polishingSplit.pendingOnHold}
+                                            <PauseCircle size={9} className="fill-current shrink-0" />{formatNumber(polishingSplit.pendingOnHold)}
                                         </span>
                                     )}
                                 </button>
@@ -1860,11 +1861,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     <Factory size={13} />
                                     Στον Τεχνίτη
                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingPopupTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
-                                        {polishingSplit.dispatchedCount}
+                                        {formatNumber(polishingSplit.dispatchedCount)}
                                     </span>
                                     {polishingSplit.dispatchedOnHold > 0 && (
                                         <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 ${polishingPopupTab === 'dispatched' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
-                                            <PauseCircle size={9} className="fill-current shrink-0" />{polishingSplit.dispatchedOnHold}
+                                            <PauseCircle size={9} className="fill-current shrink-0" />{formatNumber(polishingSplit.dispatchedOnHold)}
                                         </span>
                                     )}
                                 </button>
@@ -1895,11 +1896,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <span className="text-[11px] font-black text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5">
-                                        {visiblePopupBatches.length}/{popupBatches.length} παρτίδες
+                                        {formatNumber(visiblePopupBatches.length)}/{formatNumber(popupBatches.length)} παρτίδες
                                     </span>
                                     {isPopupSearchActive && (
                                         <span className="text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5">
-                                            {visiblePopupTotalQty} τεμ.
+                                            {formatNumber(visiblePopupTotalQty)} τεμ.
                                         </span>
                                     )}
                                 </div>
@@ -1923,7 +1924,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     className="px-2.5 py-1 rounded-md text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
                                                     Καθαρ.
                                                 </button>
-                                                <span className="text-[11px] font-black text-slate-500">Επιλ: <span className="text-slate-900">{selectedVisiblePopupCount}</span></span>
+                                                <span className="text-[11px] font-black text-slate-500">Επιλ: <span className="text-slate-900">{formatNumber(selectedVisiblePopupCount)}</span></span>
                                                 <button
                                                     onClick={() => openBulkNoteModal(visiblePopupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id))}
                                                     disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
@@ -1931,7 +1932,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     title="Σημείωση στις επιλεγμένες παρτίδες του σταδίου"
                                                 >
                                                     <StickyNote size={12} />
-                                                    Σημείωση ({selectedVisiblePopupCount})
+                                                    Σημείωση ({formatNumber(selectedVisiblePopupCount)})
                                                 </button>
                                             </div>
                                             <BulkStageActions
@@ -2000,7 +2001,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                                 </div>
                                                                 <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
                                                                     <span className="text-[8px] font-bold text-slate-400 uppercase">Ποσ.</span>
-                                                                    <span className="text-lg font-black text-slate-900">{batch.quantity}</span>
+                                                                    <span className="text-lg font-black text-slate-900">{formatNumber(batch.quantity)}</span>
                                                                 </div>
                                                             </div>
 
@@ -2104,14 +2105,14 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     {item.size_info && <span className="text-[10px] text-slate-500 font-bold">#{item.size_info}</span>}
                                                 </div>
                                                 <div className="text-[10px] text-slate-500 font-medium">
-                                                    Ζητούμενα: <span className="font-bold text-slate-700">{item.requested_qty}</span> · Δεσμευμένα: <span className={`font-bold ${hasStock ? 'text-emerald-600' : 'text-slate-400'}`}>{item.available_in_stock}</span>
+                                                    Ζητούμενα: <span className="font-bold text-slate-700">{formatNumber(item.requested_qty)}</span> · Δεσμευμένα: <span className={`font-bold ${hasStock ? 'text-emerald-600' : 'text-slate-400'}`}>{formatNumber(item.available_in_stock)}</span>
                                                 </div>
                                             </div>
                                         </div>
                                         {hasStock && (
                                             <div className="mt-2 flex items-center gap-2.5">
-                                                <span className="text-xs font-bold text-emerald-700">Από δεσμευμένο απόθεμα: {item.fromStock}</span>
-                                                <span className="text-xs text-slate-500 font-medium">Προς παραγωγή/προμήθεια: {item.requested_qty - item.fromStock}</span>
+                                                <span className="text-xs font-bold text-emerald-700">Από δεσμευμένο απόθεμα: {formatNumber(item.fromStock)}</span>
+                                                <span className="text-xs text-slate-500 font-medium">Προς παραγωγή/προμήθεια: {formatNumber(item.requested_qty - item.fromStock)}</span>
                                             </div>
                                         )}
                                     </div>

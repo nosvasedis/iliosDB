@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { ArrowRight, CheckCircle2, Copy, FileCheck2, Loader2, X } from 'lucide-react';
@@ -84,7 +85,7 @@ export default function ProformaConvertModal({
 
               <div className="rounded-xl border border-slate-200">
                 <div className="border-b border-slate-100 px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Γραμμές ({lines.length})
+                  Γραμμές ({formatNumber(lines.length)})
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   <table className="min-w-full text-sm">
@@ -102,7 +103,7 @@ export default function ProformaConvertModal({
                             <div className="font-semibold text-slate-800">{line.description}</div>
                             {line.item_code && <div className="font-mono text-xs text-slate-500">{line.item_code}</div>}
                           </td>
-                          <td className="px-4 py-2 text-right font-medium">{line.quantity}</td>
+                          <td className="px-4 py-2 text-right font-medium">{formatNumber(line.quantity)}</td>
                           <td className="px-4 py-2 text-right font-black">{money(line.gross_value)}</td>
                         </tr>
                       ))}

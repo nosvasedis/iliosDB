@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Plus, Trash2, Layers, Zap } from 'lucide-react';
 import { ProductionType, Gender } from '../../types';
@@ -103,7 +104,7 @@ export const StepVariants: React.FC<Props> = ({ formState, settings, materials, 
                                     <div className="w-24 bg-slate-50 text-slate-700 font-black text-base rounded-lg px-2.5 py-1.5 border border-slate-200 text-right">
                                         {formatCurrency(variant.selling_price || state.sellingPrice || 0)}
                                     </div>
-                                    <div className="text-[9px] text-slate-400 mt-1">Ορισμός στο Βήμα {state.finalStepId}</div>
+                                    <div className="text-[9px] text-slate-400 mt-1">Ορισμός στο Βήμα {formatNumber(state.finalStepId)}</div>
                                 </div>
                             )}
 

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Order, OrderStatus, ProductionBatch, ProductionStage } from '../../types';
@@ -139,7 +140,7 @@ function StageStripAndPills(props: {
             }}
             title={
               segment.kind === 'stage' && segment.stage !== undefined
-                ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
+                ? `${getProductionStageLabel(segment.stage)}: ${formatNumber(segment.quantity)} τεμ.`
                 : unbatchedSegmentTitle
             }
           />
@@ -159,7 +160,7 @@ function StageStripAndPills(props: {
               }`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
-            <span className="shrink-0 text-[9px] tabular-nums">{segment.quantity}</span>
+            <span className="shrink-0 text-[9px] tabular-nums">{formatNumber(segment.quantity)}</span>
             <span className="min-w-0 truncate text-[9px]">{getSegmentPillName(segment, unbatchedPillLabel)}</span>
           </span>
         ))}
@@ -188,7 +189,7 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
         {segments.map((segment, index) => {
           const isUnbatched = segment.kind === 'unbatched';
           const label = segment.kind === 'stage' && segment.stage !== undefined
-            ? `${getStageSegmentLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
+            ? `${getStageSegmentLabel(segment.stage, segment.pendingDispatch)}: ${formatNumber(segment.quantity)} τεμ.`
             : unbatchedSegmentTitle;
           return (
             <div
@@ -208,16 +209,16 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
           <span
             className="inline-flex max-w-full overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm"
             style={{ order: polishingPillOrder }}
-            title={`Τεχνίτης • Αναμονή: ${polishingPendingQty} τεμ. · Τεχνίτης • Στον Τεχνίτη: ${polishingDispatchedQty} τεμ.`}
+            title={`Τεχνίτης • Αναμονή: ${formatNumber(polishingPendingQty)} τεμ. · Τεχνίτης • Στον Τεχνίτη: ${formatNumber(polishingDispatchedQty)} τεμ.`}
           >
             <span className="inline-flex min-w-0 items-center gap-1 border-r border-teal-100 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-700">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-              <span className="shrink-0 tabular-nums">{polishingPendingQty}</span>
+              <span className="shrink-0 tabular-nums">{formatNumber(polishingPendingQty)}</span>
               <span className="min-w-0 truncate">Αναμονή</span>
             </span>
             <span className="inline-flex min-w-0 items-center gap-1 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-              <span className="shrink-0 tabular-nums">{polishingDispatchedQty}</span>
+              <span className="shrink-0 tabular-nums">{formatNumber(polishingDispatchedQty)}</span>
               <span className="min-w-0 truncate">Στον Τεχν.</span>
             </span>
           </span>
@@ -232,7 +233,7 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStageSegmentBarClass(segment)}`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
-            <span className="shrink-0 text-[9px] tabular-nums">{segment.quantity}</span>
+            <span className="shrink-0 text-[9px] tabular-nums">{formatNumber(segment.quantity)}</span>
             <span className="min-w-0 truncate text-[9px]">{getSegmentPillName(segment, unbatchedPillLabel)}</span>
           </span>
         ))}
@@ -279,7 +280,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
   );
 
   if (partial && partial.segments.length > 0) {
-    const mainTitle = `${partial.summaryTitle} · Σύνολο παραγγελίας: ${partial.itemsTotal} τεμ. · Ποσοστό ολοκλήρωσης: ${partial.overallCompletePercent}% (παραδοθέντα + έτοιμα) · Γκρι σκούρο=παραδόθηκαν, πράσινο=έτοιμα (προς αποστολή), κεχριμπάρι=σε παραγωγή, γκρι ανοιχτό=χωρίς ενεργή παραγωγή`;
+    const mainTitle = `${partial.summaryTitle} · Σύνολο παραγγελίας: ${formatNumber(partial.itemsTotal)} τεμ. · Ποσοστό ολοκλήρωσης: ${formatNumber(partial.overallCompletePercent)}% (παραδοθέντα + έτοιμα) · Γκρι σκούρο=παραδόθηκαν, πράσινο=έτοιμα (προς αποστολή), κεχριμπάρι=σε παραγωγή, γκρι ανοιχτό=χωρίς ενεργή παραγωγή`;
 
     const bar = (
       <div className={`flex flex-1 min-w-[56px] ${h} rounded-full overflow-hidden border border-slate-200 bg-slate-100`}>
@@ -298,7 +299,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
       <span
         className={`font-black text-slate-500 tabular-nums shrink-0 min-w-[2.25rem] text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
       >
-        {partial.overallCompletePercent}%
+        {formatNumber(partial.overallCompletePercent)}%
       </span>
     );
 
@@ -325,7 +326,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
           <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-amber-100 bg-gradient-to-br from-slate-50 to-amber-50/35 px-2.5 py-2 shadow-sm duration-200">
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-amber-800/90">Μερική παράδοση · ανάλυση σταδίων</div>
             <p className="mt-1 text-[9px] font-medium leading-snug text-slate-600">
-              Η μπάρα ανά στάδιο αφορά μόνο τα <span className="font-bold text-slate-800">{partial.batchTotal}</span> τεμ. που
+              Η μπάρα ανά στάδιο αφορά μόνο τα <span className="font-bold text-slate-800">{formatNumber(partial.batchTotal)}</span> τεμ. που
               βρίσκονται ακόμη σε παρτίδες παραγωγής. Τα παραδοθέντα και το ανοιχτό γκρι της κύριας μπάρας δεν εμφανίζονται
               εδώ ως «στάδιο».
             </p>
@@ -346,22 +347,22 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
             <div className="mt-2 flex flex-wrap gap-1 border-t border-amber-100/80 pt-2">
               {partial.shippedQty > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-700/95 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
-                  Παραδόθηκαν · {partial.shippedQty}
+                  Παραδόθηκαν · {formatNumber(partial.shippedQty)}
                 </span>
               )}
               {partial.remainderQty > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-300/90 px-2 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
-                  Χωρίς ενεργή παραγωγή · {partial.remainderQty}
+                  Χωρίς ενεργή παραγωγή · {formatNumber(partial.remainderQty)}
                 </span>
               )}
               {partial.readyQty > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
-                  Έτοιμα (σύνολο) · {partial.readyQty}
+                  Έτοιμα (σύνολο) · {formatNumber(partial.readyQty)}
                 </span>
               )}
               {partial.wipQty > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-900">
-                  Σε παραγωγή (σύνολο) · {partial.wipQty}
+                  Σε παραγωγή (σύνολο) · {formatNumber(partial.wipQty)}
                 </span>
               )}
             </div>
@@ -372,7 +373,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
   }
 
   if (inProd && inProd.segments.length > 0) {
-    const title = `${inProd.summaryTitle} · Σύνολο παραγγελίας: ${inProd.itemsTotal} τεμ. · Ποσοστό: ${inProd.readyPercentVsOrder}% έτοιμα ως προς όλη την παραγγελία · Πράσινο=έτοιμα, κεχριμπάρι=σε παραγωγή (όλα τα στάδια πλην έτοιμων), γκρι ανοιχτό=δεν έχουν μπει ακόμη σε παρτίδα παραγωγής`;
+    const title = `${inProd.summaryTitle} · Σύνολο παραγγελίας: ${formatNumber(inProd.itemsTotal)} τεμ. · Ποσοστό: ${formatNumber(inProd.readyPercentVsOrder)}% έτοιμα ως προς όλη την παραγγελία · Πράσινο=έτοιμα, κεχριμπάρι=σε παραγωγή (όλα τα στάδια πλην έτοιμων), γκρι ανοιχτό=δεν έχουν μπει ακόμη σε παρτίδα παραγωγής`;
 
     const bar = (
       <div className={`flex flex-1 min-w-[56px] ${h} rounded-full overflow-hidden border border-slate-200 bg-slate-100`}>
@@ -391,7 +392,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
       <span
         className={`font-black text-slate-500 tabular-nums shrink-0 min-w-[2.25rem] text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
       >
-        {inProd.readyPercentVsOrder}%
+        {formatNumber(inProd.readyPercentVsOrder)}%
       </span>
     );
 
@@ -422,7 +423,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
             <StageStripAndPillsWithPolishingSplit
               segments={stageBreakdown.segments}
               unbatchedPillLabel="Χωρίς παρτίδα"
-              unbatchedSegmentTitle={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${stageBreakdown.segments.find((s) => s.kind === 'unbatched')?.quantity ?? 0} τεμ.`}
+              unbatchedSegmentTitle={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${formatNumber(stageBreakdown.segments.find((s) => s.kind === 'unbatched')?.quantity ?? 0)} τεμ.`}
             />
             {stageBreakdown.assignedQty < stageBreakdown.totalQty && (
               <p className="mt-1.5 text-[9px] font-medium leading-snug text-slate-500">

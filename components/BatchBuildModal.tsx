@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
@@ -305,7 +306,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
 
                         <div className="text-right bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100">
                             <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Ποσοτητα Παρτιδας</div>
-                            <div className="text-4xl font-black text-emerald-700 leading-none">{batch.quantity}</div>
+                            <div className="text-4xl font-black text-emerald-700 leading-none">{formatNumber(batch.quantity)}</div>
                         </div>
                         <button onClick={onClose} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
                             <X size={24}/>
@@ -456,7 +457,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-black text-slate-800 text-lg">{m.code}</span>
                                                             <span className="text-xs font-bold bg-white text-orange-600 px-2 py-0.5 rounded-md border border-orange-200">
-                                                                x{m.quantity}
+                                                                x{formatNumber(m.quantity)}
                                                             </span>
                                                         </div>
                                                         <span className="text-xs text-slate-500">{m.description}</span>
@@ -492,7 +493,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                     <Box size={18} className="text-blue-500"/> Υλικά & Εξαρτήματα
                                 </h3>
-                                <p className="text-xs text-slate-400 mt-1">Λίστα συλλογής για {batch.quantity} τεμάχια.</p>
+                                <p className="text-xs text-slate-400 mt-1">Λίστα συλλογής για {formatNumber(batch.quantity)} τεμάχια.</p>
                             </div>
                             
                             <div className="flex-1 overflow-auto">

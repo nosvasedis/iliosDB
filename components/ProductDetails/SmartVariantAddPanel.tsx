@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Gem, Info, Plus, Wand2 } from 'lucide-react';
 import { Gender, Product, ProductVariant } from '../../types';
@@ -186,7 +187,7 @@ export default function SmartVariantAddPanel({
       showToast(
         result.addedCount === 1
           ? 'Προστέθηκε 1 παραλλαγή'
-          : `Προστέθηκαν ${result.addedCount} παραλλαγές`,
+          : `Προστέθηκαν ${formatNumber(result.addedCount)} παραλλαγές`,
         'success',
       );
     } else {

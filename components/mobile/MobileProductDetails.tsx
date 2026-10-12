@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera, Trash2 } from 'lucide-react';
@@ -430,9 +431,9 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               <div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase">{label}</div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-                      <span>Φυσικό: <strong className="text-slate-900">{onHand}</strong></span>
-                      <span>Δεσμευμένο: <strong className="text-amber-700">{reserved}</strong></span>
-                      <span>Διαθέσιμο: <strong className="text-emerald-700">{available}</strong></span>
+                      <span>Φυσικό: <strong className="text-slate-900">{formatNumber(onHand)}</strong></span>
+                      <span>Δεσμευμένο: <strong className="text-amber-700">{formatNumber(reserved)}</strong></span>
+                      <span>Διαθέσιμο: <strong className="text-emerald-700">{formatNumber(available)}</strong></span>
                   </div>
               </div>
           </div>
@@ -484,7 +485,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                         <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">{displayGender}</span>
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight leading-none">{product.sku}</h1>
-                    <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold"><span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span><span>•</span><span>{product.weight_g}g</span></div>
+                    <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold"><span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span><span>•</span><span>{formatNumber(product.weight_g)}g</span></div>
                 </div>
             </div>
         </div>
@@ -552,7 +553,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                   </div>
                   <div className="text-center border-l border-slate-50">
                       <div className="text-[10px] font-bold text-slate-400 uppercase"><Weight size={10} className="inline"/> Βάρος</div>
-                      <div className="font-black text-slate-900 text-lg">{product.weight_g}g</div>
+                      <div className="font-black text-slate-900 text-lg">{formatNumber(product.weight_g)}g</div>
                   </div>
               </div>
           </div>
@@ -631,7 +632,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                                           <div className="text-[11px] text-purple-600 font-medium mt-0.5 leading-snug line-clamp-2">{compDescription}</div>
                                                       ) : null}
                                                   </div>
-                                                  <span className="font-mono font-black text-purple-700 text-xs shrink-0">×{r.quantity}</span>
+                                                  <span className="font-mono font-black text-purple-700 text-xs shrink-0">×{formatNumber(r.quantity)}</span>
                                               </div>
                                           );
                                       }
@@ -645,7 +646,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                                       <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 whitespace-pre-wrap break-words">{material.description}</p>
                                                   ) : null}
                                               </div>
-                                              <span className="font-mono font-bold text-slate-500 shrink-0">x{r.quantity}</span>
+                                              <span className="font-mono font-bold text-slate-500 shrink-0">x{formatNumber(r.quantity)}</span>
                                           </div>
                                       );
                                   })}
@@ -664,7 +665,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                               <div className="min-w-0 flex-1">
                                                   <div className="flex items-center gap-2">
                                                       <span className="font-black text-amber-800 font-mono">{m.code}</span>
-                                                      <span className="text-xs text-slate-500 font-bold shrink-0">x{m.quantity}</span>
+                                                      <span className="text-xs text-slate-500 font-bold shrink-0">x{formatNumber(m.quantity)}</span>
                                                   </div>
                                                   {moldDescription.trim() ? (
                                                       <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap break-words">{moldDescription}</p>
@@ -680,10 +681,10 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                       <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Coins size={12}/> Εργατικά (Εκτίμηση)</h4>
                           <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Τεχνίτης</span><span className="font-bold text-slate-700">{activeTechData.technician}€</span></div>
-                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Καρφωτής</span><span className="font-bold text-slate-700">{activeTechData.setter}€</span></div>
-                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Χύτευση</span><span className="font-bold text-slate-700">{activeTechData.casting}€</span></div>
-                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Επιμ.</span><span className={`font-bold ${activeTechData.plating > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{activeTechData.plating > 0 ? `${activeTechData.plating}€` : '-'}</span></div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Τεχνίτης</span><span className="font-bold text-slate-700">{formatNumber(activeTechData.technician)}€</span></div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Καρφωτής</span><span className="font-bold text-slate-700">{formatNumber(activeTechData.setter)}€</span></div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Χύτευση</span><span className="font-bold text-slate-700">{formatNumber(activeTechData.casting)}€</span></div>
+                              <div className="bg-slate-50 p-2 rounded-lg flex justify-between"><span className="text-slate-500">Επιμ.</span><span className={`font-bold ${activeTechData.plating > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{activeTechData.plating > 0 ? `${formatNumber(activeTechData.plating)}€` : '-'}</span></div>
                           </div>
                       </div>
                   </div>
@@ -809,7 +810,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                       </div>
                                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Βάρος</span>
-                                          <span className="font-bold text-slate-700 text-[10px]">{product.weight_g}g</span>
+                                          <span className="font-bold text-slate-700 text-[10px]">{formatNumber(product.weight_g)}g</span>
                                       </div>
                                       
                                       {/* Footer / QR Row */}

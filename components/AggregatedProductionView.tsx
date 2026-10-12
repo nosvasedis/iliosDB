@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { AggregatedData, ProductionType } from '../types';
 import { APP_LOGO } from '../constants';
@@ -101,7 +102,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 key={batch.id}
                 className="flex items-center py-1 border-b border-slate-50 break-inside-avoid"
             >
-                <div className="w-5 text-center text-slate-400 font-mono text-[9px] shrink-0">{globalIndex + 1}</div>
+                <div className="w-5 text-center text-slate-400 font-mono text-[9px] shrink-0">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-7 shrink-0">
                     <div className="w-5 h-5 rounded bg-slate-100 overflow-hidden border border-slate-200 mx-auto">
                         {batch.product_details?.image_url && (
@@ -126,7 +127,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         </div>
                     )}
                 </div>
-                <div className="w-7 text-center font-black text-slate-900 text-[12px] shrink-0">{batch.quantity}</div>
+                <div className="w-7 text-center font-black text-slate-900 text-[12px] shrink-0">{formatNumber(batch.quantity)}</div>
                 <div className="w-12 text-center font-mono text-[9px] text-slate-600 shrink-0">
                     {formatDecimal(totalWeight, 1)}g
                 </div>
@@ -166,7 +167,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 <div className="flex gap-4">
                     <div className="flex items-center gap-1.5">
                         <Package size={14} className="text-slate-400"/>
-                        <span className="font-bold text-slate-700">{totalItems} Τεμ.</span>
+                        <span className="font-bold text-slate-700">{formatNumber(totalItems)} Τεμ.</span>
                     </div>
                 <div className="flex items-center gap-1.5">
                     <Weight size={14} className="text-slate-400"/>
@@ -278,12 +279,12 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         <tbody>
                             {importedBatches.map((batch, idx) => (
                                 <tr key={batch.id} className="border-t border-amber-100">
-                                    <td className="py-1 px-2 text-center text-slate-400 font-mono text-[9px]">{idx + 1}</td>
+                                    <td className="py-1 px-2 text-center text-slate-400 font-mono text-[9px]">{formatNumber(idx + 1)}</td>
                                     <td className="py-1 px-2 font-bold text-slate-800">
                                         {batch.sku}{batch.variant_suffix}
                                         <span className="ml-1 text-[8px] font-bold text-purple-600 bg-purple-50 px-1 rounded border border-purple-100 uppercase">IMP</span>
                                     </td>
-                                    <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-700">{batch.quantity}</td>
+                                    <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-700">{formatNumber(batch.quantity)}</td>
                                     <td className="py-1 px-2 text-right font-mono text-[10px] text-slate-800">
                                         {formatCurrency(batch.total_cost)}
                                     </td>

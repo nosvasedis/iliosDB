@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product } from '../types';
 import { APP_LOGO } from '../constants';
@@ -139,7 +140,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
         const overridden = isItemOverridden(item);
         return (
             <div key={idx} className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid">
-                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{idx + 1}</div>
+                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(idx + 1)}</div>
                 <div className="w-8 text-center">
                     <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
@@ -175,13 +176,13 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                         <CustomerPrintSkuNote sku={item.sku} note={item.itemNote} />
                     </div>
                 </div>
-                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
+                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{formatNumber(item.quantity)}</div>
                 <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">
-                    {item.price_at_order.toFixed(2).replace('.', ',')}
+                    {formatDecimal(item.price_at_order, 2)}
                     {overridden ? '*' : ''}
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[12px]">
-                    {(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}
+                    {formatDecimal((item.price_at_order * item.quantity), 2)}
                 </div>
             </div>
         );
@@ -238,7 +239,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Αξία Συνολική</span>
                     <span className="font-black text-xl text-slate-900 leading-none">
-                        {grandTotal.toFixed(2).replace('.', ',')}&#8364;
+                        {formatDecimal(grandTotal, 2)}&#8364;
                     </span>
                 </div>
             </div>
@@ -246,7 +247,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
             {/* SHIPMENT META */}
             <div className="flex flex-wrap gap-3 mb-3 text-[10px] text-slate-600 font-medium bg-amber-50 rounded-lg border border-amber-100 px-3 py-2">
                 <span className="flex items-center gap-1">
-                    <Truck size={10} /> {sortedPayloads.length} αποστολές ({shipmentNumbers})
+                    <Truck size={10} /> {formatNumber(sortedPayloads.length)} αποστολές ({shipmentNumbers})
                 </span>
                 {shippedBy && (
                     <>
@@ -311,32 +312,32 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                 <div className="w-48 text-[11px]">
                     <div className="flex justify-between items-center text-slate-700 mb-1 pb-1 border-b border-slate-200">
                         <span>Σύνολο Τεμαχίων:</span>
-                        <span className="tabular-nums font-bold">{totalPieces}</span>
+                        <span className="tabular-nums font-bold">{formatNumber(totalPieces)}</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-600 mb-0.5">
                         <span>Καθαρή Αξία:</span>
                         <span className="tabular-nums font-bold">
-                            {subtotal.toFixed(2).replace('.', ',')}&#8364;
+                            {formatDecimal(subtotal, 2)}&#8364;
                         </span>
                     </div>
                     {discountAmount > 0 && (
                         <div className="flex justify-between items-center text-rose-600 mb-0.5">
-                            <span>Έκπτωση ({discountPercent}%):</span>
+                            <span>Έκπτωση ({formatNumber(discountPercent)}%):</span>
                             <span className="tabular-nums font-bold">
-                                -{discountAmount.toFixed(2).replace('.', ',')}&#8364;
+                                -{formatDecimal(discountAmount, 2)}&#8364;
                             </span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
-                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
+                        <span>Φ.Π.Α. ({formatDecimal((vatRate * 100), 0)}%):</span>
                         <span className="tabular-nums font-bold">
-                            {vatAmount.toFixed(2).replace('.', ',')}&#8364;
+                            {formatDecimal(vatAmount, 2)}&#8364;
                         </span>
                     </div>
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
                         <span className="uppercase">Γενικό Σύνολο:</span>
                         <span className="tabular-nums text-base">
-                            {grandTotal.toFixed(2).replace('.', ',')}&#8364;
+                            {formatDecimal(grandTotal, 2)}&#8364;
                         </span>
                     </div>
                 </div>

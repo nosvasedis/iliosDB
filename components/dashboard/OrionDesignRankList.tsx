@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import { ChevronRight, ImageIcon } from 'lucide-react';
 import { resolveImageUrl } from '../../lib/supabase';
@@ -32,7 +33,7 @@ function TypeMixBar({ row }: { row: OrionDesignRanking }) {
             key={chip.id}
             className={TYPE_DOT[chip.id]}
             style={{ width: `${(qty / total) * 100}%` }}
-            title={`${chip.label}: ${qty} τεμ.`}
+            title={`${chip.label}: ${formatNumber(qty)} τεμ.`}
           />
         );
       })}
@@ -62,7 +63,7 @@ const DesignRow = memo(function DesignRow({
             rankStyle ?? 'bg-slate-100 text-slate-500'
           }`}
         >
-          {row.rank}
+          {formatNumber(row.rank)}
         </div>
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
           {src ? (
@@ -84,7 +85,7 @@ const DesignRow = memo(function DesignRow({
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="rounded-xl bg-emerald-50/80 px-2 py-1.5 ring-1 ring-emerald-100">
               <p className="text-[9px] font-bold uppercase text-emerald-600/80">Τεμ.</p>
-              <p className="text-sm font-black text-emerald-900">{row.quantity}</p>
+              <p className="text-sm font-black text-emerald-900">{formatNumber(row.quantity)}</p>
             </div>
             <div className="rounded-xl bg-blue-50/80 px-2 py-1.5 ring-1 ring-blue-100">
               <p className="text-[9px] font-bold uppercase text-blue-600/80">Έσοδα</p>
@@ -100,7 +101,7 @@ const DesignRow = memo(function DesignRow({
             {ORION_TYPE_CHIPS.filter((chip) => row.typeMix[chip.id].quantity > 0).map((chip) => (
               <span key={chip.id} className="inline-flex items-center gap-1">
                 <span className={`h-1.5 w-1.5 rounded-full ${TYPE_DOT[chip.id]}`} />
-                {chip.label} {row.typeMix[chip.id].quantity}
+                {chip.label} {formatNumber(row.typeMix[chip.id].quantity)}
               </span>
             ))}
           </div>
@@ -153,7 +154,7 @@ export default function OrionDesignRankList({
           </button>
         </div>
         {rows.length > 0 && (
-          <p className="text-[10px] font-bold text-slate-400">{rows.length} παραστάσεις</p>
+          <p className="text-[10px] font-bold text-slate-400">{formatNumber(rows.length)} παραστάσεις</p>
         )}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4">

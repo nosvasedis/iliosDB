@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Truck, PackageCheck, Factory } from 'lucide-react';
 import { ItemFulfillmentKind, ItemShipmentAllocation } from '../../utils/shipmentUtils';
@@ -34,7 +35,7 @@ export function ItemFulfillmentBadge({
                     {shipmentLabel ? `Παράδοση ${shipmentLabel}` : 'Παραδόθηκε'}
                 </span>
                 <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
-                    {shippedQty}/{quantity} τεμ.
+                    {formatNumber(shippedQty)}/{formatNumber(quantity)} τεμ.
                 </span>
             </div>
         );
@@ -48,12 +49,12 @@ export function ItemFulfillmentBadge({
                     {shipmentLabel ? `Μερική Παράδοση ${shipmentLabel}` : 'Μερική Παράδοση'}
                 </span>
                 <span className="text-[9px] font-bold text-amber-700 bg-amber-50/80 border border-amber-200 px-1.5 py-0.5 rounded">
-                    Παραδόθηκαν {shippedQty}/{quantity} τεμ.
+                    Παραδόθηκαν {formatNumber(shippedQty)}/{formatNumber(quantity)} τεμ.
                 </span>
                 {inProductionQty > 0 && (
                     <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
                         <Factory size={9} />
-                        Υπόλοιπο σε παραγωγή: {inProductionQty}
+                        Υπόλοιπο σε παραγωγή: {formatNumber(inProductionQty)}
                     </span>
                 )}
             </div>
@@ -67,7 +68,7 @@ export function ItemFulfillmentBadge({
                 Στην Παραγωγή
             </span>
             <span className="text-[9px] font-bold text-blue-600 bg-blue-50/80 border border-blue-100 px-1.5 py-0.5 rounded">
-                {inProductionQty}/{quantity} τεμ.
+                {formatNumber(inProductionQty)}/{formatNumber(quantity)} τεμ.
             </span>
         </div>
     );

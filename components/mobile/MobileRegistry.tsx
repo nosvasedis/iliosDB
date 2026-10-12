@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { Product, Gender, MaterialType } from '../../types';
@@ -157,13 +158,13 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
 
                 {totalStock > 0 && (
                     <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                        {totalStock}
+                        {formatNumber(totalStock)}
                     </div>
                 )}
 
                 {hasVariants && (
                     <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm backdrop-blur-sm">
-                        <Layers size={10} /> {variants.length}
+                        <Layers size={10} /> {formatNumber(variants.length)}
                     </div>
                 )}
             </div>
@@ -193,7 +194,7 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </div>
                     <div className="text-[9px] text-slate-400 flex items-center gap-0.5">
-                        <Weight size={8}/> {product.weight_g}g
+                        <Weight size={8}/> {formatNumber(product.weight_g)}g
                     </div>
                 </div>
             </div>
@@ -386,7 +387,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         <span>Φίλτρα</span>
                         {activeFilterCount > 0 && (
                             <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-black text-white">
-                                {activeFilterCount}
+                                {formatNumber(activeFilterCount)}
                             </span>
                         )}
                     </button>
@@ -422,7 +423,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         onClick={loadMore}
                         className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 mb-4"
                     >
-                        <ArrowDown size={16}/> Περισσότερα ({filteredProducts.length - displayedProducts.length})
+                        <ArrowDown size={16}/> Περισσότερα ({formatNumber(filteredProducts.length - displayedProducts.length)})
                     </button>
                 )}
 
@@ -581,7 +582,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                                 >
                                                     <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`} />
                                                     {s.name}
-                                                    <span className="opacity-50 text-[10px]">({s.count})</span>
+                                                    <span className="opacity-50 text-[10px]">({formatNumber(s.count)})</span>
                                                 </button>
                                             );
                                         })}
@@ -677,7 +678,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                 onClick={() => setShowFilterSheet(false)}
                                 className="flex-[2] px-4 py-3.5 rounded-xl font-bold text-white bg-[#060b00] active:bg-black transition-colors shadow-md text-sm"
                             >
-                                Έτοιμο · {filteredProducts.length} κωδ.
+                                Έτοιμο · {formatNumber(filteredProducts.length)} κωδ.
                             </button>
                         </div>
                     </div>

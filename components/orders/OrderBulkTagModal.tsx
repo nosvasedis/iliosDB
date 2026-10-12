@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Loader2, Tag, X } from 'lucide-react';
 
@@ -28,7 +29,7 @@ export function OrderBulkTagModal({
                 </div>
                 <div className="p-6">
                     <p className="mb-4 text-xs text-slate-500">
-                        Η ετικέτα θα προστεθεί σε <strong>{count} επιλεγμένες παραγγελίες</strong>. Υπάρχουσες ετικέτες δεν αφαιρούνται.
+                        Η ετικέτα θα προστεθεί σε <strong>{formatNumber(count)} επιλεγμένες παραγγελίες</strong>. Υπάρχουσες ετικέτες δεν αφαιρούνται.
                     </p>
                     <input
                         value={tag}

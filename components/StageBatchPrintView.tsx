@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { getSpecialCreationDisplayNote } from '../utils/specialCreationSku';
 import { ProductionBatch, Product, Gender } from '../types';
@@ -158,14 +159,14 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                             color: colors.accentText, padding: '2px 10px',
                             borderRadius: '20px', fontSize: '11px', fontWeight: 900,
                         }}>
-                            {sorted.length} παρτίδες
+                            {formatNumber(sorted.length)} παρτίδες
                         </span>
                         <span style={{
                             background: colors.headerBg, color: '#fff',
                             padding: '2px 10px', borderRadius: '20px',
                             fontSize: '11px', fontWeight: 900,
                         }}>
-                            {totalQty} τεμ.
+                            {formatNumber(totalQty)} τεμ.
                         </span>
                         {onHoldCount > 0 && (
                             <span style={{
@@ -173,7 +174,7 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                                 color: '#92400e', padding: '2px 10px',
                                 borderRadius: '20px', fontSize: '11px', fontWeight: 900,
                             }}>
-                                {onHoldCount} σε αναμονή
+                                {formatNumber(onHoldCount)} σε αναμονή
                             </span>
                         )}
                     </div>
@@ -222,7 +223,7 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                             >
                                 {/* Index */}
                                 <td style={{ padding: '7px 4px', textAlign: 'center', color: '#94a3b8', fontSize: '11px', fontWeight: 700, width: '28px' }}>
-                                    {index + 1}
+                                    {formatNumber(index + 1)}
                                 </td>
 
                                 {/* Thumbnail */}
@@ -277,7 +278,7 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                                         letterSpacing: '-0.02em',
                                         display: 'inline-block',
                                     }}>
-                                        {batch.quantity}
+                                        {formatNumber(batch.quantity)}
                                     </span>
                                 </td>
 
@@ -302,10 +303,10 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                 alignItems: 'center',
             }}>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
-                    Παρτίδες: <strong>{sorted.length}</strong>
+                    Παρτίδες: <strong>{formatNumber(sorted.length)}</strong>
                 </span>
                 <span style={{ fontSize: '13px', fontWeight: 900, color: colors.accentText }}>
-                    Σύνολο: {totalQty} τεμ.
+                    Σύνολο: {formatNumber(totalQty)} τεμ.
                 </span>
             </div>
         </div>

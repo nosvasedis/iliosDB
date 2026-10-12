@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus, ScanBarcode } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -148,7 +149,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
             }, ...prev];
         });
 
-        showToast(`Προστέθηκε: ${skuString} (x${qty})`, 'success');
+        showToast(`Προστέθηκε: ${skuString} (x${formatNumber(qty)})`, 'success');
         
         setActiveMaster(null);
         setQty(1);
@@ -236,7 +237,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                 });
                 return updated;
             });
-            showToast(`Προστέθηκαν ${addedCount} κωδικοί.`, 'success');
+            showToast(`Προστέθηκαν ${formatNumber(addedCount)} κωδικοί.`, 'success');
             setInput('');
             setQty(1);
         } else {
@@ -304,7 +305,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
         }
 
         onPrintPhotoCatalog?.(toPrint);
-        showToast(`Στάλθηκαν ${toPrint.length} προϊόντα για εκτύπωση φωτοκαταλόγου.`, 'success');
+        showToast(`Στάλθηκαν ${formatNumber(toPrint.length)} προϊόντα για εκτύπωση φωτοκαταλόγου.`, 'success');
     };
 
     const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
@@ -618,7 +619,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                         <span className="text-xs font-bold text-slate-500 uppercase ml-1">Ποσότητα</span>
                         <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
                             <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded text-slate-600 font-bold hover:bg-slate-200">-</button>
-                            <span className="w-8 text-center font-black text-lg">{qty}</span>
+                            <span className="w-8 text-center font-black text-lg">{formatNumber(qty)}</span>
                             <button onClick={() => setQty(qty + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded text-slate-600 font-bold hover:bg-slate-200">+</button>
                         </div>
                     </div>
@@ -720,7 +721,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                     <span className="font-black text-slate-800 text-lg block">{item.skuString}</span>
                                     <span className="text-[10px] text-slate-400 font-bold uppercase">{item.variant?.description || item.product.category}</span>
                                 </div>
-                                <span className="text-sm font-bold bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg">x{item.qty}</span>
+                                <span className="text-sm font-bold bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg">x{formatNumber(item.qty)}</span>
                             </div>
                         ))}
                     </div>

@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { ProductionBatch, Order, Product, Mold, OrderStatus, ProductionStage } from '../types';
 import { Search, X, CheckSquare, Square, MapPin, Grid, CheckCircle2, Flame, SlidersHorizontal, Layers, AlertCircle } from 'lucide-react';
@@ -302,7 +303,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                     : <Square size={14} />}
                                 Επιλογή Όλων
                                 <span className="ml-auto bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black text-[10px]">
-                                    {relevantOrders.length}
+                                    {formatNumber(relevantOrders.length)}
                                 </span>
                             </button>
                         </div>
@@ -340,7 +341,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                                             >
                                                                 <div className={`w-1.5 h-1.5 rounded-full ${def.dotBg}`} />
                                                                 {def.shortLabel}
-                                                                <span className="font-black">{stageCounts[def.id]}</span>
+                                                                <span className="font-black">{formatNumber(stageCounts[def.id])}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -417,11 +418,11 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                 <div className="px-5 py-2.5 bg-slate-50/60 border-b border-slate-100 flex items-center gap-3 shrink-0">
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100 font-bold text-sm">
                                         <Grid size={14} />
-                                        <span>{aggregation.length} Λάστιχα</span>
+                                        <span>{formatNumber(aggregation.length)} Λάστιχα</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl border border-amber-100 font-bold text-sm">
                                         <Flame size={14} />
-                                        <span>{totalWaxes} Κεριά</span>
+                                        <span>{formatNumber(totalWaxes)} Κεριά</span>
                                     </div>
                                     {!isAllStages && (
                                         <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
@@ -461,7 +462,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                                                 >
                                                                     <div className={`w-1.5 h-1.5 rounded-full ${def.dotBg}`} />
                                                                     {def.shortLabel}
-                                                                    <span className="font-black">{item.byStageId[def.id]}</span>
+                                                                    <span className="font-black">{formatNumber(item.byStageId[def.id])}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -474,7 +475,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                                         {Object.entries(item.byFinish).map(([key, qty]) => (
                                                             <div key={key} className={`flex items-center justify-between px-2 py-1 rounded-lg border text-xs font-bold ${getFinishStyle(key)}`}>
                                                                 <span>{key === 'STD' ? 'ΒΑΣΙΚΟ' : key}</span>
-                                                                <span className="font-black">{qty}</span>
+                                                                <span className="font-black">{formatNumber(qty)}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -485,7 +486,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                                             <Flame size={11} className="text-amber-400" />
                                                             Κεριά
                                                         </div>
-                                                        <div className="text-2xl font-black text-slate-800">{item.total}</div>
+                                                        <div className="text-2xl font-black text-slate-800">{formatNumber(item.total)}</div>
                                                     </div>
                                                 </div>
                                             );

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
@@ -35,7 +36,7 @@ export default function DetailsTabBar({
                         <span className="truncate">{tab.label}</span>
                         {typeof tab.count === 'number' && (
                             <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${isActive ? 'bg-white/15 text-white' : 'bg-white/70 text-slate-500'}`}>
-                                {tab.count}
+                                {formatNumber(tab.count)}
                             </span>
                         )}
                     </button>

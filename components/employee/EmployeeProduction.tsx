@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React from 'react';
 import SpecialCreationNote from '../SpecialCreationNote';
@@ -46,7 +47,7 @@ const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionB
                     <div className="font-black text-slate-800 text-lg">{batch.sku}{batch.variant_suffix}</div>
                     <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                     <div className="text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded w-fit mt-1">
-                        {batch.quantity} τεμάχια
+                        {formatNumber(batch.quantity)} τεμάχια
                     </div>
                 </div>
                 {batch.order_id && (
@@ -120,7 +121,7 @@ export default function EmployeeProduction() {
                 <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
                     <h3 className="font-bold text-blue-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <Hammer size={16} /> Αναμονη απο Τεχνιτη
-                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-blue-600">{arrivingBatches.length}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-blue-600">{formatNumber(arrivingBatches.length)}</span>
                     </h3>
                     <div className="space-y-3">
                         {arrivingBatches.map(b => (
@@ -139,7 +140,7 @@ export default function EmployeeProduction() {
                 <div className="bg-pink-50/50 rounded-2xl p-4 border border-pink-100">
                     <h3 className="font-bold text-pink-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <Layers size={16} /> Συναρμολόγηση
-                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-pink-600">{assemblyBatches.length}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-pink-600">{formatNumber(assemblyBatches.length)}</span>
                     </h3>
                     <div className="space-y-3">
                         {assemblyBatches.map(b => (
@@ -158,7 +159,7 @@ export default function EmployeeProduction() {
                 <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-100">
                     <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <Tag size={16} /> Συσκευασια & Barcode
-                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-amber-600">{packagingBatches.length}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-amber-600">{formatNumber(packagingBatches.length)}</span>
                     </h3>
                     <div className="space-y-3">
                         {packagingBatches.map(b => (
@@ -177,7 +178,7 @@ export default function EmployeeProduction() {
                 <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 opacity-80 hover:opacity-100 transition-opacity">
                     <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wide">
                         <CheckCircle size={16} /> Ετοιμα για Παραδοση
-                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-emerald-600">{readyBatches.length}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-full shadow-sm text-emerald-600">{formatNumber(readyBatches.length)}</span>
                     </h3>
                     <div className="space-y-3">
                         {readyBatches.slice(0, 10).map(b => ( // Limit shown ready batches
@@ -186,7 +187,7 @@ export default function EmployeeProduction() {
                                 <div className="text-xs text-emerald-600 font-medium">Ολοκληρώθηκε</div>
                             </div>
                         ))}
-                        {readyBatches.length > 10 && <div className="text-center text-xs text-slate-400">...και {readyBatches.length - 10} ακόμη</div>}
+                        {readyBatches.length > 10 && <div className="text-center text-xs text-slate-400">...και {formatNumber(readyBatches.length - 10)} ακόμη</div>}
                     </div>
                 </div>
 

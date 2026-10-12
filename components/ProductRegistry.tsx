@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType } from '../types';
@@ -686,7 +687,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 <div className="text-center">
                                                     <div className="text-[10px] uppercase font-bold text-slate-400">Περιθώριο</div>
                                                     <div className={`text-sm font-bold flex items-center gap-1 justify-center ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                        <TrendingUp size={12} /> {margin.toFixed(0)}%
+                                                        <TrendingUp size={12} /> {formatDecimal(margin, 0)}%
                                                     </div>
                                                 </div>
                                             </div>
@@ -747,7 +748,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             {viewMode === 'grid' && totalGridPages > 1 && (
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
                     <span className="text-xs font-bold text-slate-400">
-                        {filteredProducts.length} προϊόντα · σελίδα {gridPage + 1} / {totalGridPages}
+                        {formatNumber(filteredProducts.length)} προϊόντα · σελίδα {formatNumber(gridPage + 1)} / {formatNumber(totalGridPages)}
                     </span>
                     <div className="flex items-center gap-2">
                         <button
@@ -766,7 +767,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                     onClick={() => { setGridPage(val as number); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
                                     className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === gridPage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'}`}
                                 >
-                                    {(val as number) + 1}
+                                    {formatNumber((val as number) + 1)}
                                 </button>
                             )
                         ))}
@@ -785,7 +786,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             {viewMode === 'table' && totalTablePages > 1 && (
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
                     <span className="text-xs font-bold text-slate-400">
-                        {allTableVariants.length} παραλλαγές · σελίδα {tablePage + 1} / {totalTablePages}
+                        {formatNumber(allTableVariants.length)} παραλλαγές · σελίδα {formatNumber(tablePage + 1)} / {formatNumber(totalTablePages)}
                     </span>
                     <div className="flex items-center gap-2">
                         <button
@@ -805,7 +806,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                     className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === tablePage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'
                                         }`}
                                 >
-                                    {(val as number) + 1}
+                                    {formatNumber((val as number) + 1)}
                                 </button>
                             )
                         ))}
@@ -991,7 +992,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 >
                                                     <span className={`w-2 h-2 rounded-full ${isDisabled ? 'bg-slate-300' : style.dot} shrink-0`}></span>
                                                     {s.name}
-                                                    <span className="opacity-50 text-[10px]">({s.count})</span>
+                                                    <span className="opacity-50 text-[10px]">({formatNumber(s.count)})</span>
                                                 </button>
                                             );
                                         })}
@@ -1069,7 +1070,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 onClick={() => setShowFiltersSidebar(false)}
                                 className="flex-[2] px-4 py-3 rounded-xl font-bold text-white bg-[#060b00] hover:bg-black transition-colors shadow-md"
                             >
-                                Εφαρμογή ({filteredProducts.length})
+                                Εφαρμογή ({formatNumber(filteredProducts.length)})
                             </button>
                         </div>
                     </div>

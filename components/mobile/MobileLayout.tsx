@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React from 'react';
 import { WifiOff, RefreshCw, CloudOff } from 'lucide-react';
@@ -43,7 +44,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
           ) : isSyncing ? (
             <><RefreshCw size={12} className="animate-spin" /> Συγχρονισμός Δεδομένων...</>
           ) : (
-            <><CloudOff size={12} /> {pendingCount} Εκκρεμείς Αλλαγές</>
+            <><CloudOff size={12} /> {formatNumber(pendingCount)} Εκκρεμείς Αλλαγές</>
           )}
         </div>
       )}

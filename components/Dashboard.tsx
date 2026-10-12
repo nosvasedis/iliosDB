@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useCallback } from 'react';
 import { Product, GlobalSettings, Order, OrderStatus, ProductionStage, Gender, ProductionType } from '../types';
 import { 
@@ -326,7 +327,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       id: 'revenue',
       title: 'Πραγματοποιημένα έσοδα',
       value: formatCurrency(stats.totalRevenue),
-      sub: `${stats.shippedPieces} τεμ. απεστάλησαν`,
+      sub: `${formatNumber(stats.shippedPieces)} τεμ. απεστάλησαν`,
       icon: DollarSign,
       bg: 'bg-emerald-600',
       text: 'text-white',
@@ -340,7 +341,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       id: 'profit',
       title: 'Εκτιμώμενο κέρδος',
       value: formatCurrency(stats.financeProfit),
-      sub: `${stats.financeMargin.toFixed(1)}% περιθώριο`,
+      sub: `${formatDecimal(stats.financeMargin, 1)}% περιθώριο`,
       icon: TrendingUp,
       bg: 'bg-blue-600',
       text: 'text-white',
@@ -357,7 +358,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       id: 'pending',
       title: 'Εκκρεμής αξία',
       value: formatCurrency(stats.pendingRevenue),
-      sub: `${stats.activeOrdersCount} ανοιχτές παραγγελίες · ${stats.backlogPieces} τεμ.`,
+      sub: `${formatNumber(stats.activeOrdersCount)} ανοιχτές παραγγελίες · ${formatNumber(stats.backlogPieces)} τεμ.`,
       icon: Activity,
       bg: 'bg-slate-900',
       text: 'text-white',
@@ -370,8 +371,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     {
       id: 'production',
       title: 'Σε Παραγωγή',
-      value: stats.totalItemsInProduction.toString(),
-      sub: `${stats.activeBatchesCount} παρτίδες ενεργές`,
+      value: formatNumber(stats.totalItemsInProduction),
+      sub: `${formatNumber(stats.activeBatchesCount)} παρτίδες ενεργές`,
       icon: Factory,
       bg: 'bg-amber-500',
       text: 'text-white',
@@ -596,8 +597,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'financials' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.shippedPieces} τεμ. απεστάλησαν`} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Καθαρή αξία που έχει αποσταλεί ή παραδοθεί, μετά την έκπτωση και χωρίς ΦΠΑ." />
-                  <KPICard title="Εκτιμώμενο μικτό κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${stats.financeMargin.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Πραγματοποιημένα έσοδα μείον εκτιμώμενο κόστος παραγωγής." />
+                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${formatNumber(stats.shippedPieces)} τεμ. απεστάλησαν`} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Καθαρή αξία που έχει αποσταλεί ή παραδοθεί, μετά την έκπτωση και χωρίς ΦΠΑ." />
+                  <KPICard title="Εκτιμώμενο μικτό κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${formatDecimal(stats.financeMargin, 1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Πραγματοποιημένα έσοδα μείον εκτιμώμενο κόστος παραγωγής." />
                   <KPICard title="Εκτιμώμενο κόστος" value={formatCurrency(stats.financeCost)} subValue={`ΦΠΑ ${formatCurrency(stats.realizedVat)}`} icon={<Scale/>} colorClass="text-slate-600" hint="Κόστος για όσα έχουν αποσταλεί στην επιλεγμένη περίοδο. Το ΦΠΑ εμφανίζεται ξεχωριστά." />
               </div>
 
@@ -634,7 +635,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <KPICard title="Εκκρεμής αξία παραγγελιών" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} ανοιχτές παραγγελίες`} icon={<Package/>} colorClass="text-indigo-600" hint="Καθαρή αξία τεμαχίων που δεν έχουν αποσταλεί ακόμη. Δεν μετράει στα έσοδα." />
+                  <KPICard title="Εκκρεμής αξία παραγγελιών" value={formatCurrency(stats.pendingRevenue)} subValue={`${formatNumber(stats.activeOrdersCount)} ανοιχτές παραγγελίες`} icon={<Package/>} colorClass="text-indigo-600" hint="Καθαρή αξία τεμαχίων που δεν έχουν αποσταλεί ακόμη. Δεν μετράει στα έσοδα." />
                   <KPICard title="Αξία αποθέματος (λιανική)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
               </div>
 
@@ -698,7 +699,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-black text-emerald-700 text-xl">{stats.silverSold.toFixed(3)} kg</div>
+                                    <div className="font-black text-emerald-700 text-xl">{formatDecimal(stats.silverSold, 3)} kg</div>
                                 </div>
                           </div>
                           <div className="flex items-center justify-between p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
@@ -712,7 +713,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-black text-blue-700 text-xl">{stats.stonesSold} <span className="text-xs font-normal">τμχ</span></div>
+                                    <div className="font-black text-blue-700 text-xl">{formatNumber(stats.stonesSold)} <span className="text-xs font-normal">τμχ</span></div>
                                 </div>
                           </div>
                       </div>
@@ -731,7 +732,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                   </div>
                                   <div className="text-right">
                                       <div className="font-black text-purple-700">{formatCurrency(item.value)}</div>
-                                      <div className="text-[10px] text-slate-400 font-bold">{item.qty} τμχ (Stock)</div>
+                                      <div className="text-[10px] text-slate-400 font-bold">{formatNumber(item.qty)} τμχ (Stock)</div>
                                   </div>
                               </div>
                           ))}
@@ -756,8 +757,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                           <BarChart data={productionStageData}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                               <XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 'bold'}} interval={0} height={50}/>
-                              <YAxis tick={{fontSize: 12}} allowDecimals={false} />
-                              <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
+                              <YAxis tick={{fontSize: 12}} allowDecimals={false} tickFormatter={formatNumber} />
+                              <Tooltip formatter={(value: number) => formatNumber(value)} cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                               <Bar dataKey="value" fill="#f59e0b" radius={[6, 6, 0, 0]} name="Τεμάχια" barSize={60} />
                           </BarChart>
                       </ResponsiveContainer>
@@ -769,9 +770,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'inventory' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Τεμάχια Πωληθέντα" value={stats.shippedPieces.toString()} subValue={periodLabel} icon={<ShoppingBag/>} colorClass="text-emerald-600" hint={`Συνολικά τεμάχια που αποστάλθηκαν ${periodLabel.toLowerCase()}.`} />
-                  <KPICard title="Έσοδα Περιόδου" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.financeMargin.toFixed(1)}% περιθώριο`} icon={<DollarSign/>} colorClass="text-blue-600" hint={`Πραγματοποιημένα έσοδα για ${periodLabel.toLowerCase()}.`} />
-                  <KPICard title="Τρέχον Απόθεμα" value={stats.totalStockQty.toString()} subValue={`${products.length} κωδικοί`} icon={<Package/>} colorClass="text-slate-600" hint="Συνολικά τεμάχια στην αποθήκη αυτή τη στιγμή." />
+                  <KPICard title="Τεμάχια Πωληθέντα" value={formatNumber(stats.shippedPieces)} subValue={periodLabel} icon={<ShoppingBag/>} colorClass="text-emerald-600" hint={`Συνολικά τεμάχια που αποστάλθηκαν ${periodLabel.toLowerCase()}.`} />
+                  <KPICard title="Έσοδα Περιόδου" value={formatCurrency(stats.totalRevenue)} subValue={`${formatDecimal(stats.financeMargin, 1)}% περιθώριο`} icon={<DollarSign/>} colorClass="text-blue-600" hint={`Πραγματοποιημένα έσοδα για ${periodLabel.toLowerCase()}.`} />
+                  <KPICard title="Τρέχον Απόθεμα" value={formatNumber(stats.totalStockQty)} subValue={`${formatNumber(products.length)} κωδικοί`} icon={<Package/>} colorClass="text-slate-600" hint="Συνολικά τεμάχια στην αποθήκη αυτή τη στιγμή." />
                   <KPICard title="Αξία Αποθέματος" value={formatCurrency(stats.totalCostValue)} subValue={`${formatDecimal(stats.totalSilverWeight, 0)}g ασήμι`} icon={<Scale/>} colorClass="text-amber-600" hint="Τρέχουσα αξία κόστους αποθέματος." />
               </div>
 
@@ -785,11 +786,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                               <div>
                                   <div className="font-bold text-slate-800">{item.sku}</div>
                                   <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
-                                  <div className="text-[10px] text-slate-500">{item.quantity} τμχ</div>
+                                  <div className="text-[10px] text-slate-500">{formatNumber(item.quantity)} τμχ</div>
                               </div>
                               <div className="text-right">
                                   <div className="font-black text-emerald-700">{formatCurrency(item.revenue)}</div>
-                                  <div className="text-[10px] text-slate-400 font-bold">{item.margin.toFixed(1)}% περιθώριο</div>
+                                  <div className="text-[10px] text-slate-400 font-bold">{formatDecimal(item.margin, 1)}% περιθώριο</div>
                               </div>
                           </div>
                       ))}
@@ -816,7 +817,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                   <tr key={row.label} className="hover:bg-slate-50/50 transition-colors">
                                       <td className="p-4 font-bold text-slate-800">{row.label}</td>
                                       <td className="p-4 text-slate-500">{products.find(product => product.sku === row.sku)?.category || '—'}</td>
-                                      <td className="p-4 text-center font-black">{row.stock}</td>
+                                      <td className="p-4 text-center font-black">{formatNumber(row.stock)}</td>
                                       <td className="p-4">
                                           <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${row.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {row.stock === 0 ? 'Μη διαθέσιμο' : 'Κάτω από το σημείο αναπαραγγελίας'}

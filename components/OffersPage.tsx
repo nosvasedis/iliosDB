@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Customer, Offer, OfferStatus, OrderItem, GlobalSettings, Collection, Material, VatRegime } from '../types';
@@ -302,7 +303,7 @@ export default function OffersPage({ products, materials, settings, collections,
         setActiveMasterProduct(null);
         setFilteredVariants([]);
         skuInputRef.current?.focus();
-        if (addedCount > 0) showToast(`Προστέθηκαν ${addedCount} είδη.`, 'success');
+        if (addedCount > 0) showToast(`Προστέθηκαν ${formatNumber(addedCount)} είδη.`, 'success');
         else showToast('Δεν βρέθηκαν κωδικοί.', 'error');
     };
 
@@ -351,7 +352,7 @@ export default function OffersPage({ products, materials, settings, collections,
         });
 
         setItems(newItems);
-        showToast(`Προστέθηκαν ${addedCount} είδη από τη συλλογή.`, "success");
+        showToast(`Προστέθηκαν ${formatNumber(addedCount)} είδη από τη συλλογή.`, "success");
         setSelectedCollectionId('');
     };
 
@@ -872,7 +873,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                                 <div className="text-xs text-slate-500 truncate max-w-[200px]">{item.product_details?.category}</div>
                                                 <InventoryAvailabilityNote item={item} product={item.product_details} mode="offer" compact />
                                             </td>
-                                            <td className="p-4 text-center font-mono text-slate-600">{item.product_details?.weight_g}g</td>
+                                            <td className="p-4 text-center font-mono text-slate-600">{formatNumber(item.product_details?.weight_g)}g</td>
                                             <td className="p-4 text-right font-mono font-bold text-slate-700">{formatCurrency(item.price_at_order)}</td>
                                             <td className="p-4 text-center">
                                                 <input
@@ -902,11 +903,11 @@ export default function OffersPage({ products, materials, settings, collections,
                                 <div className="text-xl font-bold text-slate-700">{formatCurrency(subtotal)}</div>
                             </div>
                             <div className="text-right">
-                                <div className="text-xs font-bold text-slate-400 uppercase">Έκπτωση ({discountPercent}%)</div>
+                                <div className="text-xs font-bold text-slate-400 uppercase">Έκπτωση ({formatNumber(discountPercent)}%)</div>
                                 <div className="text-xl font-bold text-rose-500">-{formatCurrency(discountAmount)}</div>
                             </div>
                             <div className="text-right">
-                                <div className="text-xs font-bold text-slate-400 uppercase">Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%)</div>
+                                <div className="text-xs font-bold text-slate-400 uppercase">Φ.Π.Α. ({formatDecimal((vatRate * 100), 0)}%)</div>
                                 <div className="text-xl font-bold text-slate-600">{formatCurrency(vatAmount)}</div>
                             </div>
                             <div className="text-right pl-6 border-l border-slate-100">
@@ -956,7 +957,7 @@ export default function OffersPage({ products, materials, settings, collections,
                         <div className="flex items-center justify-between gap-3">
                             <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Προσφορών</div>
                             <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
-                                {filteredOffers.length} {filteredOffers.length === 1 ? 'προσφορά' : 'προσφορές'}
+                                {formatNumber(filteredOffers.length)} {filteredOffers.length === 1 ? 'προσφορά' : 'προσφορές'}
                             </div>
                         </div>
                     </div>
@@ -1007,7 +1008,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Είδη</div>
                                                 <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
                                                     <Package size={13} className="shrink-0 text-slate-400" />
-                                                    <span className="truncate">{itemCount} τεμ.</span>
+                                                    <span className="truncate">{formatNumber(itemCount)} τεμ.</span>
                                                 </div>
                                             </div>
 

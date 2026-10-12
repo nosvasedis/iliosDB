@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Product, Warehouse, Gender, Material, MaterialType, PlatingType, ProductVariant } from '../../types';
 import { Search, Filter, ImageIcon, Tag, Layers, ChevronLeft, ChevronRight, User, Users, Palette, Gem, Weight, BookOpen, TrendingUp, Coins, Camera } from 'lucide-react';
@@ -108,7 +109,7 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
                 )}
                 {stockQty > 0 && (
                     <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
-                        Stock: {stockQty}
+                        Stock: {formatNumber(stockQty)}
                     </div>
                 )}
             </div>
@@ -132,7 +133,7 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
                     {hasVariants && sortedVariants.length > 1 && (
                         <div className="flex bg-slate-100 rounded-lg p-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                             <button onClick={prevView} className="p-1 hover:bg-white text-slate-400 hover:text-slate-700 rounded transition-colors"><ChevronLeft size={14}/></button>
-                            <span className="text-[9px] font-mono text-slate-400 px-1 py-1">{viewIndex + 1}/{sortedVariants.length}</span>
+                            <span className="text-[9px] font-mono text-slate-400 px-1 py-1">{formatNumber(viewIndex + 1)}/{formatNumber(sortedVariants.length)}</span>
                             <button onClick={nextView} className="p-1 hover:bg-white text-slate-400 hover:text-slate-700 rounded transition-colors"><ChevronRight size={14}/></button>
                         </div>
                     )}

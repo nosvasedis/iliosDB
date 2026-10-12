@@ -45,7 +45,7 @@ const makeVariant = (overrides: Partial<ProductVariant> = {}): ProductVariant =>
 describe('BarcodeView', () => {
   it('uses the configured retail multiplier in the rendered label', () => {
     const html = renderToStaticMarkup(<BarcodeView product={makeProduct()} variant={makeVariant()} width={50} height={30} format="standard" showPrice priceTier="retail" settings={{ pricing_rules: { retail_multiplier: 4 } }} />);
-    expect(html).toContain('80,00€');
+    expect(html).toContain('80,00\u00a0€');
   });
   it('renders a DM ring size inline with the larger standard-label price', () => {
     const html = renderToStaticMarkup(
@@ -62,7 +62,7 @@ describe('BarcodeView', () => {
     );
 
     expect(html).toContain('DM036H');
-    expect(html).toContain('20,00€ / No53');
+    expect(html).toContain('20,00\u00a0€ / No53');
     expect(html).toContain('data-label-price-line="wholesale"');
     expect(html).toContain('font-size:3.8mm');
     expect(html).not.toContain('>53</span>');
@@ -82,7 +82,7 @@ describe('BarcodeView', () => {
       />,
     );
 
-    expect(html).toContain('20,00€ / 19cm');
+    expect(html).toContain('20,00\u00a0€ / 19cm');
     expect(html).not.toContain('19cmcm');
   });
 
@@ -139,7 +139,7 @@ describe('BarcodeView', () => {
       />,
     );
 
-    expect(html).toContain('60,00€');
+    expect(html).toContain('60,00\u00a0€');
     expect(html).toContain('>53</div>');
     expect(html).not.toContain('/ No53');
     expect(html).not.toContain('data-label-price-line="wholesale"');

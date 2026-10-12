@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
@@ -450,12 +451,12 @@ export default function InventoryPostingDialog({
                 <article key={`${warehouseId}-${warehouseIndex}`} className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50 p-3">
                     <label className="min-w-[15rem] flex-1 text-xs font-black text-slate-600">
-                      Αποθήκη {warehouseIndex + 1}
+                      Αποθήκη {formatNumber(warehouseIndex + 1)}
                       <select
                         value={warehouseId}
                         onChange={(event) => changeWarehouse(warehouseIndex, event.target.value)}
                         className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
-                        aria-label={`Επιλογή αποθήκης ${warehouseIndex + 1}`}
+                        aria-label={`Επιλογή αποθήκης ${formatNumber(warehouseIndex + 1)}`}
                       >
                         {warehouses.map((warehouse) => (
                           <option key={warehouse.id} value={warehouse.id} disabled={warehouseIds.includes(warehouse.id) && warehouse.id !== warehouseId}>
@@ -469,7 +470,7 @@ export default function InventoryPostingDialog({
                         type="button"
                         onClick={() => setWarehouseIds((current) => current.filter((_, index) => index !== warehouseIndex))}
                         className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"
-                        aria-label={`Αφαίρεση αποθήκης ${warehouseIndex + 1}`}
+                        aria-label={`Αφαίρεση αποθήκης ${formatNumber(warehouseIndex + 1)}`}
                       >
                         <Trash2 size={17} />
                       </button>

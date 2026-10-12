@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 
 import React, { useState, useMemo } from 'react';
@@ -112,7 +113,7 @@ export default function PricingManager({ products, settings, materials }: Props)
     const summary = summarizePricingPreview(items);
     if (mode === 'cost') {
       showToast(
-        `Υπολογίστηκε νέο κόστος για ${summary.total} κωδικούς (Βάση: ${formatDecimal(settings.last_calc_silver_price, 2)}€/g).`,
+        `Υπολογίστηκε νέο κόστος για ${formatNumber(summary.total)} κωδικούς (Βάση: ${formatDecimal(settings.last_calc_silver_price, 2)}€/g).`,
         'info',
       );
     } else {
@@ -120,10 +121,10 @@ export default function PricingManager({ products, settings, materials }: Props)
         markupMode === 'formula'
           ? 'Τύπος Ilios'
           : markupMode === 'adjust'
-            ? `Αναπροσαρμογή ${markupPercent}%`
-            : `Στόχος ${markupPercent}%`;
+            ? `Αναπροσαρμογή ${formatNumber(markupPercent)}%`
+            : `Στόχος ${formatNumber(markupPercent)}%`;
       showToast(
-        `Υπολογίστηκαν τιμές (${modeLabel}) για ${summary.total} κωδικούς. ${summary.willUpdate} θα ενημερωθούν, ${summary.manualProtected} προστατεύονται (χειροκίνητες).`,
+        `Υπολογίστηκαν τιμές (${modeLabel}) για ${formatNumber(summary.total)} κωδικούς. ${formatNumber(summary.willUpdate)} θα ενημερωθούν, ${formatNumber(summary.manualProtected)} προστατεύονται (χειροκίνητες).`,
         'info',
       );
       if (summary.willUpdate === 0 && summary.manualProtected === 0) {
@@ -271,10 +272,10 @@ export default function PricingManager({ products, settings, materials }: Props)
       title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Χονδρικής',
       message:
         mode === 'cost'
-          ? `Θα ενημερωθεί η Τιμή Κόστους για ${count} κωδικούς.`
+          ? `Θα ενημερωθεί η Τιμή Κόστους για ${formatNumber(count)} κωδικούς.`
           : manualIncluded > 0
-            ? `Θα αλλάξει η Τιμή Χονδρικής για ${count} κωδικούς (συμπεριλαμβανομένων ${manualIncluded} χειροκίνητων). Είστε σίγουροι;`
-            : `Θα αλλάξει η Τιμή Χονδρικής για ${count} κωδικούς. ${manualProtectedItems.length} χειροκίνητοι κωδικοί θα παραμείνουν ως έχουν.`,
+            ? `Θα αλλάξει η Τιμή Χονδρικής για ${formatNumber(count)} κωδικούς (συμπεριλαμβανομένων ${formatNumber(manualIncluded)} χειροκίνητων). Είστε σίγουροι;`
+            : `Θα αλλάξει η Τιμή Χονδρικής για ${formatNumber(count)} κωδικούς. ${formatNumber(manualProtectedItems.length)} χειροκίνητοι κωδικοί θα παραμείνουν ως έχουν.`,
       confirmText: 'Ενημέρωση',
     });
 
@@ -331,9 +332,9 @@ export default function PricingManager({ products, settings, materials }: Props)
       setProgress(null);
 
       if (failCount > 0) {
-        showToast(`Ενημερώθηκαν ${successCount}, απέτυχαν ${failCount}.`, 'warning');
+        showToast(`Ενημερώθηκαν ${formatNumber(successCount)}, απέτυχαν ${formatNumber(failCount)}.`, 'warning');
       } else {
-        showToast(`Επιτυχής ενημέρωση ${successCount} κωδικών!`, 'success');
+        showToast(`Επιτυχής ενημέρωση ${formatNumber(successCount)} κωδικών!`, 'success');
       }
     } catch (err) {
       console.error(err);
@@ -548,12 +549,12 @@ export default function PricingManager({ products, settings, materials }: Props)
                   </div>
                 ) : (
                   <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg">
-                    (Μη-Μέταλλο ×{getPricingRules(settings).ilios_labor_material_multiplier}) + Ασήμι + (Βάρος ×{getPricingRules(settings).ilios_weight_surcharge})
+                    (Μη-Μέταλλο ×{formatNumber(getPricingRules(settings).ilios_labor_material_multiplier)}) + Ασήμι + (Βάρος ×{formatNumber(getPricingRules(settings).ilios_weight_surcharge)})
                   </span>
                 )}
                 {manualPriceCount > 0 && (
                   <span className="text-[10px] text-amber-700 font-bold flex items-center gap-1">
-                    <Lock size={10} /> {manualPriceCount} χειροκίνητες
+                    <Lock size={10} /> {formatNumber(manualPriceCount)} χειροκίνητες
                   </span>
                 )}
               </>
@@ -606,7 +607,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                     {isCommitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                     {isCommitting
                       ? `${progress ? Math.round((progress.current / progress.total) * 100) : 0}%...`
-                      : `Εφαρμογή (${pendingCommitCount})`}
+                      : `Εφαρμογή (${formatNumber(pendingCommitCount)})`}
                   </button>
                 </>
               )}
@@ -621,26 +622,26 @@ export default function PricingManager({ products, settings, materials }: Props)
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                         {isCalculated ? <Layers size={14} className="text-emerald-500"/> : <AlertCircle size={14}/>}
                         {isCalculated ? 'Προεπισκόπηση' : 'Όλοι οι Κωδικοί'}
-                        <span className="bg-white px-1.5 py-0.5 rounded text-[10px] border border-slate-200 font-mono">{filteredList.length}</span>
+                        <span className="bg-white px-1.5 py-0.5 rounded text-[10px] border border-slate-200 font-mono">{formatNumber(filteredList.length)}</span>
                     </div>
 
                     {isCalculated && previewSummary && (
                         <div className="flex flex-wrap items-center gap-1.5">
                             <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
-                                ↑ {previewSummary.willUpdate} ενημέρωση
+                                ↑ {formatNumber(previewSummary.willUpdate)} ενημέρωση
                             </span>
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                                <Lock size={10}/> {previewSummary.manualProtected} προστατευμένες
+                                <Lock size={10}/> {formatNumber(previewSummary.manualProtected)} προστατευμένες
                             </span>
                             <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
-                                = {previewSummary.unchanged} χωρίς αλλαγή
+                                = {formatNumber(previewSummary.unchanged)} χωρίς αλλαγή
                             </span>
                         </div>
                     )}
 
                     {!isCalculated && mode === 'selling' && manualPriceCount > 0 && (
                         <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-bold">
-                            <Lock size={10} /> {manualPriceCount} χειροκίνητες
+                            <Lock size={10} /> {formatNumber(manualPriceCount)} χειροκίνητες
                         </span>
                     )}
 
@@ -674,7 +675,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                             <option value="margin_asc">Μικρότερο περιθώριο</option>
                         </select>
                         {isCalculated && mode === 'cost' && (
-                            <span className="text-[10px] bg-amber-50 px-2 py-0.5 rounded text-amber-700 font-bold border border-amber-100 whitespace-nowrap">Νέα βάση: {settings.silver_price_gram}€/g</span>
+                            <span className="text-[10px] bg-amber-50 px-2 py-0.5 rounded text-amber-700 font-bold border border-amber-100 whitespace-nowrap">Νέα βάση: {formatNumber(settings.silver_price_gram)}€/g</span>
                         )}
                         <div className="relative w-44">
                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={12}/>
@@ -698,7 +699,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                         >
                             <span className="text-xs font-black text-amber-800 flex items-center gap-1.5">
                                 <Lock size={14} />
-                                Προστατευόμενες ({manualProtectedItems.length})
+                                Προστατευόμενες ({formatNumber(manualProtectedItems.length)})
                             </span>
                             {manualPanelOpen ? <ChevronUp size={14} className="text-amber-700" /> : <ChevronDown size={14} className="text-amber-700" />}
                         </button>
@@ -857,7 +858,7 @@ export default function PricingManager({ products, settings, materials }: Props)
 
                               <div className="flex justify-between items-start mb-2 mr-6">
                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(snap.created_at).toLocaleDateString('el-GR')}</span>
-                                  <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-black text-slate-500">{snap.item_count} είδη</span>
+                                  <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-black text-slate-500">{formatNumber(snap.item_count)} είδη</span>
                               </div>
                               <p className="font-bold text-slate-800 text-sm mb-3">{snap.notes}</p>
                               <div className="flex gap-2">
@@ -901,13 +902,13 @@ export default function PricingManager({ products, settings, materials }: Props)
                                             return (
                                                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                                                     <td className="p-4 pl-8 font-mono text-slate-700 font-bold">{item.product_sku}{item.variant_suffix || ''}</td>
-                                                    <td className="p-4 text-right font-bold text-slate-500">{item.price.toFixed(2)}€</td>
-                                                    <td className="p-4 text-right font-black text-slate-800">{item.currentPrice.toFixed(2)}€</td>
+                                                    <td className="p-4 text-right font-bold text-slate-500">{formatDecimal(item.price, 2)}€</td>
+                                                    <td className="p-4 text-right font-black text-slate-800">{formatDecimal(item.currentPrice, 2)}€</td>
                                                     <td className={`p-4 text-right pr-8 font-bold ${hasDiff ? (item.diff > 0 ? 'text-emerald-600' : 'text-rose-500') : 'text-slate-300'}`}>
                                                         {hasDiff ? (
                                                             <div className="flex items-center justify-end gap-1">
                                                                 {item.diff > 0 ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
-                                                                {Math.abs(item.diff).toFixed(2)}€
+                                                                {formatDecimal(Math.abs(item.diff), 2)}€
                                                             </div>
                                                         ) : '-'}
                                                     </td>

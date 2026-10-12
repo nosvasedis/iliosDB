@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Order, Product, Customer } from '../types';
@@ -102,7 +103,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 key={globalIndex}
                 className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-14 text-center flex-shrink-0">
                     <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
@@ -125,10 +126,10 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">
-                    <div>{item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{item.price_override ? '*' : ''}</div>
+                    <div>{formatNumber(item.quantity)} x {formatDecimal(item.price_at_order, 2)}{item.price_override ? '*' : ''}</div>
                     {item.quantity !== 1 && (
                         <div className="mt-0.5 text-[9px] leading-none text-slate-400">
-                            {(item.quantity * item.price_at_order).toFixed(2).replace('.', ',')}
+                            {formatDecimal((item.quantity * item.price_at_order), 2)}
                         </div>
                     )}
                 </div>
@@ -188,7 +189,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 {/* Net value */}
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Καθαρή Αξία</span>
-                    <span className="font-black text-xl text-slate-900 leading-none">{netAmount.toFixed(2).replace('.', ',')}€</span>
+                    <span className="font-black text-xl text-slate-900 leading-none">{formatDecimal(netAmount, 2)}€</span>
                 </div>
             </div>
 

@@ -1,9 +1,10 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, ShieldAlert, Truck, X } from 'lucide-react';
 import { Order, OrderShipment, OrderShipmentItem } from '../../types';
 import { formatOrderId } from '../../utils/orderUtils';
 
-export const buildShipmentUndoConfirmationToken = (shipmentNumber: number) => `ΑΝΑΙΡΕΣΗ #${shipmentNumber}`;
+export const buildShipmentUndoConfirmationToken = (shipmentNumber: number) => `ΑΝΑΙΡΕΣΗ #${formatNumber(shipmentNumber)}`;
 
 export function getShipmentUndoItemCount(items: OrderShipmentItem[] | undefined | null): number {
   return (items || []).reduce((sum, item) => sum + item.quantity, 0);
@@ -57,7 +58,7 @@ export default function ShipmentUndoConfirmationModal({
             </div>
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-red-100">Έκτακτη Ενέργεια</div>
-              <h2 id="shipment-undo-title" className="text-xl font-black mt-0.5">Αναίρεση Αποστολής #{shipment.shipment_number}</h2>
+              <h2 id="shipment-undo-title" className="text-xl font-black mt-0.5">Αναίρεση Αποστολής #{formatNumber(shipment.shipment_number)}</h2>
               <p className="text-sm font-bold text-red-50 mt-1">
                 Χρήση μόνο σε ακραίες περιπτώσεις λανθασμένων ευρημάτων στην παραγγελία.
               </p>
@@ -93,13 +94,13 @@ export default function ShipmentUndoConfirmationModal({
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Αποστολή</div>
               <div className="mt-1 flex items-center gap-2 text-sm font-black text-slate-900">
-                <Truck size={15} className="text-red-600" /> #{shipment.shipment_number}
+                <Truck size={15} className="text-red-600" /> #{formatNumber(shipment.shipment_number)}
               </div>
               <div className="text-xs font-bold text-slate-600">{shippedAt}</div>
             </div>
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Τεμάχια</div>
-              <div className="mt-1 text-sm font-black text-slate-900">{itemCount} τεμ.</div>
+              <div className="mt-1 text-sm font-black text-slate-900">{formatNumber(itemCount)} τεμ.</div>
               <div className="text-xs font-bold text-slate-600">Επιστροφή σε στάδιο Έτοιμα</div>
             </div>
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">

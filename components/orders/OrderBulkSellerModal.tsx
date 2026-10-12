@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Loader2, UserCheck, X } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
@@ -29,7 +30,7 @@ export function OrderBulkSellerModal({
                         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <UserCheck size={18} /> Μαζική Ανάθεση Πλασιέ
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Θα εφαρμοστεί σε {count} παραγγελίες</p>
+                        <p className="text-xs text-slate-500 mt-1">Θα εφαρμοστεί σε {formatNumber(count)} παραγγελίες</p>
                     </div>
                     <button type="button" onClick={onClose} className="p-2 hover:bg-white rounded-full text-slate-500">
                         <X size={20} />

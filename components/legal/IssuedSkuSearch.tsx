@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, PackageSearch, Search } from 'lucide-react';
 import { LegalArchiveRecord } from '../../types';
@@ -47,7 +48,7 @@ export default function IssuedSkuSearch({ records, loading, renderDetails }: {
       </div>
       <p className="text-xs leading-5 text-slate-500">Αναζήτηση σε όλο το αρχείο, ανεξάρτητα από τα φίλτρα παρακάτω. Ο βασικός SKU βρίσκει και τις παραλλαγές του. Οι τιμές είναι οι αποθηκευμένες κατά την έκδοση, χωρίς ΦΠΑ. Τα πιστωτικά εμφανίζονται ξεχωριστά ως πιστώσεις.</p>
       <div role="status" aria-live="polite" className="text-sm font-bold text-slate-600">
-        {loading ? 'Φόρτωση παραστατικών…' : invalidDates ? 'Η ημερομηνία «Από» πρέπει να προηγείται της «Έως».' : !validQuery ? 'Πληκτρολογήστε τουλάχιστον 2 χαρακτήρες SKU.' : filters !== deferred ? 'Αναζήτηση…' : `${results.length} γραμμές σε ${new Set(results.map((row) => row.record.key)).size} παραστατικά`}
+        {loading ? 'Φόρτωση παραστατικών…' : invalidDates ? 'Η ημερομηνία «Από» πρέπει να προηγείται της «Έως».' : !validQuery ? 'Πληκτρολογήστε τουλάχιστον 2 χαρακτήρες SKU.' : filters !== deferred ? 'Αναζήτηση…' : `${formatNumber(results.length)} γραμμές σε ${new Set(results.map((row) => row.record.key)).size} παραστατικά`}
       </div>
       {!loading && !invalidDates && validQuery && results.length === 0 && <div className="rounded-xl bg-slate-50 p-8 text-center text-slate-500"><Search className="mx-auto mb-2" />Δεν βρέθηκαν εκδοθέντα παραστατικά με αυτά τα κριτήρια.</div>}
       {!loading && !invalidDates && validQuery && results.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row) => {
@@ -66,7 +67,7 @@ export default function IssuedSkuSearch({ records, loading, renderDetails }: {
             <div className="flex flex-wrap justify-between gap-2 text-sm"><div className="font-bold text-slate-900">{row.customer}<span className="ml-2 font-normal text-slate-500">ΑΦΜ {document.counterpart.vat_number || '—'}</span></div><div className="text-slate-600">{getLegalDocumentDisplayNumber(document)} · {document.issue_date.slice(0, 10).split('-').reverse().join('/')}</div></div>
             <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-3 xl:grid-cols-6">
               {[
-                ['Ποσότητα', `${line.quantity} ${line.measurement_unit === 1 ? 'τεμ.' : line.measurement_unit === 2 ? 'kg' : `μον. (${line.measurement_unit})`}`],
+                ['Ποσότητα', `${line.quantity} ${line.measurement_unit === 1 ? 'τεμ.' : line.measurement_unit === 2 ? 'kg' : `μον. (${formatNumber(line.measurement_unit)})`}`],
                 ['Αρχική τιμή / μον.', row.hasPrice && pricing.original !== null ? money(pricing.original) : '—'],
                 ['Έκπτωση', !row.hasPrice ? '—' : pricing.discount === null ? 'Δεν καταγράφηκε' : `${pricing.discount}%${pricing.discountAmount !== null && pricing.discountAmount > 0 ? ` · ${money(pricing.discountAmount)}` : ''}`],
                 ['Τιμή έκδοσης / μον.', row.hasPrice ? money(line.unit_price) : '—'],
@@ -82,7 +83,7 @@ export default function IssuedSkuSearch({ records, loading, renderDetails }: {
           {detailKey === row.key && renderDetails(record)}
         </article>;
       })}
-      {validQuery && !loading && !invalidDates && pages > 1 && <div className="flex items-center justify-between text-sm"><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Προηγούμενη</button><span>Σελίδα {currentPage} / {pages}</span><button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Επόμενη</button></div>}
+      {validQuery && !loading && !invalidDates && pages > 1 && <div className="flex items-center justify-between text-sm"><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Προηγούμενη</button><span>Σελίδα {formatNumber(currentPage)} / {formatNumber(pages)}</span><button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Επόμενη</button></div>}
     </div>}
   </section>;
 }

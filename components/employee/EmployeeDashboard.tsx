@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useMemo } from 'react';
 import { Product, Order, OrderStatus } from '../../types';
@@ -66,13 +67,13 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                 />
                 <StatCard 
                     title="Εκκρεμείς Παραγγελίες" 
-                    value={stats.pending.toString()} 
+                    value={formatNumber(stats.pending)}
                     icon={<Clock size={24} />} 
                     color="bg-amber-500" 
                 />
                 <StatCard 
                     title="Έτοιμα προς Παράδοση" 
-                    value={stats.ready.toString()} 
+                    value={formatNumber(stats.ready)}
                     icon={<CheckCircle size={24} />} 
                     color="bg-blue-500" 
                 />

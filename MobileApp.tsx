@@ -230,7 +230,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
     registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,
     settings: <MobileSettings />,
-    resources: <MobileResources />,
+    resources: <MobileResources products={products} />,
     customers: <MobileCustomers mode="customers" />,
     suppliers: <MobileCustomers mode="suppliers" onPrintSupplierOrder={setSupplierOrderToPrint} />,
     pricing: <MobilePricing />,

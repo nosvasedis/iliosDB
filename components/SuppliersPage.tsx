@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, Material, SupplierOrder } from '../types';
 import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, FileText, Printer, Pencil } from 'lucide-react';
@@ -343,9 +344,9 @@ export default function SuppliersPage() {
                             <div className="flex border-b border-slate-100 px-4 md:px-8 gap-4 md:gap-8 shrink-0 bg-white overflow-x-auto custom-scrollbar">
                                 {[
                                     { id: 'info', label: 'Πληροφορίες' },
-                                    { id: 'products', label: `Προϊόντα (${assignedProducts.length})` },
-                                    { id: 'materials', label: `Υλικά (${assignedMaterials.length})` },
-                                    { id: 'orders', label: `Παραγγελίες (${relatedOrders.length})` }
+                                    { id: 'products', label: `Προϊόντα (${formatNumber(assignedProducts.length)})` },
+                                    { id: 'materials', label: `Υλικά (${formatNumber(assignedMaterials.length)})` },
+                                    { id: 'orders', label: `Παραγγελίες (${formatNumber(relatedOrders.length)})` }
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
@@ -468,7 +469,7 @@ export default function SuppliersPage() {
                                                                 </span>
                                                             </div>
                                                             <div className="text-xs text-slate-500 font-bold mt-1">
-                                                                {new Date(o.created_at).toLocaleDateString('el-GR')} • {o.items.length} είδη
+                                                                {new Date(o.created_at).toLocaleDateString('el-GR')} • {formatNumber(o.items.length)} είδη
                                                             </div>
                                                         </div>
                                                     </div>
@@ -512,7 +513,7 @@ export default function SuppliersPage() {
                                                                 <td className="p-4 font-black text-slate-800 text-xs tracking-wider">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</td>
                                                                 <td className="p-4 font-medium text-slate-700">{item.item_name}</td>
                                                                 <td className="p-4 text-sm text-slate-600">{item.customer_reference || '—'}</td>
-                                                                <td className="p-4 text-center font-mono font-bold text-slate-900">{item.quantity}</td>
+                                                                <td className="p-4 text-center font-mono font-bold text-slate-900">{formatNumber(item.quantity)}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>

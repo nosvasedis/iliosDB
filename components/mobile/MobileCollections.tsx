@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -141,7 +142,7 @@ export default function MobileCollections() {
                     </div>
 
                     <div className="space-y-2">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase ml-1">Περιεχομενα ({collectionProducts.length})</h3>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase ml-1">Περιεχομενα ({formatNumber(collectionProducts.length)})</h3>
                         {collectionProducts.map(p => (
                             <div 
                                 key={p.sku} 

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
@@ -144,7 +145,7 @@ export default function RepairDetailModal({
                 <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>
               )}
               {item.current_cycle_number > 1 && (
-                <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>
+                <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {formatNumber(item.current_cycle_number)}</span>
               )}
             </div>
             <p className="mt-1 text-xs text-slate-500">{customerName}{sellerName ? ` · πωλητής ${sellerName}` : ''}</p>
@@ -159,7 +160,7 @@ export default function RepairDetailModal({
           <div className="space-y-4">
             <div className={`grid grid-cols-2 gap-3 ${canSeeCost ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
               <div className="rounded-2xl bg-blue-50 p-3">
-                <div className="text-lg font-black">{item.current_cycle_number}</div>
+                <div className="text-lg font-black">{formatNumber(item.current_cycle_number)}</div>
                 <div className="text-[10px] font-bold text-blue-700">Κύκλος επισκευής</div>
               </div>
               {canSeeCost && (
@@ -262,7 +263,7 @@ export default function RepairDetailModal({
                   {[...cycles].sort((a, b) => a.cycle_number - b.cycle_number).map((cycle) => (
                     <div key={cycle.id} className="rounded-xl bg-slate-50 p-2.5 text-xs">
                       <div className="flex justify-between font-bold">
-                        <span>Κύκλος {cycle.cycle_number}</span>
+                        <span>Κύκλος {formatNumber(cycle.cycle_number)}</span>
                         <span>{REPAIR_QUALITY_STATUS_LABELS[cycle.quality_status]}</span>
                       </div>
                       <div className="mt-1 text-slate-400">{formatGreekDateTime(cycle.started_at)}</div>

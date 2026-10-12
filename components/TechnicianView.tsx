@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo } from 'react';
 import { ProductionBatch, ProductionType, ProductionStage } from '../types';
@@ -114,7 +115,7 @@ export default function TechnicianView({ batches }: Props) {
                                     {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
                                         <div key={size} className="bg-slate-100 border border-slate-300 rounded px-2 py-1 flex items-baseline gap-1 shadow-sm">
                                             <span className="font-black text-slate-900 text-xs">{size}</span>
-                                            <span className="font-bold text-slate-500 text-[8px] whitespace-nowrap">({qty} τμχ)</span>
+                                            <span className="font-bold text-slate-500 text-[8px] whitespace-nowrap">({formatNumber(qty)} τμχ)</span>
                                         </div>
                                     ))}
                                 </div>
@@ -139,7 +140,7 @@ export default function TechnicianView({ batches }: Props) {
                         {/* Bottom: Total Quantity */}
                         <div className="mt-2 pt-1 border-t border-slate-200 flex justify-between items-end">
                             <span className="text-[9px] font-bold text-slate-500 uppercase">Συνολο</span>
-                            <span className="text-2xl font-black text-slate-900 leading-none">{item.totalQuantity}</span>
+                            <span className="text-2xl font-black text-slate-900 leading-none">{formatNumber(item.totalQuantity)}</span>
                         </div>
                     </div>
                 ))}

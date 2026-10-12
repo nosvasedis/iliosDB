@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -226,7 +227,7 @@ const OrderPartSelectorModal = ({
                 {/* Info Banner */}
                 <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 shrink-0">
                     <p className="text-xs text-blue-700 font-medium">
-                        Η παραγγελία έχει σταλεί στην παραγωγή σε <span className="font-bold">{shipments.length} διαφορετικά τμήματα</span>. Επιλέξτε ποια θέλετε να εκτυπώσετε.
+                        Η παραγγελία έχει σταλεί στην παραγωγή σε <span className="font-bold">{formatNumber(shipments.length)} διαφορετικά τμήματα</span>. Επιλέξτε ποια θέλετε να εκτυπώσετε.
                     </p>
                 </div>
 
@@ -265,13 +266,13 @@ const OrderPartSelectorModal = ({
                                         <div>
                                             <div className="font-bold text-slate-800 text-sm">{prettyDate}</div>
                                             <div className="text-xs text-slate-500 mt-0.5">
-                                                {summary.totalItems} τεμ. • {summary.uniqueSkus} SKU
+                                                {formatNumber(summary.totalItems)} τεμ. • {formatNumber(summary.uniqueSkus)} SKU
                                             </div>
                                             {/* Stage Pills */}
                                             <div className="flex flex-wrap gap-1 mt-2">
                                                 {Object.entries(stageBreakdown).map(([stage, qty]) => (
                                                     <span key={stage} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                                                        {stage}: {qty}
+                                                        {stage}: {formatNumber(qty)}
                                                     </span>
                                                 ))}
                                             </div>
@@ -308,7 +309,7 @@ const OrderPartSelectorModal = ({
                     {/* Summary */}
                     <div className="flex justify-between items-center py-2 px-3 bg-white rounded-xl border border-slate-200">
                         <div>
-                            <div className="text-xs text-slate-500">Επιλεγμένα: {selectedBatches.length} batches</div>
+                            <div className="text-xs text-slate-500">Επιλεγμένα: {formatNumber(selectedBatches.length)} batches</div>
                             <div className="font-bold text-slate-800">{formatCurrency(selectedValue)}</div>
                         </div>
                         <div className="text-right">
@@ -325,7 +326,7 @@ const OrderPartSelectorModal = ({
                             className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             <Printer size={16} />
-                            Εκτύπωση Επιλεγμένων ({selectedBatches.reduce((s, b) => s + b.quantity, 0)} τεμ.)
+                            Εκτύπωση Επιλεγμένων ({formatNumber(selectedBatches.reduce((s, b) => s + b.quantity, 0))} τεμ.)
                         </button>
                         <button
                             onClick={onPrintAll}
@@ -492,7 +493,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
         if (itemsToPrint.length > 0) {
             onPrintLabels?.(itemsToPrint);
             const totalQuantity = itemsToPrint.reduce((sum, item) => sum + item.quantity, 0);
-            showToast(`Στάλθηκαν ${totalQuantity} τεμάχια για εκτύπωση ετικετών.`, "success");
+            showToast(`Στάλθηκαν ${formatNumber(totalQuantity)} τεμάχια για εκτύπωση ετικετών.`, "success");
         }
         onClose();
     };
@@ -519,7 +520,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             color: "slate",
             action: handlePrintOrder,
             disabled: !onPrintOrder,
-            badge: hasMultipleShipments ? `${shipments.length} μέρη` : orderRevisions.length > 0 ? `${orderRevisions.length} εκδόσεις` : undefined,
+            badge: hasMultipleShipments ? `${formatNumber(shipments.length)} μέρη` : orderRevisions.length > 0 ? `${formatNumber(orderRevisions.length)} εκδόσεις` : undefined,
         },
         {
             label: "Εκτύπωση Ετικετών",
@@ -626,8 +627,8 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                         <h3 className="text-xl font-bold text-slate-900">{'\u03A5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE'}</h3>
                         <p className="text-sm text-slate-600 mt-1">
                             {hasMultipleOrderShipments
-                                ? `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 ${shipmentPrintPayloads.length} \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B5\u03C2 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AD\u03C2. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03C0\u03BF\u03B9\u03B1 \u03C0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03AC \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03C9\u03B8\u03BF\u03CD\u03BD.`
-                                : `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B7 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${shipmentPrintPayloads[0].shipment.shipment_number}. \u03A4\u03B9 \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03CE\u03C3\u03B5\u03C4\u03B5;`}
+                                ? `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 ${formatNumber(shipmentPrintPayloads.length)} \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B5\u03C2 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AD\u03C2. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03C0\u03BF\u03B9\u03B1 \u03C0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03AC \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03C9\u03B8\u03BF\u03CD\u03BD.`
+                                : `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B7 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}. \u03A4\u03B9 \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03CE\u03C3\u03B5\u03C4\u03B5;`}
                         </p>
                     </div>
                     <div className="p-6 space-y-3">
@@ -652,7 +653,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                             <div className="text-xs mt-1 opacity-80">
                                 {hasMultipleOrderShipments
                                     ? 'Επιλέξτε μία, όλες ή καμία αποστολή από τη λίστα.'
-                                    : `\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
+                                    : `\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${formatNumber(shipmentPrintPayloads[0].shipment.shipment_number)}.`}
                             </div>
                         </button>
                         {latestShipmentData && (
@@ -728,7 +729,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                             <h3 className="text-xl font-bold text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
                         </div>
                         <p className="text-sm text-slate-600">
-                            {'\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 '}{orderRevisions.length}{' \u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03AD\u03BA\u03B4\u03BF\u03C3\u03B7 \u03B3\u03B9\u03B1 \u03B5\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7.'}
+                            {'\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 '}{formatNumber(orderRevisions.length)}{' \u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03AD\u03BA\u03B4\u03BF\u03C3\u03B7 \u03B3\u03B9\u03B1 \u03B5\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7.'}
                         </p>
                     </div>
                     <div className="p-6 space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
@@ -785,10 +786,10 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                                 day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                                             }) : ''}
                                         </span>
-                                        <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                        <span className="font-mono font-bold text-slate-700">{formatDecimal(rev.order.total_price, 2)}€</span>
                                         {rev.totalDiff !== null && rev.totalDiff !== 0 && (
                                             <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                                ({rev.totalDiff > 0 ? '+' : ''}{formatDecimal(rev.totalDiff, 2)}€)
                                             </span>
                                         )}
                                     </div>
@@ -833,20 +834,20 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                     <div className="p-3 rounded-xl border border-slate-200 bg-white">
                                         <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Σύνολο Πριν</div>
                                         <div className="text-lg font-black text-slate-800 mt-1">
-                                            {currentRevisionDiff.totalBefore.toFixed(2).replace('.', ',')}€
+                                            {formatDecimal(currentRevisionDiff.totalBefore, 2)}€
                                         </div>
                                     </div>
                                     <div className="p-3 rounded-xl border border-slate-200 bg-white">
                                         <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Σύνολο Μετά</div>
                                         <div className="text-lg font-black text-slate-800 mt-1">
-                                            {currentRevisionDiff.totalAfter.toFixed(2).replace('.', ',')}€
+                                            {formatDecimal(currentRevisionDiff.totalAfter, 2)}€
                                         </div>
                                     </div>
                                     <div className="p-3 rounded-xl border border-slate-200 bg-white">
                                         <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Διαφορά</div>
                                         <div className={`text-lg font-black mt-1 ${currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                             {currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore >= 0 ? '+' : ''}
-                                            {(currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore).toFixed(2).replace('.', ',')}€
+                                            {formatDecimal((currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore), 2)}€
                                         </div>
                                     </div>
                                 </div>
@@ -907,13 +908,13 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                                         <div className="p-2 rounded-lg bg-white/90 border border-slate-200">
                                                             <div className="font-bold text-slate-500">Τιμή</div>
                                                             <div className="mt-1 text-slate-700">
-                                                                <span className="font-bold">{item.oldPrice !== null ? `${item.oldPrice.toFixed(2).replace('.', ',')}€` : '-'}</span>
+                                                                <span className="font-bold">{item.oldPrice !== null ? `${formatDecimal(item.oldPrice, 2)}€` : '-'}</span>
                                                                 <span className="mx-1">→</span>
-                                                                <span className="font-black">{item.newPrice !== null ? `${item.newPrice.toFixed(2).replace('.', ',')}€` : '-'}</span>
+                                                                <span className="font-black">{item.newPrice !== null ? `${formatDecimal(item.newPrice, 2)}€` : '-'}</span>
                                                             </div>
                                                             {priceDelta !== null && priceDelta !== 0 && (
                                                                 <div className={`font-bold mt-1 ${priceDelta > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                                    {priceDelta > 0 ? '+' : ''}{priceDelta.toFixed(2).replace('.', ',')}€
+                                                                    {priceDelta > 0 ? '+' : ''}{formatDecimal(priceDelta, 2)}€
                                                                 </div>
                                                             )}
                                                         </div>
@@ -921,13 +922,13 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                                         <div className="p-2 rounded-lg bg-white/90 border border-slate-200">
                                                             <div className="font-bold text-slate-500">Ποσότητα</div>
                                                             <div className="mt-1 text-slate-700">
-                                                                <span className="font-bold">{item.oldQuantity !== null ? item.oldQuantity : '-'}</span>
+                                                                <span className="font-bold">{item.oldQuantity !== null ? formatNumber(item.oldQuantity) : '-'}</span>
                                                                 <span className="mx-1">→</span>
-                                                                <span className="font-black">{item.newQuantity !== null ? item.newQuantity : '-'}</span>
+                                                                <span className="font-black">{item.newQuantity !== null ? formatNumber(item.newQuantity) : '-'}</span>
                                                             </div>
                                                             {quantityDelta !== null && quantityDelta !== 0 && (
                                                                 <div className={`font-bold mt-1 ${quantityDelta > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                                    {quantityDelta > 0 ? '+' : ''}{quantityDelta}
+                                                                    {quantityDelta > 0 ? '+' : ''}{formatNumber(quantityDelta)}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1437,7 +1438,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             await ordersRepository.sendPartialOrderToProduction(order.id, itemsToSend, products, materials);
             await invalidateOrdersAndBatches(queryClient);
             const totalQty = itemsToSend.reduce((s, i) => s + i.qty, 0);
-            showToast(`Στάλθηκαν ${totalQty} τεμάχια στην παραγωγή.`, "success");
+            showToast(`Στάλθηκαν ${formatNumber(totalQty)} τεμάχια στην παραγωγή.`, "success");
             dispatchLiveActivity({ type: 'order_sent_to_production', userName: profile?.full_name || 'Κάποιος', customerName: order.customer_name, itemCount: totalQty });
         } catch {
             showToast("Σφάλμα κατά την αποστολή στην παραγωγή.", "error");
@@ -1617,7 +1618,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 revertedBy: profile?.full_name || 'Σύστημα',
             });
             await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-            showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+            showToast(`Η αποστολή #${formatNumber(shipment.shipment_number)} αναιρέθηκε επιτυχώς.`, 'success');
             setShipmentUndoRequest(null);
             setManagingOrder(null);
         } catch (e: any) {
@@ -1856,7 +1857,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Παραγγελιών</div>
                             </div>
                             <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
-                                {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
+                                {formatNumber(filteredOrders.length)} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
                             </div>
                         </div>
                     </div>
@@ -1898,7 +1899,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 #{order.id}
                                             </div>
                                             <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                                                <Package size={12} /> {getOrderTotalQuantity(order)} τεμ.
+                                                <Package size={12} /> {formatNumber(getOrderTotalQuantity(order))} τεμ.
                                             </div>
                                             {order.seller_name && (() => {
                                                 const sellerColors = [
@@ -1918,7 +1919,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                         <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold leading-none ${sc.bg} ${sc.text} ${sc.border}`}>
                                                             {order.seller_name}
                                                             {order.seller_commission_percent != null && (
-                                                                <span className="opacity-60">{order.seller_commission_percent}%</span>
+                                                                <span className="opacity-60">{formatNumber(order.seller_commission_percent)}%</span>
                                                             )}
                                                         </span>
                                                     </div>
@@ -2006,7 +2007,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     <div className="flex min-w-[12rem] flex-1 items-center gap-2">
                                                         <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} showPercentLabel={false} />
                                                         <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-600 shadow-sm">
-                                                            {Math.max(0, orderMeta?.readinessPercent ?? 0)}%
+                                                            {formatNumber(Math.max(0, orderMeta?.readinessPercent ?? 0))}%
                                                         </span>
                                                     </div>
                                                 )}
@@ -2104,7 +2105,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 >
                                     {(managingOrder.tags?.length || 0) > 0 && (
                                         <span className="absolute top-2 right-2 bg-violet-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                                            {managingOrder.tags?.length}
+                                            {formatNumber(managingOrder.tags?.length)}
                                         </span>
                                     )}
                                     <div className="p-2.5 bg-white rounded-lg shadow-sm border border-violet-100"><Layers size={17} className="text-violet-600" /></div>
@@ -2242,7 +2243,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => { void openShipmentModal(managingOrder, 'full'); setShowWorkflowActions(false); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
                                 >
-                                    <Truck size={18} /> Αποστολή ({managingShipmentReadiness?.ready_qty ?? 0} τεμ. έτοιμα)
+                                    <Truck size={18} /> Αποστολή ({formatNumber(managingShipmentReadiness?.ready_qty ?? 0)} τεμ. έτοιμα)
                                 </button>
                             )}
 
@@ -2251,7 +2252,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => { void openShipmentModal(managingOrder, 'partial'); setShowWorkflowActions(false); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
-                                    <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
+                                    <Truck size={18} /> Μερική Αποστολή ({formatNumber(managingShipmentReadiness.ready_qty)}/{formatNumber(managingShipmentReadiness.total_qty)} τεμ. έτοιμα)
                                 </button>
                             )}
 
@@ -2271,7 +2272,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={openShipmentUndoFromOrders}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
                                 >
-                                    <RotateCcw size={18} /> Αναίρεση Αποστολής #{managingOrderLatestShipment.shipment_number}
+                                    <RotateCcw size={18} /> Αναίρεση Αποστολής #{formatNumber(managingOrderLatestShipment.shipment_number)}
                                 </button>
                             )}
 

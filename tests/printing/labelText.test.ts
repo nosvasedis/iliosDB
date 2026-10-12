@@ -79,7 +79,7 @@ describe('label text helpers', () => {
       displaySku: 'DA050XKR',
       stone: 'Gold - Κοράλλι',
       brand: 'ILIOS',
-      price: '20,00€',
+      price: '20,00\u00a0€',
       metal: '925°',
     });
   });

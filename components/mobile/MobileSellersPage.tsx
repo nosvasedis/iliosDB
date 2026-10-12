@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrdersList } from '../../hooks/api/useOrders';
@@ -206,8 +207,8 @@ export default function MobileSellersPage() {
       {globalStats && (
         <div className="px-4 pt-4">
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-            <MiniStat icon={<UserCheck size={14} />} label="Ενεργοί" value={String(globalStats.activeSellers)} color="sky" />
-            <MiniStat icon={<ShoppingCart size={14} />} label="Παραγγελίες" value={String(globalStats.totalOrders)} color="violet" />
+            <MiniStat icon={<UserCheck size={14} />} label="Ενεργοί" value={formatNumber(globalStats.activeSellers)} color="sky" />
+            <MiniStat icon={<ShoppingCart size={14} />} label="Παραγγελίες" value={formatNumber(globalStats.totalOrders)} color="violet" />
             <MiniStat icon={<DollarSign size={14} />} label="Πραγμ. έσοδα" value={formatCurrency(globalStats.totalRevenue)} color="emerald" />
             <MiniStat icon={<Percent size={14} />} label="Κερδισμένες" value={formatCurrency(globalStats.totalCommission)} color="amber" />
             <MiniStat icon={<Percent size={14} />} label="Εκκρεμείς" value={formatCurrency(globalStats.pendingCommission)} color="violet" />
@@ -271,7 +272,7 @@ export default function MobileSellersPage() {
                   <div className="grid grid-cols-3 gap-2 mt-3">
                     <div className="bg-slate-50 rounded-lg p-2 text-center">
                       <p className="text-[9px] text-slate-400 font-bold">Παραγγελίες</p>
-                      <p className="text-xs font-black text-slate-700">{stats.totalOrders}</p>
+                      <p className="text-xs font-black text-slate-700">{formatNumber(stats.totalOrders)}</p>
                     </div>
                     <div className="bg-emerald-50/60 rounded-lg p-2 text-center">
                       <p className="text-[9px] text-emerald-600 font-bold">Πραγμ. έσοδα</p>
@@ -316,7 +317,7 @@ export default function MobileSellersPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="font-black text-slate-800 truncate">{detailSeller.full_name}</h2>
-                <p className="text-[10px] text-slate-500 truncate">{detailSeller.email} · {detailSeller.commission_percent ?? 0}% προμ.</p>
+                <p className="text-[10px] text-slate-500 truncate">{detailSeller.email} · {formatNumber(detailSeller.commission_percent ?? 0)}% προμ.</p>
               </div>
             </div>
           </div>
@@ -327,8 +328,8 @@ export default function MobileSellersPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-sky-50 rounded-xl p-3">
                   <p className="text-[9px] font-bold text-sky-500 uppercase">Παραγγελίες</p>
-                  <p className="text-xl font-black text-sky-700">{detailStats.totalOrders}</p>
-                  <p className="text-[10px] text-sky-600">{detailStats.activeOrders} ενεργές</p>
+                  <p className="text-xl font-black text-sky-700">{formatNumber(detailStats.totalOrders)}</p>
+                  <p className="text-[10px] text-sky-600">{formatNumber(detailStats.activeOrders)} ενεργές</p>
                 </div>
                 <div className="bg-emerald-50 rounded-xl p-3">
                   <p className="text-[9px] font-bold text-emerald-500 uppercase">Πραγμ. έσοδα</p>
@@ -338,7 +339,7 @@ export default function MobileSellersPage() {
                 <div className="bg-amber-50 rounded-xl p-3">
                   <p className="text-[9px] font-bold text-amber-500 uppercase">Κερδισμένες</p>
                   <p className="text-xl font-black text-amber-700">{formatCurrency(detailStats.totalCommission)}</p>
-                  <p className="text-[10px] text-amber-600">Μ.Ο. {detailStats.avgCommissionRate.toFixed(1)}%</p>
+                  <p className="text-[10px] text-amber-600">Μ.Ο. {formatDecimal(detailStats.avgCommissionRate, 1)}%</p>
                 </div>
                 <div className="bg-violet-50 rounded-xl p-3">
                   <p className="text-[9px] font-bold text-violet-500 uppercase">Εκκρεμείς</p>
@@ -353,7 +354,7 @@ export default function MobileSellersPage() {
                   <div>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Τελευταίες 30 Ημέρες</p>
                     <p className="text-lg font-black text-slate-800 mt-0.5">{formatCurrency(detailStats.last30DaysRevenue)}</p>
-                    <p className="text-[10px] text-slate-500">{detailStats.last30DaysOrders} παραγγελίες με αποστολή</p>
+                    <p className="text-[10px] text-slate-500">{formatNumber(detailStats.last30DaysOrders)} παραγγελίες με αποστολή</p>
                   </div>
                   <MobileTrendBadge current={detailStats.last30DaysRevenue} previous={detailStats.prev30DaysRevenue} />
                 </div>
@@ -366,7 +367,7 @@ export default function MobileSellersPage() {
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(detailStats.ordersByStatus).map(([status, count]) => (
                       <div key={status} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold ${statusColors[status] || 'bg-slate-100 text-slate-600'}`}>
-                        {statusLabels[status] || status} <span className="font-black">{count}</span>
+                        {statusLabels[status] || status} <span className="font-black">{formatNumber(count)}</span>
                       </div>
                     ))}
                   </div>
@@ -387,7 +388,7 @@ export default function MobileSellersPage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-amber-600/70">% στα έσοδα</p>
-                    <p className="text-sm font-black text-amber-700">{detailStats.avgCommissionRate.toFixed(1)}%</p>
+                    <p className="text-sm font-black text-amber-700">{formatDecimal(detailStats.avgCommissionRate, 1)}%</p>
                   </div>
                 </div>
               </div>
@@ -527,8 +528,8 @@ function MobileTrendBadge({ current, previous }: { current: number; previous: nu
   const change = ((current - previous) / previous) * 100;
   if (Math.abs(change) < 1) return <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-bold"><Minus size={12} /> Σταθερά</div>;
   return change > 0 ? (
-    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[11px] font-bold"><ArrowUpRight size={12} /> +{change.toFixed(0)}%</div>
+    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[11px] font-bold"><ArrowUpRight size={12} /> +{formatDecimal(change, 0)}%</div>
   ) : (
-    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-[11px] font-bold"><ArrowDownRight size={12} /> {change.toFixed(0)}%</div>
+    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-[11px] font-bold"><ArrowDownRight size={12} /> {formatDecimal(change, 0)}%</div>
   );
 }

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem } from '../../types';
@@ -291,7 +292,7 @@ export default function DeliveryCalendarGrid({
                           isToday && !isSelected ? 'text-emerald-700' : ''
                         }`}
                       >
-                        {day.getDate()}
+                        {formatNumber(day.getDate())}
                       </span>
                       {isToday && isCurrentMonth && (
                         <span className="text-[8px] font-black uppercase text-emerald-600">Σήμ.</span>
@@ -312,7 +313,7 @@ export default function DeliveryCalendarGrid({
                       <EventDot events={dayEvents} isSelected={isSelected} />
                       {hiddenCount > 0 && (
                         <div className="text-[9px] font-bold text-slate-500 px-0.5">
-                          +{hiddenCount}
+                          +{formatNumber(hiddenCount)}
                         </div>
                       )}
                     </div>

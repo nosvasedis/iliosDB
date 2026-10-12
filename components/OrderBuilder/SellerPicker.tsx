@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserCheck, X, Percent, ChevronDown } from 'lucide-react';
 import { useSellers } from '../../hooks/api/useSellers';
@@ -120,7 +121,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-slate-400">{s.email}</span>
                       {s.commission_percent != null && (
-                        <span className="text-[10px] font-bold text-emerald-600">{s.commission_percent}%</span>
+                        <span className="text-[10px] font-bold text-emerald-600">{formatNumber(s.commission_percent)}%</span>
                       )}
                     </div>
                   </button>
@@ -219,7 +220,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                     </div>
                     {s.commission_percent != null && (
                       <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                        {s.commission_percent}%
+                        {formatNumber(s.commission_percent)}%
                       </span>
                     )}
                   </div>

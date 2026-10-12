@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { BellRing, CheckCircle2, Loader2, PauseCircle, Phone } from 'lucide-react';
 import { DeliveryAttentionEntry } from '../../utils/deliveryScheduling';
@@ -35,7 +36,7 @@ export default function DeliveryAlertRail({
         <div className="flex items-center gap-1.5 text-slate-700 min-w-0">
           <BellRing size={14} className="shrink-0 text-amber-700" />
           <span className="text-[11px] font-black uppercase tracking-wide truncate">Προσοχή</span>
-          <span className="text-[11px] font-bold text-slate-500">({attentionItems.length})</span>
+          <span className="text-[11px] font-bold text-slate-500">({formatNumber(attentionItems.length)})</span>
         </div>
         {hiddenCount > 0 && onShowAll && (
           <button

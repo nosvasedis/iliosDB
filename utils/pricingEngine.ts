@@ -10,22 +10,7 @@ import {
     resolveTechnicianCostVariant,
 } from './laborFormula';
 
-/**
- * Formats a number to a string with a comma decimal separator.
- */
-export const formatDecimal = (num: number | null | undefined, precision: number = 2): string => {
-    if (num === null || num === undefined || isNaN(num)) {
-        return (0).toFixed(precision).replace('.', ',');
-    }
-    return num.toFixed(precision).replace('.', ',');
-};
-
-/**
- * Formats a number as currency with a comma decimal separator and a euro sign.
- */
-export const formatCurrency = (num: number | null | undefined): string => {
-    return `${formatDecimal(num, 2)}€`;
-};
+export { formatDecimal, formatCurrency } from './numberFormat';
 
 /**
  * Rounds a price to the nearest 10 cents (e.g., 21.54 -> 21.50, 21.56 -> 21.60).

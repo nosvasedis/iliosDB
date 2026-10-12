@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import {
   PieChart as RePieChart,
@@ -66,6 +67,7 @@ export const MiniPiePanel = memo(function MiniPiePanel({
             ))}
           </Pie>
           <Tooltip
+            formatter={(value: number) => formatNumber(value)}
             isAnimationActive={false}
             contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
           />
@@ -82,7 +84,7 @@ export const MiniPiePanel = memo(function MiniPiePanel({
               <span className="truncate font-bold text-slate-600">{item.name}</span>
             </div>
             <div className="shrink-0 text-right">
-              <span className="font-black text-slate-400">{item.value}</span>
+              <span className="font-black text-slate-400">{formatNumber(item.value)}</span>
               {legendExtra?.(item, idx)}
             </div>
           </div>
@@ -108,7 +110,7 @@ export const MiniVariantList = memo(function MiniVariantList({
             className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
           >
             <div className="flex min-w-0 items-start gap-2">
-              <span className="shrink-0 text-[10px] font-black text-slate-400">#{index + 1}</span>
+              <span className="shrink-0 text-[10px] font-black text-slate-400">#{formatNumber(index + 1)}</span>
               <div className="min-w-0">
                 <SkuColorizedText
                   sku={item.sku}
@@ -120,7 +122,7 @@ export const MiniVariantList = memo(function MiniVariantList({
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-xs font-black text-slate-800">{item.quantity} τεμ.</p>
+              <p className="text-xs font-black text-slate-800">{formatNumber(item.quantity)} τεμ.</p>
               <p className="text-[10px] font-semibold text-slate-400">{formatCurrency(item.revenue)}</p>
             </div>
           </div>
@@ -151,9 +153,9 @@ export const MiniCustomerList = memo(function MiniCustomerList({ items }: { item
         >
           <div className="min-w-0">
             <p className="truncate text-xs font-black text-slate-900">
-              #{index + 1} {item.name}
+              #{formatNumber(index + 1)} {item.name}
             </p>
-            <p className="text-[10px] font-semibold text-slate-500">{item.orders} παραγγ.</p>
+            <p className="text-[10px] font-semibold text-slate-500">{formatNumber(item.orders)} παραγγ.</p>
           </div>
           <p className="shrink-0 text-xs font-black text-slate-900">{formatCurrency(item.revenue)}</p>
         </div>

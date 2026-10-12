@@ -1,6 +1,7 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Material, MaterialType, GlobalSettings } from '../types';
+import { Material, MaterialType, GlobalSettings, Product } from '../types';
 import { Trash2, Plus, Save, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator, Weight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -10,6 +11,7 @@ import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
+import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -21,6 +23,7 @@ const MAT_TYPE_MAP: Record<MaterialType, string> = {
 
 interface Props {
     settings: GlobalSettings;
+    products?: Product[];
     resourceTab?: 'materials' | 'molds';
     onResourceTabChange?: (tab: 'materials' | 'molds') => void;
 }
@@ -196,7 +199,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                         onChange={e => setEditForm({...editForm, stones_per_strand: parseInt(e.target.value) || 0})}
                                     />
                                 ) : (
-                                    <span className="text-xs font-bold text-purple-800">{material.stones_per_strand}</span>
+                                    <span className="text-xs font-bold text-purple-800">{formatNumber(material.stones_per_strand)}</span>
                                 )}
                             </div>
                             <div className="text-[9px] text-purple-500 text-right italic mt-1">
@@ -241,7 +244,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                     />
                                 ) : (
                                     <span className={`text-sm font-bold ${material.stock_qty <= 5 ? 'text-amber-600' : 'text-slate-700'}`}>
-                                        {material.stock_qty}
+                                        {formatNumber(material.stock_qty)}
                                     </span>
                                 )}
                             </div>
@@ -301,7 +304,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             </div>
 
             {/* Footer Actions */}
-            <div className="p-3 border-t border-slate-50 bg-slate-50/50 rounded-b-2xl flex justify-between items-center min-h-[56px]">
+            <div className="p-3 border-t border-slate-50 bg-slate-50/50 flex justify-between items-center min-h-[56px]">
                 {isEditing ? (
                     <div className="flex gap-2 w-full">
                         <button onClick={handleCancel} className="flex-1 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"><X size={14} className="mx-auto"/></button>
@@ -312,17 +315,18 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                     <>
                         <button onClick={() => onEditVariants(material)} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
                             {(Object.keys(material.variant_prices || {}).length > 0) ? (
-                                <><span className="bg-blue-100 px-1.5 rounded text-[9px]">{Object.keys(material.variant_prices || {}).length}</span> Ειδικές Τιμές</>
+                                <><span className="bg-blue-100 px-1.5 rounded text-[9px]">{formatNumber(Object.keys(material.variant_prices || {}).length)}</span> Ειδικές Τιμές</>
                             ) : '+ Ειδικές Τιμές'}
                         </button>
                     </>
                 )}
             </div>
+            <ResourceUsageStrip kind="material" id={material.id} label={material.name} />
         </div>
     );
 };
 
-export default function MaterialsPage({ settings, resourceTab = 'materials', onResourceTabChange }: Props) {
+export default function MaterialsPage({ settings, products, resourceTab = 'materials', onResourceTabChange }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   
@@ -479,6 +483,7 @@ export default function MaterialsPage({ settings, resourceTab = 'materials', onR
   ];
 
   return (
+    <ResourceUsageProvider products={products} scopeKey={`${activeTab}:${stoneSubFilter}:${searchTerm}:${isVariantModalOpen}`}>
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS — redesigned with integrated controls */}
         <DesktopPageHeader
@@ -668,5 +673,6 @@ export default function MaterialsPage({ settings, resourceTab = 'materials', onR
             </button>
         </div>
     </div>
+    </ResourceUsageProvider>
   );
 }

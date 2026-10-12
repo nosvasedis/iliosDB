@@ -1,12 +1,14 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import { Search, Gem, Box, MapPin, Plus, X, Save, Activity, Puzzle, Scroll, Palette, Filter, Calculator, Trash2, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { Material, MaterialType, Mold } from '../../types';
+import { Material, MaterialType, Mold, Product } from '../../types';
 import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../../utils/moldCategories';
 import { useUI } from '../UIProvider';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
+import { ResourceUsageProvider, ResourceUsageStrip } from '../resources/ResourceUsage';
 
 const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -24,7 +26,7 @@ const TABS = [
     { id: MaterialType.Enamel, label: 'Σμάλτα', icon: Palette, color: 'text-rose-500', bg: 'bg-rose-50' },
 ];
 
-export default function MobileResources() {
+export default function MobileResources({ products }: { products?: Product[] }) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const [viewMode, setViewMode] = useState<'materials' | 'molds'>('materials');
@@ -149,6 +151,7 @@ export default function MobileResources() {
     };
 
     return (
+        <ResourceUsageProvider products={products} scopeKey={`${viewMode}:${activeTab}:${stoneSubFilter}:${moldTab}:${search}:${Boolean(editingMaterial)}:${Boolean(editingMold)}`}>
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
             <div className={`z-10 shrink-0 ${MOBILE_HEADER_SURFACE}`}>
                 <div className="space-y-3 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
@@ -211,7 +214,8 @@ export default function MobileResources() {
             {/* List */}
             <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3 custom-scrollbar">
                 {viewMode === 'materials' ? filteredMaterials.map(m => (
-                    <div key={m.id} onClick={() => handleEditMaterial(m)} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all flex items-center justify-between">
+                    <div key={m.id} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                    <div onClick={() => handleEditMaterial(m)} className="p-4 active:scale-[0.98] transition-all flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${m.type === MaterialType.Stone ? (m.stones_per_strand ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600') : 'bg-slate-100 text-slate-500'}`}>
                                 {m.type === MaterialType.Stone ? <Gem size={18}/> : <Box size={18}/>}
@@ -219,7 +223,7 @@ export default function MobileResources() {
                             <div>
                                 <div className="font-bold text-slate-800 text-sm">{m.name}</div>
                                 <div className="text-[10px] text-slate-400">
-                                    {m.stones_per_strand ? `${m.stones_per_strand} πέτρες/σειρά` : (m.description || m.type)}
+                                    {m.stones_per_strand ? `${formatNumber(m.stones_per_strand)} πέτρες/σειρά` : (m.description || m.type)}
                                 </div>
                             </div>
                         </div>
@@ -232,8 +236,11 @@ export default function MobileResources() {
                              </div>
                         </div>
                     </div>
+                    <ResourceUsageStrip kind="material" id={m.id} label={m.name} />
+                    </div>
                 )) : filteredMolds.map(m => (
-                    <div key={m.code} onClick={() => { setEditingMold(m); setIsCreating(false); }} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all flex justify-between items-center">
+                    <div key={m.code} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                    <div onClick={() => { setEditingMold(m); setIsCreating(false); }} className="p-4 active:scale-[0.98] transition-all flex justify-between items-center">
                         <div className="flex items-center gap-3">
                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm border ${isLstxMold(m.code) ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                  {isLstxMold(m.code) ? 'LX' : 'L'}
@@ -244,6 +251,8 @@ export default function MobileResources() {
                              </div>
                         </div>
                         <div className="text-xs text-slate-400 italic max-w-[150px] truncate">{m.description}</div>
+                    </div>
+                    <ResourceUsageStrip kind="mold" id={m.code} label={m.code} />
                     </div>
                 ))}
                 {((viewMode === 'materials' && filteredMaterials.length === 0) || (viewMode === 'molds' && filteredMolds.length === 0)) && (
@@ -372,5 +381,6 @@ export default function MobileResources() {
                  </div>
             )}
         </div>
+        </ResourceUsageProvider>
     );
 }

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { memo, useMemo } from 'react';
 import { Check, FolderKanban } from 'lucide-react';
 import { Gender, ProductionBatch } from '../../types';
@@ -240,7 +241,7 @@ function LevelHeader({
                         </button>
                         <span className="truncate">{row.level1Key}</span>
                     </div>
-                    <span className="opacity-60 text-[9px]">{row.count}</span>
+                    <span className="opacity-60 text-[9px]">{formatNumber(row.count)}</span>
                 </div>
             </div>
         );
@@ -250,7 +251,7 @@ function LevelHeader({
         <div className="pb-3">
             <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
                 <span>{gConfig?.label}</span>
-                <span className="opacity-60 text-[9px]">{row.count}</span>
+                <span className="opacity-60 text-[9px]">{formatNumber(row.count)}</span>
             </div>
         </div>
     );

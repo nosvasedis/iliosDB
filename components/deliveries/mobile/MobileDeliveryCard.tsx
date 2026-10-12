@@ -1,3 +1,4 @@
+import { formatNumber } from '../../../utils/numberFormat';
 import React from 'react';
 import { ArrowRightLeft, CalendarRange, CheckCircle2, Gift, PhoneCall } from 'lucide-react';
 import { EnrichedDeliveryItem } from '../../../types';
@@ -31,7 +32,7 @@ export default function MobileDeliveryCard({ item, onClick }: Props) {
               <span className="text-[10px] font-black text-slate-500">
                 {item.shipment_readiness.is_fully_ready
                   ? <CheckCircle2 size={12} className="text-emerald-600 inline" />
-                  : `${item.shipment_readiness.ready_qty}/${item.shipment_readiness.total_qty} τεμ.`
+                  : `${formatNumber(item.shipment_readiness.ready_qty)}/${formatNumber(item.shipment_readiness.total_qty)} τεμ.`
                 }
               </span>
             </div>

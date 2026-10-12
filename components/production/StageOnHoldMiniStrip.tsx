@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 
 type Props = {
@@ -15,7 +16,7 @@ export function StageOnHoldMiniStrip({ totalQty, onHoldQty, activeClass, classNa
     return (
         <div
             className={`h-1 w-full min-w-[2.5rem] rounded-full overflow-hidden flex bg-slate-900/10 ${className}`}
-            title={`Σε Αναμονή: ${onHoldQty} από ${totalQty} τμχ`}
+            title={`Σε Αναμονή: ${formatNumber(onHoldQty)} από ${formatNumber(totalQty)} τμχ`}
         >
             {activeQty > 0 && (
                 <div className={`min-w-0 h-full ${activeClass}`} style={{ flex: `${activeQty} 1 0%` }} />

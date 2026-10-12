@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { APP_LOGO } from '../../constants';
@@ -310,11 +311,11 @@ export const LEGAL_PRINT_DELIVERY_TERMS = [
 ];
 
 export const getVatCategoryLabel = (category: number) =>
-  AADE_VAT_CATEGORY_OPTIONS.find((option) => option.category === category)?.label || `Κατ. ${category}`;
+  AADE_VAT_CATEGORY_OPTIONS.find((option) => option.category === category)?.label || `Κατ. ${formatNumber(category)}`;
 
 export const getVatCategoryPrintRate = (category: number) => {
   const option = AADE_VAT_CATEGORY_OPTIONS.find((item) => item.category === category);
-  if (!option) return `Κατ. ${category}`;
+  if (!option) return `Κατ. ${formatNumber(category)}`;
   if (category === 8) return '—';
   return `${Number(option.value * 100).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%`;
 };
@@ -329,7 +330,7 @@ export const getMeasurementUnitLabel = (unit: number) => {
     6: 'Κυβικά μέτρα',
     7: 'Τεμάχια - λοιπές περιπτώσεις',
   };
-  return labels[unit] || `Κωδικός ${unit}`;
+  return labels[unit] || `Κωδικός ${formatNumber(unit)}`;
 };
 
 const InfoRow = ({ label, value, mono = false }: { label: string; value?: React.ReactNode; mono?: boolean }) => (
@@ -453,7 +454,7 @@ export function LegalPrintHeader(props: {
           <p className="mb-0.5 text-[14px] font-black uppercase tracking-[0.03em] text-slate-950">{issuerName}</p>
           {issuer.trade_name && issuer.trade_name !== issuerName && <p className="font-bold text-slate-700">{issuer.trade_name}</p>}
           {issuer.activity && <p><span className="font-bold text-slate-700">Δραστηριότητα:</span> {issuer.activity}</p>}
-          <p><span className="font-bold text-slate-700">ΑΦΜ:</span> <span className="font-mono">{issuer.vat_number || '-'}</span> · <span className="font-bold text-slate-700">ΔΟΥ:</span> {issuer.doy || '-'}{Number(issuer.branch || 0) > 0 && <> · <span className="font-bold text-slate-700">Υποκατάστημα:</span> {issuer.branch}</>}</p>
+          <p><span className="font-bold text-slate-700">ΑΦΜ:</span> <span className="font-mono">{issuer.vat_number || '-'}</span> · <span className="font-bold text-slate-700">ΔΟΥ:</span> {issuer.doy || '-'}{Number(issuer.branch || 0) > 0 && <> · <span className="font-bold text-slate-700">Υποκατάστημα:</span> {formatNumber(issuer.branch)}</>}</p>
           <p>{formatPartyAddress(issuer, true)}</p>
           {(issuer.phone || issuer.email) && <p>{[issuer.phone, issuer.email].filter(Boolean).join(' · ')}</p>}
           {(issuer.legal_form || issuer.gemi) && <p>{issuer.legal_form && <><span className="font-bold text-slate-700">Νομική μορφή:</span> {issuer.legal_form}</>} {issuer.legal_form && issuer.gemi ? ' · ' : ''}{issuer.gemi && <><span className="font-bold text-slate-700">ΓΕΜΗ:</span> {issuer.gemi}</>}</p>}
@@ -662,7 +663,7 @@ export function LegalPrintAadePanel(props: {
       <div className="legal-print-full-width-details mt-0.5 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-[1.25] text-slate-700">
         <p className="font-black uppercase tracking-[0.08em] text-slate-700">Όροι παράδοσης</p>
         <ol className="mt-0.5 space-y-0.5">
-          {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{index + 1}.</span>{term}</li>)}
+          {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{formatNumber(index + 1)}.</span>{term}</li>)}
         </ol>
       </div>
       {(props.documentTypeCode || props.revenueClassificationText) && (

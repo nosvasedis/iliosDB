@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import { Customer, Order, OrderStatus, Product } from '../../types';
 import { FinanceLineEvent } from '../../utils/financeAnalytics';
 import {
@@ -330,20 +331,20 @@ function buildHealth(orders: Order[], nowTime: number) {
   const daysSinceLastOrder = daysBetween(times[times.length - 1], nowTime);
   if (times.length === 1) {
     return daysSinceLastOrder <= 90
-      ? { state: 'new' as const, label: 'Νέος', detail: `Πρώτη παραγγελία πριν από ${daysSinceLastOrder} ημέρες.`, daysSinceLastOrder, typicalCadenceDays: null }
-      : { state: 'risk' as const, label: 'Σε κίνδυνο', detail: `Μία μόνο παραγγελία και ${daysSinceLastOrder} ημέρες χωρίς νέα κίνηση.`, daysSinceLastOrder, typicalCadenceDays: null };
+      ? { state: 'new' as const, label: 'Νέος', detail: `Πρώτη παραγγελία πριν από ${formatNumber(daysSinceLastOrder)} ημέρες.`, daysSinceLastOrder, typicalCadenceDays: null }
+      : { state: 'risk' as const, label: 'Σε κίνδυνο', detail: `Μία μόνο παραγγελία και ${formatNumber(daysSinceLastOrder)} ημέρες χωρίς νέα κίνηση.`, daysSinceLastOrder, typicalCadenceDays: null };
   }
   const gaps = times.slice(1).map((time, index) => daysBetween(times[index], time));
   const cadence = Math.max(1, Math.round(median(gaps) || 0));
   const activeLimit = Math.max(45, cadence * 1.5);
   const watchLimit = Math.max(90, cadence * 2.5);
   if (daysSinceLastOrder <= activeLimit) {
-    return { state: 'active' as const, label: 'Ενεργός', detail: `Κινείται μέσα στον συνήθη κύκλο των ${cadence} ημερών.`, daysSinceLastOrder, typicalCadenceDays: cadence };
+    return { state: 'active' as const, label: 'Ενεργός', detail: `Κινείται μέσα στον συνήθη κύκλο των ${formatNumber(cadence)} ημερών.`, daysSinceLastOrder, typicalCadenceDays: cadence };
   }
   if (daysSinceLastOrder <= watchLimit) {
-    return { state: 'watch' as const, label: 'Παρακολούθηση', detail: `Έχει ξεπεράσει τον συνήθη κύκλο των ${cadence} ημερών.`, daysSinceLastOrder, typicalCadenceDays: cadence };
+    return { state: 'watch' as const, label: 'Παρακολούθηση', detail: `Έχει ξεπεράσει τον συνήθη κύκλο των ${formatNumber(cadence)} ημερών.`, daysSinceLastOrder, typicalCadenceDays: cadence };
   }
-  return { state: 'risk' as const, label: 'Σε κίνδυνο', detail: `${daysSinceLastOrder} ημέρες χωρίς παραγγελία, έναντι συνήθους κύκλου ${cadence}.`, daysSinceLastOrder, typicalCadenceDays: cadence };
+  return { state: 'risk' as const, label: 'Σε κίνδυνο', detail: `${formatNumber(daysSinceLastOrder)} ημέρες χωρίς παραγγελία, έναντι συνήθους κύκλου ${formatNumber(cadence)}.`, daysSinceLastOrder, typicalCadenceDays: cadence };
 }
 
 function buildBehavior(orders: Order[], realizedEvents: FinanceLineEvent[]) {
@@ -482,7 +483,7 @@ function buildReorderOpportunities(customerOrders: Order[], productMap: Map<stri
       severity: overdueDays > cadence * 2 ? 'high' as const : 'medium' as const,
       title: `Πιθανή επανάληψη · ${sku}`,
       description: product?.description || product?.category || 'Προϊόν με επαναλαμβανόμενες αγορές',
-      reason: `Αγοράστηκε σε ${dates.length} διαφορετικές παραγγελίες, συνήθως κάθε ${cadence} ημέρες. Έχουν περάσει ${overdueDays}.`,
+      reason: `Αγοράστηκε σε ${formatNumber(dates.length)} διαφορετικές παραγγελίες, συνήθως κάθε ${formatNumber(cadence)} ημέρες. Έχουν περάσει ${formatNumber(overdueDays)}.`,
       sku,
       action: 'orders' as const,
       score: overdueDays / cadence,
@@ -605,7 +606,7 @@ export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): Cust
       type: 'backlog',
       severity: 'medium',
       title: 'Ανοιχτή αξία προς ολοκλήρωση',
-      description: `${backlogPieces} τεμάχια παραμένουν ανεκτέλεστα.`,
+      description: `${formatNumber(backlogPieces)} τεμάχια παραμένουν ανεκτέλεστα.`,
       reason: 'Υπάρχουν ενεργές γραμμές παραγγελιών που δεν έχουν ακόμη αποσταλεί.',
       action: 'orders',
     });
@@ -620,7 +621,7 @@ export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): Cust
       type: 'margin',
       severity: weakMargin.margin < 0 ? 'high' : 'medium',
       title: `Έλεγχος περιθωρίου · ${customerPerformanceDisplayName(weakMargin)}`,
-      description: `Περιθώριο ${weakMargin.margin.toFixed(1)}% έναντι ${margin.toFixed(1)}% συνολικά για τον πελάτη.`,
+      description: `Περιθώριο ${formatDecimal(weakMargin.margin, 1)}% έναντι ${formatDecimal(margin, 1)}% συνολικά για τον πελάτη.`,
       reason: 'Η εκτίμηση χρησιμοποιεί την ιστορική τιμή πώλησης και το καλύτερο διαθέσιμο κόστος προϊόντος.',
       sku: weakMargin.sku,
       action: 'orders',
@@ -637,7 +638,7 @@ export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): Cust
       ? 'Υπάρχει ιστορικό παραγγελιών, αλλά όχι ακόμη πραγματοποιημένη πώληση.'
       : 'Δεν υπάρχει ακόμη εμπορικό ιστορικό για αυτόν τον πελάτη.';
   const subheadline = [
-    dominantCategory ? `${dominantCategory.name}: ${dominantCategory.share.toFixed(1)}% του πραγματοποιημένου τζίρου.` : '',
+    dominantCategory ? `${dominantCategory.name}: ${formatDecimal(dominantCategory.share, 1)}% του πραγματοποιημένου τζίρου.` : '',
     healthRiskText,
   ].filter(Boolean).join(' ');
 

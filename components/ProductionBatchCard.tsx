@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
@@ -438,7 +439,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     )}
                     {batch.quantity > 1 && (
                         <div className="absolute bottom-0 left-0 bg-slate-900/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-lg shadow-sm">
-                            x{batch.quantity}
+                            x{formatNumber(batch.quantity)}
                         </div>
                     )}
                 </button>

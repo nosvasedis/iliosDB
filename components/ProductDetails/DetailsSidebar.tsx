@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 import React from 'react';
 import { Camera, ImageIcon, Loader2, Trash2, TrendingUp } from 'lucide-react';
 import { ACCEPTED_IMAGE_INPUT_TYPES } from '../../utils/imageHelpers';
@@ -79,7 +80,7 @@ export default function DetailsSidebar({
                         <div className="flex items-center justify-between text-xs">
                             <span className="font-medium text-slate-600">Περιθώριο</span>
                             <span className={`rounded-lg bg-white px-2.5 py-1 text-lg tabular-nums font-semibold ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                {displayedMargin.toFixed(0)}%
+                                {formatDecimal(displayedMargin, 0)}%
                             </span>
                         </div>
                     </>

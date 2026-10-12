@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 /**
  * LiveActivityFeed — real-time "who did what" notification cards.
  *
@@ -111,21 +112,21 @@ export function getLiveActivityActionText(n: LiveActivityNotification): { line1:
                 line2: `→ ${to}`,
             };
         case 'batch_bulk_moved':
-            return { line1: `${firstName} μετακίνησε ${count} παρτίδες`, line2: `→ ${to}` };
+            return { line1: `${firstName} μετακίνησε ${formatNumber(count)} παρτίδες`, line2: `→ ${to}` };
         case 'batch_labeling_complete':
-            return { line1: `${firstName} ολοκλήρωσε ${count} ετικέτες`, line2: '→ Έτοιμα' };
+            return { line1: `${firstName} ολοκλήρωσε ${formatNumber(count)} ετικέτες`, line2: '→ Έτοιμα' };
         case 'batch_hold_on':
             return { line1: `${firstName} σε αναμονή: ${sku}`, line2: n.reason || undefined };
         case 'batch_hold_off':
             return { line1: `${firstName} αποδέσμευσε: ${sku}` };
         case 'batch_dispatched':
             return {
-                line1: `${firstName} απέστειλε ${count} παρτίδ${count === 1 ? 'α' : 'ες'}`,
+                line1: `${firstName} απέστειλε ${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'}`,
                 line2: 'στον Τεχνίτη',
             };
         case 'batch_recalled':
             return {
-                line1: `${firstName} επέστρεψε ${count} παρτίδ${count === 1 ? 'α' : 'ες'}`,
+                line1: `${firstName} επέστρεψε ${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'}`,
                 line2: 'Αναμονή Αποστολής',
             };
         case 'order_created':
@@ -141,7 +142,7 @@ export function getLiveActivityActionText(n: LiveActivityNotification): { line1:
         case 'product_updated':
             return {
                 line1: `${firstName} ενημέρωσε SKU ${sku}`,
-                line2: count > 1 ? `${count} παραλλαγές άλλαξαν` : undefined,
+                line2: count > 1 ? `${formatNumber(count)} παραλλαγές άλλαξαν` : undefined,
             };
         case 'product_deleted':
             return { line1: `${firstName} διέγραψε SKU ${sku}` };
@@ -179,7 +180,7 @@ function useRelativeTime(ts: number): string {
     useEffect(() => {
         const tick = () => {
             const s = Math.floor((Date.now() - ts) / 1000);
-            setLabel(s < 5 ? 'μόλις τώρα' : `${s}δ πριν`);
+            setLabel(s < 5 ? 'μόλις τώρα' : `${formatNumber(s)}δ πριν`);
         };
         tick();
         const id = setInterval(tick, 5000);

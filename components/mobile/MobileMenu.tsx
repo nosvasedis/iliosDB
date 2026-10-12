@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React from 'react';
 import {
@@ -94,7 +95,7 @@ function MenuTile({
               active ? 'bg-white/25 text-white' : 'bg-amber-500 text-white'
             }`}
           >
-            {item.badge > 99 ? '99+' : item.badge}
+            {item.badge > 99 ? '99+' : formatNumber(item.badge)}
           </span>
         )}
       </div>
@@ -140,7 +141,7 @@ function MenuRow({
       <div className="flex items-center gap-2">
         {'badge' in item && item.badge != null && item.badge > 0 && (
           <span className={`min-w-[1.35rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-black ${active ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
-            {item.badge > 99 ? '99+' : item.badge}
+            {item.badge > 99 ? '99+' : formatNumber(item.badge)}
           </span>
         )}
         <ChevronRight size={18} className={active ? 'text-white/40' : 'text-slate-300'} />

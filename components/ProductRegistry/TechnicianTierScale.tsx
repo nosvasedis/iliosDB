@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 import { getPricingRules, type PricingSettings } from '../../utils/pricingRules';
 import React from 'react';
 import { getTechnicianRateForWeight } from '../../utils/laborFormula';
@@ -100,24 +101,24 @@ export const TechnicianTierScale: React.FC<Props> = ({
               }`}
               title={
                 isPrimary
-                  ? `Κλιμάκωση για ${primaryWeightG.toFixed(2)}g`
+                  ? `Κλιμάκωση για ${formatDecimal(primaryWeightG, 2)}g`
                   : isSecondary
-                    ? `Κλιμάκωση δευτερεύοντος ${secondaryWeightG.toFixed(2)}g`
+                    ? `Κλιμάκωση δευτερεύοντος ${formatDecimal(secondaryWeightG, 2)}g`
                     : undefined
               }
             >
               <span>{tier.label}</span>
               <span className={isActive ? 'opacity-80' : 'opacity-60'}>→</span>
-              <span className="font-mono">{tier.rate.toFixed(2)}€/g</span>
+              <span className="font-mono">{formatDecimal(tier.rate, 2)}€/g</span>
             </span>
           );
         })}
       </div>
       {secondaryTier && primaryTier && (
         <p className="text-[10px] text-slate-400 leading-snug">
-          Έντονη: κύριο ({primaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(primaryWeightG, settings).toFixed(2)}€)
+          Έντονη: κύριο ({formatDecimal(primaryWeightG, 2)}g × {formatDecimal(getTechnicianRateForWeight(primaryWeightG, settings), 2)}€)
           {secondaryWeightG > 0 && (
-            <> · Δευτερεύον ({secondaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(secondaryWeightG, settings).toFixed(2)}€)</>
+            <> · Δευτερεύον ({formatDecimal(secondaryWeightG, 2)}g × {formatDecimal(getTechnicianRateForWeight(secondaryWeightG, settings), 2)}€)</>
           )}
         </p>
       )}

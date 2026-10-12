@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -291,7 +292,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </div>
                         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><ShoppingBag size={10} /> Παραγγελίες</div>
-                            <div className="text-xl font-black text-slate-800">{retailStats.orderCount} <span className="text-xs text-slate-400">τεμ.</span></div>
+                            <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.orderCount)} <span className="text-xs text-slate-400">τεμ.</span></div>
                         </div>
                         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><PieChart size={10} /> Μ.Ο. Αξίας</div>
@@ -299,7 +300,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </div>
                         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <div className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Package size={10} /> Τεμάχια</div>
-                            <div className="text-xl font-black text-slate-800">{retailStats.totalItems}</div>
+                            <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.totalItems)}</div>
                         </div>
                         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <div className="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Calendar size={10} /> Τελευταία Παρ.</div>
@@ -307,7 +308,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </div>
                         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <div className="text-[9px] font-black text-teal-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Clock size={10} /> Ενεργοί Μήνες</div>
-                            <div className="text-xl font-black text-slate-800">{retailStats.activeMonths} <span className="text-xs text-slate-400">μήνες</span></div>
+                            <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.activeMonths)} <span className="text-xs text-slate-400">μήνες</span></div>
                         </div>
                     </div>
 
@@ -318,7 +319,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                             <div className="space-y-3">
                                 {retailStats.prefData.map((item, i) => (
                                     <div key={item.name} className="flex items-center gap-3">
-                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 border ${i === 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{i + 1}</div>
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 border ${i === 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{formatNumber(i + 1)}</div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-center mb-1">
                                                 <span className="font-bold text-slate-700 text-xs truncate">{item.name}</span>
@@ -344,12 +345,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     const isUnlabeled = client.name === 'Χωρίς τελικό πελάτη';
                                     return (
                                         <div key={client.name} className="flex items-center gap-3">
-                                            <div className={`w-6 h-6 rounded-md flex items-center justify-center font-black text-[9px] shrink-0 border ${i === 0 ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{i + 1}</div>
+                                            <div className={`w-6 h-6 rounded-md flex items-center justify-center font-black text-[9px] shrink-0 border ${i === 0 ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{formatNumber(i + 1)}</div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-center mb-0.5">
                                                     <span className={`font-bold text-xs truncate ${isUnlabeled ? 'text-slate-400 italic' : 'text-slate-700'}`}>{client.name}</span>
                                                     <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                        <span className="text-[9px] font-bold text-slate-400">{client.orderCount} παρ.</span>
+                                                        <span className="text-[9px] font-bold text-slate-400">{formatNumber(client.orderCount)} παρ.</span>
                                                         <span className="font-mono font-black text-slate-800 text-xs">{formatCurrency(client.totalRevenue)}</span>
                                                     </div>
                                                 </div>
@@ -415,7 +416,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 {nextNameday.is_today
                                     ? `Γιορτάζει σήμερα · ${nextNameday.label}`
                                     : nextNameday.days_until <= 7
-                                        ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημέρες)`
+                                        ? `Ονομαστική εορτή ${formatGreekDate(nextNameday.date)} (σε ${formatNumber(nextNameday.days_until)} ημέρες)`
                                         : `${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
                             </div>
                         ) : null;

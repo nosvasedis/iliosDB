@@ -1,3 +1,4 @@
+import { formatDecimal } from '../utils/numberFormat';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Product } from '../types';
 import {
@@ -690,7 +691,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                         <h1 id="ilios-vision-title" className="truncate text-lg font-black leading-none tracking-tight sm:text-xl">Ilios Vision</h1>
                         <p className="mt-1.5 flex items-center gap-1.5 truncate text-[9px] font-black uppercase tracking-[0.18em] text-white/60">
                             <span className={`h-1.5 w-1.5 rounded-full ${status === 'success' ? 'bg-emerald-200' : isEnhancing ? 'bg-amber-400 ilios-status-dot' : 'bg-emerald-500 ilios-status-dot'}`} />
-                            {capabilities.zoom ? SCANNER_COPY.opticalZoom : SCANNER_COPY.digitalZoom} · {zoom.toFixed(1)}×
+                            {capabilities.zoom ? SCANNER_COPY.opticalZoom : SCANNER_COPY.digitalZoom} · {formatDecimal(zoom, 1)}×
                         </p>
                     </div>
                 </div>

@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from './numberFormat';
 import { LaborCost, Product, RecipeItem } from '../types';
 import { DEFAULT_PRICING_RULES, getPricingRules, type PricingSettings } from './pricingRules';
 
@@ -231,7 +232,7 @@ export function getTechnicianSplitDetailHint(
   const primaryRate = getTechnicianRateForWeight(total, settings);
   const sec = product.secondary_weight_g || 0;
   const secCost = calculateTechnicianCostFromWeight(sec, settings);
-  return `${product.weight_g}g×${primaryRate.toFixed(2)} + ${sec}g×${sec > 0 ? getTechnicianRateForWeight(sec, settings).toFixed(2) : '0'}`;
+  return `${formatNumber(product.weight_g)}g×${formatDecimal(primaryRate, 2)} + ${formatNumber(sec)}g×${sec > 0 ? formatDecimal(getTechnicianRateForWeight(sec, settings), 2) : '0'}`;
 }
 
 export function getPlatingXFormulaLine(

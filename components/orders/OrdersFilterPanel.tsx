@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, SlidersHorizontal, X, Calendar, Tag, User, Activity, Palette } from 'lucide-react';
@@ -328,7 +329,7 @@ export function OrdersFilterPanel({
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Φίλτρα</span>
           {activeCount > 0 && (
             <span className="bg-emerald-500 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
-              {activeCount}
+              {formatNumber(activeCount)}
             </span>
           )}
         </div>
@@ -376,7 +377,7 @@ export function OrdersFilterPanel({
                 ? 'border-slate-800 ring-2 ring-slate-400 ring-offset-1 scale-110'
                 : 'border-white shadow-sm'
             }`}
-            title={`Χρώμα ${i + 1}`}
+            title={`Χρώμα ${formatNumber(i + 1)}`}
           />
         ))}
       </div>,

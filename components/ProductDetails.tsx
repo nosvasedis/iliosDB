@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 
 import './ProductDetails/productDetails.css';
@@ -118,12 +119,12 @@ const SmartQuantityInput = React.memo(({
                     </button>
                     {showStrandInput && (
                         <div className="absolute top-full right-0 mt-2 z-50 bg-white p-3 rounded-xl shadow-xl border border-slate-100 w-48 animate-in zoom-in-95">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({stonesPerStrand} πέτρες)</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({formatNumber(stonesPerStrand)} πέτρες)</div>
                             <div className="flex gap-2">
                                 <input
                                     type="number"
                                     step="0.1"
-                                    placeholder="1.5"
+                                    placeholder="1,5"
                                     value={strandInput}
                                     onChange={e => setStrandInput(e.target.value)}
                                     className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"
@@ -217,8 +218,8 @@ const RecipeItemSelectorModal = React.memo(({
         const imageUrl = isComponent ? item.image_url : null;
         // Cost formatting
         const cost = isComponent
-            ? `${(item.active_price || 0).toFixed(2)}€`
-            : `${item.cost_per_unit.toFixed(2)}€ / ${item.unit}`;
+            ? `${formatDecimal((item.active_price || 0), 2)}€`
+            : `${formatDecimal(item.cost_per_unit, 2)}€ / ${item.unit}`;
 
         const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;
 
@@ -376,7 +377,7 @@ const SmartAnalysisCard = React.memo(({ analysis }: { analysis: SupplierAnalysis
                             <span className="text-slate-500">Πραγματική Χρέωση Ασημιού:</span>
                             <div className="flex items-center gap-2">
                                 <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
-                                    {analysis.effectiveSilverPrice.toFixed(2)}€/g
+                                    {formatDecimal(analysis.effectiveSilverPrice, 2)}€/g
                                 </span>
                                 {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500" /></span>}
                             </div>
@@ -396,7 +397,7 @@ const SmartAnalysisCard = React.memo(({ analysis }: { analysis: SupplierAnalysis
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400">
                     <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
-                    <span>Περιθώριο: {analysis.premiumPercent}%</span>
+                    <span>Περιθώριο: {formatNumber(analysis.premiumPercent)}%</span>
                 </div>
             </div>
         </div>
@@ -826,7 +827,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }));
 
         if (updateCount > 0) {
-            showToast(`Ενημερώθηκαν ${updateCount} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
+            showToast(`Ενημερώθηκαν ${formatNumber(updateCount)} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
         } else {
             showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
         }
@@ -846,7 +847,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             selling_price_manual_override: false,
         };
         setEditedProduct(prev => ({ ...prev, variants: newVariants }));
-        showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
+        showToast(`Τιμή για ${variant.suffix}: ${formatNumber(suggested)}€`, 'success');
     };
 
     const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
@@ -1468,7 +1469,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                         if (total > 0) {
                                                                             const rounded = parseFloat(total.toFixed(1));
                                                                             setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
-                                                                            showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
+                                                                            showToast(`Βάρος ενημερώθηκε: ${formatNumber(rounded)}g`, 'success');
                                                                         } else {
                                                                             showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
                                                                         }
@@ -1532,7 +1533,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                     </div>
                                                                     {showRepriceTool && (
                                                                         <div className="text-[10px] font-bold text-emerald-500/70 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                            <ArrowUpRight size={10} className="text-blue-400" /> {getSuggestedPriceForFinishGroup('', 'formula', targetMargin).toFixed(2)}€
+                                                                            <ArrowUpRight size={10} className="text-blue-400" /> {formatDecimal(getSuggestedPriceForFinishGroup('', 'formula', targetMargin), 2)}€
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -1585,7 +1586,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                         </div>
                                                                         {showRepriceTool && (
                                                                             <div className={`text-[10px] font-bold ${fc.label} opacity-60 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1`}>
-                                                                                <ArrowUpRight size={10} className="text-blue-400" /> {suggested.toFixed(2)}€
+                                                                                <ArrowUpRight size={10} className="text-blue-400" /> {formatDecimal(suggested, 2)}€
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -1610,7 +1611,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                                 onChange={e => setTargetMargin(parseInt(e.target.value))}
                                                                                 className="w-full accent-emerald-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                                                                             />
-                                                                            <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm w-14 text-center">{targetMargin}%</span>
+                                                                            <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm w-14 text-center">{formatNumber(targetMargin)}%</span>
                                                                         </div>
                                                                     </div>
                                                                     <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-white hover:bg-slate-50 text-slate-600 font-bold px-3 py-2 rounded-xl transition-colors whitespace-nowrap border border-slate-200 shadow-sm">
@@ -1703,9 +1704,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση κόστους">
                                                         <div className="flex flex-col">
                                                             <div className="space-y-1.5 flex-1">
-                                                                <SummaryRow label="Ασήμι" value={formatCurrency(importedCostAnalysis.silver)} sub={`${importedCostAnalysis.weightG}g`} color="bg-slate-400" />
-                                                                <SummaryRow label="Εργατικά" value={formatCurrency(importedCostAnalysis.technician)} sub={`/ ${importedCostAnalysis.weightG}g`} color="bg-blue-400" />
-                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(importedCostAnalysis.plating)} sub={`/ ${importedCostAnalysis.weightG}g`} color="bg-amber-400" />
+                                                                <SummaryRow label="Ασήμι" value={formatCurrency(importedCostAnalysis.silver)} sub={`${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-slate-400" />
+                                                                <SummaryRow label="Εργατικά" value={formatCurrency(importedCostAnalysis.technician)} sub={`/ ${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-blue-400" />
+                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(importedCostAnalysis.plating)} sub={`/ ${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-amber-400" />
                                                                 <SummaryRow label="Καρφωτικά" value={formatCurrency(importedCostAnalysis.stoneSetting)} sub="Σταθερό" color="bg-purple-400" />
                                                             </div>
                                                             <div className="pt-3 mt-3 border-t border-emerald-200/60 flex justify-between items-center">
@@ -1741,7 +1742,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 <div>
                                                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Περιθώριο</div>
                                                                     <div className={`font-mono font-black text-lg ${((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 40 ? 'text-emerald-600' : ((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
-                                                                        {((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100).toFixed(1)}%
+                                                                        {formatDecimal(((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100), 1)}%
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1762,7 +1763,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 </div>
                                                                 <div>
                                                                     <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
-                                                                    <div className="font-mono font-black text-xl text-amber-900">{calculatedPrice}€</div>
+                                                                    <div className="font-mono font-black text-xl text-amber-900">{formatNumber(calculatedPrice)}€</div>
                                                                 </div>
                                                                 <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors">Εφαρμογή</button>
                                                             </div>
@@ -2143,7 +2144,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         <DetailsSection
                                             tone="variants"
                                             icon={Layers}
-                                            title={<>Παραλλαγές <span className="ml-1 text-slate-400">({sortedVariantsList.length})</span></>}
+                                            title={<>Παραλλαγές <span className="ml-1 text-slate-400">({formatNumber(sortedVariantsList.length)})</span></>}
                                             actions={(
                                                 <button
                                                     onClick={() => handleApplyAllSuggestions('formula')}

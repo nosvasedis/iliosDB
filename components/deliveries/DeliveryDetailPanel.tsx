@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import {
   ArrowRightLeft,
@@ -414,7 +415,7 @@ export default function DeliveryDetailPanel({
                 />
               </div>
               <span className="text-sm font-black text-slate-700 whitespace-nowrap">
-                {item.shipment_readiness!.ready_qty}/{item.shipment_readiness!.total_qty} τεμ.
+                {formatNumber(item.shipment_readiness!.ready_qty)}/{formatNumber(item.shipment_readiness!.total_qty)} τεμ.
               </span>
             </div>
             <ul className="space-y-2">
@@ -435,7 +436,7 @@ export default function DeliveryDetailPanel({
                 <div key={shipment.id} className="rounded-xl bg-slate-50 border border-slate-100 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-black text-slate-800 flex items-center gap-2">
-                      <Truck size={14} /> #{shipment.shipment_number}
+                      <Truck size={14} /> #{formatNumber(shipment.shipment_number)}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-slate-500">{formatGreekDateTime(shipment.shipped_at)}</span>

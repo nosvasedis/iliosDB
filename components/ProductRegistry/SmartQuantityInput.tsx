@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Check, RefreshCcw } from 'lucide-react';
 
@@ -44,12 +45,12 @@ export const SmartQuantityInput: React.FC<SmartQuantityInputProps> = React.memo(
                     </button>
                     {showStrandInput && (
                         <div className="absolute top-full right-0 mt-2 z-50 bg-white p-3 rounded-xl shadow-xl border border-slate-100 w-48 animate-in zoom-in-95">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({stonesPerStrand} πέτρες)</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({formatNumber(stonesPerStrand)} πέτρες)</div>
                             <div className="flex gap-2">
                                 <input
                                     type="number"
                                     step="0.1"
-                                    placeholder="1.5"
+                                    placeholder="1,5"
                                     value={strandInput}
                                     onChange={e => setStrandInput(e.target.value)}
                                     className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"

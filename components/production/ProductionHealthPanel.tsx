@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Activity, CheckCircle, ClipboardList, PauseCircle, Siren, X } from 'lucide-react';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -56,7 +57,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
             <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
                 <div className={`flex h-10 min-w-0 items-center gap-2 rounded-xl border px-3 ${tone.box}`}>
                     <div className={`flex h-7 min-w-7 items-center justify-center rounded-full border-2 bg-white px-0.5 text-[10px] font-black tabular-nums shadow-inner ${tone.ring}`}>
-                        {summary.healthScore.toFixed(0)}%
+                        {formatDecimal(summary.healthScore, 0)}%
                     </div>
                     <div className="min-w-0 leading-tight">
                         <div className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-600">Υγεία Παραγωγής</div>
@@ -74,7 +75,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                             <ClipboardList size={13} className="text-indigo-600 shrink-0" />
                             <span className="truncate text-[10px] font-black uppercase tracking-widest text-indigo-700">Οδηγίες</span>
                         </span>
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{notes.length}</span>
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{formatNumber(notes.length)}</span>
                     </button>
                 )}
 
@@ -86,7 +87,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                         <PauseCircle size={13} className="shrink-0 text-amber-600" />
                         <span className="truncate text-[10px] font-bold uppercase tracking-wide text-amber-600">Σε Αναμονή</span>
                     </span>
-                    <span className="text-base font-black tabular-nums text-amber-700">{summary.onHold}</span>
+                    <span className="text-base font-black tabular-nums text-amber-700">{formatNumber(summary.onHold)}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('active')}
@@ -96,7 +97,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                         <Activity size={13} className="shrink-0 text-slate-400" />
                         <span className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">Ενεργά</span>
                     </span>
-                    <span className="text-base font-black tabular-nums text-slate-800">{summary.inProgress}</span>
+                    <span className="text-base font-black tabular-nums text-slate-800">{formatNumber(summary.inProgress)}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('delayed')}
@@ -112,7 +113,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                             Καθυστέρηση
                         </span>
                     </span>
-                    <span className={`text-base font-black tabular-nums ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{summary.delayed}</span>
+                    <span className={`text-base font-black tabular-nums ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(summary.delayed)}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('ready')}
@@ -122,7 +123,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                         <CheckCircle size={13} className="shrink-0 text-emerald-600" />
                         <span className="truncate text-[10px] font-bold uppercase tracking-wide text-emerald-600">Έτοιμα</span>
                     </span>
-                    <span className="text-base font-black tabular-nums text-emerald-700">{summary.ready}</span>
+                    <span className="text-base font-black tabular-nums text-emerald-700">{formatNumber(summary.ready)}</span>
                 </button>
             </div>
 

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -206,8 +207,8 @@ export default function BackupManagerModal({
     const exportSummary = useMemo(() => {
         const rowCount = resolvedExportTables.reduce((sum, t) => sum + (tableStats[t] ?? 0), 0);
         const parts = [
-            `${resolvedExportTables.length} πίνακες`,
-            loadingStats ? '~… εγγραφές' : `~${rowCount} εγγραφές`,
+            `${formatNumber(resolvedExportTables.length)} πίνακες`,
+            loadingStats ? '~… εγγραφές' : `~${formatNumber(rowCount)} εγγραφές`,
             exportOptions.includeImages ? 'εικόνες ναι' : 'εικόνες όχι',
         ];
         return parts.join(' • ');
@@ -466,7 +467,7 @@ export default function BackupManagerModal({
                                                         onChange={(e) => toggleCategoryTables(cat.id, e.target.checked)}
                                                     />
                                                     <span className="text-sm font-bold text-slate-700 flex-1">{cat.label}</span>
-                                                    <span className="text-xs text-slate-400">{entries.filter((e) => exportOptions.tables.includes(e.table)).length}/{entries.length}</span>
+                                                    <span className="text-xs text-slate-400">{formatNumber(entries.filter((e) => exportOptions.tables.includes(e.table)).length)}/{formatNumber(entries.length)}</span>
                                                 </div>
                                                 {expanded && (
                                                     <div className="p-2 space-y-1 border-t border-slate-100">
@@ -616,8 +617,8 @@ export default function BackupManagerModal({
                                                 {restoreImpact && (
                                                     <div className={`p-3 rounded-xl text-xs ${restoreImpact.destructiveTables.length ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                                                         {restoreImpact.destructiveTables.length
-                                                            ? `Θα αντικατασταθούν ${restoreImpact.destructiveTables.length} πίνακες μαζί με εξαρτώμενα δεδομένα.`
-                                                            : `Θα συγχωνευθούν ${restoreImpact.applyTables.length} πίνακες χωρίς διαγραφή υπαρχόντων δεδομένων.`}
+                                                            ? `Θα αντικατασταθούν ${formatNumber(restoreImpact.destructiveTables.length)} πίνακες μαζί με εξαρτώμενα δεδομένα.`
+                                                            : `Θα συγχωνευθούν ${formatNumber(restoreImpact.applyTables.length)} πίνακες χωρίς διαγραφή υπαρχόντων δεδομένων.`}
                                                     </div>
                                                 )}
                                             </div>
@@ -666,7 +667,7 @@ export default function BackupManagerModal({
                                                                     onChange={(e) => toggleRestoreTable(table, e.target.checked)}
                                                                 />
                                                                 <span className="text-sm text-slate-600 flex-1">{entry?.label ?? table}</span>
-                                                                <span className="text-xs text-slate-400">{count}</span>
+                                                                <span className="text-xs text-slate-400">{formatNumber(count)}</span>
                                                             </label>
                                                         );
                                                     })}

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Gender } from '../../types';
 import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
@@ -175,7 +176,7 @@ const ProductGridCard: React.FC<{
                                 <ChevronLeft size={12} />
                             </button>
                             <span className="text-white text-[9px] font-black px-1 flex items-center">
-                                {viewIndex % variants.length + 1}/{variants.length}
+                                {formatNumber(viewIndex % variants.length + 1)}/{formatNumber(variants.length)}
                             </span>
                             <button onClick={nextVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
                                 <ChevronRight size={12} />
@@ -286,7 +287,7 @@ export default function SellerCollections({ products, collections, onAddToOrder 
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-black text-slate-900 leading-tight">{selectedCollection.name}</h1>
                         <span className="bg-slate-100 text-slate-500 text-xs font-black px-3 py-1 rounded-full border border-slate-200">
-                            {filteredProducts.length} {filteredProducts.length === 1 ? 'είδος' : 'είδη'}
+                            {formatNumber(filteredProducts.length)} {filteredProducts.length === 1 ? 'είδος' : 'είδη'}
                         </span>
                     </div>
                     {selectedCollection.description && (
@@ -344,7 +345,7 @@ export default function SellerCollections({ products, collections, onAddToOrder 
                             {/* Content */}
                             <div className="relative z-10 mt-auto p-6 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-2 block">
-                                    {count} {count === 1 ? 'είδος' : 'είδη'}
+                                    {formatNumber(count)} {count === 1 ? 'είδος' : 'είδη'}
                                 </span>
                                 <h2 className="text-2xl font-black text-white mb-2 leading-tight tracking-tight">
                                     {collection.name}

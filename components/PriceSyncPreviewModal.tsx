@@ -1,8 +1,8 @@
+import { formatCurrency, formatDecimal, formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle, Gift, Lock, Truck } from 'lucide-react';
 import { PriceSyncPreview } from '../types';
-import { formatCurrency } from '../utils/pricingEngine';
 
 interface Props {
     isOpen: boolean;
@@ -49,11 +49,11 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                         <div className="grid grid-cols-3 gap-4">
                             <div className="bg-white rounded-lg p-3 border border-slate-200">
                                 <div className="text-xs text-slate-500 font-medium uppercase tracking-tight mb-1">Προς Ενημέρωση</div>
-                                <div className="text-2xl font-black text-emerald-600">{preview.updatedCount}</div>
+                                <div className="text-2xl font-black text-emerald-600">{formatNumber(preview.updatedCount)}</div>
                             </div>
                             <div className="bg-white rounded-lg p-3 border border-slate-200">
                                 <div className="text-xs text-slate-500 font-medium uppercase tracking-tight mb-1">Αγνοούνται</div>
-                                <div className="text-2xl font-black text-slate-600">{preview.skippedCount}</div>
+                                <div className="text-2xl font-black text-slate-600">{formatNumber(preview.skippedCount)}</div>
                             </div>
                             <div className={`rounded-lg p-3 border ${hasPriceIncrease ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                                 <div className="text-xs font-medium uppercase tracking-tight mb-1" style={{ color: hasPriceIncrease ? '#b91c1c' : '#059669' }}>Σύνολο Αλλαγή</div>
@@ -70,7 +70,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                             <div>
                                 <h3 className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-tight mb-3">
                                     <div className="w-1 h-5 bg-emerald-500 rounded-full"></div>
-                                    Θα ενημερωθούν ({preview.itemsToChange.length})
+                                    Θα ενημερωθούν ({formatNumber(preview.itemsToChange.length)})
                                 </h3>
                                 <div className="space-y-2">
                                     {preview.itemsToChange.map((item, idx) => (
@@ -78,15 +78,15 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-semibold text-slate-900 text-sm">{item.sku}{item.variantSuffix ? ` (${item.variantSuffix})` : ''}</div>
                                                 {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">{item.sizeInfo}</div>}
-                                                {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {item.quantity}</div>}
+                                                {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {formatNumber(item.quantity)}</div>}
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <div className="text-right">
-                                                    <div className="text-xs text-slate-500">€{item.oldPrice.toFixed(2)}</div>
-                                                    <div className="font-bold text-emerald-700">€{item.newPrice.toFixed(2)}</div>
+                                                    <div className="text-xs text-slate-500">{formatCurrency(item.oldPrice)}</div>
+                                                    <div className="font-bold text-emerald-700">{formatCurrency(item.newPrice)}</div>
                                                 </div>
                                                 <div className="text-xs text-emerald-600 font-bold whitespace-nowrap">
-                                                    {item.newPrice > item.oldPrice ? '+' : ''}{(item.newPrice - item.oldPrice).toFixed(2)} €
+                                                    {item.newPrice > item.oldPrice ? '+' : ''}{formatDecimal((item.newPrice - item.oldPrice), 2)} €
                                                 </div>
                                             </div>
                                         </div>
@@ -100,7 +100,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                             <div>
                                 <h3 className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-tight mb-3">
                                     <Truck size={16} className="text-blue-600" />
-                                    Ήδη αποσταλμένα ({preview.itemsToSkip.filter(i => i.reason === 'already_shipped').length})
+                                    Ήδη αποσταλμένα ({formatNumber(preview.itemsToSkip.filter(i => i.reason === 'already_shipped').length)})
                                 </h3>
                                 <div className="space-y-2">
                                     {preview.itemsToSkip
@@ -111,12 +111,12 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                                                     <div className="font-semibold text-slate-900 text-sm">{item.sku}{item.variantSuffix ? ` (${item.variantSuffix})` : ''}</div>
                                                     {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">{item.sizeInfo}</div>}
                                                     {item.quantity != null && (
-                                                        <div className="text-xs text-slate-500">Αποσταλμένα: {item.quantity}</div>
+                                                        <div className="text-xs text-slate-500">Αποσταλμένα: {formatNumber(item.quantity)}</div>
                                                     )}
                                                     <div className="text-xs text-blue-700 font-medium mt-1">Η τιμή παραμένει όπως καταχωρήθηκε στην αποστολή</div>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <div className="font-bold text-slate-900">€{item.currentPrice.toFixed(2)}</div>
+                                                    <div className="font-bold text-slate-900">{formatCurrency(item.currentPrice)}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -129,7 +129,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                             <div>
                                 <h3 className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-tight mb-3">
                                     <Lock size={16} className="text-amber-600" />
-                                    Χειροκίνητα ορισμένες τιμές ({preview.itemsToSkip.filter(i => i.reason === 'manual_override').length})
+                                    Χειροκίνητα ορισμένες τιμές ({formatNumber(preview.itemsToSkip.filter(i => i.reason === 'manual_override').length)})
                                 </h3>
                                 <div className="space-y-2">
                                     {preview.itemsToSkip
@@ -139,11 +139,11 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-slate-900 text-sm">{item.sku}{item.variantSuffix ? ` (${item.variantSuffix})` : ''}</div>
                                                     {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">{item.sizeInfo}</div>}
-                                                    {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {item.quantity}</div>}
+                                                    {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {formatNumber(item.quantity)}</div>}
                                                     <div className="text-xs text-amber-700 font-medium mt-1">⚠️ Προστατεύται από χειροκίνητη ρύθμιση</div>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <div className="font-bold text-slate-900">€{item.currentPrice.toFixed(2)}</div>
+                                                    <div className="font-bold text-slate-900">{formatCurrency(item.currentPrice)}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -156,7 +156,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                             <div>
                                 <h3 className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-tight mb-3">
                                     <Gift size={16} className="text-violet-600" />
-                                    Δώρα (€0) ({preview.itemsToSkip.filter(i => i.reason === 'gift_zero_eur').length})
+                                    Δώρα (€0) ({formatNumber(preview.itemsToSkip.filter(i => i.reason === 'gift_zero_eur').length)})
                                 </h3>
                                 <div className="space-y-2">
                                     {preview.itemsToSkip
@@ -166,7 +166,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-semibold text-slate-900 text-sm">{item.sku}{item.variantSuffix ? ` (${item.variantSuffix})` : ''}</div>
                                                     {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">{item.sizeInfo}</div>}
-                                                    {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {item.quantity}</div>}
+                                                    {item.quantity && <div className="text-xs text-slate-500">Ποσότητα: {formatNumber(item.quantity)}</div>}
                                                     <div className="text-xs text-violet-700 font-medium mt-1">🎁 Στάθμευση ως δώρο</div>
                                                 </div>
                                                 <div className="text-right shrink-0">

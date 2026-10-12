@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo } from 'react';
 import { SupplierOrder, Product, Gender } from '../types';
@@ -80,7 +81,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
         idx: number
     ) => (
         <div key={idx} className="flex items-start min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid">
-            <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums flex-shrink-0">{idx + 1}</div>
+            <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums flex-shrink-0">{formatNumber(idx + 1)}</div>
 
             <div className="w-14 text-center flex-shrink-0">
                 <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
@@ -118,7 +119,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                 })()}
             </div>
 
-            <div className="w-14 text-right font-black text-slate-900 text-[13px] tabular-nums flex-shrink-0">{item.quantity}</div>
+            <div className="w-14 text-right font-black text-slate-900 text-[13px] tabular-nums flex-shrink-0">{formatNumber(item.quantity)}</div>
         </div>
     );
 

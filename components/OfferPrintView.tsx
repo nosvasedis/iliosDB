@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo } from 'react';
 import { Offer } from '../types';
@@ -57,7 +58,7 @@ export default function OfferPrintView({ offer }: Props) {
                 key={globalIndex}
                 className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-6 text-center text-slate-400 font-mono text-[11px]">{globalIndex + 1}</div>
+                <div className="w-6 text-center text-slate-400 font-mono text-[11px]">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-14 flex justify-center flex-shrink-0">
                     <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200">
                         {imageUrl && (
@@ -72,7 +73,7 @@ export default function OfferPrintView({ offer }: Props) {
                     {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
-                    <div>{item.quantity} x {formatDecimal(item.price_at_order, 2)}</div>
+                    <div>{formatNumber(item.quantity)} x {formatDecimal(item.price_at_order, 2)}</div>
                     {item.quantity !== 1 && (
                         <div className="mt-0.5 text-[9px] leading-none text-slate-400">
                             {formatDecimal(item.quantity * item.price_at_order, 2)}
@@ -137,7 +138,7 @@ export default function OfferPrintView({ offer }: Props) {
                 {!offer.hide_offer_validity_in_pdf && (
                     <div className="text-right">
                          <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Ισχυς Προσφορας</span>
-                         <span className="font-bold text-slate-800 text-xs">{offerValidityDays} {offerValidityDays === 1 ? 'Ημέρα' : 'Ημέρες'}</span>
+                         <span className="font-bold text-slate-800 text-xs">{formatNumber(offerValidityDays)} {offerValidityDays === 1 ? 'Ημέρα' : 'Ημέρες'}</span>
                     </div>
                 )}
             </section>

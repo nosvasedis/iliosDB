@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { ArrowRight, ImageIcon, Tag, Users, Palette, Box, PieChart, TrendingUp, Wand2, Info, Globe } from 'lucide-react';
 import { ProductionType } from '../../types';
@@ -76,7 +77,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                             <div className="flex items-center justify-between text-xs">
                                 <div className="flex items-center gap-2">
                                     <div className="w-3 h-3 bg-slate-200 rounded-full"></div>
-                                    <span className="text-slate-600 font-medium">Ασήμι ({settings?.silver_price_gram}€/g)</span>
+                                    <span className="text-slate-600 font-medium">Ασήμι ({formatDecimal(settings?.silver_price_gram)}€/g)</span>
                                 </div>
                                 <span className="font-bold text-slate-800">{formatCurrency(state.costBreakdown?.silver)}</span>
                             </div>
@@ -129,7 +130,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                             return (
                                                 <li key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-700">
                                                     <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
-                                                    <span>{name} <span className="text-slate-400">x{r.quantity}</span></span>
+                                                    <span>{name} <span className="text-slate-400">x{formatNumber(r.quantity)}</span></span>
                                                 </li>
                                             );
                                         })}
@@ -156,7 +157,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
                                 <div>
                                     <span className="text-[10px] text-slate-400 font-bold block">ΒΑΡΟΣ</span>
-                                    <span className="font-mono text-slate-800 font-bold text-sm">{state.weight + state.secondaryWeight}g</span>
+                                    <span className="font-mono text-slate-800 font-bold text-sm">{formatNumber(state.weight + state.secondaryWeight)}g</span>
                                 </div>
                                 <div>
                                     <span className="text-[10px] text-slate-400 font-bold block">ΣΥΝΟΛΟ ΕΡΓΑΤΙΚΩΝ</span>
@@ -185,7 +186,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                         <div className="flex justify-between items-center gap-3 flex-wrap">
                             <h4 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-emerald-600" /> Ανάλυση Κερδοφορίας Παραλλαγών</h4>
                             <div className="flex gap-2 items-center">
-                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">{state.variants.length} Παραλλαγές</span>
+                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">{formatNumber(state.variants.length)} Παραλλαγές</span>
                                 {!state.isSTX && (
                                     <div className="inline-flex bg-slate-100 border border-slate-200 rounded-lg p-1">
                                         <button
@@ -325,7 +326,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                                                 style={{ width: `${Math.min(100, Math.max(0, margin))}%` }}
                                                             ></div>
                                                         </div>
-                                                        <span className={`text-xs font-black w-10 text-right ${margin < 30 ? 'text-rose-600' : 'text-emerald-700'}`}>{margin.toFixed(0)}%</span>
+                                                        <span className={`text-xs font-black w-10 text-right ${margin < 30 ? 'text-rose-600' : 'text-emerald-700'}`}>{formatDecimal(margin, 0)}%</span>
                                                     </div>
                                                 )}
                                             </td>

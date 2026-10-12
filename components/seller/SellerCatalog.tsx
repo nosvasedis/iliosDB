@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from 'react';
 import { Gender, ProductionType } from '../../types';
@@ -185,7 +186,7 @@ const CatalogueCard = React.memo(({ product, priority = false }: CardProps) => {
                     {/* Stock pill */}
                     <div className="absolute top-1 left-1 z-20 pointer-events-none">
                         <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-md ${stockQty > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
-                            {stockQty}
+                            {formatNumber(stockQty)}
                         </span>
                     </div>
 
@@ -193,7 +194,7 @@ const CatalogueCard = React.memo(({ product, priority = false }: CardProps) => {
                     {hasVariants && variants.length > 1 && (
                         <div className="absolute top-1 right-1 z-20 pointer-events-none">
                             <span className="bg-black/50 backdrop-blur-md text-white text-[7px] font-black px-1.5 py-0.5 rounded-full">
-                                {viewIndex + 1}/{variants.length}
+                                {formatNumber(viewIndex + 1)}/{formatNumber(variants.length)}
                             </span>
                         </div>
                     )}
@@ -358,7 +359,7 @@ export default function SellerCatalog({ products, collections }: Props) {
                     <button onClick={() => setShowFilters(v => !v)} className={`relative p-2.5 rounded-xl border transition-colors shrink-0 ${(showFilters || activeCount > 0) ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200'}`}>
                         <SlidersHorizontal size={18} />
                         {activeCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-[#060b00] text-[9px] font-black rounded-full flex items-center justify-center">{activeCount}</span>
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-[#060b00] text-[9px] font-black rounded-full flex items-center justify-center">{formatNumber(activeCount)}</span>
                         )}
                     </button>
                 </div>
@@ -476,7 +477,7 @@ export default function SellerCatalog({ products, collections }: Props) {
 
                         {activeCount > 0 && (
                             <button onClick={clearAll} className="w-full py-2 text-[11px] font-black text-red-500 border border-red-200 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
-                                Καθαρισμός Φίλτρων ({activeCount})
+                                Καθαρισμός Φίλτρων ({formatNumber(activeCount)})
                             </button>
                         )}
                     </div>
@@ -509,7 +510,7 @@ export default function SellerCatalog({ products, collections }: Props) {
             {/* Results count */}
             <div className="px-3 pt-2 pb-1 shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    {filteredProducts.length} προϊόντα
+                    {formatNumber(filteredProducts.length)} προϊόντα
                 </span>
             </div>
 
@@ -535,7 +536,7 @@ export default function SellerCatalog({ products, collections }: Props) {
                                 onClick={handleLoadMore}
                                 className="w-full py-3 bg-white text-slate-600 rounded-xl font-black text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 mb-4 border border-slate-100 shadow-sm disabled:opacity-60"
                             >
-                                {`Περισσότερα (${filteredProducts.length - displayedProducts.length})`}
+                                {`Περισσότερα (${formatNumber(filteredProducts.length - displayedProducts.length)})`}
                             </button>
                         )}
                     </>

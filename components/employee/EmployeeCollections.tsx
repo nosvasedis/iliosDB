@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -46,7 +47,7 @@ const ProductGridCard: React.FC<{ product: Product, onClick: () => void }> = ({ 
                 </div>
                 {hasVariants && (
                     <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1">
-                        <Layers size={10} /> {product.variants!.length}
+                        <Layers size={10} /> {formatNumber(product.variants!.length)}
                     </div>
                 )}
             </div>
@@ -117,7 +118,7 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
                         <div className="flex-1">
                             <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2 flex items-center gap-3">
                                 {selectedCollection.name}
-                                <span className="bg-slate-100 text-slate-500 text-sm font-bold px-3 py-1 rounded-full border border-slate-200">{filteredProducts.length} items</span>
+                                <span className="bg-slate-100 text-slate-500 text-sm font-bold px-3 py-1 rounded-full border border-slate-200">{formatNumber(filteredProducts.length)} items</span>
                             </h1>
                             
                             {/* AI GENERATED DESCRIPTION DISPLAY */}

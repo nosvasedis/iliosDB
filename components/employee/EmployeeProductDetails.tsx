@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useMemo, useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
@@ -105,11 +106,11 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase">Σύνολο Τεμαχίων</div>
-                                <div className="text-2xl font-black text-slate-900">{totalStock}</div>
+                                <div className="text-2xl font-black text-slate-900">{formatNumber(totalStock)}</div>
                             </div>
                             <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center">
                                 <div className="text-[10px] font-bold text-purple-400 uppercase">Δειγματολόγιο</div>
-                                <div className="text-2xl font-black text-purple-700">{product.sample_qty}</div>
+                                <div className="text-2xl font-black text-purple-700">{formatNumber(product.sample_qty)}</div>
                             </div>
                         </div>
                     </div>
@@ -150,7 +151,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                         </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
                                             {(v.available_qty ?? v.stock_qty) > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{v.available_qty ?? v.stock_qty}</span>
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{formatNumber(v.available_qty ?? v.stock_qty)}</span>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
@@ -177,7 +178,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                         </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
                                             {(product.available_qty ?? product.stock_qty) > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{product.available_qty ?? product.stock_qty}</span>
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{formatNumber(product.available_qty ?? product.stock_qty)}</span>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronsLeft, ChevronsRight, Cloud, CloudOff, HardDrive, RefreshCw } from 'lucide-react';
@@ -124,7 +125,7 @@ export function SidebarConnectionBadge(input: SidebarConnectionInput) {
     status.kind === 'syncing' ? (
       <RefreshCw size={13} strokeWidth={2.2} className="animate-spin" />
     ) : status.kind === 'pending' ? (
-      <span className="text-[9px] font-black leading-none">{input.pendingCount > 9 ? '9+' : input.pendingCount}</span>
+      <span className="text-[9px] font-black leading-none">{input.pendingCount > 9 ? '9+' : formatNumber(input.pendingCount)}</span>
     ) : status.kind === 'offline' ? (
       <CloudOff size={13} strokeWidth={2.2} />
     ) : status.kind === 'local' ? (
@@ -217,12 +218,12 @@ export function SidebarNavButton({
       )}
       {!!badge && badge > 0 && !isCollapsed && (
         <span className={`ml-auto flex h-5 min-w-[1.15rem] items-center justify-center rounded-full px-1.5 text-[10px] font-black ${isActive ? 'bg-amber-400/20 text-amber-100' : 'bg-amber-400 text-[#060b00]'}`}>
-          {badge > 99 ? '99+' : badge}
+          {badge > 99 ? '99+' : formatNumber(badge)}
         </span>
       )}
       {!!badge && badge > 0 && isCollapsed && (
         <span className="absolute right-1 top-1 flex h-3.5 min-w-[0.85rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[8px] font-black text-[#060b00]">
-          {badge > 99 ? '99+' : badge}
+          {badge > 99 ? '99+' : formatNumber(badge)}
         </span>
       )}
     </button>

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { ProductionStage } from '../../types';
 import { UNBATCHED_STRIPE_STYLE } from '../../utils/orderReadiness';
@@ -57,10 +58,10 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'pending')}
                                         className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-teal-500 ${leftBorder}`}
                                         style={{ width: `${Math.max(pendingPct, 6)}%` }}
-                                        title={`${getPolishingSubStageLabel('pending')}: ${pendingCount} τμχ${pendingOnHold > 0 ? ` (${pendingOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
+                                        title={`${getPolishingSubStageLabel('pending')}: ${formatNumber(pendingCount)} τμχ${pendingOnHold > 0 ? ` (${formatNumber(pendingOnHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
                                         <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
-                                            {pendingPct >= 14 ? `Τεχν. • Αναμονή ` : ''}{pendingCount}
+                                            {pendingPct >= 14 ? `Τεχν. • Αναμονή ` : ''}{formatNumber(pendingCount)}
                                         </span>
                                         {pendingOnHold > 0 && (
                                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
@@ -72,10 +73,10 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'dispatched')}
                                         className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-blue-500 ${pendingCount > 0 || i > 0 ? 'border-l border-white/20' : ''}`}
                                         style={{ width: `${Math.max(dispatchedPct, 6)}%` }}
-                                        title={`${getPolishingSubStageLabel('dispatched')}: ${dispatchedCount} τμχ${dispatchedOnHold > 0 ? ` (${dispatchedOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
+                                        title={`${getPolishingSubStageLabel('dispatched')}: ${formatNumber(dispatchedCount)} τμχ${dispatchedOnHold > 0 ? ` (${formatNumber(dispatchedOnHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
                                         <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
-                                            {dispatchedPct >= 14 ? `Τεχν. • Στον Τεχν. ` : ''}{dispatchedCount}
+                                            {dispatchedPct >= 14 ? `Τεχν. • Στον Τεχν. ` : ''}{formatNumber(dispatchedCount)}
                                         </span>
                                         {dispatchedOnHold > 0 && (
                                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
@@ -95,10 +96,10 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                             onClick={() => onStageClick(stage.id as ProductionStage)}
                             className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 ${vibrant} ${leftBorder}`}
                             style={{ width: `${Math.max(pct, 6)}%` }}
-                            title={`${stage.label}: ${count} τμχ${onHold > 0 ? ` (${onHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
+                            title={`${stage.label}: ${formatNumber(count)} τμχ${onHold > 0 ? ` (${formatNumber(onHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                         >
                             <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
-                                {pct >= 12 ? `${stage.label} ` : ''}{count}
+                                {pct >= 12 ? `${stage.label} ` : ''}{formatNumber(count)}
                             </span>
                             {onHold > 0 && (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
@@ -110,10 +111,10 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                     <div
                         className="flex items-center justify-center border-l border-white/20 first:rounded-l-[0.45rem] last:rounded-r-[0.45rem]"
                         style={{ width: `${(unbatched / grandTotal) * 100}%`, ...UNBATCHED_STRIPE_STYLE }}
-                        title={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${unbatched} τεμ.`}
+                        title={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${formatNumber(unbatched)} τεμ.`}
                     >
                         <span className="text-slate-600 text-[10px] font-black truncate px-1 drop-shadow-sm">
-                            {((unbatched / grandTotal) * 100) >= 12 ? `Χωρίς παρτίδα ` : ''}{unbatched}
+                            {((unbatched / grandTotal) * 100) >= 12 ? `Χωρίς παρτίδα ` : ''}{formatNumber(unbatched)}
                         </span>
                     </div>
                 )}

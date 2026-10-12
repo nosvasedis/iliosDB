@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import { Gender, Order, Product, UserProfile } from '../../types';
 import { FinanceLineEvent, FinanceVariantRanking } from '../../utils/financeAnalytics';
 import { variantRankingKey } from '../../utils/financeLineSku';
@@ -322,17 +323,17 @@ export function buildSlimEnrichedRowsFromEvents(
 export function formatVariantMargin(row: Pick<EnrichedVariantAnalyticsRow, 'revenue' | 'margin' | 'giftQuantity' | 'quantity'>): string {
   if (row.revenue <= 0.001 && row.giftQuantity > 0) return '—';
   if (row.revenue <= 0.001) return '—';
-  return `${row.margin.toFixed(1)}%`;
+  return `${formatDecimal(row.margin, 1)}%`;
 }
 
 export function describeNegativeProfit(row: Pick<EnrichedVariantAnalyticsRow, 'profit' | 'giftQuantity' | 'belowCostQuantity' | 'quantity'>): string | null {
   if (row.profit >= 0) return null;
   const parts: string[] = [];
   if (row.giftQuantity > 0) {
-    parts.push(`${row.giftQuantity} τεμ. δώρο (τιμή 0€, κόστος παραγωγής μετράει αρνητικό κέρδος)`);
+    parts.push(`${formatNumber(row.giftQuantity)} τεμ. δώρο (τιμή 0€, κόστος παραγωγής μετράει αρνητικό κέρδος)`);
   }
   if (row.belowCostQuantity > 0) {
-    parts.push(`${row.belowCostQuantity} τεμ. κάτω από κόστος (έκπτωση ή χειροκίνητη τιμή)`);
+    parts.push(`${formatNumber(row.belowCostQuantity)} τεμ. κάτω από κόστος (έκπτωση ή χειροκίνητη τιμή)`);
   }
   if (parts.length === 0) {
     return 'Το εκτιμώμενο κόστος παραγωγής υπερβαίνει τα έσοδα για κάποιες γραμμές.';

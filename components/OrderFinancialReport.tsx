@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
@@ -61,7 +62,7 @@ function LineTable({ title, rows, empty, backlog = false }: { title: string; row
                                     {item.priceOverride && <span className="ml-1 font-black text-amber-700">*</span>}
                                     <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" />
                                 </td>
-                                <td className="py-1.5 text-center">{item.quantity}</td>
+                                <td className="py-1.5 text-center">{formatNumber(item.quantity)}</td>
                                 <td className="py-1.5 text-right font-mono">{formatCurrency(item.net)}</td>
                                 <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost)}</td>
                                 <td className="py-1.5 text-right font-mono font-bold text-emerald-600">{formatCurrency(item.profit)}</td>
@@ -148,8 +149,8 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
             </div>
 
             <div className="mb-6 grid grid-cols-4 gap-3 break-avoid">
-                <Kpi label="Πραγματοποιημένα έσοδα" value={formatCurrency(realizedNet)} helper={`${shippedPieces} τεμ. έχουν αποσταλεί, χωρίς ΦΠΑ.`} />
-                <Kpi label="Εκκρεμής αξία" value={formatCurrency(backlogNet)} helper={`${backlogPieces} τεμ. μένουν για αποστολή.`} />
+                <Kpi label="Πραγματοποιημένα έσοδα" value={formatCurrency(realizedNet)} helper={`${formatNumber(shippedPieces)} τεμ. έχουν αποσταλεί, χωρίς ΦΠΑ.`} />
+                <Kpi label="Εκκρεμής αξία" value={formatCurrency(backlogNet)} helper={`${formatNumber(backlogPieces)} τεμ. μένουν για αποστολή.`} />
                 <Kpi label="Μικτό κέρδος" value={formatCurrency(estimatedProfit)} helper={`Περιθώριο ${percent(margin)} στα αποσταλμένα.`} />
                 <Kpi label="Σύνολο παραγγελίας" value={formatCurrency(bookedNet)} helper={`Μικτή αξία ${formatCurrency(bookedGross)}.`} />
             </div>

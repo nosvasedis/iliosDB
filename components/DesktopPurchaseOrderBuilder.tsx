@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -67,7 +68,7 @@ function StatPill({ label, value, tone }: { label: string; value: number; tone: 
     return (
         <div className={`rounded-2xl border px-3 py-2 ${toneClasses[tone]}`}>
             <div className="text-[9px] font-black uppercase tracking-wide opacity-70">{label}</div>
-            <div className="mt-0.5 text-lg font-black tabular-nums">{value}</div>
+            <div className="mt-0.5 text-lg font-black tabular-nums">{formatNumber(value)}</div>
         </div>
     );
 }
@@ -356,7 +357,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
     const handleSave = async () => {
         if (cartSearchTerm.trim() && hiddenItemCount > 0) {
             setCartSearchTerm('');
-            showToast(`Εμφανίστηκαν ${hiddenItemCount} κρυφές γραμμές. Ελέγξτε τις και πατήστε ξανά αποθήκευση.`, 'info');
+            showToast(`Εμφανίστηκαν ${formatNumber(hiddenItemCount)} κρυφές γραμμές. Ελέγξτε τις και πατήστε ξανά αποθήκευση.`, 'info');
             return;
         }
         if (items.length === 0) {
@@ -373,7 +374,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
             });
             if (conflicts.length > 0) {
                 setConflictingSourceIds(new Set(conflicts.map((conflict) => conflict.sourceId)));
-                showToast(`${conflicts.length} ανάγκ${conflicts.length === 1 ? 'η άλλαξε' : 'ες άλλαξαν'} ή δεσμεύτηκε αλλού. Ελέγξτε τις κόκκινες γραμμές.`, 'error');
+                showToast(`${formatNumber(conflicts.length)} ανάγκ${conflicts.length === 1 ? 'η άλλαξε' : 'ες άλλαξαν'} ή δεσμεύτηκε αλλού. Ελέγξτε τις κόκκινες γραμμές.`, 'error');
                 return;
             }
             setConflictingSourceIds(new Set());
@@ -448,7 +449,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                         />
                     </button>
                     <div className="flex shrink-0 items-center gap-2">
-                        <span className="rounded-lg bg-white/80 px-2 py-1 text-[10px] font-black tabular-nums">{needs.length}</span>
+                        <span className="rounded-lg bg-white/80 px-2 py-1 text-[10px] font-black tabular-nums">{formatNumber(needs.length)}</span>
                         <button
                             type="button"
                             onClick={onAddAll}
@@ -509,7 +510,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                         <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
                             <PackageCheck size={16} className="text-emerald-600" />
                             <span className="text-xs font-black text-slate-700">
-                                {items.length} είδη · {totalPieces} τεμ.
+                                {formatNumber(items.length)} είδη · {formatNumber(totalPieces)} τεμ.
                             </span>
                         </div>
                         <button
@@ -545,7 +546,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                             />
                             {unassignedNeeds.length > 0 && (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-900">
-                                    {unassignedNeeds.length} ανάγκ{unassignedNeeds.length === 1 ? 'η δεν έχει' : 'ες δεν έχουν'} ορισμένο προμηθευτή και εξαιρέθηκε από την εντολή.
+                                    {formatNumber(unassignedNeeds.length)} ανάγκ{unassignedNeeds.length === 1 ? 'η δεν έχει' : 'ες δεν έχουν'} ορισμένο προμηθευτή και εξαιρέθηκε από την εντολή.
                                 </div>
                             )}
                             {needsLoading && (
@@ -680,8 +681,8 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         <h3 className={panelTitle}>Περιεχόμενα εντολής</h3>
                                     </div>
                                     <p className="mt-1 text-xs font-bold text-slate-500">
-                                        {filteredItems.length}/{items.length} γραμμές ορατές · {totalPieces} τεμάχια
-                                        {hiddenItemCount > 0 ? ` · ${hiddenItemCount} κρυφές` : ''}
+                                        {formatNumber(filteredItems.length)}/{formatNumber(items.length)} γραμμές ορατές · {formatNumber(totalPieces)} τεμάχια
+                                        {hiddenItemCount > 0 ? ` · ${formatNumber(hiddenItemCount)} κρυφές` : ''}
                                     </p>
                                 </div>
                                 {items.length > 0 && (
@@ -756,7 +757,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                                     title="Αφαίρεση αυτής της ανάγκης από την εντολή"
                                                                     className="inline-flex items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                                                                 >
-                                                                    {allocation.customer} · {allocation.quantity} <X size={10} />
+                                                                    {allocation.customer} · {formatNumber(allocation.quantity)} <X size={10} />
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -776,7 +777,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         <div className="mt-3 grid grid-cols-12 gap-3">
                                             <div className="col-span-4">
                                                 <label className={`${fieldLabel} mb-1 block`}>
-                                                    {allocatedQty > 0 ? `Έξτρα ποσότητα · ${allocatedQty} δεσμευμένα` : 'Ποσότητα'}
+                                                    {allocatedQty > 0 ? `Έξτρα ποσότητα · ${formatNumber(allocatedQty)} δεσμευμένα` : 'Ποσότητα'}
                                                 </label>
                                                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                                                     <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm hover:text-slate-900">-</button>
@@ -833,7 +834,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
 
                         <div className="flex items-center justify-between gap-4 border-t border-slate-200 bg-white px-5 py-4">
                             <div className="text-xs font-bold text-slate-500">
-                                <span className="font-black text-slate-800">{totalPieces}</span> τεμ. σε <span className="font-black text-slate-800">{items.length}</span> γραμμές
+                                <span className="font-black text-slate-800">{formatNumber(totalPieces)}</span> τεμ. σε <span className="font-black text-slate-800">{formatNumber(items.length)}</span> γραμμές
                             </div>
                             <button
                                 type="button"

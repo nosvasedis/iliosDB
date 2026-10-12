@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check, History, ChevronDown } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
@@ -165,7 +166,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             {/* Header */}
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
                 <label className="flex-1 min-w-0 text-xs font-black text-slate-600 uppercase tracking-[0.12em] leading-snug">
-                    Περιεχόμενα · <span className="text-slate-800 tabular-nums">{totalPieces}</span> τεμάχια
+                    Περιεχόμενα · <span className="text-slate-800 tabular-nums">{formatNumber(totalPieces)}</span> τεμάχια
                 </label>
                 <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -272,7 +273,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <div className="flex items-center gap-1">
                                         <div className="flex items-center gap-0 bg-slate-100 p-0.5 rounded-md border border-slate-200">
                                             <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-0.5 hover:bg-white rounded text-slate-600 active:scale-95"><Minus size={11} /></button>
-                                            <span className="min-w-[1.25rem] text-center font-black text-xs tabular-nums px-0.5">{item.quantity}</span>
+                                            <span className="min-w-[1.25rem] text-center font-black text-xs tabular-nums px-0.5">{formatNumber(item.quantity)}</span>
                                             <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-0.5 hover:bg-white rounded text-slate-600 active:scale-95"><Plus size={11} /></button>
                                         </div>
                                         {!isSpecialCreationSku(item.sku) && (
@@ -448,7 +449,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     >
                         <History size={14} className="text-slate-400 shrink-0" />
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex-1">
-                            Ιστορικό αλλαγών τιμών ({state.priceChangeLog.length})
+                            Ιστορικό αλλαγών τιμών ({formatNumber(state.priceChangeLog.length)})
                         </span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${showPriceHistory ? 'rotate-180' : ''}`} />
                     </button>
@@ -519,12 +520,12 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                 </div>
                 {state.discountPercent > 0 && (
                     <div className="flex justify-between items-center text-xs text-red-500 mb-1">
-                        <span>Έκπτωση ({state.discountPercent}%):</span>
+                        <span>Έκπτωση ({formatNumber(state.discountPercent)}%):</span>
                         <span className="font-mono font-bold">-{formatCurrency(state.discountAmount)}</span>
                     </div>
                 )}
                 <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200 pb-2 mb-2">
-                    <span>ΦΠΑ ({(state.vatRate * 100).toFixed(0)}%):</span>
+                    <span>ΦΠΑ ({formatDecimal((state.vatRate * 100), 0)}%):</span>
                     <div className="flex items-center gap-1">
                         <span className="font-mono font-bold">{formatCurrency(state.vatAmount)}</span>
                         {state.priceDiffs && state.priceDiffs.vat !== 0 && (

@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar,
@@ -158,7 +159,7 @@ function FilterFacetGroup({
               }`}
             >
               {formatLabel ? formatLabel(item) : item.label}
-              <span className={active ? 'text-white/70' : 'text-slate-400'}>{item.count}</span>
+              <span className={active ? 'text-white/70' : 'text-slate-400'}>{formatNumber(item.count)}</span>
             </button>
           );
         })}
@@ -232,7 +233,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
       <span className="inline-flex items-center gap-1 rounded-lg border border-slate-900 bg-slate-800 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
         <Truck size={10} strokeWidth={2.5} />
         {shipmentLabel ? `Παράδοση ${shipmentLabel}` : 'Παραδόθηκε'}
-        <span className="text-white/70">{match.shippedQty}/{match.totalQty}</span>
+        <span className="text-white/70">{formatNumber(match.shippedQty)}/{formatNumber(match.totalQty)}</span>
       </span>
     );
   }
@@ -242,7 +243,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
       <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-900 shadow-sm">
         <PackageCheck size={10} strokeWidth={2.5} />
         {shipmentLabel ? `Μερική Παράδοση ${shipmentLabel}` : 'Μερική Παράδοση'}
-        <span className="text-amber-700">{match.shippedQty}/{match.totalQty}</span>
+        <span className="text-amber-700">{formatNumber(match.shippedQty)}/{formatNumber(match.totalQty)}</span>
       </span>
     );
   }
@@ -252,7 +253,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
       <span className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-800">
         <Factory size={10} strokeWidth={2.5} />
         {productionStageLabel ? `Στην παραγωγή: ${productionStageLabel}` : 'Στην παραγωγή'}
-        <span className="text-blue-600">{match.inProductionQty}/{match.totalQty}</span>
+        <span className="text-blue-600">{formatNumber(match.inProductionQty)}/{formatNumber(match.totalQty)}</span>
       </span>
     );
   }
@@ -261,7 +262,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
     return (
       <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
         <Package size={10} strokeWidth={2.5} />
-        Υπόλοιπο προς παραγωγή {match.remainingQty}
+        Υπόλοιπο προς παραγωγή {formatNumber(match.remainingQty)}
       </span>
     );
   }
@@ -405,7 +406,7 @@ export default function SkuOrderSearchModal({
           Φίλτρα αποτελεσμάτων
           {activeFilters > 0 && (
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
-              {activeFilters}
+              {formatNumber(activeFilters)}
             </span>
           )}
         </span>
@@ -494,15 +495,15 @@ export default function SkuOrderSearchModal({
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
               <p className="text-[10px] font-bold uppercase text-emerald-600/80">Παραγγελίες</p>
-              <p className="text-base font-black text-emerald-900">{totalOrders}</p>
+              <p className="text-base font-black text-emerald-900">{formatNumber(totalOrders)}</p>
             </div>
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
               <p className="text-[10px] font-bold uppercase text-blue-600/80">Τεμάχια</p>
-              <p className="text-base font-black text-blue-900">{totalQty}</p>
+              <p className="text-base font-black text-blue-900">{formatNumber(totalQty)}</p>
             </div>
             <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
               <p className="text-[10px] font-bold uppercase text-cyan-700/80">Παραλλαγές</p>
-              <p className="text-base font-black text-cyan-950">{totalVariants}</p>
+              <p className="text-base font-black text-cyan-950">{formatNumber(totalVariants)}</p>
             </div>
           </div>
 
@@ -513,10 +514,10 @@ export default function SkuOrderSearchModal({
                   <span className="min-w-0"><SkuColorizedText sku={match.item.sku} suffix={match.item.variant_suffix || ''} className="text-[11px]" /><SpecialCreationNote sku={match.item.sku} note={match.item.notes} compact className="mt-0.5" /></span>
                   <span className="text-slate-300">·</span>
                   <Package size={11} className="text-emerald-600" />
-                  {qty}
+                  {formatNumber(qty)}
                   <span className="text-slate-300">/</span>
                   <ShoppingCart size={11} className="text-blue-600" />
-                  {orderCount}
+                  {formatNumber(orderCount)}
                 </span>
               ))}
             </div>
@@ -729,10 +730,10 @@ function OrderResultCard({
 
           <div className="grid shrink-0 grid-cols-2 gap-1.5 text-right">
             <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-800">
-              {totalMatchedQty} τεμ.
+              {formatNumber(totalMatchedQty)} τεμ.
             </span>
             <span className="rounded-lg bg-cyan-50 px-2 py-1 text-[11px] font-black text-cyan-900">
-              {uniqueVariantCount} SKU
+              {formatNumber(uniqueVariantCount)} SKU
             </span>
             <span className="col-span-2 text-[10px] font-bold text-slate-400">
               {formatCurrency(order.total_price)}
@@ -793,7 +794,7 @@ function MatchedItemRow({
           />
           <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
             <Layers3 size={10} />
-            {match.totalQty} τεμ.
+            {formatNumber(match.totalQty)} τεμ.
           </span>
           <FulfillmentBadge match={match} />
           {item.notes?.trim() && !isSpecialCreationSku(item.sku) && (
@@ -821,7 +822,7 @@ function MatchedItemRow({
               .map((stage) => (
                 <span key={stage.key} className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${getStageBadgeClassName(stage)}`}>
                   <Factory size={8} />
-                  {stage.label} x{stage.qty}
+                  {stage.label} x{formatNumber(stage.qty)}
                 </span>
               ))}
           </div>

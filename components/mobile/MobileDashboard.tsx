@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
 import { Activity, Factory, Coins, Plus, ScanBarcode, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck } from 'lucide-react';
@@ -81,7 +82,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
             id: 'pending',
             title: 'Εκκρεμής αξία',
             value: formatCurrency(stats.pendingRevenue),
-            sub: `${stats.activeOrdersCount} ανοιχτές παραγγελίες`,
+            sub: `${formatNumber(stats.activeOrdersCount)} ανοιχτές παραγγελίες`,
             icon: Activity,
             bg: 'bg-slate-900',
             text: 'text-white',
@@ -94,7 +95,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
             id: 'revenue',
             title: 'Έσοδα έτους',
             value: formatCurrency(stats.realizedRevenue),
-            sub: `${stats.shippedPieces} τεμ. απεστάλησαν`,
+            sub: `${formatNumber(stats.shippedPieces)} τεμ. απεστάλησαν`,
             icon: Truck,
             bg: 'bg-emerald-600',
             text: 'text-white',
@@ -106,8 +107,8 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         {
             id: 'production',
             title: 'Παραγωγή',
-            value: stats.activeBatchesCount.toString(),
-            sub: stats.delayedBatches > 0 ? `${stats.delayedBatches} καθυστερήσεις` : 'Ομαλή ροή',
+            value: formatNumber(stats.activeBatchesCount),
+            sub: stats.delayedBatches > 0 ? `${formatNumber(stats.delayedBatches)} καθυστερήσεις` : 'Ομαλή ροή',
             icon: Factory,
             bg: 'bg-amber-500',
             text: 'text-white',
@@ -221,7 +222,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                                     </div>
                                     <div className="text-right">
                                         <div className="font-black text-slate-900 text-sm">{formatCurrency(netValue)}</div>
-                                        <div className="text-[10px] text-slate-400 font-bold">{order.items.length} είδη</div>
+                                        <div className="text-[10px] text-slate-400 font-bold">{formatNumber(order.items.length)} είδη</div>
                                     </div>
                                 </div>
 

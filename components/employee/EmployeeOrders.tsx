@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -88,7 +89,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
-                                        <div className="text-xs text-slate-500 font-medium">{order.items.length} είδη</div>
+                                        <div className="text-xs text-slate-500 font-medium">{formatNumber(order.items.length)} είδη</div>
                                         <div className="flex items-center gap-2">
                                             <button onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }} className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center">
                                                 <CalendarRange size={14}/>

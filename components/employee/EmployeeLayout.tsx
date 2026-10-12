@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState } from 'react';
 import { LogOut } from 'lucide-react';
@@ -38,7 +39,7 @@ const MobileNavItem = ({ icon, label, isActive, onClick, badge }: { icon: React.
     <span className="text-[9px] font-bold truncate w-full text-center">{label}</span>
     {!!badge && badge > 0 && (
       <span className={`absolute top-1 right-3 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[9px] font-black flex items-center justify-center ${isActive ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
-        {badge > 99 ? '99+' : badge}
+        {badge > 99 ? '99+' : formatNumber(badge)}
       </span>
     )}
   </button>

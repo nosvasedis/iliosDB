@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useMemo, useState } from 'react';
 import { Material, Product, Supplier, SupplierOrder } from '../../types';
@@ -255,7 +256,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                         <div className="min-w-0">
                                             <div className="text-[10px] font-mono text-slate-400 mb-0.5">#{order.id.slice(0, 6).toUpperCase()}</div>
                                             <div className="text-sm font-bold text-slate-600">
-                                                {lineCount} {lineCount === 1 ? 'γραμμή' : 'γραμμές'}
+                                                {formatNumber(lineCount)} {lineCount === 1 ? 'γραμμή' : 'γραμμές'}
                                             </div>
                                         </div>
                                         <span
@@ -265,7 +266,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                         </span>
                                     </div>
                                     <div className="text-xs text-slate-500 font-medium mb-3">
-                                        {new Date(order.created_at).toLocaleDateString('el-GR')} • {lineCount} είδη
+                                        {new Date(order.created_at).toLocaleDateString('el-GR')} • {formatNumber(lineCount)} είδη
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
                                         {onPrintSupplierOrder && (
@@ -498,7 +499,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                         </div>
                                         <div className="flex shrink-0 flex-col items-end justify-center border-l border-slate-100 pl-3">
                                             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ποσ.</span>
-                                            <span className="text-xl font-black tabular-nums text-slate-900">{item.quantity}</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-900">{formatNumber(item.quantity)}</span>
                                         </div>
                                     </div>
                                 );

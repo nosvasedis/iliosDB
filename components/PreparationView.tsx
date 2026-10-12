@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { ProductionBatch, Product, Material, MaterialType, ProductionType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
@@ -176,7 +177,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                     <div className="w-full h-full flex items-center justify-center text-slate-300 text-[8px]">Χωρίς εικόνα</div>
                                                 )}
                                             </div>
-                                            <div className="text-2xl font-black text-slate-900 leading-none text-center mt-2">x{batch.quantity}</div>
+                                            <div className="text-2xl font-black text-slate-900 leading-none text-center mt-2">x{formatNumber(batch.quantity)}</div>
                                         </div>
 
                                         <div className="flex-1 min-w-0 flex flex-col gap-1">
@@ -216,7 +217,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                                 name += ` (${(details as Product).description})`;
                                                             }
 
-                                                            return <span key={idx}>{name} ({item.quantity}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
+                                                            return <span key={idx}>{name} ({formatNumber(item.quantity)}){idx < product.recipe.length - 1 ? ', ' : ''}</span>;
                                                         })}
                                                     </div>
                                                 )}
@@ -231,7 +232,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                                     <li key={idx} className="flex items-start gap-1 font-bold">
                                                                         <span className="text-slate-400">•</span>
                                                                         <span>
-                                                                            {productMold.code} <span className="text-[8px] font-black">(x{productMold.quantity})</span>
+                                                                            {productMold.code} <span className="text-[8px] font-black">(x{formatNumber(productMold.quantity)})</span>
                                                                             {details?.description && (
                                                                                 <span className="font-medium text-[8px] text-slate-600 normal-case italic"> ({details.description})</span>
                                                                             )}
@@ -282,14 +283,14 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                         {Object.entries(mold.breakdown).map(([key, qty]) => (
                                             <div key={key} className={`flex justify-between items-center text-[9px] font-bold px-1.5 py-0.5 rounded border ${getFinishStyle(key)}`}>
                                                 <span>{key === 'STD' ? 'ΒΑΣ' : key}</span>
-                                                <span className="font-black">{qty}</span>
+                                                <span className="font-black">{formatNumber(qty)}</span>
                                             </div>
                                         ))}
                                     </div>
 
                                     <div className="text-right border-t border-slate-200 pt-1 mt-1">
                                         <span className="font-black text-lg text-slate-900 leading-none">
-                                            {mold.totalQty} <span className="text-[9px] font-normal text-slate-500">συν.</span>
+                                            {formatNumber(mold.totalQty)} <span className="text-[9px] font-normal text-slate-500">συν.</span>
                                         </span>
                                     </div>
                                 </div>
@@ -316,7 +317,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                         )}
                                     </div>
                                     <div className="text-right shrink-0">
-                                        <div className="text-base font-black text-slate-900 leading-none">{stone.quantity}</div>
+                                        <div className="text-base font-black text-slate-900 leading-none">{formatNumber(stone.quantity)}</div>
                                         <div className="text-[9px] font-bold text-slate-500 uppercase">{stone.unit}</div>
                                     </div>
                                 </div>
@@ -339,7 +340,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                             <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                 {product.image_url && <img src={product.image_url} className="w-full h-full object-cover" alt="img" />}
                                             </div>
-                                            <div className="text-2xl font-black text-slate-900 leading-none mt-2">x{batch.quantity}</div>
+                                            <div className="text-2xl font-black text-slate-900 leading-none mt-2">x{formatNumber(batch.quantity)}</div>
                                         </div>
                                         <div className="flex-1 min-w-0 flex flex-col justify-between">
                                             <div>

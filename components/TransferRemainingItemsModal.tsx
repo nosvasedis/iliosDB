@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 /**
  * TransferRemainingItemsModal.tsx
  *
@@ -132,7 +133,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
 
     // Build execution steps display.
     const steps: ExecutionStepState[] = [
-      { label: `Επανεκχώρηση ${plan.batchesToRepoint.length} παρτίδων → Παρ. B`, status: 'pending' },
+      { label: `Επανεκχώρηση ${formatNumber(plan.batchesToRepoint.length)} παρτίδων → Παρ. B`, status: 'pending' },
       { label: 'Ενημέρωση Παρ. B (προσθήκη τεμαχίων + σύνολο)', status: 'pending' },
       { label: 'Κλείσιμο Παρ. A (κατάσταση → Παραδόθηκε)', status: 'pending' },
       { label: 'Ακύρωση ενεργών πλάνων παράδοσης Παρ. A', status: 'pending' },
@@ -318,7 +319,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                           </span>
                         </div>
                         <div className="text-sm font-semibold text-slate-800 mt-1">
-                          {(o.item_count ?? o.items.length)} είδη · {formatCurrency(o.total_price)}
+                          {formatNumber((o.item_count ?? o.items.length))} είδη · {formatCurrency(o.total_price)}
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5">
                           {new Date(o.created_at).toLocaleDateString('el-GR')}
@@ -356,7 +357,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                         <span className="font-bold text-red-700">{b.sku}</span>
                         {b.variant_suffix && <span className="text-red-600">{b.variant_suffix}</span>}
                         {b.size_info && <span className="text-red-500">{b.size_info}</span>}
-                        <span className="ml-auto text-red-600">{b.quantity} τεμ. · {stageLabel(b.current_stage)}</span>
+                        <span className="ml-auto text-red-600">{formatNumber(b.quantity)} τεμ. · {stageLabel(b.current_stage)}</span>
                       </div>
                     ))}
                   </div>
@@ -396,8 +397,8 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex gap-2 text-xs text-amber-800">
                   <AlertTriangle size={15} className="shrink-0 mt-0.5" />
                   <span>
-                    <strong>Διαφορετικός ΦΠΑ:</strong> Παρ. A {((orderA.vat_rate ?? 0.24) * 100).toFixed(0)}% ·
-                    Παρ. B {((selectedOrderB.vat_rate ?? 0.24) * 100).toFixed(0)}%.
+                    <strong>Διαφορετικός ΦΠΑ:</strong> Παρ. A {formatDecimal(((orderA.vat_rate ?? 0.24) * 100), 0)}% ·
+                    Παρ. B {formatDecimal(((selectedOrderB.vat_rate ?? 0.24) * 100), 0)}%.
                     Τα μεταφερόμενα τεμάχια θα υπολογιστούν με τον ΦΠΑ της <strong>Παρ. B</strong>.
                   </span>
                 </div>
@@ -406,8 +407,8 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex gap-2 text-xs text-amber-800">
                   <AlertTriangle size={15} className="shrink-0 mt-0.5" />
                   <span>
-                    <strong>Διαφορετική έκπτωση:</strong> Παρ. A {(orderA.discount_percent ?? 0)}% ·
-                    Παρ. B {(selectedOrderB.discount_percent ?? 0)}%.
+                    <strong>Διαφορετική έκπτωση:</strong> Παρ. A {formatNumber((orderA.discount_percent ?? 0))}% ·
+                    Παρ. B {formatNumber((selectedOrderB.discount_percent ?? 0))}%.
                     Τα μεταφερόμενα τεμάχια θα υπολογιστούν με την έκπτωση της <strong>Παρ. B</strong>.
                   </span>
                 </div>
@@ -417,7 +418,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
               {plan.transferItems.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                    Τεμάχια που μεταφέρονται ({plan.transferItems.reduce((s, i) => s + i.quantity, 0)} τεμ.)
+                    Τεμάχια που μεταφέρονται ({formatNumber(plan.transferItems.reduce((s, i) => s + i.quantity, 0))} τεμ.)
                   </p>
                   <div className="border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden">
                     {plan.transferItems.map((item, idx) => (
@@ -442,7 +443,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                           <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="font-semibold text-slate-800">{item.quantity} τεμ.</span>
+                          <span className="font-semibold text-slate-800">{formatNumber(item.quantity)} τεμ.</span>
                           <span className="text-xs text-slate-400 ml-2">
                             {formatCurrency(item.price_at_order)} / τεμ.
                           </span>
@@ -451,7 +452,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                     ))}
                   </div>
                   <p className="text-xs text-slate-500 mt-1.5">
-                    {plan.batchesToRepoint.length} παρτίδες παραγωγής θα επανεκχωρηθούν στην Παρ. B.
+                    {formatNumber(plan.batchesToRepoint.length)} παρτίδες παραγωγής θα επανεκχωρηθούν στην Παρ. B.
                   </p>
                 </div>
               )}
@@ -474,7 +475,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                     <div className="text-xs text-slate-500 mt-1">Νέο σύνολο (μετά μεταφοράς)</div>
                     <div className="font-mono font-bold text-emerald-700">{formatCurrency(plan.newOrderBTotal)}</div>
                     <div className="text-xs text-slate-500 mt-1.5">
-                      +{plan.transferItems.length} είδη · #{formatOrderId(selectedOrderB.id)}
+                      +{formatNumber(plan.transferItems.length)} είδη · #{formatOrderId(selectedOrderB.id)}
                     </div>
                   </div>
                 </div>
@@ -492,11 +493,11 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                 </div>
                 <ul className="text-sm text-red-700 space-y-1.5 list-disc list-inside">
                   <li>
-                    <strong>{plan.batchesToRepoint.length} παρτίδες παραγωγής</strong> θα επανεκχωρηθούν
+                    <strong>{formatNumber(plan.batchesToRepoint.length)} παρτίδες παραγωγής</strong> θα επανεκχωρηθούν
                     από Παρ. A στην Παρ. B.
                   </li>
                   <li>
-                    <strong>{plan.transferItems.reduce((s, i) => s + i.quantity, 0)} τεμάχια</strong> θα
+                    <strong>{formatNumber(plan.transferItems.reduce((s, i) => s + i.quantity, 0))} τεμάχια</strong> θα
                     προστεθούν στην Παρ. B ({formatOrderId(selectedOrderB.id)}).
                   </li>
                   <li>
@@ -573,10 +574,10 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                   </div>
                   <ul className="text-sm text-emerald-700 space-y-1 list-disc list-inside">
                     <li>
-                      {plan!.batchesToRepoint.length} παρτίδες επανεκχωρήθηκαν στην Παρ. B.
+                      {formatNumber(plan!.batchesToRepoint.length)} παρτίδες επανεκχωρήθηκαν στην Παρ. B.
                     </li>
                     <li>
-                      {plan!.transferItems.reduce((s, i) => s + i.quantity, 0)} τεμάχια προστέθηκαν
+                      {formatNumber(plan!.transferItems.reduce((s, i) => s + i.quantity, 0))} τεμάχια προστέθηκαν
                       στην Παρ. B ({formatOrderId(selectedOrderB!.id)}).
                     </li>
                     <li>Παρ. A κλείστηκε ως Παραδόθηκε.</li>

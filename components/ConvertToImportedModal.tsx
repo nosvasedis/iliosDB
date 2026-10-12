@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -90,7 +91,7 @@ export default function ConvertToImportedModal({
                 <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
                     {STEPS.map((item) => (
                         <div key={item.id} className={`rounded-xl px-3 py-2 text-center text-[11px] font-bold ${step === item.id ? 'bg-white text-violet-700 shadow-sm' : step > item.id ? 'text-violet-500' : 'text-slate-400'}`}>
-                            {item.id}. {item.label}
+                            {formatNumber(item.id)}. {item.label}
                         </div>
                     ))}
                 </div>
@@ -147,9 +148,9 @@ export default function ConvertToImportedModal({
                                     <div>
                                         <p className="text-sm font-bold text-red-700">Συνταγή και λάστιχα θα αδειάσουν</p>
                                         <p className="mt-1 text-xs text-red-600">
-                                            {recipeCount > 0 ? `${recipeCount} υλικά συνταγής` : 'Χωρίς συνταγή'}
+                                            {recipeCount > 0 ? `${formatNumber(recipeCount)} υλικά συνταγής` : 'Χωρίς συνταγή'}
                                             {' · '}
-                                            {moldCount > 0 ? `${moldCount} λάστιχα` : 'Χωρίς λάστιχα'}
+                                            {moldCount > 0 ? `${formatNumber(moldCount)} λάστιχα` : 'Χωρίς λάστιχα'}
                                             . Τα εισαγόμενα δεν κρατούν συνταγή εργαστηρίου.
                                         </p>
                                     </div>

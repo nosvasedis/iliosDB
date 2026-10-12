@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
@@ -54,12 +55,12 @@ function RankingTable({
                     <tbody>
                         {rows.map((row, index) => (
                             <tr key={`${title}-${row.id ?? row.sku ?? row[nameKey]}-${index}`} className="border-b border-slate-50 last:border-0">
-                                <td className="w-7 px-3 py-1.5 text-center font-black text-slate-400">{index + 1}</td>
+                                <td className="w-7 px-3 py-1.5 text-center font-black text-slate-400">{formatNumber(index + 1)}</td>
                                 <td className="max-w-[110px] px-2 py-1.5 font-bold text-slate-800">
                                     {row.sku || row[nameKey]}
                                     <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-0.5" />
                                 </td>
-                                <td className="px-2 py-1.5 text-right text-slate-500">{row.quantity != null ? `${row.quantity} τεμ.` : row.orders != null ? `${row.orders} παρ.` : ''}</td>
+                                <td className="px-2 py-1.5 text-right text-slate-500">{row.quantity != null ? `${formatNumber(row.quantity)} τεμ.` : row.orders != null ? `${formatNumber(row.orders)} παρ.` : ''}</td>
                                 <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(row.revenue)}</td>
                             </tr>
                         ))}
@@ -123,7 +124,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                 <Kpi label="Πραγματοποιημένα έσοδα" value={formatCurrency(totals.realizedNet)} helper="Αποσταλμένη καθαρή αξία, μετά την έκπτωση και χωρίς ΦΠΑ." />
                 <Kpi label="Εκκρεμής αξία" value={formatCurrency(totals.backlogNet)} helper="Αξία τεμαχίων που δεν έχουν αποσταλεί. Δεν είναι έσοδο." />
                 <Kpi label="Μικτό κέρδος" value={formatCurrency(totals.estimatedProfit)} helper={`Περιθώριο ${percent(totals.margin)} με εκτιμώμενο κόστος.`} />
-                <Kpi label="Συμφωνία παραστατικών" value={formatCurrency(legal.netGap)} helper={`${legal.issuedCount} εκδομένα παραστατικά στην περίοδο.`} />
+                <Kpi label="Συμφωνία παραστατικών" value={formatCurrency(legal.netGap)} helper={`${formatNumber(legal.issuedCount)} εκδομένα παραστατικά στην περίοδο.`} />
             </div>
 
             <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3 break-avoid">
@@ -142,7 +143,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                 <Kpi label="Εκτιμώμενο κόστος" value={formatCurrency(totals.estimatedCost)} helper="Κόστος για αποσταλμένα τεμάχια." />
                 <Kpi label="Έκπτωση" value={formatCurrency(totals.discount)} helper="Σύνολο εκπτώσεων στην περίοδο." />
                 <Kpi label="ΦΠΑ" value={formatCurrency(totals.vat)} helper={`Μικτή αξία ${formatCurrency(totals.realizedGross)}.`} />
-                <Kpi label="Τεμάχια" value={String(totals.shippedPieces)} helper={`${totals.realizedOrderCount} παραγγελίες με αποστολή.`} />
+                <Kpi label="Τεμάχια" value={formatNumber(totals.shippedPieces)} helper={`${formatNumber(totals.realizedOrderCount)} παραγγελίες με αποστολή.`} />
             </div>
 
             <div className="mb-5 break-avoid">
@@ -181,7 +182,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                             {sortedItemsBreakdown.map((item: any, index: number) => (
                                 <tr key={`${item.sku}-${index}`} className="border-b border-slate-50 last:border-0">
                                     <td className="py-1.5 font-bold text-slate-800">{item.sku}{item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}<SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" /></td>
-                                    <td className="py-1.5 text-center">{item.quantity}</td>
+                                    <td className="py-1.5 text-center">{formatNumber(item.quantity)}</td>
                                     <td className="py-1.5 text-right font-mono">{formatCurrency(item.net ?? item.revenue)}</td>
                                     <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost ?? item.cost)}</td>
                                     <td className="py-1.5 text-right font-mono font-bold text-emerald-600">{formatCurrency(item.profit)}</td>

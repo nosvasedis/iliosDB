@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle, User, Edit, History, LayoutList, Layers, Wrench } from 'lucide-react';
@@ -145,7 +146,7 @@ export default function MobileBatchBuildModal({
                                 <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product.gender} className="text-base sm:text-lg font-black tracking-tight leading-tight" masterClassName="text-slate-800" />
                                 <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                 <span className="inline-flex items-center gap-1 shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs font-black text-emerald-800">
-                                    ×{batch.quantity}
+                                    ×{formatNumber(batch.quantity)}
                                 </span>
                             </div>
                             {(product.description || product.category) && (
@@ -219,10 +220,10 @@ export default function MobileBatchBuildModal({
                                 )}
                                 <div className="flex flex-wrap gap-2 text-[10px] font-black text-slate-500 uppercase">
                                     {buildData.recipe.length > 0 && (
-                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{buildData.recipe.length} είδη υλικών</span>
+                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{formatNumber(buildData.recipe.length)} είδη υλικών</span>
                                     )}
                                     {buildData.molds.length > 0 && (
-                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{buildData.molds.length} λάστιχα</span>
+                                        <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">{formatNumber(buildData.molds.length)} λάστιχα</span>
                                     )}
                                 </div>
 
@@ -336,7 +337,7 @@ export default function MobileBatchBuildModal({
                                                         <div className="flex items-center gap-2 flex-wrap mb-1">
                                                             <span className="font-black text-slate-800 text-base">{m.code}</span>
                                                             <span className="text-[10px] font-bold bg-white text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">
-                                                                ×{m.quantity}
+                                                                ×{formatNumber(m.quantity)}
                                                             </span>
                                                         </div>
                                                         {m.description ? (

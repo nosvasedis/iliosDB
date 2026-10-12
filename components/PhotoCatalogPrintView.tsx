@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { Product, Mold } from '../types';
 import { compareSkuValues } from '../utils/skuSort';
@@ -210,7 +211,7 @@ export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτ
                             {title}
                         </div>
                         <div className="catalog-header-meta">
-                            {printDate} &nbsp;·&nbsp; {products.length} κωδικοί &nbsp;·&nbsp; σελ. {pageIdx + 1}/{pages.length}
+                            {printDate} &nbsp;·&nbsp; {formatNumber(products.length)} κωδικοί &nbsp;·&nbsp; σελ. {formatNumber(pageIdx + 1)}/{formatNumber(pages.length)}
                         </div>
                     </div>
 

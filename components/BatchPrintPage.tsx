@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
 import { Printer, Loader2, Check, AlertCircle, Camera, FileUp, Plus, Lightbulb, History, Trash2, Tag, ImageIcon, Search, X, RotateCcw, BookImage, LayoutGrid, FolderKanban, Users2, Zap, Eye } from 'lucide-react';
@@ -159,7 +160,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             return;
         }
         onPrintPhotoCatalog(toPrint);
-        showToast(`Φωτο-κατάλογος με ${toPrint.length} κωδικούς εστάλη για εκτύπωση.`, 'success');
+        showToast(`Φωτο-κατάλογος με ${formatNumber(toPrint.length)} κωδικούς εστάλη για εκτύπωση.`, 'success');
     };
 
     // Persistent History
@@ -295,15 +296,15 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
         setTimeout(() => {
             setPrintItems(printPayload);
-            showToast(`Στάλθηκαν ${totalPieces} τεμάχια για εκτύπωση ετικετών (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
+            showToast(`Στάλθηκαν ${formatNumber(totalPieces)} τεμάχια για εκτύπωση ετικετών (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
             setActionLogs(prev => [{
                 id: Date.now().toString(),
                 timestamp: new Date().toISOString(),
-                summary: `${totalPieces} Ετικέτες`,
+                summary: `${formatNumber(totalPieces)} Ετικέτες`,
                 details: printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity })),
             }, ...prev].slice(0, 50));
             if (notFound.length > 0) {
-                showToast(`${notFound.length} κωδικοί δεν βρέθηκαν και παραλείφθηκαν.`, 'warning');
+                showToast(`${formatNumber(notFound.length)} κωδικοί δεν βρέθηκαν και παραλείφθηκαν.`, 'warning');
             }
             setIsProcessing(false);
         }, 250);
@@ -417,12 +418,12 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             setActiveMasterProduct(null);
             setFilteredVariants([]);
             inputRef.current?.focus();
-            showToast(`Προστέθηκαν ${addedCount} κωδικοί!`, 'success');
+            showToast(`Προστέθηκαν ${formatNumber(addedCount)} κωδικοί!`, 'success');
         } else {
             showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", "error");
         }
         if (notFoundCount > 0) {
-            showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
+            showToast(`${formatNumber(notFoundCount)} κωδικοί δεν βρέθηκαν.`, 'warning');
         }
     };
 
@@ -815,7 +816,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         <p className="text-[11px] font-medium text-slate-400">Ένας κωδικός ανά γραμμή. Ctrl+Enter για εκτύπωση.</p>
                                     </div>
                                     <span className="rounded-full border border-slate-100 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                        {skusText.split('\n').filter(l => l.trim()).length} γραμμές
+                                        {formatNumber(skusText.split('\n').filter(l => l.trim()).length)} γραμμές
                                     </span>
                                 </div>
                                 <button
@@ -847,17 +848,17 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         <div>
                                             <h3 className="text-sm font-black text-slate-800">Προεπισκόπηση ετικετών</h3>
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                                {readyLineCount} έτοιμες · {formatLabel}
+                                                {formatNumber(readyLineCount)} έτοιμες · {formatLabel}
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {missingCount > 0 && (
                                                 <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-600">
-                                                    {missingCount} άγνωστοι
+                                                    {formatNumber(missingCount)} άγνωστοι
                                                 </span>
                                             )}
                                             <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                                                {readyPieceCount} τεμ.
+                                                {formatNumber(readyPieceCount)} τεμ.
                                             </span>
                                         </div>
                                     </div>
@@ -893,7 +894,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">x{item.quantity}</span>
+                                                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">x{formatNumber(item.quantity)}</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditingLabelKey(item.key)}
@@ -947,17 +948,17 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             <div className="mt-4 grid grid-cols-2 gap-3">
                                 <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Έτοιμες</div>
-                                    <div className="mt-1 text-xl font-black text-slate-900">{readyLineCount}</div>
+                                    <div className="mt-1 text-xl font-black text-slate-900">{formatNumber(readyLineCount)}</div>
                                 </div>
                                 <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Τεμάχια</div>
-                                    <div className="mt-1 text-xl font-black text-slate-900">{readyPieceCount}</div>
+                                    <div className="mt-1 text-xl font-black text-slate-900">{formatNumber(readyPieceCount)}</div>
                                 </div>
                             </div>
                             {missingCount > 0 && (
                                 <div className="mt-3 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
                                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                                    {missingCount} κωδικοί δεν βρέθηκαν και θα παραλειφθούν.
+                                    {formatNumber(missingCount)} κωδικοί δεν βρέθηκαν και θα παραλειφθούν.
                                 </div>
                             )}
                             <button
@@ -970,7 +971,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 {isProcessing
                                     ? 'Προετοιμασία...'
                                     : readyPieceCount > 0
-                                        ? `Εκτύπωση ${readyPieceCount} ετικετών`
+                                        ? `Εκτύπωση ${formatNumber(readyPieceCount)} ετικετών`
                                         : 'Εκτύπωση ετικετών'}
                             </button>
                             {lastPrint && (
@@ -1038,7 +1039,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                     <div className="flex flex-wrap gap-1">
                                                         {log.details.map((d, i) => (
                                                             <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
-                                                                {d.sku}{d.variant} <span className="font-medium text-slate-400">x{d.qty}</span>
+                                                                {d.sku}{d.variant} <span className="font-medium text-slate-400">x{formatNumber(d.qty)}</span>
                                                             </span>
                                                         ))}
                                                     </div>
@@ -1178,7 +1179,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             </button>
                             <span className="text-sm font-bold text-slate-700">
                                 <span className="text-violet-600">{selectedSkus.size}</span> επιλεγμένα
-                                <span className="text-slate-400 font-normal ml-1">από {catalogProducts.length} αποτελέσματα</span>
+                                <span className="text-slate-400 font-normal ml-1">από {formatNumber(catalogProducts.length)} αποτελέσματα</span>
                             </span>
                         </div>
 
@@ -1240,7 +1241,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                             <div className="font-black text-slate-900 font-mono text-sm tracking-wide leading-none">{product.sku}</div>
                                             <div className="text-[10px] text-slate-500 mt-1 font-medium truncate">{product.category}</div>
                                             {variantCount > 0 && (
-                                                <div className="text-[10px] text-violet-500 font-bold mt-0.5">{variantCount} παραλλαγές</div>
+                                                <div className="text-[10px] text-violet-500 font-bold mt-0.5">{formatNumber(variantCount)} παραλλαγές</div>
                                             )}
                                         </div>
                                     </div>

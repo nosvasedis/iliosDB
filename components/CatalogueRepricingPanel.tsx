@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState } from 'react';
 import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,14 +33,14 @@ export default function CatalogueRepricingPanel({ settings }: { settings: Global
   const apply = async () => {
     if (!preview || !policyMatches(preview.snapshot)) { showToast('Αποθηκεύστε τις ρυθμίσεις και δημιουργήστε νέα προεπισκόπηση.', 'info'); return; }
     const { snapshot, plan } = preview;
-    const manualMessage = replaceManualSelling ? `${plan.manualCount} σημειωμένες χειροκίνητες τιμές θα αντικατασταθούν και θα επιστρέψουν στον τύπο Ilios.` : `${plan.manualCount} χειροκίνητες τιμές χονδρικής προστατεύονται.`;
-    const yes = await confirm({ title: 'Ενημέρωση όλων των τιμών καταλόγου', message: `Θα ενημερωθούν κόστος και χονδρική για ${plan.masterCount} βασικούς κωδικούς και ${plan.variantCount} παραλλαγές. ${manualMessage} Θα κρατηθεί αντίγραφο των προηγούμενων τιμών στη βάση.`, confirmText: 'Εφαρμογή νέων τιμών' });
+    const manualMessage = replaceManualSelling ? `${formatNumber(plan.manualCount)} σημειωμένες χειροκίνητες τιμές θα αντικατασταθούν και θα επιστρέψουν στον τύπο Ilios.` : `${formatNumber(plan.manualCount)} χειροκίνητες τιμές χονδρικής προστατεύονται.`;
+    const yes = await confirm({ title: 'Ενημέρωση όλων των τιμών καταλόγου', message: `Θα ενημερωθούν κόστος και χονδρική για ${formatNumber(plan.masterCount)} βασικούς κωδικούς και ${formatNumber(plan.variantCount)} παραλλαγές. ${manualMessage} Θα κρατηθεί αντίγραφο των προηγούμενων τιμών στη βάση.`, confirmText: 'Εφαρμογή νέων τιμών' });
     if (!yes) return;
     setBusy(true);
     try {
       const result = await applyCatalogueRepricing(snapshot, plan.rows, replaceManualSelling);
       await invalidateProductsAndCatalog(queryClient);
-      showToast(`Επαληθεύτηκαν ${result.masters} βασικοί κωδικοί και ${result.variants} παραλλαγές. Αντίγραφο #${result.run_id}.`, 'success');
+      showToast(`Επαληθεύτηκαν ${formatNumber(result.masters)} βασικοί κωδικοί και ${formatNumber(result.variants)} παραλλαγές. Αντίγραφο #${formatNumber(result.run_id)}.`, 'success');
     } catch (error: any) { showToast(error.message, 'error'); }
     finally { setBusy(false); setPreview(null); }
   };
@@ -51,7 +52,7 @@ export default function CatalogueRepricingPanel({ settings }: { settings: Global
       <button type="button" disabled={busy} onClick={loadPreview} className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Προεπισκόπηση νέων τιμών</button>
       {preview && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">Αλλαγές: {preview.plan.masterCount} βασικοί κωδικοί · {preview.plan.variantCount} παραλλαγές. Χειροκίνητες τιμές {replaceManualSelling ? 'προς αντικατάσταση' : 'που προστατεύονται'}: {preview.plan.manualCount}. Εξαιρούμενες υπηρεσίες: {preview.plan.serviceCount}.</p>
+          <p className="text-sm text-slate-600">Αλλαγές: {formatNumber(preview.plan.masterCount)} βασικοί κωδικοί · {formatNumber(preview.plan.variantCount)} παραλλαγές. Χειροκίνητες τιμές {replaceManualSelling ? 'προς αντικατάσταση' : 'που προστατεύονται'}: {formatNumber(preview.plan.manualCount)}. Εξαιρούμενες υπηρεσίες: {formatNumber(preview.plan.serviceCount)}.</p>
           <div className="max-h-80 overflow-auto rounded-xl border border-slate-100">
             <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-50"><tr><th className="p-3">Κωδικός</th><th className="p-3">Κόστος</th><th className="p-3">Χονδρική</th></tr></thead><tbody>
               {preview.plan.rows.slice(0, 200).map(row => <tr key={JSON.stringify([row.sku, row.suffix])} className="border-t border-slate-100"><td className="p-3 font-mono">{row.sku}{row.suffix === null ? ' (βασικός)' : row.suffix === '' ? ' (λουστρέ)' : row.suffix}</td><td className="p-3">{row.values.active_price !== undefined ? `${formatCurrency(row.before.active_price)} → ${formatCurrency(row.values.active_price)}` : 'Αμετάβλητο'}</td><td className="p-3">{row.manualSelling && !replaceManualSelling ? 'Χειροκίνητη — διατηρείται' : row.values.selling_price !== undefined ? `${formatCurrency(row.before.selling_price)} → ${formatCurrency(row.values.selling_price)}${row.manualSelling ? ' (τύπος Ilios)' : ''}` : 'Αμετάβλητη'}</td></tr>)}

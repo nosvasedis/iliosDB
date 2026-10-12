@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import type { SupplierOrderGroupedNeed, SupplierOrderNeedRequirement } from '../hooks/useSupplierOrderNeeds';
@@ -111,11 +112,11 @@ export default function PurchaseNeedRow({
                         {n.enamelColor && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Σμάλτο: {n.enamelColor}</span>}
                     </div>
                     <p className={`text-slate-700 font-bold mt-1 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
-                        <span className="text-slate-900 font-black tabular-nums">{n.totalQty}</span> τμχ συνολικά
+                        <span className="text-slate-900 font-black tabular-nums">{formatNumber(n.totalQty)}</span> τμχ συνολικά
                         {selectedQty !== n.totalQty && (
                             <>
                                 {' '}
-                                · <span className="text-emerald-800 font-black tabular-nums">{selectedQty}</span> επιλεγμένα
+                                · <span className="text-emerald-800 font-black tabular-nums">{formatNumber(selectedQty)}</span> επιλεγμένα
                             </>
                         )}
                     </p>
@@ -174,7 +175,7 @@ export default function PurchaseNeedRow({
                                                         <span className="text-[9px] font-mono text-slate-400 shrink-0">#{formatOrderId(r.orderId)}</span>
                                                     ) : null}
                                                     <span className={`font-black tabular-nums text-slate-900 shrink-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
-                                                        {r.quantity} τμχ
+                                                        {formatNumber(r.quantity)} τμχ
                                                     </span>
                                                 </label>
                                             </li>
@@ -195,7 +196,7 @@ export default function PurchaseNeedRow({
                                                         Λοιπά (αναντίστοιχα)
                                                     </span>
                                                     <span className={`font-black tabular-nums text-amber-950 shrink-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
-                                                        {extra} τμχ
+                                                        {formatNumber(extra)} τμχ
                                                     </span>
                                                 </label>
                                             </li>
@@ -213,7 +214,7 @@ export default function PurchaseNeedRow({
                 disabled={addDisabled}
                 className={`rounded-lg font-black transition-colors shrink-0 ${isDesktop ? 'px-3 py-1.5 text-xs' : 'px-3 py-1.5 text-xs self-end'} ${accentAdd[accent]}`}
             >
-                +{selectedQty}
+                +{formatNumber(selectedQty)}
             </button>
         </div>
     );

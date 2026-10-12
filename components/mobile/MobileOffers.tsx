@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -226,7 +227,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setItems(newItems);
             setSkuInput('');
             setQtyInput(1);
-            showToast(`Προστέθηκαν ${addedCount} είδη.`, 'success');
+            showToast(`Προστέθηκαν ${formatNumber(addedCount)} είδη.`, 'success');
         } else {
             showToast('Δεν βρέθηκαν κωδικοί.', 'error');
         }
@@ -281,7 +282,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
         setItems(newItems);
         setShowCollectionImport(false);
-        showToast(`Εισήχθησαν ${addedCount} είδη.`, "success");
+        showToast(`Εισήχθησαν ${formatNumber(addedCount)} είδη.`, "success");
     };
 
     const recalculateAllPrices = () => {
@@ -648,7 +649,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">-</button>
-                                        <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
+                                        <span className="font-black text-sm w-6 text-center">{formatNumber(item.quantity)}</span>
                                         <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity += 1; return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">+</button>
                                     </div>
                                     <div className="font-black text-slate-900">{formatCurrency(item.price_at_order * item.quantity)}</div>
@@ -672,12 +673,12 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                     </div>
                     {discountPercent > 0 && (
                         <div className="flex justify-between items-center text-xs text-red-500 mb-1">
-                            <span>Έκπτωση ({discountPercent}%)</span>
+                            <span>Έκπτωση ({formatNumber(discountPercent)}%)</span>
                             <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-xs text-slate-500 mb-2 border-b border-slate-100 pb-2">
-                        <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</span>
+                        <span>ΦΠΑ ({formatDecimal((vatRate * 100), 0)}%)</span>
                         <span className="font-mono font-bold text-slate-800">{formatCurrency(vatAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -741,7 +742,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 </span>
                             </div>
                             <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
-                                <div className="text-xs text-slate-500 font-medium">{new Date(offer.created_at).toLocaleDateString('el-GR')} • {offer.items.length} είδη</div>
+                                <div className="text-xs text-slate-500 font-medium">{new Date(offer.created_at).toLocaleDateString('el-GR')} • {formatNumber(offer.items.length)} είδη</div>
                                 <div className="font-black text-slate-900 text-lg">{formatCurrency(offer.total_price)}</div>
                             </div>
                         </div>

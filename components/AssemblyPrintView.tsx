@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import SpecialCreationNote from './SpecialCreationNote';
 import { AssemblyPrintRow, Product, Material, MaterialType, Mold } from '../types';
@@ -110,13 +111,13 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                     <p className="text-slate-600 text-xs font-bold">Ημ/νία: {new Date().toLocaleDateString('el-GR')}</p>
                     <div className="flex items-center justify-end gap-2 mt-1.5 text-[11px]">
                         <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-bold border border-blue-200">
-                            {totalOrders} Εντολές
+                            {formatNumber(totalOrders)} Εντολές
                         </span>
                         <span className="bg-pink-50 text-pink-700 px-3 py-1 rounded-full font-bold border border-pink-200">
-                            {totalSKUs} κωδικοί
+                            {formatNumber(totalSKUs)} κωδικοί
                         </span>
                         <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold border border-slate-200">
-                            {totalItems} τεμ.
+                            {formatNumber(totalItems)} τεμ.
                         </span>
                     </div>
                 </div>
@@ -137,13 +138,13 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                 <div>
                                     <h2 className="text-sm font-black text-slate-900 leading-tight">{customerGroup.customerName}</h2>
                                     <p className="text-[10px] font-bold text-pink-600 leading-none mt-0.5">
-                                        {customerGroup.orders.length} εντολές
+                                        {formatNumber(customerGroup.orders.length)} εντολές
                                     </p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <span className="text-lg font-black text-pink-700">
-                                    {customerGroup.orders.reduce((sum, order) => sum + order.items.reduce((a, item) => a + item.row.quantity, 0), 0)}
+                                    {formatNumber(customerGroup.orders.reduce((sum, order) => sum + order.items.reduce((a, item) => a + item.row.quantity, 0), 0))}
                                 </span>
                                 <span className="text-[10px] font-bold text-pink-500 ml-0.5">τεμ.</span>
                             </div>
@@ -161,7 +162,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                             Εντολή #{formatOrderId(orderGroup.orderId)}
                                         </p>
                                         <p className="text-[10px] font-bold text-slate-400">
-                                            {orderGroup.items.reduce((sum, item) => sum + item.row.quantity, 0)} τεμ.
+                                            {formatNumber(orderGroup.items.reduce((sum, item) => sum + item.row.quantity, 0))} τεμ.
                                         </p>
                                     </div>
 
@@ -249,9 +250,9 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                                             {totalQty > 1 && (
                                                                                 <span
                                                                                     className="font-black shrink-0"
-                                                                                    title={row.quantity > 1 && perPieceQty > 1 ? `${perPieceQty} ανά τεμάχιο × ${row.quantity} τεμ.` : undefined}
+                                                                                    title={row.quantity > 1 && perPieceQty > 1 ? `${formatNumber(perPieceQty)} ανά τεμάχιο × ${formatNumber(row.quantity)} τεμ.` : undefined}
                                                                                 >
-                                                                                    ×{totalQty}
+                                                                                    ×{formatNumber(totalQty)}
                                                                                 </span>
                                                                             )}
                                                                             {details?.description && (
@@ -271,7 +272,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                                         <span className="break-words min-w-0 flex-1">
                                                                             {r.material!.name}{r.material!.description ? ` · ${r.material!.description}` : ''}
                                                                         </span>
-                                                                        <span className="whitespace-nowrap font-black shrink-0">×{r.quantity}</span>
+                                                                        <span className="whitespace-nowrap font-black shrink-0">×{formatNumber(r.quantity)}</span>
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -281,7 +282,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                         <div className="flex items-center justify-between mt-auto">
                                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Ποσ.</span>
                                                             <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded text-xs font-black border border-pink-200 leading-tight">
-                                                                x{row.quantity}
+                                                                x{formatNumber(row.quantity)}
                                                             </span>
                                                         </div>
                                                     </div>

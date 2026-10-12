@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, Factory, Globe, ImageIcon, Layers, Tag, TrendingUp, Weight } from 'lucide-react';
 import { GlobalSettings, Material, Product, ProductVariant, ProductionType } from '../../types';
@@ -188,11 +189,11 @@ const ProductCard: React.FC<Props> = React.memo(({
 
                 {hasVariants && (
                     <span
-                        title={variantCount === 1 ? '1 παραλλαγή' : `${variantCount} παραλλαγές`}
+                        title={variantCount === 1 ? '1 παραλλαγή' : `${formatNumber(variantCount)} παραλλαγές`}
                         className={`absolute left-3 top-3 z-10 ${imageBadgeClass}`}
                     >
                         <Layers size={11} className="text-amber-300" />
-                        <span>{variantCount}</span>
+                        <span>{formatNumber(variantCount)}</span>
                     </span>
                 )}
 
@@ -286,7 +287,7 @@ const ProductCard: React.FC<Props> = React.memo(({
                             {displayPrice > 0 ? (
                                 <>
                                     <TrendingUp size={12} />
-                                    {margin.toFixed(0)}%
+                                    {formatDecimal(margin, 0)}%
                                 </>
                             ) : '-'}
                         </div>

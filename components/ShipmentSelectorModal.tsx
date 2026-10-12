@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { X, Truck, Calendar, Hash, CheckSquare, Square, Printer } from 'lucide-react';
 import type { Order, OrderShipment, OrderShipmentItem } from '../types';
@@ -121,10 +122,10 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
                 disabled={selectedPayloads.length === 0}
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 text-xs font-black transition-colors"
                 type="button"
-                title={selectedPayloads.length === 0 ? 'Επιλέξτε αποστολές για εκτύπωση' : `Εκτύπωση ${selectedPayloads.length} αποστολών`}
+                title={selectedPayloads.length === 0 ? 'Επιλέξτε αποστολές για εκτύπωση' : `Εκτύπωση ${formatNumber(selectedPayloads.length)} αποστολών`}
               >
                 <Printer size={16} />
-                Εκτύπωση Επιλεγμένων ({selectedPayloads.length}) • {selectedQty} τεμ.
+                Εκτύπωση Επιλεγμένων ({formatNumber(selectedPayloads.length)}) • {formatNumber(selectedQty)} τεμ.
               </button>
             </div>
           )}
@@ -160,7 +161,7 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
                             </button>
                           )}
                           <span className="inline-flex items-center rounded-full bg-white text-amber-800 border border-amber-200 px-2 py-0.5 text-[11px] font-black">
-                            Αποστολή #{s.shipment_number}
+                            Αποστολή #{formatNumber(s.shipment_number)}
                           </span>
                           <span className="text-[11px] font-bold text-amber-800 inline-flex items-center gap-1">
                             <Calendar size={12} /> {formatDateTime(s.shipped_at)}
@@ -171,8 +172,8 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
                       </div>
 
                       <div className="shrink-0 text-right">
-                        <div className="text-[11px] font-black text-amber-900">{totalQty} τεμ.</div>
-                        <div className="text-[10px] font-bold text-amber-900/70">{uniqueSkus} SKU</div>
+                        <div className="text-[11px] font-black text-amber-900">{formatNumber(totalQty)} τεμ.</div>
+                        <div className="text-[10px] font-bold text-amber-900/70">{formatNumber(uniqueSkus)} SKU</div>
                       </div>
                     </div>
                     <div className="px-4 pb-4">

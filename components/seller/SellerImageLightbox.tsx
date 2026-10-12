@@ -1,3 +1,4 @@
+import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { SellerCatalogProduct, SellerCatalogVariant } from '../../features/sellerCatalog/types';
@@ -198,17 +199,17 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
                 <div className="text-right">
                     <div className="text-white/50 text-xs font-black uppercase tracking-widest">Χονδρική</div>
                     <div className="text-white text-4xl font-black mt-0.5">
-                        {displayPrice > 0 ? `€${displayPrice.toFixed(2)}` : '—'}
+                        {displayPrice > 0 ? formatCurrency(displayPrice) : '—'}
                     </div>
                     <div className={`text-sm font-bold mt-1 ${stockQty > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {stockQty > 0 ? `${stockQty} σε στοκ` : 'Εκτός στοκ'}
+                        {stockQty > 0 ? `${formatNumber(stockQty)} σε στοκ` : 'Εκτός στοκ'}
                     </div>
                 </div>
             </div>
 
             {hasVariants && variants.length > 1 && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm text-white text-xs font-black px-3 py-1.5 rounded-full" onClick={e => e.stopPropagation()}>
-                    {variantIdx + 1} / {variants.length}
+                    {formatNumber(variantIdx + 1)} / {formatNumber(variants.length)}
                 </div>
             )}
         </div>

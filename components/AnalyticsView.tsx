@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState } from 'react';
 import {
   Bar,
@@ -169,8 +170,8 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
         />
         <KpiCard
           label="Τεμάχια που έφυγαν"
-          value={String(stats.totals.shippedPieces)}
-          helper={`${stats.totals.realizedOrderCount} παραγγελίες με πραγματοποιημένη αξία στην περίοδο.`}
+          value={formatNumber(stats.totals.shippedPieces)}
+          helper={`${formatNumber(stats.totals.realizedOrderCount)} παραγγελίες με πραγματοποιημένη αξία στην περίοδο.`}
           icon={<ShoppingBag size={22} />}
         />
       </div>
@@ -189,7 +190,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
                 <BarChart data={stats.timeChartData} margin={{ top: 10, right: 16, left: -8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(value) => `${value}€`} />
+                  <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(value) => formatCurrency(Number(value))} />
                   <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', fontSize: 12 }} />
                   <Bar dataKey="revenue" name="Έσοδα" fill="#059669" radius={[8, 8, 0, 0]} />
                   <Line type="monotone" dataKey="profit" name="Κέρδος" stroke="#0f172a" strokeWidth={3} dot={false} />
@@ -241,9 +242,9 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
               {topProducts.map((item, index) => (
                 <div key={item.key} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">#{index + 1} {item.sku}</p>
+                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.sku}</p>
                     <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
-                    <p className="text-xs font-semibold text-slate-500">{item.quantity} τεμ. · Κέρδος {formatCurrency(item.profit)}</p>
+                    <p className="text-xs font-semibold text-slate-500">{formatNumber(item.quantity)} τεμ. · Κέρδος {formatCurrency(item.profit)}</p>
                   </div>
                   <div className="text-right text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</div>
                 </div>
@@ -259,8 +260,8 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
               {topCollections.map((item, index) => (
                 <div key={`${item.id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">#{index + 1} {item.name}</p>
-                    <p className="text-xs font-semibold text-slate-500">{item.quantity} τεμ. · Περιθώριο {percent(item.margin)}</p>
+                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.name}</p>
+                    <p className="text-xs font-semibold text-slate-500">{formatNumber(item.quantity)} τεμ. · Περιθώριο {percent(item.margin)}</p>
                   </div>
                   <div className="text-right text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</div>
                 </div>
@@ -276,7 +277,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
               {topSellers.map((item, index) => (
                 <div key={item.id} className="rounded-2xl bg-slate-50 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-black text-slate-900">#{index + 1} {item.name}</p>
+                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.name}</p>
                     <p className="text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</p>
                   </div>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -308,7 +309,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
               Διαφορά: {formatCurrency(stats.legal.netGap)}
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <KpiCard label="Καθαρή αξία παραστατικών" value={formatCurrency(stats.legal.issuedNet)} helper={`${stats.legal.issuedCount} εκδοθέντα παραστατικά.`} icon={<FileText size={20} />} />
+              <KpiCard label="Καθαρή αξία παραστατικών" value={formatCurrency(stats.legal.issuedNet)} helper={`${formatNumber(stats.legal.issuedCount)} εκδοθέντα παραστατικά.`} icon={<FileText size={20} />} />
               <KpiCard label="ΦΠΑ παραστατικών" value={formatCurrency(stats.legal.issuedVat)} helper="Σύνολο ΦΠΑ από τα εκδοθέντα παραστατικά." icon={<Scale size={20} />} />
               <KpiCard label="Μικτή αξία παραστατικών" value={formatCurrency(stats.legal.issuedGross)} helper="Καθαρή αξία μαζί με ΦΠΑ." icon={<Wallet size={20} />} />
               <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totals.realizedNet)} helper="Λειτουργική εικόνα από αποστολές." icon={<Truck size={20} />} />

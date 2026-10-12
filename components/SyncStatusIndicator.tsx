@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { RefreshCw, CloudOff, HardDrive } from 'lucide-react';
 
@@ -22,7 +23,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ pendin
     };
 
     const tooltipText = pendingItems.length > 0
-        ? pendingItems.slice(0, 10).map((i: any) => `${translateMethod(i.method)}: ${i.table}`).join('\n') + (pendingCount > 10 ? `\n...και ${pendingCount - 10} ακόμα` : '')
+        ? pendingItems.slice(0, 10).map((i: any) => `${translateMethod(i.method)}: ${i.table}`).join('\n') + (pendingCount > 10 ? `\n...και ${formatNumber(pendingCount - 10)} ακόμα` : '')
         : '';
 
     return (
@@ -40,7 +41,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ pendin
                     )}
                     {pendingCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-slate-900">
-                            {pendingCount}
+                            {formatNumber(pendingCount)}
                         </span>
                     )}
                 </div>
@@ -49,7 +50,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ pendin
                         {isSyncing ? 'ΣΥΓΧΡΟΝΙΣΜΟΣ...' : (!isOnline ? 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ' : 'ΕΚΚΡΕΜΕΙ ΣΥΓΧΡΟΝΙΣΜΟΣ')}
                     </span>
                     <span className="font-bold text-sm">
-                        {pendingCount === 1 ? '1 αλλαγή σε αναμονή' : `${pendingCount} αλλαγές σε αναμονή`}
+                        {pendingCount === 1 ? '1 αλλαγή σε αναμονή' : `${formatNumber(pendingCount)} αλλαγές σε αναμονή`}
                     </span>
                 </div>
             </div>

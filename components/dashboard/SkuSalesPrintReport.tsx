@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Award, Filter } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -55,12 +56,12 @@ export default function SkuSalesPrintReport({ data }: { data: SkuSalesPrintData 
             </div>
 
             <div className="mb-5 grid grid-cols-4 gap-3 break-avoid">
-                <Kpi label="Τεμάχια" value={String(data.kpis.quantity)} helper="Σύνολο τεμαχίων στην τρέχουσα προβολή." />
+                <Kpi label="Τεμάχια" value={formatNumber(data.kpis.quantity)} helper="Σύνολο τεμαχίων στην τρέχουσα προβολή." />
                 <Kpi label="Έσοδα" value={formatCurrency(data.kpis.revenue)} helper="Καθαρή αξία αποστολών, χωρίς ΦΠΑ." />
                 <Kpi label="Κέρδος" value={formatCurrency(data.kpis.profit)} helper="Έσοδα μείον εκτιμώμενο κόστος." />
                 <Kpi
                     label={isDesigns ? 'Παραστάσεις' : 'Κωδικοί'}
-                    value={String(data.kpis.skuCount)}
+                    value={formatNumber(data.kpis.skuCount)}
                     helper={isDesigns ? 'Διακριτές παραστάσεις στην προβολή.' : 'Διακριτές παραλλαγές στην προβολή.'}
                 />
             </div>
@@ -86,7 +87,7 @@ export default function SkuSalesPrintReport({ data }: { data: SkuSalesPrintData 
                         <tbody>
                             {data.rows.map((row) => (
                                 <tr key={`${row.rank}-${row.sku}-${row.variantSuffix}`} className="border-b border-slate-50 last:border-0">
-                                    <td className="px-2 py-1.5 text-center font-black text-slate-400">{row.rank}</td>
+                                    <td className="px-2 py-1.5 text-center font-black text-slate-400">{formatNumber(row.rank)}</td>
                                     <td className="px-2 py-1.5 font-bold text-slate-800">
                                         {isDesigns ? (
                                             <span>{row.sku} · {row.name}</span>
@@ -94,7 +95,7 @@ export default function SkuSalesPrintReport({ data }: { data: SkuSalesPrintData 
                                             <span>{row.sku}{row.variantSuffix ? ` ${row.variantSuffix}` : ''}</span>
                                         )}
                                     </td>
-                                    <td className="px-2 py-1.5 text-right text-slate-500">{row.quantity} τεμ.</td>
+                                    <td className="px-2 py-1.5 text-right text-slate-500">{formatNumber(row.quantity)} τεμ.</td>
                                     <td className="px-2 py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(row.revenue)}</td>
                                     <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(row.profit)}</td>
                                 </tr>

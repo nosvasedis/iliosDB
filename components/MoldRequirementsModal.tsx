@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
@@ -193,7 +194,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                         onChange={e => setEditForm({...editForm, stones_per_strand: parseInt(e.target.value) || 0})}
                                     />
                                 ) : (
-                                    <span className="text-xs font-bold text-purple-800">{material.stones_per_strand}</span>
+                                    <span className="text-xs font-bold text-purple-800">{formatNumber(material.stones_per_strand)}</span>
                                 )}
                             </div>
                             <div className="text-[9px] text-purple-500 text-right italic mt-1">
@@ -238,7 +239,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                     />
                                 ) : (
                                     <span className={`text-sm font-bold ${material.stock_qty <= 5 ? 'text-amber-600' : 'text-slate-700'}`}>
-                                        {material.stock_qty}
+                                        {formatNumber(material.stock_qty)}
                                     </span>
                                 )}
                             </div>
@@ -282,7 +283,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                     <>
                         <button onClick={() => onEditVariants(material)} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
                             {(Object.keys(material.variant_prices || {}).length > 0) ? (
-                                <><span className="bg-blue-100 px-1.5 rounded text-[9px]">{Object.keys(material.variant_prices || {}).length}</span> Ειδικές Τιμές</>
+                                <><span className="bg-blue-100 px-1.5 rounded text-[9px]">{formatNumber(Object.keys(material.variant_prices || {}).length)}</span> Ειδικές Τιμές</>
                             ) : '+ Ειδικές Τιμές'}
                         </button>
                     </>

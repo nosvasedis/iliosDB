@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -239,8 +240,8 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                         <div>
                             <h2 className="font-black text-white text-lg">Μετατροπή σε Ιδιοπαραγωγή</h2>
                             <p className="text-orange-100 text-sm font-medium mt-0.5">
-                                {product.sku} — {product.weight_g}g
-                                {(product.secondary_weight_g || 0) > 0 && ` + ${product.secondary_weight_g}g`}
+                                {product.sku} — {formatNumber(product.weight_g)}g
+                                {(product.secondary_weight_g || 0) > 0 && ` + ${formatNumber(product.secondary_weight_g)}g`}
                             </p>
                         </div>
                     </div>

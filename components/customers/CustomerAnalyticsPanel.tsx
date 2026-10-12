@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -237,8 +238,8 @@ function MixRanking({ title, rows, icon }: { title: string; rows: CustomerMixRow
           <div key={row.key}>
             <div className="mb-1.5 flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-xs font-black text-slate-800">#{index + 1} {row.name}</p>
-                <p className="text-[10px] font-semibold text-slate-400">{row.quantity} τεμ. · κέρδος {formatCurrency(row.profit)} · {formatPercent(row.margin)}</p>
+                <p className="truncate text-xs font-black text-slate-800">#{formatNumber(index + 1)} {row.name}</p>
+                <p className="text-[10px] font-semibold text-slate-400">{formatNumber(row.quantity)} τεμ. · κέρδος {formatCurrency(row.profit)} · {formatPercent(row.margin)}</p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-mono text-xs font-black text-slate-900">{formatCurrency(row.revenue)}</p>
@@ -368,7 +369,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-[11px] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${section === tab.id ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
                 >
                   <Icon size={14} aria-hidden="true" /> {tab.label}
-                  {tab.id === 'opportunities' && viewModel.opportunities.length > 0 && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px]">{viewModel.opportunities.length}</span>}
+                  {tab.id === 'opportunities' && viewModel.opportunities.length > 0 && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px]">{formatNumber(viewModel.opportunities.length)}</span>}
                 </button>
               );
             })}
@@ -400,9 +401,9 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
               <KpiCard label="Πραγματοποιημένος τζίρος" value={formatCurrency(viewModel.metrics.revenue.current)} helper={<Delta value={viewModel.metrics.revenue.changePercent} />} icon={<Wallet size={18} />} tone="emerald" />
               <KpiCard label="Εκτιμώμενο κέρδος" value={formatCurrency(viewModel.metrics.profit.current)} helper={<><Delta value={viewModel.metrics.profit.changePercent} /><span className="mt-1 block">Περιθώριο {formatPercent(viewModel.metrics.margin)}</span></>} icon={<BadgeEuro size={18} />} tone="indigo" />
-              <KpiCard label="Πραγματοποιημένες παρ." value={String(viewModel.metrics.realizedOrders)} helper={`Μ.Ο. ${formatCurrency(viewModel.metrics.averageOrderValue)} ανά παραγγελία`} icon={<ShoppingBag size={18} />} />
-              <KpiCard label="Τεμάχια που έφυγαν" value={String(viewModel.metrics.shippedPieces)} helper={`Τελευταία αποστολή ${formatDate(viewModel.metrics.lastShipmentDate)}`} icon={<PackageCheck size={18} />} />
-              <KpiCard label="Ανοιχτή αξία" value={formatCurrency(viewModel.metrics.backlogRevenue)} helper={`${viewModel.metrics.backlogPieces} τεμάχια δεν έχουν αποσταλεί`} icon={<Clock3 size={18} />} tone={viewModel.metrics.backlogRevenue > 0 ? 'amber' : 'slate'} />
+              <KpiCard label="Πραγματοποιημένες παρ." value={formatNumber(viewModel.metrics.realizedOrders)} helper={`Μ.Ο. ${formatCurrency(viewModel.metrics.averageOrderValue)} ανά παραγγελία`} icon={<ShoppingBag size={18} />} />
+              <KpiCard label="Τεμάχια που έφυγαν" value={formatNumber(viewModel.metrics.shippedPieces)} helper={`Τελευταία αποστολή ${formatDate(viewModel.metrics.lastShipmentDate)}`} icon={<PackageCheck size={18} />} />
+              <KpiCard label="Ανοιχτή αξία" value={formatCurrency(viewModel.metrics.backlogRevenue)} helper={`${formatNumber(viewModel.metrics.backlogPieces)} τεμάχια δεν έχουν αποσταλεί`} icon={<Clock3 size={18} />} tone={viewModel.metrics.backlogRevenue > 0 ? 'amber' : 'slate'} />
               <KpiCard label="Κατάσταση σχέσης" value={viewModel.health.label} helper={`Τελευταία παραγγελία ${formatDate(viewModel.metrics.lastOrderDate)}`} icon={<Target size={18} />} tone={healthTone} />
             </div>
 
@@ -420,7 +421,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                     <ComposedChart data={viewModel.trend} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 10, fontWeight: 700 }} stroke="#94a3b8" />
-                      <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" tickFormatter={value => `${value}€`} />
+                      <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" tickFormatter={value => formatCurrency(Number(value))} />
                       <Tooltip formatter={(value: number, name: string) => [formatCurrency(value), name === 'revenue' ? 'Τζίρος' : 'Κέρδος']} contentStyle={{ borderRadius: 14, border: '1px solid #e2e8f0', fontSize: 11 }} />
                       <Bar dataKey="revenue" fill="#10b981" radius={[6, 6, 0, 0]} />
                       <Line type="monotone" dataKey="profit" stroke="#0f172a" strokeWidth={2.5} dot={{ r: 2 }} />
@@ -457,12 +458,12 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                                 {row.image ? <img src={row.image} alt="" className="h-full w-full object-cover" /> : <Package size={17} className="text-slate-300" />}
                               </div>
-                              <div className="min-w-0"><p className="font-mono text-xs font-black text-slate-900">#{index + 1} {row.label}</p><SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1" /><p className="mt-0.5 text-[10px] font-semibold text-slate-400">{row.collection}</p></div>
+                              <div className="min-w-0"><p className="font-mono text-xs font-black text-slate-900">#{formatNumber(index + 1)} {row.label}</p><SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1" /><p className="mt-0.5 text-[10px] font-semibold text-slate-400">{row.collection}</p></div>
                             </button>
                           </td>
                           <td className="px-3 py-3 text-[11px] font-bold text-slate-600">{row.category}</td>
-                          <td className="px-3 py-3 text-right font-mono text-xs font-bold text-slate-600">{row.orderCount}</td>
-                          <td className="px-3 py-3 text-right font-mono text-xs font-bold text-slate-600">{row.quantity}</td>
+                          <td className="px-3 py-3 text-right font-mono text-xs font-bold text-slate-600">{formatNumber(row.orderCount)}</td>
+                          <td className="px-3 py-3 text-right font-mono text-xs font-bold text-slate-600">{formatNumber(row.quantity)}</td>
                           <td className="px-3 py-3 text-right font-mono text-xs font-black text-slate-900">{formatCurrency(row.revenue)}</td>
                           <td className={`px-3 py-3 text-right font-mono text-xs font-black ${row.profit < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{formatCurrency(row.profit)}</td>
                           <td className="px-3 py-3 text-right font-mono text-xs font-bold text-slate-700">{formatPercent(row.margin)}</td>
@@ -482,8 +483,8 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KpiCard label="Κυρίαρχη κατηγορία" value={viewModel.dominantCategory?.name || '—'} helper={viewModel.dominantCategory ? `${formatPercent(viewModel.dominantCategory.share)} του τζίρου` : 'Δεν υπάρχει αρκετό ιστορικό'} icon={<Target size={18} />} tone="indigo" />
-              <KpiCard label="Διαφοροποίηση" value={`${viewModel.diversificationCount} κατηγ.`} helper="Εμπορικές κατηγορίες με πραγματοποιημένο τζίρο" icon={<Layers3 size={18} />} />
-              <div className="col-span-2 sm:col-span-1"><KpiCard label="Ελλιπή δεδομένα" value={String(viewModel.dataQuality.reduce((sum, row) => sum + row.skus.length, 0))} helper="SKU που χρειάζονται αντιστοίχιση ή κατηγορία" icon={<AlertTriangle size={18} />} tone={viewModel.dataQuality.length > 0 ? 'amber' : 'slate'} /></div>
+              <KpiCard label="Διαφοροποίηση" value={`${formatNumber(viewModel.diversificationCount)} κατηγ.`} helper="Εμπορικές κατηγορίες με πραγματοποιημένο τζίρο" icon={<Layers3 size={18} />} />
+              <div className="col-span-2 sm:col-span-1"><KpiCard label="Ελλιπή δεδομένα" value={formatNumber(viewModel.dataQuality.reduce((sum, row) => sum + row.skus.length, 0))} helper="SKU που χρειάζονται αντιστοίχιση ή κατηγορία" icon={<AlertTriangle size={18} />} tone={viewModel.dataQuality.length > 0 ? 'amber' : 'slate'} /></div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <MixRanking title="Κατηγορίες" rows={viewModel.categories} icon={<Layers3 size={17} />} />
@@ -501,7 +502,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                         <div key={issue.kind} className="rounded-xl border border-amber-200 bg-white/70 p-3">
                           <p className="text-xs font-black text-slate-800">{issue.label}</p>
                           <p className="mt-1 break-words font-mono text-[10px] font-semibold text-slate-500">{issue.skus.join(', ')}</p>
-                          <p className="mt-2 text-[10px] font-bold text-slate-500">{issue.quantity} τεμ. · {formatCurrency(issue.revenue)}</p>
+                          <p className="mt-2 text-[10px] font-bold text-slate-500">{formatNumber(issue.quantity)} τεμ. · {formatCurrency(issue.revenue)}</p>
                         </div>
                       ))}
                     </div>
@@ -515,21 +516,21 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
         {section === 'behavior' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <KpiCard label="Συνήθης ρυθμός" value={viewModel.health.typicalCadenceDays ? `${viewModel.health.typicalCadenceDays} ημέρες` : '—'} helper={viewModel.health.daysSinceLastOrder !== null ? `${viewModel.health.daysSinceLastOrder} ημέρες από την τελευταία παραγγελία` : 'Χρειάζονται τουλάχιστον δύο παραγγελίες'} icon={<CalendarClock size={18} />} tone={healthTone} />
-              <KpiCard label="Μέσο καλάθι" value={`${viewModel.behavior.averageBasketPieces} τεμ.`} helper={`${viewModel.behavior.averageBasketProducts} διαφορετικά προϊόντα ανά παραγγελία`} icon={<ShoppingBag size={18} />} />
+              <KpiCard label="Συνήθης ρυθμός" value={viewModel.health.typicalCadenceDays ? `${formatNumber(viewModel.health.typicalCadenceDays)} ημέρες` : '—'} helper={viewModel.health.daysSinceLastOrder !== null ? `${formatNumber(viewModel.health.daysSinceLastOrder)} ημέρες από την τελευταία παραγγελία` : 'Χρειάζονται τουλάχιστον δύο παραγγελίες'} icon={<CalendarClock size={18} />} tone={healthTone} />
+              <KpiCard label="Μέσο καλάθι" value={`${formatNumber(viewModel.behavior.averageBasketPieces)} τεμ.`} helper={`${formatNumber(viewModel.behavior.averageBasketProducts)} διαφορετικά προϊόντα ανά παραγγελία`} icon={<ShoppingBag size={18} />} />
               <KpiCard label="Μέση έκπτωση" value={formatPercent(viewModel.behavior.weightedDiscountPercent)} helper="Σταθμισμένη με την αξία πριν από την έκπτωση" icon={<Percent size={18} />} tone={viewModel.behavior.weightedDiscountPercent >= 10 ? 'amber' : 'slate'} />
-              <KpiCard label="Επαναλαμβανόμενα προϊόντα" value={formatPercent(viewModel.behavior.repeatProductRate)} helper={`${viewModel.behavior.activeMonths} ενεργοί μήνες στην περίοδο`} icon={<RefreshCcw size={18} />} />
+              <KpiCard label="Επαναλαμβανόμενα προϊόντα" value={formatPercent(viewModel.behavior.repeatProductRate)} helper={`${formatNumber(viewModel.behavior.activeMonths)} ενεργοί μήνες στην περίοδο`} icon={<RefreshCcw size={18} />} />
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <section className={`${cardClass} p-4 sm:p-5`}>
                 <h3 className="text-sm font-black text-slate-900">Μίγμα κατάστασης παραγγελιών</h3>
                 <p className="mt-1 text-[10px] font-semibold text-slate-500">Με βάση τις μη ακυρωμένες παραγγελίες της περιόδου.</p>
-                {viewModel.behavior.statusMix.length > 0 ? <div className="mt-5 space-y-3">{viewModel.behavior.statusMix.map(row => <div key={row.status}><div className="mb-1 flex justify-between text-[11px] font-bold text-slate-600"><span>{row.label}</span><span>{row.count} · {formatPercent(row.share)}</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-800" style={{ width: `${row.share}%` }} /></div></div>)}</div> : <div className="mt-4"><EmptyState title="Χωρίς παραγγελίες" detail="Δεν υπάρχει μίγμα κατάστασης για την επιλεγμένη περίοδο." /></div>}
+                {viewModel.behavior.statusMix.length > 0 ? <div className="mt-5 space-y-3">{viewModel.behavior.statusMix.map(row => <div key={row.status}><div className="mb-1 flex justify-between text-[11px] font-bold text-slate-600"><span>{row.label}</span><span>{formatNumber(row.count)} · {formatPercent(row.share)}</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-800" style={{ width: `${row.share}%` }} /></div></div>)}</div> : <div className="mt-4"><EmptyState title="Χωρίς παραγγελίες" detail="Δεν υπάρχει μίγμα κατάστασης για την επιλεγμένη περίοδο." /></div>}
               </section>
               <section className={`${cardClass} p-4 sm:p-5`}>
                 <h3 className="text-sm font-black text-slate-900">Συνδυασμοί που επαναλαμβάνονται</h3>
                 <p className="mt-1 text-[10px] font-semibold text-slate-500">Ζεύγη SKU που εμφανίστηκαν μαζί σε τουλάχιστον δύο παραγγελίες.</p>
-                {viewModel.behavior.pairs.length > 0 ? <div className="mt-4 space-y-2">{viewModel.behavior.pairs.map(pair => <div key={pair.skus.join('-')} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"><span className="font-mono text-xs font-black text-slate-800">{pair.skus[0]} + {pair.skus[1]}</span><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500 shadow-sm">{pair.count} φορές</span></div>)}</div> : <div className="mt-4"><EmptyState title="Δεν υπάρχουν επαναλαμβανόμενοι συνδυασμοί" detail="Χρειάζονται τουλάχιστον δύο παραγγελίες με το ίδιο ζεύγος προϊόντων." /></div>}
+                {viewModel.behavior.pairs.length > 0 ? <div className="mt-4 space-y-2">{viewModel.behavior.pairs.map(pair => <div key={pair.skus.join('-')} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"><span className="font-mono text-xs font-black text-slate-800">{pair.skus[0]} + {pair.skus[1]}</span><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500 shadow-sm">{formatNumber(pair.count)} φορές</span></div>)}</div> : <div className="mt-4"><EmptyState title="Δεν υπάρχουν επαναλαμβανόμενοι συνδυασμοί" detail="Χρειάζονται τουλάχιστον δύο παραγγελίες με το ίδιο ζεύγος προϊόντων." /></div>}
               </section>
             </div>
             <section className={`${cardClass} p-4 sm:p-5`}>
@@ -539,7 +540,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                 {viewModel.behavior.seasonality.map(row => {
                   const maxRevenue = Math.max(...viewModel.behavior.seasonality.map(item => item.revenue), 1);
                   const intensity = row.revenue / maxRevenue;
-                  return <div key={row.month} className="rounded-xl border border-slate-100 p-2 text-center" style={{ backgroundColor: `rgba(16, 185, 129, ${0.05 + intensity * 0.22})` }}><p className="text-[9px] font-black text-slate-500">{row.month}</p><p className="mt-1 font-mono text-[10px] font-black text-slate-800">{row.orders}</p><p className="mt-0.5 text-[8px] font-semibold text-slate-500">{formatCurrency(row.revenue)}</p></div>;
+                  return <div key={row.month} className="rounded-xl border border-slate-100 p-2 text-center" style={{ backgroundColor: `rgba(16, 185, 129, ${0.05 + intensity * 0.22})` }}><p className="text-[9px] font-black text-slate-500">{row.month}</p><p className="mt-1 font-mono text-[10px] font-black text-slate-800">{formatNumber(row.orders)}</p><p className="mt-0.5 text-[8px] font-semibold text-slate-500">{formatCurrency(row.revenue)}</p></div>;
                 })}
               </div>
             </section>

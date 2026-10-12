@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Plus, Trash2, PackageOpen, Calculator, Hammer, Coins, Gem } from 'lucide-react';
 import { ProductionType, Material, Product } from '../../types';
@@ -114,9 +115,9 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                     <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2"><Calculator size={14} /> Ανάλυση Κόστους (Live)</h4>
                     <div className="space-y-1 flex-1">
-                        <SummaryRow label="Ασήμι" value={state.costBreakdown?.silver || 0} sub={`${state.weight}g @ ${settings?.silver_price_gram}€`} color="bg-slate-400" />
-                        <SummaryRow label="Εργατικά" value={state.costBreakdown?.details?.technician_cost || 0} sub={`${formatDecimal(state.labor.technician_cost)}€ x ${state.weight}g`} color="bg-blue-400" />
-                        <SummaryRow label="Επιμετάλλωση" value={state.costBreakdown?.details?.plating_cost || 0} sub={`${formatDecimal(state.labor.plating_cost_x)}€ x ${state.weight}g`} color="bg-amber-400" />
+                        <SummaryRow label="Ασήμι" value={state.costBreakdown?.silver || 0} sub={`${formatNumber(state.weight)}g @ ${formatDecimal(settings?.silver_price_gram)}€`} color="bg-slate-400" />
+                        <SummaryRow label="Εργατικά" value={state.costBreakdown?.details?.technician_cost || 0} sub={`${formatDecimal(state.labor.technician_cost)}€ x ${formatNumber(state.weight)}g`} color="bg-blue-400" />
+                        <SummaryRow label="Επιμετάλλωση" value={state.costBreakdown?.details?.plating_cost || 0} sub={`${formatDecimal(state.labor.plating_cost_x)}€ x ${formatNumber(state.weight)}g`} color="bg-amber-400" />
                         <SummaryRow label="Καρφωτικά" value={state.costBreakdown?.details?.stone_setting_cost || 0} sub="Σταθερό" color="bg-purple-400" />
                     </div>
                     <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center"><span className="font-bold text-slate-600 text-sm uppercase">Συνολο Κόστους</span><span className="font-black text-2xl text-emerald-700">{formatCurrency(state.masterEstimatedCost)}</span></div>

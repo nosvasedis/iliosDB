@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -123,7 +124,7 @@ const VariantListRow = memo(function VariantListRow({
             rankStyle ?? 'bg-slate-100 text-slate-500'
           }`}
         >
-          {row.rank}
+          {formatNumber(row.rank)}
         </div>
 
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
@@ -168,7 +169,7 @@ const VariantListRow = memo(function VariantListRow({
                 title="Δώρα με τιμή 0€"
               >
                 <Gift size={10} />
-                {row.giftQuantity} δώρο
+                {formatNumber(row.giftQuantity)} δώρο
               </span>
             )}
           </div>
@@ -176,7 +177,7 @@ const VariantListRow = memo(function VariantListRow({
           <div className="mt-3 grid grid-cols-4 gap-2">
             <div className="rounded-xl bg-emerald-50/80 px-2 py-1.5 ring-1 ring-emerald-100">
               <p className="text-[9px] font-bold uppercase text-emerald-600/80">Τεμ.</p>
-              <p className="text-sm font-black text-emerald-900">{row.quantity}</p>
+              <p className="text-sm font-black text-emerald-900">{formatNumber(row.quantity)}</p>
             </div>
             <div className="rounded-xl bg-blue-50/80 px-2 py-1.5 ring-1 ring-blue-100">
               <p className="text-[9px] font-bold uppercase text-blue-600/80">Έσοδα</p>
@@ -516,7 +517,7 @@ function TopVariantsModalBody({
               )}
               {!showDesigns && displayed.length > 0 && (
                 <span className="ml-auto text-[10px] font-bold text-slate-400">
-                  {displayed.length} παραλλαγές
+                  {formatNumber(displayed.length)} παραλλαγές
                 </span>
               )}
             </div>

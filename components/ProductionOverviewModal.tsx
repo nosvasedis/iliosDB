@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -328,9 +329,9 @@ export default function ProductionOverviewModal({
                         <h2 className="text-xl font-black text-slate-900">{title}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>
-                                {filteredBatches.length} παρτίδες
+                                {formatNumber(filteredBatches.length)} παρτίδες
                             </span>
-                            <span className="text-xs text-slate-400 font-medium">{totalQty} τεμ. συνολικά</span>
+                            <span className="text-xs text-slate-400 font-medium">{formatNumber(totalQty)} τεμ. συνολικά</span>
                         </div>
                     </div>
                     <button
@@ -350,14 +351,14 @@ export default function ProductionOverviewModal({
                             </div>
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-amber-900">
-                                    {filteredBatches.length} {filteredBatches.length === 1 ? 'παρτίδα' : 'παρτίδες'} σε παύση
+                                    {formatNumber(filteredBatches.length)} {filteredBatches.length === 1 ? 'παρτίδα' : 'παρτίδες'} σε παύση
                                 </p>
                                 <p className="text-xs font-medium text-amber-700 mt-0.5">
                                     Ελέγξτε λόγο αναμονής — επαναφέρετε ή μετακινήστε στάδιο
                                 </p>
                             </div>
                             <span className="ml-auto text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full shrink-0">
-                                {totalQty} τεμ.
+                                {formatNumber(totalQty)} τεμ.
                             </span>
                         </div>
                     )}
@@ -380,12 +381,12 @@ export default function ProductionOverviewModal({
                                     <span className={`text-[11px] font-black uppercase tracking-widest ${colors.text}`}>{stage.label}</span>
                                     <div className="ml-auto flex items-center gap-2">
                                         <span className={`text-[11px] font-bold ${colors.text} opacity-70`}>
-                                            {stageBatches.length} παρτ. · {stageBatches.reduce((s, b) => s + b.quantity, 0)} τεμ.
+                                            {formatNumber(stageBatches.length)} παρτ. · {formatNumber(stageBatches.reduce((s, b) => s + b.quantity, 0))} τεμ.
                                         </span>
                                         {filterType !== 'onHold' && (holdsByStage[stage.id] || 0) > 0 && (
                                             <span className="text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                                                 <PauseCircle size={8} className="fill-current" />
-                                                +{holdsByStage[stage.id]} αναμονή
+                                                +{formatNumber(holdsByStage[stage.id])} αναμονή
                                             </span>
                                         )}
                                     </div>
@@ -446,7 +447,7 @@ export default function ProductionOverviewModal({
                                                                 </span>
                                                             )}
                                                             <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 font-black text-slate-600 shrink-0">
-                                                                ×{batch.quantity}
+                                                                ×{formatNumber(batch.quantity)}
                                                             </span>
                                                             {batch.on_hold && (
                                                                 <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black shrink-0 flex items-center gap-1 animate-pulse">

@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { Calculator, RotateCcw, Tag } from 'lucide-react';
 import type { GlobalSettings, PricingRules } from '../types';
@@ -72,18 +73,18 @@ export default function PricingRulesSettings({ settings, onChange }: Props) {
             {TECHNICIAN_TIERS.map(({ threshold, rate }, index) => (
               <div key={rate} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div>
-                  <span className="text-xs font-bold text-amber-700">{index + 1}η κλίμακα</span>
+                  <span className="text-xs font-bold text-amber-700">{formatNumber(index + 1)}η κλίμακα</span>
                   <p className="mt-1 text-xs text-slate-500">
                     {index === 0 ? 'Έως το πρώτο όριο' : threshold ? `Πάνω από ${displayWeight(rules[TECHNICIAN_TIERS[index - 1].threshold!])} g` : 'Πάνω από το τρίτο όριο'}
                   </p>
                 </div>
-                {threshold ? renderField(threshold, `Έως και (${index + 1}ο όριο)`) : (
+                {threshold ? renderField(threshold, `Έως και (${formatNumber(index + 1)}ο όριο)`) : (
                   <div>
                     <p className="text-xs font-semibold text-slate-600">Βάρος τεμαχίου</p>
                     <p className="mt-2 flex h-[50px] items-center rounded-xl border border-dashed border-slate-300 px-3 font-mono text-base font-semibold text-slate-700">&gt; {displayWeight(rules.technician_threshold_3)} g</p>
                   </div>
                 )}
-                {renderField(rate, `Χρέωση ${index + 1}ης κλίμακας`)}
+                {renderField(rate, `Χρέωση ${formatNumber(index + 1)}ης κλίμακας`)}
               </div>
             ))}
           </div>

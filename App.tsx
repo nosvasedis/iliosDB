@@ -415,8 +415,8 @@ function ErpAppContent() {
     settings: <SettingsPage />,
     resources: (
       <div className="space-y-6">
-        {resourceTab === 'materials' && <MaterialsPage settings={settings} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
-        {resourceTab === 'molds' && <MoldsPage resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
+        {resourceTab === 'materials' && <MaterialsPage settings={settings} products={products} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
+        {resourceTab === 'molds' && <MoldsPage products={products} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
       </div>
     ),
     collections: <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />,

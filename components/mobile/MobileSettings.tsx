@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import PricingRulesSettings from '../PricingRulesSettings';
 
 import React, { useRef, useState } from 'react';
@@ -139,7 +140,7 @@ export default function MobileSettings() {
                 );
                 const meta = data._meta;
                 const totalRows = Object.values(meta.table_counts).reduce((a, b) => a + b, 0);
-                let summary = `${meta.total_tables} πίνακες, ${totalRows} εγγραφές, ${meta.image_count} εικόνες`;
+                let summary = `${formatNumber(meta.total_tables)} πίνακες, ${formatNumber(totalRows)} εγγραφές, ${formatNumber(meta.image_count)} εικόνες`;
                 if (password) summary += ' · κρυπτογραφημένο';
                 setBackupSummary(summary);
             } else {
@@ -163,7 +164,7 @@ export default function MobileSettings() {
         setIsBackupManagerOpen(false);
         const confirmed = await confirm({
             title: 'Επαναφορά Backup',
-            message: `Θα επαναφερθούν ${options.tables.length} πίνακες. Συνέχεια;`,
+            message: `Θα επαναφερθούν ${formatNumber(options.tables.length)} πίνακες. Συνέχεια;`,
             isDestructive: true,
             confirmText: 'Επαναφορά',
         });
@@ -197,11 +198,11 @@ export default function MobileSettings() {
             });
             if (result.errors.length > 0) {
                 setBackupErrors(result.errors);
-                setBackupSummary(`Ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις.`);
+                setBackupSummary(`Ολοκληρώθηκε με ${formatNumber(result.errors.length)} προειδοποιήσεις.`);
             } else {
                 const resetCount = result.auth?.passwordResetRequired.length ?? 0;
                 setBackupSummary(resetCount > 0
-                    ? `Επαναφορά ολοκληρώθηκε. ${resetCount} χρήστες πρέπει να αλλάξουν κωδικό μέσω email.`
+                    ? `Επαναφορά ολοκληρώθηκε. ${formatNumber(resetCount)} χρήστες πρέπει να αλλάξουν κωδικό μέσω email.`
                     : 'Επιτυχής επαναφορά! Ανανέωση...');
                 setTimeout(() => window.location.reload(), 3000);
             }

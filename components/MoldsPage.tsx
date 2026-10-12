@@ -1,5 +1,6 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Mold } from '../types';
+import { Mold, Product } from '../types';
 import { Trash2, Plus, MapPin, Gem, Search, X, Check, MoreHorizontal, Puzzle, ArrowDown } from 'lucide-react';
 import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../utils/moldCategories';
 import { supabase } from '../lib/supabase';
@@ -8,6 +9,7 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
+import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 
 // -- MOLD CARD COMPONENT --
 interface MoldCardProps {
@@ -99,7 +101,7 @@ const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete, highligh
                                     onChange={e => setEditForm({ ...editForm, weight_g: parseFloat(e.target.value) || 0 })}
                                 />
                             ) : (
-                                <span className="text-sm font-mono font-bold text-slate-700">{mold.weight_g || 0}</span>
+                                <span className="text-sm font-mono font-bold text-slate-700">{formatNumber(mold.weight_g || 0)}</span>
                             )}
                         </div>
                     </div>
@@ -107,23 +109,25 @@ const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete, highligh
             </div>
 
             {isEditing && (
-                <div className="p-3 border-t border-slate-50 bg-slate-50/50 rounded-b-2xl flex justify-between items-center gap-2">
+                <div className="p-3 border-t border-slate-50 bg-slate-50/50 flex justify-between items-center gap-2">
                     <button onClick={handleCancel} className="flex-1 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"><X size={14} className="mx-auto" /></button>
                     <button onClick={handleSave} className="flex-[2] py-1.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-black flex items-center justify-center gap-2"><Check size={14} /> Αποθήκευση</button>
                     <button onClick={() => onDelete(mold.code)} className="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 border border-red-100"><Trash2 size={14} /></button>
                 </div>
             )}
+            <ResourceUsageStrip kind="mold" id={mold.code} label={mold.code} />
         </div>
     );
 };
 
 
 interface Props {
+    products?: Product[];
     resourceTab?: 'materials' | 'molds';
     onResourceTabChange?: (tab: 'materials' | 'molds') => void;
 }
 
-export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }: Props) {
+export default function MoldsPage({ products, resourceTab = 'molds', onResourceTabChange }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -314,6 +318,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
     if (isLoading) return <IliosLoader variant="section" detail="Λάστιχα" />;
 
     return (
+        <ResourceUsageProvider products={products} scopeKey={`${moldTab}:${searchTerm}:${isCreating}`}>
         <div className="space-y-6 h-full flex flex-col">
             {/* HEADER — redesigned with integrated controls */}
             <DesktopPageHeader
@@ -329,7 +334,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                                 {moldTab === 'lstx' ? 'LSTX' : 'Κανονικά'}
                             </div>
                             <div className={`text-xl font-black ${moldTab === 'lstx' ? 'text-blue-600' : 'text-amber-600'}`}>
-                                {categoryMolds.length}
+                                {formatNumber(categoryMolds.length)}
                             </div>
                         </div>
                         <button
@@ -436,7 +441,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Βάρος (g)</label>
-                                    <input type="number" step="0.01" value={newMold.weight_g || ''} onChange={e => setNewMold({ ...newMold, weight_g: parseFloat(e.target.value) || 0 })} placeholder="0.00" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all" />
+                                    <input type="number" step="0.01" value={newMold.weight_g || ''} onChange={e => setNewMold({ ...newMold, weight_g: parseFloat(e.target.value) || 0 })} placeholder="0,00" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all" />
                                 </div>
                             </div>
                             <div>
@@ -514,5 +519,6 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                 </button>
             </div>
         </div>
+        </ResourceUsageProvider>
     );
 }

@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import PricingRulesSettings from './PricingRulesSettings';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
@@ -185,7 +186,7 @@ export default function SettingsPage() {
                 ) as ArrayBuffer], { type: 'application/octet-stream' });
                 downloadBlob(blob, `ilios_erp_backup_${timestamp}.iliosbackup`);
                 const meta = data._meta;
-                let summary = `${meta.total_tables} πίνακες, ${Object.values(meta.table_counts).reduce((a, b) => a + b, 0)} εγγραφές, ${meta.image_count} εικόνες`;
+                let summary = `${formatNumber(meta.total_tables)} πίνακες, ${formatNumber(Object.values(meta.table_counts).reduce((a, b) => a + b, 0))} εγγραφές, ${formatNumber(meta.image_count)} εικόνες`;
                 if (password) summary += ' · κρυπτογραφημένο';
                 setBackupSummary(summary);
             } else {
@@ -215,7 +216,7 @@ export default function SettingsPage() {
         const confirmed = await confirm({
             title: isPartial ? 'ΕΠΙΛΟΓΙΚΗ ΕΠΑΝΑΦΟΡΑ' : 'ΠΡΟΣΟΧΗ: ΕΠΑΝΑΦΟΡΑ BACKUP',
             message: isPartial
-                ? `Θα αντικατασταθούν ${options.tables.length} πίνακες. Τα υπόλοιπα δεδομένα παραμένουν.\n\nΣυνέχεια;`
+                ? `Θα αντικατασταθούν ${formatNumber(options.tables.length)} πίνακες. Τα υπόλοιπα δεδομένα παραμένουν.\n\nΣυνέχεια;`
                 : `Αυτή η ενέργεια θα αντικαταστήσει τα δεδομένα των επιλεγμένων πινάκων.${options.restoreConfig ? '\n\nΘα αντικατασταθούν και οι ρυθμίσεις σύνδεσης.' : ''}\n\nΕίστε σίγουροι;`,
             isDestructive: true,
             confirmText: 'ΝΑΙ, ΕΠΑΝΑΦΟΡΑ',
@@ -252,12 +253,12 @@ export default function SettingsPage() {
 
             if (result.errors.length > 0) {
                 setBackupErrors(result.errors);
-                const imgNote = result.imageFailures.length > 0 ? ` (${result.imageFailures.length} εικόνες απέτυχαν)` : '';
-                setBackupSummary(`Η επαναφορά ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις${imgNote}.`);
+                const imgNote = result.imageFailures.length > 0 ? ` (${formatNumber(result.imageFailures.length)} εικόνες απέτυχαν)` : '';
+                setBackupSummary(`Η επαναφορά ολοκληρώθηκε με ${formatNumber(result.errors.length)} προειδοποιήσεις${imgNote}.`);
             } else {
                 const resetCount = result.auth?.passwordResetRequired.length ?? 0;
                 setBackupSummary(resetCount > 0
-                    ? `Η επαναφορά ολοκληρώθηκε. ${resetCount} χρήστες πρέπει να ορίσουν νέο κωδικό μέσω του email επαναφοράς.`
+                    ? `Η επαναφορά ολοκληρώθηκε. ${formatNumber(resetCount)} χρήστες πρέπει να ορίσουν νέο κωδικό μέσω του email επαναφοράς.`
                     : 'Η επαναφορά ολοκληρώθηκε επιτυχώς! Το ERP θα ανανεωθεί.');
                 setTimeout(() => window.location.reload(), 3000);
             }
@@ -301,13 +302,13 @@ export default function SettingsPage() {
             if (result.wasQueueEmpty) {
                 showToast("Δεν υπάρχουν εκκρεμείς αλλαγές προς συγχρονισμό.", "info");
             } else if (result.syncedCount > 0 && result.remainingCount === 0) {
-                showToast(`Συγχρονίστηκαν ${result.syncedCount} εκκρεμείς αλλαγές!`, "success");
+                showToast(`Συγχρονίστηκαν ${formatNumber(result.syncedCount)} εκκρεμείς αλλαγές!`, "success");
                 queryClient.invalidateQueries();
             } else if (result.syncedCount > 0 && result.remainingCount > 0) {
-                showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, "info");
+                showToast(`Συγχρονίστηκαν ${formatNumber(result.syncedCount)} αλλαγές, αλλά ${formatNumber(result.remainingCount)} παραμένουν εκκρεμείς.`, "info");
                 queryClient.invalidateQueries();
             } else if (result.remainingCount > 0) {
-                showToast(`Ο συγχρονισμός δεν ολοκληρώθηκε. Παραμένουν ${result.remainingCount} εκκρεμείς αλλαγές.`, "error");
+                showToast(`Ο συγχρονισμός δεν ολοκληρώθηκε. Παραμένουν ${formatNumber(result.remainingCount)} εκκρεμείς αλλαγές.`, "error");
             } else if (result.failedCount > 0) {
                 showToast("Ο συγχρονισμός ολοκληρώθηκε με απορρίψεις αλλαγών. Ελέγξτε τα μηνύματα σφάλματος.", "error");
                 queryClient.invalidateQueries();
@@ -396,7 +397,7 @@ export default function SettingsPage() {
             body: blob,
         });
 
-        if (!response.ok) throw new Error(`Η μεταφόρτωση εικόνας απέτυχε: ${response.status}`);
+        if (!response.ok) throw new Error(`Η μεταφόρτωση εικόνας απέτυχε: ${formatNumber(response.status)}`);
         return uploadUrl;
     };
 
@@ -494,7 +495,7 @@ export default function SettingsPage() {
             });
             setImageOptimizationPreview(candidates);
             setSelectedImageUrls(new Set());
-            showToast(`Φορτώθηκαν ${candidates.length} εικόνες. Το φίλτρο SKU δουλεύει πλέον άμεσα.`, 'success');
+            showToast(`Φορτώθηκαν ${formatNumber(candidates.length)} εικόνες. Το φίλτρο SKU δουλεύει πλέον άμεσα.`, 'success');
         } catch (error) {
             console.error(error);
             showToast('Δεν φορτώθηκε η λίστα εικόνων.', 'error');
@@ -533,7 +534,7 @@ export default function SettingsPage() {
             title: 'Βελτιστοποίηση εικόνων προϊόντων',
             message: isSelectedScope
                 ? `Θα βελτιστοποιηθούν οι ${selectedUrls.size} επιλεγμένες εικόνες${forceSelectedOptimization ? ', ακόμη κι αν δεν ξεπερνούν τα αυτόματα όρια' : ' με βάση τα αυτόματα όρια'}. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`
-                : `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${IMAGE_OPTIMIZATION_BATCH_SIZE}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`,
+                : `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${formatNumber(IMAGE_OPTIMIZATION_BATCH_SIZE)}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`,
             confirmText: 'Βελτιστοποίηση'
         });
         if (!yes) return;
@@ -557,13 +558,13 @@ export default function SettingsPage() {
                 return;
             }
 
-            showToast(`Ξεκίνησε ο έλεγχος ${allTargets.length} εικόνων. Θα αλλαχθούν μόνο όσες είναι πάνω από ${minKb}KB ή ${IMAGE_OPTIMIZATION_MAX_EDGE}px.`, 'info');
+            showToast(`Ξεκίνησε ο έλεγχος ${formatNumber(allTargets.length)} εικόνων. Θα αλλαχθούν μόνο όσες είναι πάνω από ${formatNumber(minKb)}KB ή ${formatNumber(IMAGE_OPTIMIZATION_MAX_EDGE)}px.`, 'info');
 
             for (let index = 0; index < allTargets.length; index += 1) {
                 const product = allTargets[index];
                 try {
                     const response = await fetch(product.image_url!);
-                    if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${response.status}`);
+                    if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${formatNumber(response.status)}`);
 
                     const originalBlob = await response.blob();
                     const needsOptimization = forceSelectedOptimization && isSelectedScope ? true : await imageNeedsOptimization(originalBlob);
@@ -600,7 +601,7 @@ export default function SettingsPage() {
                 const processed = index + 1;
                 if (processed % IMAGE_OPTIMIZATION_BATCH_SIZE === 0 && processed < allTargets.length) {
                     saveSkippedOptimizationUrls(skippedUrls);
-                    showToast(`Πρόοδος: ${processed}/${allTargets.length}. Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}.`, 'info');
+                    showToast(`Πρόοδος: ${formatNumber(processed)}/${formatNumber(allTargets.length)}. Βελτιστοποιήθηκαν ${formatNumber(optimized)}, παραλείφθηκαν ${formatNumber(skipped)}, απέτυχαν ${formatNumber(failed)}.`, 'info');
                     await waitForBrowserIdle();
                 }
             }
@@ -620,7 +621,7 @@ export default function SettingsPage() {
             });
             setSelectedImageUrls(new Set());
             setImageOptimizationPreview(prev => prev.filter(product => !product.image_url || !selectedUrls.has(product.image_url)));
-            showToast(`Ολοκληρώθηκε. Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.`, failed ? 'info' : 'success');
+            showToast(`Ολοκληρώθηκε. Βελτιστοποιήθηκαν ${formatNumber(optimized)}, παραλείφθηκαν ${formatNumber(skipped)}, απέτυχαν ${formatNumber(failed)}. Εξοικονομήθηκαν περίπου ${formatDecimal(Number(savedMb), 1)} MB.`, failed ? 'info' : 'success');
         } catch (error) {
             console.error(error);
             showToast('Η βελτιστοποίηση εικόνων απέτυχε.', 'error');
@@ -846,7 +847,7 @@ export default function SettingsPage() {
                                     <div className="max-h-[42vh] overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                         {imageOptimizationPreview.length > 0 && (
                                             <div className="col-span-full text-xs font-bold text-slate-500 px-1">
-                                                Εμφανίζονται {filteredImageOptimizationPreview.length} από {imageOptimizationPreview.length} εικόνες{imageOptimizationFilter.trim() ? ` για "${imageOptimizationFilter.trim().toUpperCase()}"` : ''}.
+                                                Εμφανίζονται {formatNumber(filteredImageOptimizationPreview.length)} από {formatNumber(imageOptimizationPreview.length)} εικόνες{imageOptimizationFilter.trim() ? ` για "${imageOptimizationFilter.trim().toUpperCase()}"` : ''}.
                                             </div>
                                         )}
                                         {imageOptimizationPreview.length === 0 ? (
@@ -888,7 +889,7 @@ export default function SettingsPage() {
                             <div className="min-h-0 flex flex-col gap-4">
                                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm text-emerald-900">
                                     <div className="font-black mb-2">Κριτήρια αυτόματου ελέγχου</div>
-                                    <p>Αλλάζει μόνο εικόνες πάνω από {Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024)}KB ή με πλευρά πάνω από {IMAGE_OPTIMIZATION_MAX_EDGE}px. Οι επιλεγμένες μπορούν να γίνουν αναγκαστικά.</p>
+                                    <p>Αλλάζει μόνο εικόνες πάνω από {formatNumber(Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024))}KB ή με πλευρά πάνω από {formatNumber(IMAGE_OPTIMIZATION_MAX_EDGE)}px. Οι επιλεγμένες μπορούν να γίνουν αναγκαστικά.</p>
                                 </div>
 
                                 <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden flex-1 min-h-0">
@@ -903,10 +904,10 @@ export default function SettingsPage() {
                                                 <div className="font-black text-slate-800">{entry.mode}</div>
                                                 <div className="text-slate-500 mt-1">{new Date(entry.date).toLocaleString('el-GR')}</div>
                                                 <div className="grid grid-cols-2 gap-2 mt-2 text-slate-600 font-bold">
-                                                    <span>Έλεγχος: {entry.checked}</span>
-                                                    <span>Κέρδος: {entry.savedMb} MB</span>
-                                                    <span>ΟΚ: {entry.optimized}</span>
-                                                    <span>Skip/Fail: {entry.skipped}/{entry.failed}</span>
+                                                    <span>Έλεγχος: {formatNumber(entry.checked)}</span>
+                                                    <span>Κέρδος: {formatDecimal(Number(entry.savedMb), 1)} MB</span>
+                                                    <span>ΟΚ: {formatNumber(entry.optimized)}</span>
+                                                    <span>Skip/Fail: {formatNumber(entry.skipped)}/{formatNumber(entry.failed)}</span>
                                                 </div>
                                             </div>
                                         ))}

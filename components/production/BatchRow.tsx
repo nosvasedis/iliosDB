@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useRef, useEffect } from 'react';
 import { ProductionBatch, ProductionStage, ProductionTimingStatus } from '../../types';
 import {
@@ -104,7 +105,7 @@ export const BatchRow = React.memo(function BatchRow({
 
                 {/* Quantity */}
                 <span className="font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm min-w-[2.5rem] text-center text-sm">
-                    {batch.quantity}
+                    {formatNumber(batch.quantity)}
                 </span>
 
                 {/* Current stage pill */}

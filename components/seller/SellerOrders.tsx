@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,7 +52,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
                 </div>
                 <div className="flex justify-between items-end mt-3">
                     <div className="text-[10px] text-slate-400 font-medium">
-                        {order.items.length} {order.items.length === 1 ? 'είδος' : 'είδη'} &nbsp;·&nbsp;
+                        {formatNumber(order.items.length)} {order.items.length === 1 ? 'είδος' : 'είδη'} &nbsp;·&nbsp;
                         {new Date(order.created_at).toLocaleDateString('el-GR')}
                         {order.seller_name && <span className="ml-1.5 text-slate-500">· Πλάσιε: {order.seller_name}</span>}
                     </div>
@@ -81,7 +82,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
                                         {item.size_info}
                                     </span>
                                 )}
-                                <span className="text-slate-400">×{item.quantity}</span>
+                                <span className="text-slate-400">×{formatNumber(item.quantity)}</span>
                             </div>
                             <span className="font-mono text-slate-600 font-bold">
                                 {formatCurrency(item.price_at_order * item.quantity)}
@@ -169,7 +170,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
             <div className="flex justify-between items-center shrink-0">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900">Οι Παραγγελίες μου</h1>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">{myOrders.length} σύνολο</p>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">{formatNumber(myOrders.length)} σύνολο</p>
                 </div>
                 <button
                     onClick={onCreate}
@@ -207,7 +208,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
                         {tab.key !== 'all' && (
                             <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full ${activeFilter === tab.key ? 'bg-white/20' : 'bg-slate-100'
                                 }`}>
-                                {myOrders.filter(o => o.status === tab.key).length}
+                                {formatNumber(myOrders.filter(o => o.status === tab.key).length)}
                             </span>
                         )}
                     </button>

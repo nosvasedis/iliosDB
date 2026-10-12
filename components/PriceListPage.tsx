@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -273,7 +274,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
 
                     setManualSkus(prev => Array.from(new Set([...prev, ...found])));
                     setManualInput('');
-                    showToast(`Προστέθηκαν ${found.length} κωδικοί.`, 'success');
+                    showToast(`Προστέθηκαν ${formatNumber(found.length)} κωδικοί.`, 'success');
                     return;
                 }
             }
@@ -325,7 +326,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         return next;
                     });
                     setExcludeInput('');
-                    showToast(`Εξαιρέθηκαν ${found.length} κωδικοί.`, 'success');
+                    showToast(`Εξαιρέθηκαν ${formatNumber(found.length)} κωδικοί.`, 'success');
                     return;
                 }
             }
@@ -508,7 +509,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const handlePrint = () => {
         const dateStr = new Date().toLocaleDateString('el-GR');
         let title = '';
-        let subtitle = `${filteredItems.length} Κωδικοί`;
+        let subtitle = `${formatNumber(filteredItems.length)} Κωδικοί`;
         let collectionNames: string | undefined = undefined;
         let filtersInfo: string | undefined = undefined;
 
@@ -533,7 +534,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     if (formattedCats.length <= 3) {
                         title += ` - ${formattedCats.join(' & ')}`;
                     } else {
-                        title += ` - ${formattedCats.slice(0, 2).join(', ')} & ${formattedCats.length - 2} ακόμα`;
+                        title += ` - ${formattedCats.slice(0, 2).join(', ')} & ${formatNumber(formattedCats.length - 2)} ακόμα`;
                     }
                 }
             }
@@ -568,7 +569,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 if (formattedCats.length <= 3) {
                     catsList = formattedCats.join(' & ');
                 } else {
-                    catsList = `${formattedCats.slice(0, 2).join(', ')} & ${formattedCats.length - 2} ακόμα`;
+                    catsList = `${formattedCats.slice(0, 2).join(', ')} & ${formatNumber(formattedCats.length - 2)} ακόμα`;
                 }
 
                 catStr = genderPrefix ? `${genderPrefix} ${catsList}` : catsList;
@@ -603,7 +604,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     <div className="flex items-center gap-3">
                         <div className="text-right">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Προϊόντα</div>
-                            <div className="text-lg font-black text-indigo-600">{products.filter(p => !p.is_component).length}</div>
+                            <div className="text-lg font-black text-indigo-600">{formatNumber(products.filter(p => !p.is_component).length)}</div>
                         </div>
                     </div>
                 )}
@@ -747,7 +748,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             <div className="flex items-center gap-2">
                                                 <ListFilter size={14} className="text-pink-500"/>
                                                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
-                                                    Φίλτρα Κατηγοριών ({selectedCategoriesInCollections.length})
+                                                    Φίλτρα Κατηγοριών ({formatNumber(selectedCategoriesInCollections.length)})
                                                 </span>
                                             </div>
                                             <button 
@@ -881,7 +882,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                 <div>
                                                     <div className="flex items-center justify-between mb-1.5">
                                                         <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
-                                                            <Check size={10}/> Προστέθηκαν ({manualSkus.length})
+                                                            <Check size={10}/> Προστέθηκαν ({formatNumber(manualSkus.length)})
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
@@ -951,7 +952,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             </div> 
                             <span className="font-bold text-slate-800 text-lg hidden sm:inline">Προεπισκόπηση</span>
                             <span className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
-                                {filteredItems.length}
+                                {formatNumber(filteredItems.length)}
                             </span>
                         </div>
                         
@@ -1044,7 +1045,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                                             );
                                                                         })}
                                                                     </div>
-                                                                    <span className="font-mono text-slate-700 font-bold shrink-0">{pg.price.toFixed(2)}€</span>
+                                                                    <span className="font-mono text-slate-700 font-bold shrink-0">{formatDecimal(pg.price, 2)}€</span>
                                                                 </div>
                                                             );
                                                         })}
@@ -1073,7 +1074,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 active:translate-y-0"
                         >
                             <Printer size={20}/> Δημιουργία PDF Καταλόγου
-                            {filteredItems.length > 0 && <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{filteredItems.length}</span>}
+                            {filteredItems.length > 0 && <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{formatNumber(filteredItems.length)}</span>}
                         </button>
                     </div>
                 </div>

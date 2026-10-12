@@ -58,6 +58,6 @@ describe('registry BarcodeGallery', () => {
     expect(html).toContain('Τιμή ετικέτας');
     expect(html).toContain('Λιανική ×3');
     expect(html).toContain('Προεπισκόπηση / επεξεργασία ετικέτας');
-    expect(html).toContain('20,00€');
+    expect(html).toContain('20,00\u00a0€');
   });
 });

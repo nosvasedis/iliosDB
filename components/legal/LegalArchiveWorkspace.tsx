@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -1038,7 +1039,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     const unresolvedLines = record.lineMatches.filter((line) => line.method === 'none').length;
     const customerMissing = record.customerMatch.state === 'unmatched';
     if (record.matchState === 'partial') {
-      if (customerMissing && unresolvedLines) return `Λείπουν πελάτης και ${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν' : 'προϊόντα'}`;
+      if (customerMissing && unresolvedLines) return `Λείπουν πελάτης και ${formatNumber(unresolvedLines)} ${unresolvedLines === 1 ? 'προϊόν' : 'προϊόντα'}`;
       if (customerMissing) return 'Δεν συνδέθηκε πελάτης';
       return `${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν χωρίς αντιστοίχιση' : 'προϊόντα χωρίς αντιστοίχιση'}`;
     }
@@ -1375,7 +1376,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   {[record.document.counterpart?.address?.postal_code, record.document.counterpart?.address?.city]
                     .filter(Boolean).join(' ') || 'χωρίς πόλη'}
                   {' · '}
-                  {formatCountryDisplayName(record.document.counterpart?.country)} / υποκ. {record.document.counterpart?.branch ?? 0}
+                  {formatCountryDisplayName(record.document.counterpart?.country)} / υποκ. {formatNumber(record.document.counterpart?.branch ?? 0)}
                 </div>
                 <VatRegistryCard
                   vatNumber={record.document.counterpart?.vat_number}
@@ -1407,12 +1408,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                     <div className="text-xs font-medium text-slate-500">
                       {record.linkedOrder
                         ? record.document.order_link_mode === 'partial'
-                          ? `${record.document.order_line_allocations?.length || 0} επιλεγμένες γραμμές συνδέονται με την παραγγελία.`
+                          ? `${formatNumber(record.document.order_line_allocations?.length || 0)} επιλεγμένες γραμμές συνδέονται με την παραγγελία.`
                           : 'Ολόκληρη η παραγγελία είναι συνδεδεμένη.'
                         : record.autoOrderCandidate
                           ? 'Βρέθηκε μοναδική πλήρης συμφωνία πελάτη, αξίας, κωδικών προϊόντων και ποσοτήτων.'
                           : record.suggestedOrders.length
-                            ? `${record.suggestedOrders.length} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
+                            ? `${formatNumber(record.suggestedOrders.length)} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
                             : 'Δεν βρέθηκε ασφαλής πρόταση. Δεν γίνεται αυθαίρετη αυτόματη αντιστοίχιση.'}
                     </div>
                   </>
@@ -1431,7 +1432,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   <h3 className="font-black">Πιθανό σχετικό Δελτίο Αποστολής</h3>
                 </div>
                 <div className="mt-1 text-sm font-black text-slate-900">
-                  {getLegalDocumentDisplayNumber(record.deliveryNoteCandidate.document)} — {record.deliveryNoteCandidate.uniqueItemCount} κωδικοί, {record.deliveryNoteCandidate.totalQuantity} τεμάχια
+                  {getLegalDocumentDisplayNumber(record.deliveryNoteCandidate.document)} — {formatNumber(record.deliveryNoteCandidate.uniqueItemCount)} κωδικοί, {formatNumber(record.deliveryNoteCandidate.totalQuantity)} τεμάχια
                 </div>
                 <p className="mt-1 text-xs font-medium leading-5 text-amber-900/80">
                   Βρέθηκε ένα μόνο Δελτίο Αποστολής με ακριβώς ίδιο ΑΦΜ και ημερομηνία. Η σύνδεση απαιτεί επιβεβαίωση και δεν αλλάζει το επίσημο τιμολόγιο ή το XML της ΑΑΔΕ.
@@ -1457,7 +1458,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   <h3 className="font-black">Προϊόντα από συνδεδεμένο Δελτίο Αποστολής</h3>
                 </div>
                 <div className="mt-1 text-xs font-bold text-sky-800">
-                  {getLegalDocumentDisplayNumber(record.linkedDeliveryNote.document)} · {record.linkedDeliveryNote.uniqueItemCount} κωδικοί · {record.linkedDeliveryNote.totalQuantity} τεμάχια
+                  {getLegalDocumentDisplayNumber(record.linkedDeliveryNote.document)} · {formatNumber(record.linkedDeliveryNote.uniqueItemCount)} κωδικοί · {formatNumber(record.linkedDeliveryNote.totalQuantity)} τεμάχια
                 </div>
               </div>
               <ArchiveActionButton
@@ -1481,7 +1482,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                     </div>
                   </div>
                   <div className="whitespace-nowrap text-xs font-black text-slate-800">
-                    {Number(match.line.quantity || 0)} τεμ.
+                    {formatNumber(Number(match.line.quantity || 0))} τεμ.
                   </div>
                 </div>
               ))}
@@ -1497,7 +1498,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             <div>
               <h3 className="font-black text-slate-900">Γραμμές και προϊόντα</h3>
               <div className="text-xs font-medium text-slate-500">
-                {record.lines.length} γραμμές · πηγή {externalSourcePresentation[externalSource]}
+                {formatNumber(record.lines.length)} γραμμές · πηγή {externalSourcePresentation[externalSource]}
               </div>
             </div>
             <PackageSearch size={19} className="text-slate-400" />
@@ -1555,8 +1556,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   </div>
                   <div className="text-right text-xs">
                     <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Ποσ.</div>
-                    <div className="font-black text-slate-800">{match.line.quantity}</div>
-                    <div className="text-[10px] text-slate-500">Μ.Μ. {match.line.measurement_unit || 1}</div>
+                    <div className="font-black text-slate-800">{formatNumber(match.line.quantity)}</div>
+                    <div className="text-[10px] text-slate-500">Μ.Μ. {formatNumber(match.line.measurement_unit || 1)}</div>
                   </div>
                   <div className="text-right text-xs">
                     <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Καθαρή / Σύνολο</div>
@@ -1643,7 +1644,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 }))}
                 className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition sm:min-w-36 ${filters.scope === scope ? 'bg-white text-emerald-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'}`}
               >
-                <Icon size={14} /> {label} <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{count}</span>
+                <Icon size={14} /> {label} <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{formatNumber(count)}</span>
               </button>
             ))}
           </div>
@@ -1702,7 +1703,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition ${advancedOpen || activeFilterCount ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
             >
               <SlidersHorizontal size={17} /> Φίλτρα
-              {activeFilterCount > 0 && <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}
+              {activeFilterCount > 0 && <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">{formatNumber(activeFilterCount)}</span>}
               {advancedOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           </div>
@@ -1830,14 +1831,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         {[
-          { label: 'Εγγραφές', value: String(stats.count), icon: FileText, tone: 'text-slate-700', bg: 'bg-slate-50 border-slate-200' },
+          { label: 'Εγγραφές', value: formatNumber(stats.count), icon: FileText, tone: 'text-slate-700', bg: 'bg-slate-50 border-slate-200' },
           { label: 'Καθαρή αξία', value: money(stats.net), icon: WalletCards, tone: 'text-sky-700', bg: 'bg-sky-50 border-sky-200' },
           { label: 'ΦΠΑ', value: money(stats.vat), icon: CalendarDays, tone: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
           { label: 'Σύνολο', value: money(stats.gross), icon: WalletCards, tone: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
           {
             label: 'Αντιστοίχιση εμπορικών',
-            value: stats.reviewable ? `${stats.matched} από ${stats.reviewable}` : '—',
-            detail: `${stats.needsReview} χρειάζονται έλεγχο${stats.operational ? ` · ${stats.operational} λειτουργικά εκτός αξιολόγησης` : ''}`,
+            value: stats.reviewable ? `${formatNumber(stats.matched)} από ${formatNumber(stats.reviewable)}` : '—',
+            detail: `${formatNumber(stats.needsReview)} χρειάζονται έλεγχο${stats.operational ? ` · ${formatNumber(stats.operational)} λειτουργικά εκτός αξιολόγησης` : ''}`,
             icon: stats.needsReview ? AlertTriangle : BadgeCheck,
             tone: stats.needsReview ? 'text-amber-700' : 'text-emerald-700',
             bg: stats.needsReview ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200',
@@ -1857,7 +1858,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm font-bold text-slate-600">
-              {filtered.length} από {sectionTotal} εγγραφές
+              {formatNumber(filtered.length)} από {formatNumber(sectionTotal)} εγγραφές
             </div>
             <div className="mt-2 flex flex-wrap gap-2" aria-label="Χρωματική σήμανση τύπων παραστατικών">
               {archiveLegend.map((presentation) => {
@@ -2037,11 +2038,11 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         {filtered.length > PAGE_SIZE && (
           <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs font-bold text-slate-500">
-              Εμφάνιση {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} από {filtered.length}
+              Εμφάνιση {formatNumber((page - 1) * PAGE_SIZE + 1)}–{formatNumber(Math.min(page * PAGE_SIZE, filtered.length))} από {formatNumber(filtered.length)}
             </div>
             <div className="flex items-center justify-center gap-2">
               <button type="button" aria-label="Προηγούμενη σελίδα" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"><ChevronLeft size={16} /></button>
-              <span className="min-w-24 text-center text-sm font-black text-slate-700">Σελίδα {page} / {totalPages}</span>
+              <span className="min-w-24 text-center text-sm font-black text-slate-700">Σελίδα {formatNumber(page)} / {formatNumber(totalPages)}</span>
               <button type="button" aria-label="Επόμενη σελίδα" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"><ChevronRight size={16} /></button>
             </div>
           </div>

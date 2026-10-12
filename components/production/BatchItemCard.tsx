@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Product, ProductionBatch, ProductionStage, Gender, OrderItem, ProductionTimingStatus } from '../../types';
 import {
@@ -144,19 +145,19 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         {/* Quantity stats row */}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                             <span className="bg-slate-50 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                                Παρ: {row.quantity}
+                                Παρ: {formatNumber(row.quantity)}
                             </span>
                             {row.shippedQty > 0 && (
                                 <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    Αποστ: {row.shippedQty}
+                                    Αποστ: {formatNumber(row.shippedQty)}
                                 </span>
                             )}
                             <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
-                                Σε εξέλ: {row.inProgressQty + row.readyQty}
+                                Σε εξέλ: {formatNumber(row.inProgressQty + row.readyQty)}
                             </span>
                             {row.remainingQty > 0 && (
                                 <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
-                                    Υπόλ: {row.remainingQty}
+                                    Υπόλ: {formatNumber(row.remainingQty)}
                                 </span>
                             )}
                         </div>
@@ -222,7 +223,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                                 </button>
                             )}
                         </div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Παραγ. (Max: {row.remainingQty})</div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Παραγ. (Max: {formatNumber(row.remainingQty)})</div>
                         <div className="flex items-center gap-0.5 bg-blue-50 p-0.5 rounded-lg border border-blue-100">
                             <button onClick={() => onUpdateToSend(originalIndex, currentSend - 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={13} /></button>
                             <input
@@ -248,7 +249,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50/50 transition-colors"
                     >
                         <span className="flex items-center gap-1">
-                            <RefreshCw size={10} /> Ενεργές Παρτίδες ({row.batchDetails.length})
+                            <RefreshCw size={10} /> Ενεργές Παρτίδες ({formatNumber(row.batchDetails.length)})
                         </span>
                         <ChevronDown size={14} className={`transition-transform duration-200 ${batchSectionOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -269,7 +270,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                                                         onClick={() => onMergeBatches(stageId as ProductionStage, stageBatches)}
                                                         className="flex items-center gap-1 text-[9px] font-black bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100 hover:bg-purple-100 transition-colors"
                                                     >
-                                                        <Merge size={9} /> Συγχ. ({stageBatches.length})
+                                                        <Merge size={9} /> Συγχ. ({formatNumber(stageBatches.length)})
                                                     </button>
                                                 )}
                                             </div>

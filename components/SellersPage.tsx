@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { UserCheck, Plus, Search, X, Mail, Lock, Percent, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, TrendingUp, ShoppingCart, DollarSign, ArrowUpRight, ArrowDownRight, Minus, Package, Clock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -249,8 +250,8 @@ export default function SellersPage() {
       {/* ── Global Summary Cards ── */}
       {globalStats && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <SummaryCard label="Ενεργοί Πλασιέ" value={String(globalStats.activeSellers)} icon={<UserCheck size={20} />} color="sky" />
-          <SummaryCard label="Σύνολο Παραγγελιών" value={String(globalStats.totalOrders)} icon={<ShoppingCart size={20} />} color="violet" />
+          <SummaryCard label="Ενεργοί Πλασιέ" value={formatNumber(globalStats.activeSellers)} icon={<UserCheck size={20} />} color="sky" />
+          <SummaryCard label="Σύνολο Παραγγελιών" value={formatNumber(globalStats.totalOrders)} icon={<ShoppingCart size={20} />} color="violet" />
           <SummaryCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(globalStats.totalRevenue)} icon={<DollarSign size={20} />} color="emerald" />
           <SummaryCard label="Κερδισμένες προμήθειες" value={formatCurrency(globalStats.totalCommission)} icon={<Percent size={20} />} color="amber" />
           <SummaryCard label="Εκκρεμείς προμήθειες" value={formatCurrency(globalStats.pendingCommission)} icon={<Clock size={20} />} color="violet" />
@@ -260,7 +261,7 @@ export default function SellersPage() {
       {/* ── Active Sellers ── */}
       {activeSellers.length > 0 && (
         <div>
-          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Ενεργοί Πλασιέ ({activeSellers.length})</h3>
+          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Ενεργοί Πλασιέ ({formatNumber(activeSellers.length)})</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {activeSellers.map(seller => (
               <SellerCard
@@ -279,7 +280,7 @@ export default function SellersPage() {
       {/* ── Inactive Sellers ── */}
       {inactiveSellers.length > 0 && (
         <div>
-          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Ανενεργοί Πλασιέ ({inactiveSellers.length})</h3>
+          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Ανενεργοί Πλασιέ ({formatNumber(inactiveSellers.length)})</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {inactiveSellers.map(seller => (
               <SellerCard
@@ -316,7 +317,7 @@ export default function SellersPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-slate-800">{detailSeller.full_name}</h2>
-                  <p className="text-xs text-slate-500">{detailSeller.email} · Προμήθεια: {detailSeller.commission_percent ?? 0}%</p>
+                  <p className="text-xs text-slate-500">{detailSeller.email} · Προμήθεια: {formatNumber(detailSeller.commission_percent ?? 0)}%</p>
                 </div>
               </div>
               <button onClick={() => setDetailSeller(null)} className="p-2 rounded-full hover:bg-slate-100 transition-colors">
@@ -327,9 +328,9 @@ export default function SellersPage() {
             <div className="overflow-y-auto max-h-[calc(85vh-80px)] p-6 space-y-6">
               {/* KPI Grid */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <KpiCard label="Παραγγελίες" value={String(detailStats.totalOrders)} sub={`${detailStats.activeOrders} ενεργές`} color="sky" />
+                <KpiCard label="Παραγγελίες" value={formatNumber(detailStats.totalOrders)} sub={`${formatNumber(detailStats.activeOrders)} ενεργές`} color="sky" />
                 <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(detailStats.totalRevenue)} sub={`Μ.Ο. ${formatCurrency(detailStats.avgOrderValue)}`} color="emerald" />
-                <KpiCard label="Κερδισμένες προμήθειες" value={formatCurrency(detailStats.totalCommission)} sub={`${detailStats.avgCommissionRate.toFixed(1)}% στα έσοδα`} color="amber" />
+                <KpiCard label="Κερδισμένες προμήθειες" value={formatCurrency(detailStats.totalCommission)} sub={`${formatDecimal(detailStats.avgCommissionRate, 1)}% στα έσοδα`} color="amber" />
                 <KpiCard label="Εκκρεμείς προμήθειες" value={formatCurrency(detailStats.pendingCommission)} sub={`${formatCurrency(detailStats.pendingRevenue)} εκκρεμής αξία`} color="violet" />
               </div>
 
@@ -339,7 +340,7 @@ export default function SellersPage() {
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Τελευταίες 30 Ημέρες</p>
                     <p className="text-xl font-black text-slate-800 mt-1">{formatCurrency(detailStats.last30DaysRevenue)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{detailStats.last30DaysOrders} παραγγελίες με αποστολή</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatNumber(detailStats.last30DaysOrders)} παραγγελίες με αποστολή</p>
                   </div>
                   <TrendBadge current={detailStats.last30DaysRevenue} previous={detailStats.prev30DaysRevenue} />
                 </div>
@@ -352,7 +353,7 @@ export default function SellersPage() {
                   {Object.entries(detailStats.ordersByStatus).map(([status, count]) => (
                     <div key={status} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${statusColors[status] || 'bg-slate-100 text-slate-600'}`}>
                       <span>{statusLabels[status] || status}</span>
-                      <span className="font-black">{count}</span>
+                      <span className="font-black">{formatNumber(count)}</span>
                     </div>
                   ))}
                   {Object.keys(detailStats.ordersByStatus).length === 0 && (
@@ -375,7 +376,7 @@ export default function SellersPage() {
                   </div>
                   <div>
                     <p className="text-xs text-amber-600/70">Ποσοστό στα έσοδα</p>
-                    <p className="text-lg font-black text-amber-700">{detailStats.avgCommissionRate.toFixed(1)}%</p>
+                    <p className="text-lg font-black text-amber-700">{formatDecimal(detailStats.avgCommissionRate, 1)}%</p>
                   </div>
                 </div>
               </div>
@@ -532,9 +533,9 @@ function TrendBadge({ current, previous }: { current: number; previous: number }
   const change = ((current - previous) / previous) * 100;
   if (Math.abs(change) < 1) return <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold"><Minus size={14} /> Σταθερά</div>;
   return change > 0 ? (
-    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold"><ArrowUpRight size={14} /> +{change.toFixed(0)}%</div>
+    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold"><ArrowUpRight size={14} /> +{formatDecimal(change, 0)}%</div>
   ) : (
-    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 text-red-600 text-xs font-bold"><ArrowDownRight size={14} /> {change.toFixed(0)}%</div>
+    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 text-red-600 text-xs font-bold"><ArrowDownRight size={14} /> {formatDecimal(change, 0)}%</div>
   );
 }
 
@@ -556,7 +557,7 @@ function SellerCard({ seller, stats, onEdit, onToggle, onDetail, inactive }: { s
           <p className="text-xs text-slate-500 truncate">{seller.email}</p>
           <div className="flex items-center gap-1 mt-1">
             <Percent size={11} className="text-amber-500" />
-            <span className="text-xs font-black text-amber-600">{seller.commission_percent ?? 0}%</span>
+            <span className="text-xs font-black text-amber-600">{formatNumber(seller.commission_percent ?? 0)}%</span>
             <span className="text-[10px] text-slate-400">προμήθεια</span>
           </div>
         </div>
@@ -567,7 +568,7 @@ function SellerCard({ seller, stats, onEdit, onToggle, onDetail, inactive }: { s
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-slate-50 rounded-lg p-2 text-center">
             <p className="text-[10px] text-slate-400 font-bold">Παραγγελίες</p>
-            <p className="text-sm font-black text-slate-700">{stats.totalOrders}</p>
+            <p className="text-sm font-black text-slate-700">{formatNumber(stats.totalOrders)}</p>
           </div>
           <div className="bg-emerald-50/60 rounded-lg p-2 text-center">
             <p className="text-[10px] text-emerald-600 font-bold">Πραγμ. έσοδα</p>

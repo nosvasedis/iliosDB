@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Customer, Order, OrderShipmentItem, OrderStatus, VatRegime } from '../types';
 import {
@@ -416,7 +417,7 @@ export default function CustomerDetailsModal({
         { id: 'overview', label: 'Επισκόπηση', Icon: LayoutDashboard },
         { id: 'end_clients', label: 'Τελικοί πελάτες', Icon: UsersIcon },
         { id: 'categories', label: 'Κατηγορίες', Icon: PieChart },
-        { id: 'orders', label: `Παραγγελίες (${stats.orderCount})`, Icon: ShoppingBag },
+        { id: 'orders', label: `Παραγγελίες (${formatNumber(stats.orderCount)})`, Icon: ShoppingBag },
     ];
     const normalTabList: { id: NormalTab; label: string; Icon: typeof LayoutDashboard }[] = [
         { id: 'overview', label: 'Επισκόπηση', Icon: LayoutDashboard },
@@ -424,9 +425,9 @@ export default function CustomerDetailsModal({
         { id: 'billing', label: 'Τιμολόγηση', Icon: Receipt },
         { id: 'notes', label: 'Σημειώσεις', Icon: StickyNote },
         { id: 'analytics', label: 'Ανάλυση', Icon: BarChart3 },
-        { id: 'consignments', label: `Παρακαταθήκες (${customerConsignments.length})`, Icon: HandHeart },
-        { id: 'repairs', label: `Επισκευές (${customerRepairs.length})`, Icon: Wrench },
-        { id: 'orders', label: `Παραγγελίες (${stats.orderCount})`, Icon: ShoppingBag },
+        { id: 'consignments', label: `Παρακαταθήκες (${formatNumber(customerConsignments.length)})`, Icon: HandHeart },
+        { id: 'repairs', label: `Επισκευές (${formatNumber(customerRepairs.length)})`, Icon: Wrench },
+        { id: 'orders', label: `Παραγγελίες (${formatNumber(stats.orderCount)})`, Icon: ShoppingBag },
     ];
     const tabList = isRetailSystemCustomer ? retailTabList : normalTabList;
     const activeTabMeta = tabList.find(tab => tab.id === activeTab) || tabList[0];
@@ -497,7 +498,7 @@ export default function CustomerDetailsModal({
                                             {nextNameday.is_today
                                                 ? `Γιορτάζει σήμερα · ${nextNameday.label}`
                                                 : nextNameday.days_until <= 7
-                                                  ? `Ονομαστική ${formatGreekDate(nextNameday.date)} (σε ${nextNameday.days_until} ημ.)`
+                                                  ? `Ονομαστική ${formatGreekDate(nextNameday.date)} (σε ${formatNumber(nextNameday.days_until)} ημ.)`
                                                   : `${nextNameday.label} ${formatGreekDate(nextNameday.date)}`}
                                         </span>
                                     )}
@@ -689,7 +690,7 @@ export default function CustomerDetailsModal({
                                             <Briefcase size={12} /> Παραγγελίες
                                         </div>
                                         <div className="text-3xl font-black text-slate-800">
-                                            {stats.orderCount}{' '}
+                                            {formatNumber(stats.orderCount)}{' '}
                                             <span className="text-sm font-medium text-slate-400">τεμ.</span>
                                         </div>
                                     </div>
@@ -712,7 +713,7 @@ export default function CustomerDetailsModal({
                                             <Package size={12} /> Τεμάχια
                                         </div>
                                         <div className="text-2xl font-black text-slate-800">
-                                            {stats.totalItems}{' '}
+                                            {formatNumber(stats.totalItems)}{' '}
                                             <span className="text-sm font-medium text-slate-400">τεμ.</span>
                                         </div>
                                     </div>
@@ -730,7 +731,7 @@ export default function CustomerDetailsModal({
                                         <div className="text-[10px] font-black text-teal-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                                             <Clock size={12} /> Ενεργοί μήνες
                                         </div>
-                                        <div className="text-2xl font-black text-slate-800">{stats.activeMonths}</div>
+                                        <div className="text-2xl font-black text-slate-800">{formatNumber(stats.activeMonths)}</div>
                                     </div>
                                 </div>
 
@@ -807,7 +808,7 @@ export default function CustomerDetailsModal({
                                         <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                                             Παραγγελίες
                                         </div>
-                                        <div className="mt-1 text-xl font-black text-slate-800">{stats.orderCount}</div>
+                                        <div className="mt-1 text-xl font-black text-slate-800">{formatNumber(stats.orderCount)}</div>
                                     </div>
                                     <div className={`${sectionCard} p-4`}>
                                         <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
@@ -858,7 +859,7 @@ export default function CustomerDetailsModal({
                                                             />
                                                             <span className="text-xs text-slate-400">
                                                                 {new Date(o.created_at).toLocaleDateString('el-GR')} ·{' '}
-                                                                {o.items.length} είδη
+                                                                {formatNumber(o.items.length)} είδη
                                                             </span>
                                                         </div>
                                                         <span className="font-mono text-sm font-black text-slate-800">
@@ -1042,7 +1043,7 @@ export default function CustomerDetailsModal({
                                         </select>
                                     ) : (
                                         <div className="inline-block rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">
-                                            {((customer.vat_rate ?? 0.24) * 100).toFixed(0)}% ΦΠΑ
+                                            {formatDecimal(((customer.vat_rate ?? 0.24) * 100), 0)}% ΦΠΑ
                                         </div>
                                     )}
                                 </div>
@@ -1105,7 +1106,7 @@ export default function CustomerDetailsModal({
                                                                 : 'border-slate-100 bg-slate-50 text-slate-500'
                                                         }`}
                                                     >
-                                                        {index + 1}
+                                                        {formatNumber(index + 1)}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="mb-1 flex items-center justify-between">
@@ -1116,7 +1117,7 @@ export default function CustomerDetailsModal({
                                                             </span>
                                                             <div className="ml-3 flex shrink-0 items-center gap-3 text-right">
                                                                 <span className="text-[10px] font-bold text-slate-400">
-                                                                    {client.orderCount} παρ.
+                                                                    {formatNumber(client.orderCount)} παρ.
                                                                 </span>
                                                                 <span className="font-mono text-sm font-black text-slate-800">
                                                                     {formatCurrency(client.totalRevenue)}
@@ -1166,7 +1167,7 @@ export default function CustomerDetailsModal({
                                                                 : 'border-slate-100 bg-white text-slate-400'
                                                     }`}
                                                 >
-                                                    {index + 1}
+                                                    {formatNumber(index + 1)}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="mb-1.5 flex items-end justify-between">
@@ -1175,7 +1176,7 @@ export default function CustomerDetailsModal({
                                                             <span className="font-mono text-sm font-black text-slate-800">
                                                                 {formatCurrency(item.value)}
                                                             </span>
-                                                            <span className="text-[10px] font-bold text-slate-500">{item.count} τεμάχια</span>
+                                                            <span className="text-[10px] font-bold text-slate-500">{formatNumber(item.count)} τεμάχια</span>
                                                         </div>
                                                     </div>
                                                     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
@@ -1202,14 +1203,14 @@ export default function CustomerDetailsModal({
                         <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/70 p-4">
-                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-100 p-2 text-indigo-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800 shadow-sm">{customerConsignments.length}</span>
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-100 p-2 text-indigo-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800 shadow-sm">{formatNumber(customerConsignments.length)}</span>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {customerConsignments.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Παρακαταθήκες για αυτόν τον πελάτη.</div> : customerConsignments.map(entry => {
                                         const lines = (customerServiceData?.consignmentLines || []).filter(line => line.consignment_id === entry.id);
                                         const pending = lines.reduce((sum, line) => sum + line.pending_quantity, 0);
                                         const value = lines.reduce((sum, line) => sum + line.pending_quantity * Number(line.locked_unit_price), 0);
-                                        return <div key={entry.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{entry.code}</span><ConsignmentBadge compact /><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{CONSIGNMENT_STATUS_LABELS[entry.status]}</span></div><div className="mt-1 text-xs text-slate-500">Επανέλεγχος {formatGreekDateOnly(entry.review_due_at)} · {lines.length} γραμμές</div></div><div className="flex gap-5 text-right"><div><div className="font-black text-slate-800">{pending}</div><div className="text-[9px] font-bold text-slate-400">ΕΚΚΡΕΜΗ ΤΕΜ.</div></div><div><div className="font-black text-indigo-800">{formatGreekMoney(value)}</div><div className="text-[9px] font-bold text-slate-400">ΑΞΙΑ</div></div></div></div>;
+                                        return <div key={entry.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{entry.code}</span><ConsignmentBadge compact /><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{CONSIGNMENT_STATUS_LABELS[entry.status]}</span></div><div className="mt-1 text-xs text-slate-500">Επανέλεγχος {formatGreekDateOnly(entry.review_due_at)} · {formatNumber(lines.length)} γραμμές</div></div><div className="flex gap-5 text-right"><div><div className="font-black text-slate-800">{formatNumber(pending)}</div><div className="text-[9px] font-bold text-slate-400">ΕΚΚΡΕΜΗ ΤΕΜ.</div></div><div><div className="font-black text-indigo-800">{formatGreekMoney(value)}</div><div className="text-[9px] font-bold text-slate-400">ΑΞΙΑ</div></div></div></div>;
                                     })}
                                 </div>
                             </section>
@@ -1220,12 +1221,12 @@ export default function CustomerDetailsModal({
                         <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-blue-50/70 p-4">
-                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{customerRepairs.length}</span>
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{formatNumber(customerRepairs.length)}</span>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {customerRepairs.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Επισκευές για αυτόν τον πελάτη.</div> : customerRepairs.map(item => {
                                         const liveBatch = findLiveRepairBatch(item.id, customerServiceData?.repairCycles || [], batches || []);
-                                        return <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{item.code}</span><RepairBadge compact /><RepairStageBadge item={item} batch={liveBatch} />{item.is_archived && <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>}{item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>}</div><p className="mt-1 text-sm text-slate-600">{item.description}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{REPAIR_ORIGIN_LABELS[item.origin_type]}</p></div><div className="text-right text-xs text-slate-500"><div className="font-black text-slate-700">{item.product_sku ? <SkuColorizedText sku={item.product_sku} suffix={item.variant_suffix || ''} /> : 'Χωρίς SKU'}</div><div>{formatGreekDateOnly(item.created_at)}</div></div></div>;
+                                        return <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{item.code}</span><RepairBadge compact /><RepairStageBadge item={item} batch={liveBatch} />{item.is_archived && <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>}{item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {formatNumber(item.current_cycle_number)}</span>}</div><p className="mt-1 text-sm text-slate-600">{item.description}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{REPAIR_ORIGIN_LABELS[item.origin_type]}</p></div><div className="text-right text-xs text-slate-500"><div className="font-black text-slate-700">{item.product_sku ? <SkuColorizedText sku={item.product_sku} suffix={item.variant_suffix || ''} /> : 'Χωρίς SKU'}</div><div>{formatGreekDateOnly(item.created_at)}</div></div></div>;
                                     })}
                                 </div>
                             </section>
@@ -1262,8 +1263,8 @@ export default function CustomerDetailsModal({
                                 </div>
                                 <p className="mt-2 text-xs text-slate-500">
                                     {filteredOrders.length === stats.history.length
-                                        ? `${stats.history.length} παραγγελίες`
-                                        : `${filteredOrders.length} από ${stats.history.length} παραγγελίες`}
+                                        ? `${formatNumber(stats.history.length)} παραγγελίες`
+                                        : `${formatNumber(filteredOrders.length)} από ${formatNumber(stats.history.length)} παραγγελίες`}
                                 </p>
                             </div>
                             {filteredOrders.map(o => {
@@ -1316,7 +1317,7 @@ export default function CustomerDetailsModal({
                                                     {new Date(o.created_at).toLocaleDateString('el-GR')}
                                                 </span>
                                                 <span className="flex items-center gap-1">
-                                                    <ShoppingBag size={12} /> {o.items.length} είδη
+                                                    <ShoppingBag size={12} /> {formatNumber(o.items.length)} είδη
                                                 </span>
                                                 <span className="font-mono text-slate-400">Με ΦΠΑ: {formatCurrency(gross)}</span>
                                             </div>

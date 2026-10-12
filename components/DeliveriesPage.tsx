@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CalendarRange, Plus } from 'lucide-react';
@@ -155,8 +156,8 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
       const confirmed = await confirm({
         title: sr.ready_batches === 0 ? 'Δεν υπάρχει ετοιμότητα' : 'Μερική Ετοιμότητα',
         message: sr.ready_batches === 0
-          ? `Κανένα τεμάχιο δεν είναι έτοιμο (0/${sr.total_qty} τεμ. σε παραγωγή). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
-          : `Η παραγγελία δεν είναι πλήρως έτοιμη (${sr.ready_qty}/${sr.total_qty} τεμ. έτοιμα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
+          ? `Κανένα τεμάχιο δεν είναι έτοιμο (0/${formatNumber(sr.total_qty)} τεμ. σε παραγωγή). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
+          : `Η παραγγελία δεν είναι πλήρως έτοιμη (${formatNumber(sr.ready_qty)}/${formatNumber(sr.total_qty)} τεμ. έτοιμα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
         confirmText: 'Ναι, σήμανση ως παραδομένη',
         isDestructive: sr.ready_batches === 0,
       });
@@ -197,7 +198,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
         orderId: item.order.id,
         revertedBy: profile?.full_name || 'Σύστημα',
       });
-      showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+      showToast(`Η αποστολή #${formatNumber(shipment.shipment_number)} αναιρέθηκε επιτυχώς.`, 'success');
       await invalidateAndRefetchAfterShipmentChange(queryClient, item.order.id);
       setShipmentUndoRequest(null);
       setSelectedItem(null);

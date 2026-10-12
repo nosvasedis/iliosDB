@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -67,7 +68,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Καρτέλα πελάτη</p>
             <h1 className="truncate text-lg font-black tracking-tight text-slate-900">{customer.full_name}</h1>
             {customer.customer_code && <p className="mt-0.5 font-mono text-[10px] font-black text-cyan-700">Κωδικός {customer.customer_code}</p>}
-            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{customerOrders.length} παραγγελίες · {formatCurrency(totalNet)} καθαρή αξία παραγγελιών</p>
+            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{formatNumber(customerOrders.length)} παραγγελίες · {formatCurrency(totalNet)} καθαρή αξία παραγγελιών</p>
           </div>
           <button type="button" onClick={onEdit} className="rounded-xl bg-slate-900 p-2.5 text-white shadow-sm active:scale-95" aria-label="Επεξεργασία πελάτη"><Edit3 size={18} /></button>
         </div>
@@ -84,7 +85,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-700"><Wallet size={11} /> Καθαρή αξία</p><p className="mt-2 font-mono text-xl font-black text-emerald-950">{formatCurrency(totalNet)}</p></div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-blue-700"><ShoppingBag size={11} /> Παραγγελίες</p><p className="mt-2 font-mono text-xl font-black text-blue-950">{customerOrders.length}</p></div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-blue-700"><ShoppingBag size={11} /> Παραγγελίες</p><p className="mt-2 font-mono text-xl font-black text-blue-950">{formatNumber(customerOrders.length)}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400"><Receipt size={11} /> Μ.Ο. αξίας</p><p className="mt-2 font-mono text-lg font-black text-slate-900">{formatCurrency(customerOrders.length ? totalNet / customerOrders.length : 0)}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400"><Calendar size={11} /> Τελευταία</p><p className="mt-2 text-base font-black text-slate-900">{latestOrder ? new Date(latestOrder.created_at).toLocaleDateString('el-GR') : '—'}</p></div>
             </div>
@@ -104,11 +105,11 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
           <div className="space-y-3">
             <div className="sticky top-0 z-10 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="search" value={orderQuery} onChange={event => setOrderQuery(event.target.value)} placeholder="Κωδικός, ημερομηνία, SKU, κατηγορία…" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-3 text-xs font-bold outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15" /></div>
-              <p className="mt-2 text-[10px] font-semibold text-slate-500">{filteredOrders.length} από {customerOrders.length} παραγγελίες</p>
+              <p className="mt-2 text-[10px] font-semibold text-slate-500">{formatNumber(filteredOrders.length)} από {formatNumber(customerOrders.length)} παραγγελίες</p>
             </div>
             {filteredOrders.length > 0 ? filteredOrders.map(order => {
               const net = order.total_price / (1 + (order.vat_rate ?? 0.24));
-              return <article key={order.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-all font-mono text-[11px] font-black text-slate-800">{order.id}</p><p className="mt-1 text-[10px] font-semibold text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')} · {order.items.reduce((sum, item) => sum + item.quantity, 0)} τεμ.</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span></div><div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3"><div className="flex min-w-0 flex-wrap gap-1">{order.items.slice(0, 4).map((item, index) => { const spNote = getSpecialCreationDisplayNote(item.sku, item.notes); return <span key={item.line_id || `${item.sku}-${index}`} className="max-w-full whitespace-normal break-words rounded-md bg-slate-100 px-1.5 py-1 font-mono text-[9px] font-bold text-slate-500">{item.sku}{spNote ? ` — ${spNote}` : ''}</span>; })}{order.items.length > 4 && <span className="rounded-md bg-slate-100 px-1.5 py-1 text-[9px] font-bold text-slate-500">+{order.items.length - 4}</span>}</div><p className="shrink-0 font-mono text-sm font-black text-slate-900">{formatCurrency(net)}</p></div></article>;
+              return <article key={order.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-all font-mono text-[11px] font-black text-slate-800">{order.id}</p><p className="mt-1 text-[10px] font-semibold text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')} · {formatNumber(order.items.reduce((sum, item) => sum + item.quantity, 0))} τεμ.</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span></div><div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3"><div className="flex min-w-0 flex-wrap gap-1">{order.items.slice(0, 4).map((item, index) => { const spNote = getSpecialCreationDisplayNote(item.sku, item.notes); return <span key={item.line_id || `${item.sku}-${index}`} className="max-w-full whitespace-normal break-words rounded-md bg-slate-100 px-1.5 py-1 font-mono text-[9px] font-bold text-slate-500">{item.sku}{spNote ? ` — ${spNote}` : ''}</span>; })}{order.items.length > 4 && <span className="rounded-md bg-slate-100 px-1.5 py-1 text-[9px] font-bold text-slate-500">+{formatNumber(order.items.length - 4)}</span>}</div><p className="shrink-0 font-mono text-sm font-black text-slate-900">{formatCurrency(net)}</p></div></article>;
             }) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs font-semibold text-slate-500">Δεν βρέθηκαν παραγγελίες.</div>}
           </div>
         )}

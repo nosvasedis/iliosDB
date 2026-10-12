@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
@@ -268,7 +269,7 @@ const DesktopSettingStoneModal: React.FC<{
                         </div>
                         <div>
                             <h3 className="font-black text-slate-900 text-lg">Πέτρες Καρφωτή</h3>
-                            <p className="text-xs text-slate-500 font-medium">{settingBatches.length} παρτίδες στο στάδιο Καρφωτής</p>
+                            <p className="text-xs text-slate-500 font-medium">{formatNumber(settingBatches.length)} παρτίδες στο στάδιο Καρφωτής</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
@@ -302,7 +303,7 @@ const DesktopSettingStoneModal: React.FC<{
                                     )}
                                     <div className={`text-[10px] font-black mt-1 ${
                                         selectedOrderKey === order.key ? 'text-purple-600' : 'text-slate-400'
-                                    }`}>{order.batchCount} παρτίδες</div>
+                                    }`}>{formatNumber(order.batchCount)} παρτίδες</div>
                                 </button>
                             ))}
                             {orderList.length === 0 && (
@@ -338,7 +339,7 @@ const DesktopSettingStoneModal: React.FC<{
                                                     )}
                                                 </div>
                                                 <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-sm shrink-0">
-                                                    {b.quantity} τμχ
+                                                    {formatNumber(b.quantity)} τμχ
                                                 </span>
                                             </div>
                                         ))}
@@ -359,7 +360,7 @@ const DesktopSettingStoneModal: React.FC<{
                                                         )}
                                                     </div>
                                                     <div className="text-right shrink-0">
-                                                        <div className="text-4xl font-black text-purple-700 leading-none">{stone.quantity}</div>
+                                                        <div className="text-4xl font-black text-purple-700 leading-none">{formatNumber(stone.quantity)}</div>
                                                         <div className="text-[10px] text-slate-400 font-bold mt-0.5">{stone.unit}</div>
                                                     </div>
                                                 </div>
@@ -663,7 +664,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                         </h3>
                         <p className="text-xs text-slate-500 mt-1">
                             Επιλέξτε παρτίδες για εκτύπωση
-                            <span className={`ml-2 font-black ${theme.metaText}`}>· {selectedIds.size}/{visibleBatches.length}</span>
+                            <span className={`ml-2 font-black ${theme.metaText}`}>· {selectedIds.size}/{formatNumber(visibleBatches.length)}</span>
                         </p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors"><X size={20} /></button>
@@ -685,7 +686,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 }`}
                                 title="Εμφάνιση και επιλογή όλων των παρτίδων Τεχνίτη"
                             >
-                                Όλα <span className="font-mono text-[10px] opacity-70">({batches.length})</span>
+                                Όλα <span className="font-mono text-[10px] opacity-70">({formatNumber(batches.length)})</span>
                             </button>
 
                             {/* Pending dispatch */}
@@ -702,7 +703,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 >
                                     <span className={`w-2 h-2 rounded-full ${substageFilter === 'pending' ? 'bg-white/70' : 'bg-amber-400'}`} />
                                     Εκκρεμεί
-                                    <span className={`font-mono text-[10px] ${substageFilter === 'pending' ? 'opacity-80' : 'opacity-60'}`}>({pendingCount})</span>
+                                    <span className={`font-mono text-[10px] ${substageFilter === 'pending' ? 'opacity-80' : 'opacity-60'}`}>({formatNumber(pendingCount)})</span>
                                 </button>
                             )}
 
@@ -720,7 +721,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 >
                                     <span className={`w-2 h-2 rounded-full ${substageFilter === 'active' ? 'bg-white/70' : 'bg-blue-400'}`} />
                                     Στον Τεχνίτη
-                                    <span className={`font-mono text-[10px] ${substageFilter === 'active' ? 'opacity-80' : 'opacity-60'}`}>({activeCount})</span>
+                                    <span className={`font-mono text-[10px] ${substageFilter === 'active' ? 'opacity-80' : 'opacity-60'}`}>({formatNumber(activeCount)})</span>
                                 </button>
                             )}
                         </div>
@@ -756,7 +757,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 }`}
                                 title="Εμφάνιση και επιλογή όλων των παρτίδων"
                             >
-                                Όλες <span className="font-mono text-[10px] opacity-70">({batches.length})</span>
+                                Όλες <span className="font-mono text-[10px] opacity-70">({formatNumber(batches.length)})</span>
                             </button>
 
                             {withOrderCount > 0 && (
@@ -772,7 +773,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 >
                                     <span className={`w-2 h-2 rounded-full ${orderScopeFilter === 'withOrder' ? 'bg-white/70' : 'bg-indigo-400'}`} />
                                     Με εντολή
-                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'withOrder' ? 'opacity-80' : 'opacity-60'}`}>({withOrderCount})</span>
+                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'withOrder' ? 'opacity-80' : 'opacity-60'}`}>({formatNumber(withOrderCount)})</span>
                                 </button>
                             )}
 
@@ -789,7 +790,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 >
                                     <span className={`w-2 h-2 rounded-full ${orderScopeFilter === 'noOrder' ? 'bg-white/70' : 'bg-slate-400'}`} />
                                     Χωρίς εντολή
-                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'noOrder' ? 'opacity-80' : 'opacity-60'}`}>({noOrderCount})</span>
+                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'noOrder' ? 'opacity-80' : 'opacity-60'}`}>({formatNumber(noOrderCount)})</span>
                                 </button>
                             )}
                         </div>
@@ -882,7 +883,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-black text-slate-900 text-sm truncate">{group.name}</div>
-                                        <div className="text-[10px] text-slate-400 font-medium mt-0.5">{group.items.length} παρτίδες · {group.items.reduce((s, b) => s + b.quantity, 0)} τεμάχια</div>
+                                        <div className="text-[10px] text-slate-400 font-medium mt-0.5">{formatNumber(group.items.length)} παρτίδες · {formatNumber(group.items.reduce((s, b) => s + b.quantity, 0))} τεμάχια</div>
                                     </div>
                                 </div>
                                 {/* Batch items */}
@@ -907,7 +908,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                                     )}
                                                 </div>
                                                 <span className="text-xs font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg shrink-0">
-                                                    ×{item.quantity}
+                                                    ×{formatNumber(item.quantity)}
                                                 </span>
                                             </div>
                                         </div>
@@ -924,7 +925,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                 {/* ── Footer ── */}
                 <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-400 font-medium">
-                        {selectedIds.size} / {visibleBatches.length} παρτίδες επιλεγμένες
+                        {selectedIds.size} / {formatNumber(visibleBatches.length)} παρτίδες επιλεγμένες
                         {showPolishingSubstages && substageFilter !== 'all' && (
                             <span className="ml-1.5 text-[10px] font-black uppercase tracking-wide text-blue-500">
                                 · {substageFilter === 'pending' ? 'Εκκρεμεί Αποστολή' : 'Στον Τεχνίτη'}
@@ -1060,7 +1061,7 @@ const QuickProductionPickerModal = ({
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                                                {entry.batchesCount} παρτίδες
+                                                {formatNumber(entry.batchesCount)} παρτίδες
                                             </span>
                                         </div>
                                     </div>
@@ -1075,7 +1076,7 @@ const QuickProductionPickerModal = ({
                                                 const isReady = stage === ProductionStage.Ready;
                                                 const chipTitle =
                                                     onHoldChip > 0
-                                                        ? `${config.label}: ${qty} τμχ (${onHoldChip} σε αναμονή)`
+                                                        ? `${config.label}: ${formatNumber(qty)} τμχ (${formatNumber(onHoldChip)} σε αναμονή)`
                                                         : config.label;
 
                                                 return (
@@ -1086,7 +1087,7 @@ const QuickProductionPickerModal = ({
                                                     >
                                                         <div className="flex items-center gap-1 shrink-0">
                                                             <span className="opacity-70">{config.shortLabel}</span>
-                                                            <span>{qty}</span>
+                                                            <span>{formatNumber(qty)}</span>
                                                         </div>
                                                         <StageOnHoldMiniStrip
                                                             totalQty={qty}
@@ -1112,8 +1113,8 @@ const QuickProductionPickerModal = ({
                                                     const activeQty = Math.max(0, qty - onHoldQty);
                                                     const stageTitle =
                                                         onHoldQty > 0
-                                                            ? `${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%) — ${onHoldQty} σε αναμονή`
-                                                            : `${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%)`;
+                                                            ? `${STAGE_DISPLAY[stage].label}: ${formatNumber(qty)} τμχ (${formatNumber(Math.round(pct))}%) — ${formatNumber(onHoldQty)} σε αναμονή`
+                                                            : `${STAGE_DISPLAY[stage].label}: ${formatNumber(qty)} τμχ (${formatNumber(Math.round(pct))}%)`;
                                                     return (
                                                         <div
                                                             key={stage}
@@ -1125,14 +1126,14 @@ const QuickProductionPickerModal = ({
                                                                 <div
                                                                     className={`h-full min-w-0 ${STAGE_BAR_COLOR[stage]}`}
                                                                     style={{ flex: `${activeQty} 1 0%` }}
-                                                                    title={`${STAGE_DISPLAY[stage].label} (ενεργά): ${activeQty} τμχ`}
+                                                                    title={`${STAGE_DISPLAY[stage].label} (ενεργά): ${formatNumber(activeQty)} τμχ`}
                                                                 />
                                                             )}
                                                             {onHoldQty > 0 && (
                                                                 <div
                                                                     className="h-full min-w-0 bg-amber-400"
                                                                     style={{ flex: `${onHoldQty} 1 0%` }}
-                                                                    title={`Σε Αναμονή: ${onHoldQty} τμχ @ ${STAGE_DISPLAY[stage].label}`}
+                                                                    title={`Σε Αναμονή: ${formatNumber(onHoldQty)} τμχ @ ${STAGE_DISPLAY[stage].label}`}
                                                                 />
                                                             )}
                                                         </div>
@@ -1144,13 +1145,13 @@ const QuickProductionPickerModal = ({
                                         {/* Summary bar */}
                                         <div className="flex items-center gap-2 text-[10px]">
                                             <span className="text-slate-500 font-medium">Σύνολο:</span>
-                                            <span className="font-bold text-slate-700">{entry.totalQty} τμχ</span>
+                                            <span className="font-bold text-slate-700">{formatNumber(entry.totalQty)} τμχ</span>
                                             <span className="text-slate-300">|</span>
-                                            <span className="text-blue-600 font-bold">{entry.inProgressQty} σε ροή</span>
+                                            <span className="text-blue-600 font-bold">{formatNumber(entry.inProgressQty)} σε ροή</span>
                                             {entry.readyQty > 0 && (
                                                 <>
                                                     <span className="text-slate-300">|</span>
-                                                    <span className="text-emerald-600 font-bold">{entry.readyQty} έτοιμα ✓</span>
+                                                    <span className="text-emerald-600 font-bold">{formatNumber(entry.readyQty)} έτοιμα ✓</span>
                                                 </>
                                             )}
                                         </div>
@@ -1336,7 +1337,7 @@ const AssemblyOrderSelectorModal = ({
                                 >
                                     <span className={`w-2 h-2 rounded-full ${active ? 'bg-white/70' : cfg.dotColor}`} />
                                     {cfg.shortLabel}
-                                    <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{total}</span>
+                                    <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{formatNumber(total)}</span>
                                     {cfg.id === ProductionStage.Polishing && (
                                         <span className={`text-[9px] ml-0.5 ${active ? 'opacity-70' : 'opacity-50'}`}>
                                             (εκκρ./ενεργό)
@@ -1364,7 +1365,7 @@ const AssemblyOrderSelectorModal = ({
                                     >
                                         <span className={`w-2 h-2 rounded-full ${active ? 'bg-white/70' : 'bg-emerald-400'}`} />
                                         Έτοιμα
-                                        <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{total}</span>
+                                        <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{formatNumber(total)}</span>
                                         {!active && <span className="text-[9px] opacity-50 ml-0.5">(opt-in)</span>}
                                     </button>
                                 </>
@@ -1489,14 +1490,14 @@ const AssemblyOrderSelectorModal = ({
                                                     >
                                                         <span className={`w-1.5 h-1.5 rounded-full ${isFilteredStage ? 'bg-white/70' : cfg.dotColor}`} />
                                                         {cfg.shortLabel}
-                                                        <span className="font-mono ml-0.5">{qty} τμχ</span>
+                                                        <span className="font-mono ml-0.5">{formatNumber(qty)} τμχ</span>
                                                         {isReady && !isFilteredStage && (
                                                             <span className="ml-1 text-[9px] opacity-70">(δεν εκτυπώνεται)</span>
                                                         )}
                                                         {/* Polishing sub-stages */}
                                                         {cfg.id === ProductionStage.Polishing && (candidate.polishingPendingQty > 0 || candidate.polishingActiveQty > 0) && (
                                                             <span className="ml-1 opacity-70 font-normal">
-                                                                (εκκρ.: {candidate.polishingPendingQty} / ενεργό: {candidate.polishingActiveQty})
+                                                                (εκκρ.: {formatNumber(candidate.polishingPendingQty)} / ενεργό: {formatNumber(candidate.polishingActiveQty)})
                                                             </span>
                                                         )}
                                                     </span>
@@ -1508,16 +1509,16 @@ const AssemblyOrderSelectorModal = ({
                                     {/* Row 3: assembly summary */}
                                     <div className="mt-2.5 flex items-center gap-2 flex-wrap">
                                         <span className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                                            {candidate.assemblySkuCount} κωδ. συναρμ.
+                                            {formatNumber(candidate.assemblySkuCount)} κωδ. συναρμ.
                                         </span>
                                         <span className="bg-pink-50 border border-pink-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-pink-700">
-                                            {candidate.totalAssemblyQty} τεμ. (εκκρεμεί)
+                                            {formatNumber(candidate.totalAssemblyQty)} τεμ. (εκκρεμεί)
                                         </span>
                                         {activeStageFilter.size > 0 && (() => {
                                             const filteredQty = Array.from(activeStageFilter).reduce((sum, s) => sum + (candidate.stageBreakdown[s] || 0), 0);
                                             return filteredQty > 0 ? (
                                                 <span className="bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                                    ↳ {filteredQty} τμχ στα επιλεγμένα στάδια
+                                                    ↳ {formatNumber(filteredQty)} τμχ στα επιλεγμένα στάδια
                                                 </span>
                                             ) : null;
                                         })()}
@@ -1537,7 +1538,7 @@ const AssemblyOrderSelectorModal = ({
                 {/* ── Footer ── */}
                 <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-400 font-medium">
-                        {selectedCount} επιλεγμένες εντολές
+                        {formatNumber(selectedCount)} επιλεγμένες εντολές
                         {activeStageFilter.size > 0 && (
                             <span className="ml-1.5 text-pink-600 font-bold">
                                 · φίλτρο: {Array.from(activeStageFilter).map(s => ASSEMBLY_STAGE_CFG.find(c => c.id === s)?.shortLabel).join(', ')}
@@ -1561,7 +1562,7 @@ const AssemblyOrderSelectorModal = ({
                             className="px-6 py-2.5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             <Printer size={18} />
-                            {activeStageFilter.size > 0 ? 'Εκτύπωση επιλεγμένων σταδίων' : 'Εκτύπωση'} ({selectedCount})
+                            {activeStageFilter.size > 0 ? 'Εκτύπωση επιλεγμένων σταδίων' : 'Εκτύπωση'} ({formatNumber(selectedCount)})
                         </button>
                     </div>
                 </div>
@@ -1623,7 +1624,7 @@ const BulkNoteModal = ({ count, onClose, onSave, isProcessing }: { count: number
                 </div>
                 <div className="p-6">
                     <div className="mb-4 text-xs text-slate-500">
-                        Η σημείωση θα εφαρμοστεί σε <strong>{count} επιλεγμένες παρτίδες</strong>. Τυχόν υπάρχουσες σημειώσεις θα αντικατασταθούν.
+                        Η σημείωση θα εφαρμοστεί σε <strong>{formatNumber(count)} επιλεγμένες παρτίδες</strong>. Τυχόν υπάρχουσες σημειώσεις θα αντικατασταθούν.
                     </div>
                     <textarea
                         value={note}
@@ -1780,8 +1781,8 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                         </label>
                         <p className="text-xs text-slate-400 mb-3">
                             {isReceive
-                                ? `Πόσα από τα ${batch.quantity} τμχ παραδόθηκαν από τον προμηθευτή;`
-                                : `Διαθέσιμα σε αυτή την παρτίδα: ${batch.quantity}`}
+                                ? `Πόσα από τα ${formatNumber(batch.quantity)} τμχ παραδόθηκαν από τον προμηθευτή;`
+                                : `Διαθέσιμα σε αυτή την παρτίδα: ${formatNumber(batch.quantity)}`}
                         </p>
                         <input
                             type="number"
@@ -1936,7 +1937,7 @@ const StageInspectorModal: React.FC<{
                             <h3 className="font-black text-slate-900 text-xl">{stage.label}</h3>
                             {onHoldCount > 0 && (
                                 <span className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
-                                    <PauseCircle size={11} /> {onHoldCount} σε αναμονή
+                                    <PauseCircle size={11} /> {formatNumber(onHoldCount)} σε αναμονή
                                 </span>
                             )}
                         </div>
@@ -1964,17 +1965,17 @@ const StageInspectorModal: React.FC<{
                     <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παρτίδες</span>
-                            <span className="text-sm font-black text-slate-900 ml-1">{filtered.length}</span>
-                            <span className="text-[10px] text-slate-400 font-medium">/ {totalQty} τεμ.</span>
+                            <span className="text-sm font-black text-slate-900 ml-1">{formatNumber(filtered.length)}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">/ {formatNumber(totalQty)} τεμ.</span>
                         </div>
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παραγγελίες</span>
-                            <span className="text-sm font-black text-slate-900 ml-1">{orderCount}</span>
+                            <span className="text-sm font-black text-slate-900 ml-1">{formatNumber(orderCount)}</span>
                         </div>
                         {onHoldCount > 0 && (
                             <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                                 <PauseCircle size={12} className="text-amber-500" />
-                                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">{onHoldCount} αναμονή</span>
+                                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">{formatNumber(onHoldCount)} αναμονή</span>
                             </div>
                         )}
                     </div>
@@ -2036,11 +2037,11 @@ const StageInspectorModal: React.FC<{
                                 <Package size={13} />
                                 Αναμονή Αποστολής
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
-                                    {pendingCount}
+                                    {formatNumber(pendingCount)}
                                 </span>
                                 {pendingOnHoldCount > 0 && (
                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 animate-pulse ${polishingTab === 'pending' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
-                                        <PauseCircle size={9} className="fill-current shrink-0" />{pendingOnHoldCount}
+                                        <PauseCircle size={9} className="fill-current shrink-0" />{formatNumber(pendingOnHoldCount)}
                                     </span>
                                 )}
                             </button>
@@ -2055,11 +2056,11 @@ const StageInspectorModal: React.FC<{
                                 <Hammer size={13} />
                                 Στον Τεχνίτη
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
-                                    {dispatchedCount}
+                                    {formatNumber(dispatchedCount)}
                                 </span>
                                 {dispatchedOnHoldCount > 0 && (
                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 animate-pulse ${polishingTab === 'dispatched' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
-                                        <PauseCircle size={9} className="fill-current shrink-0" />{dispatchedOnHoldCount}
+                                        <PauseCircle size={9} className="fill-current shrink-0" />{formatNumber(dispatchedOnHoldCount)}
                                     </span>
                                 )}
                             </button>
@@ -2109,7 +2110,7 @@ const StageInspectorModal: React.FC<{
                                                 <span className={`text-sm font-black truncate ${colors.text}`}>{currentCustomer}</span>
                                             </div>
                                             <span className="text-[11px] font-semibold text-slate-500 shrink-0">
-                                                {groupedByClient.get(currentCustomer)?.totalQty ?? batch.quantity} τεμ.
+                                                {formatNumber(groupedByClient.get(currentCustomer)?.totalQty ?? batch.quantity)} τεμ.
                                             </span>
                                         </div>
                                     )}
@@ -2122,7 +2123,7 @@ const StageInspectorModal: React.FC<{
                                                 Σε Αναμονή
                                             </span>
                                             <span className="ml-auto text-[11px] font-bold text-amber-600">
-                                                {filteredOnHoldCount} παρτ.
+                                                {formatNumber(filteredOnHoldCount)} παρτ.
                                             </span>
                                         </div>
                                     )}
@@ -2174,7 +2175,7 @@ const StageInspectorModal: React.FC<{
                                                             </span>
                                                         )}
                                                         <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[11px] font-black border border-slate-200 shrink-0">
-                                                            ×{batch.quantity} τεμ
+                                                            ×{formatNumber(batch.quantity)} τεμ
                                                         </span>
                                                     </div>
                                                     {descriptor && (
@@ -2620,7 +2621,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast(
                 repairs.length === 1
                     ? 'Η Επισκευή μεταφέρθηκε σε Ποιοτικό έλεγχο και αφαιρέθηκε από την Παραγωγή.'
-                    : `${repairs.length} επισκευές μεταφέρθηκαν σε Ποιοτικό έλεγχο και αφαιρέθηκαν από την Παραγωγή.`,
+                    : `${formatNumber(repairs.length)} επισκευές μεταφέρθηκαν σε Ποιοτικό έλεγχο και αφαιρέθηκαν από την Παραγωγή.`,
                 'success',
             );
             return true;
@@ -2738,7 +2739,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             : targetStageInfo?.label;
         const confirmed = await confirm({
             title: 'Παραλαβή Εισαγόμενου',
-            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ) και τη μετακίνηση στο στάδιο "${targetLabel}"?`,
+            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${formatNumber(batch.quantity)} τμχ) και τη μετακίνηση στο στάδιο "${targetLabel}"?`,
             confirmText: 'Επιβεβαίωση'
         });
 
@@ -2835,7 +2836,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             }
 
             await invalidateOrdersAndBatches(queryClient);
-            showToast(isReceive ? `Παραλήφθηκαν ${quantityToMove} τμχ. Τα υπόλοιπα παραμένουν στην Αναμονή.` : 'Η παρτίδα μετακινήθηκε.', 'success');
+            showToast(isReceive ? `Παραλήφθηκαν ${formatNumber(quantityToMove)} τμχ. Τα υπόλοιπα παραμένουν στην Αναμονή.` : 'Η παρτίδα μετακινήθηκε.', 'success');
             dispatchLiveActivity({ type: isWholeMove ? 'batch_moved' : 'batch_split', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: quantityToMove, fromStage: batch.current_stage, toStage: targetStage });
             setSplitModalState(null);
 
@@ -2870,7 +2871,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
         const yes = await confirm({
             title: 'Διαγραφή Παρτίδας',
-            message: `Είστε σίγουροι ότι θέλετε να διαγράψετε την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ);`,
+            message: `Είστε σίγουροι ότι θέλετε να διαγράψετε την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${formatNumber(batch.quantity)} τμχ);`,
             isDestructive: true,
             confirmText: 'Διαγραφή'
         });
@@ -3006,7 +3007,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         try {
             const count = await productionRepository.markBatchesDispatched(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
-            showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+            showToast(`${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
             dispatchLiveActivity({ type: 'batch_dispatched', userName: profile?.full_name || 'Κάποιος', count });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
@@ -3027,7 +3028,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         try {
             const count = await productionRepository.markBatchesPendingDispatch(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
-            showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
+            showToast(`${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
             dispatchLiveActivity({ type: 'batch_recalled', userName: profile?.full_name || 'Κάποιος', count });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
@@ -3206,7 +3207,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             ]);
             await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             await invalidateOrdersAndBatches(queryClient);
-            showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
+            showToast(`${formatNumber(batchesToMove.length)} παρτίδες μετακινήθηκαν.`, 'success');
             dispatchLiveActivity({ type: 'batch_bulk_moved', userName: profile?.full_name || 'Κάποιος', count: batchesToMove.length, toStage: bulkMoveTarget ?? undefined });
             setMultiSelectIds(new Set());
             setBulkMoveTarget(null);
@@ -3373,8 +3374,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await invalidateOrdersAndBatches(queryClient);
             showToast(
                 result.movedCount > 0
-                    ? `${result.movedCount} παρτίδες ολοκληρώθηκαν.${
-                          result.skippedCount > 0 ? ` (${result.skippedCount} παραλείφθηκαν)` : ''
+                    ? `${formatNumber(result.movedCount)} παρτίδες ολοκληρώθηκαν.${
+                          result.skippedCount > 0 ? ` (${formatNumber(result.skippedCount)} παραλείφθηκαν)` : ''
                       }`
                     : 'Δεν υπήρξαν παρτίδες που μπόρεσαν να μετακινηθούν.',
                 result.movedCount > 0 ? 'success' : 'info'
@@ -3529,7 +3530,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 onPrintLabels(printQueue);
                 const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';
                 const totalQuantity = printQueue.reduce((sum, item) => sum + item.quantity, 0);
-                showToast(`Στάλθηκαν ${totalQuantity} τεμάχια για εκτύπωση ετικετών (${modeLabel}).`, "success");
+                showToast(`Στάλθηκαν ${formatNumber(totalQuantity)} τεμάχια για εκτύπωση ετικετών (${modeLabel}).`, "success");
             } else {
                 showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
             }
@@ -3551,7 +3552,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     : 'Χωρίς εντολή';
             } else {
                 orderId = '';
-                customerName = `Πολλαπλές εντολές (${orderIds.length})`;
+                customerName = `Πολλαπλές εντολές (${formatNumber(orderIds.length)})`;
             }
             onPrintStageBatches({
                 stageName: meta.stageName,
@@ -3710,7 +3711,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         <Wrench size={15} />
                         {pendingRepairBatches.length > 0 && (
                             <span className={`absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black ${showRepairIntake ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'}`}>
-                                {pendingRepairBatches.length}
+                                {formatNumber(pendingRepairBatches.length)}
                             </span>
                         )}
                     </button>
@@ -3731,7 +3732,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         <HandHeart size={15} />
                         {consignmentBatchCount > 0 && (
                             <span className={`absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black ${workflowFilter === 'consignment' ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'}`}>
-                                {consignmentBatchCount}
+                                {formatNumber(consignmentBatchCount)}
                             </span>
                         )}
                     </button>
@@ -3812,7 +3813,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                             <div className="mt-0.5 text-[10px] font-bold text-slate-500">{batch.customer_name || 'Χωρίς πελάτη'}</div>
                                                         </div>
                                                     </div>
-                                                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{batch.quantity} τεμ.</span>
+                                                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{formatNumber(batch.quantity)} τεμ.</span>
                                                 </div>
                                                 <div className="mt-3 grid grid-cols-2 gap-1">
                                                     {PRODUCTION_STAGES.filter(stage => stage.id !== ProductionStage.AwaitingDelivery && stage.id !== ProductionStage.Ready).flatMap(stage => {
@@ -3925,7 +3926,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     </button>
                                                     );
                                                 })()}
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{polishingPendingBatches.length}</span>
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{formatNumber(polishingPendingBatches.length)}</span>
                                                 <button
                                                     onClick={() => setPolishingFocus(polishingFocus === 'pending' ? 'equal' : 'pending')}
                                                     className="p-1.5 rounded-lg bg-white shadow-sm text-teal-500 hover:bg-teal-100 hover:text-teal-700 transition-colors"
@@ -3977,7 +3978,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-blue-700">{polishingDispatchedBatches.length}</span>
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-blue-700">{formatNumber(polishingDispatchedBatches.length)}</span>
                                                 <button
                                                     onClick={() => setPolishingFocus(polishingFocus === 'dispatched' ? 'equal' : 'dispatched')}
                                                     className="p-1.5 rounded-lg bg-white shadow-sm text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
@@ -4083,7 +4084,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </button>
                                             </>
                                         )}
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{formatNumber(stageBatches.length)}</span>
                                         <div className="lg:hidden text-slate-400">
                                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                         </div>
@@ -4348,7 +4349,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             </div>
                             <span className="text-sm font-bold text-white/70 whitespace-nowrap">
                                 {isBulkMoving && inFlightSelectedCount > 0
-                                    ? `Μετακινείται ${inFlightSelectedCount}…`
+                                    ? `Μετακινείται ${formatNumber(inFlightSelectedCount)}…`
                                     : 'επιλεγμένες παρτίδες'}
                             </span>
                         </div>

@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -107,7 +108,7 @@ export default function MobilePricing() {
                             <div className="flex-1 text-right">
                                 <div className="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Περιθώριο</div>
                                 <div className={`text-xs font-black flex items-center justify-end gap-1 ${item.margin < 30 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    <TrendingUp size={10}/> {item.margin.toFixed(1)}%
+                                    <TrendingUp size={10}/> {formatDecimal(item.margin, 1)}%
                                 </div>
                             </div>
                         </div>

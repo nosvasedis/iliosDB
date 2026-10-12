@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
 import SbzSettings, { useSbzStatus } from './legal/SbzSettings';
 import CreditDocumentModal from './legal/CreditDocumentModal';
@@ -395,7 +396,7 @@ const VatExemptionCategorySelect = ({
       >
         <option value="">Επιλέξτε την πραγματική περίπτωση...</option>
         {hasInvalidStoredValue && (
-          <option value={value}>Μη έγκυρος αποθηκευμένος κωδικός: {value}</option>
+          <option value={value}>Μη έγκυρος αποθηκευμένος κωδικός: {formatNumber(value)}</option>
         )}
         {AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => (
           <option key={option.category} value={option.category}>
@@ -626,7 +627,7 @@ const NumberingAlignmentModal = ({
                   <div>
                     <div className={`font-black ${hasChanges ? 'text-amber-950' : 'text-emerald-950'}`}>
                       {hasChanges
-                        ? `${preview.changes.length} ${preview.changes.length === 1 ? 'σειρά χρειάζεται' : 'σειρές χρειάζονται'} ενημέρωση`
+                        ? `${formatNumber(preview.changes.length)} ${preview.changes.length === 1 ? 'σειρά χρειάζεται' : 'σειρές χρειάζονται'} ενημέρωση`
                         : 'Η αρίθμηση είναι ήδη ασφαλής'}
                     </div>
                     <div className={`mt-1 text-sm font-medium ${hasChanges ? 'text-amber-800' : 'text-emerald-800'}`}>
@@ -658,7 +659,7 @@ const NumberingAlignmentModal = ({
                           </div>
                         </div>
                         <div className="mt-3 text-xs font-bold text-slate-500">
-                          Μέγιστος Α/Α Αρχείου: {entry.max_aa ?? '—'} · {entry.document_count} εγγραφές
+                          Μέγιστος Α/Α Αρχείου: {entry.max_aa ?? '—'} · {formatNumber(entry.document_count)} εγγραφές
                         </div>
                       </div>
                     ))}
@@ -669,7 +670,7 @@ const NumberingAlignmentModal = ({
               <div className="grid gap-3 md:grid-cols-3">
                 <details className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" open={!hasChanges}>
                   <summary className="cursor-pointer text-sm font-black text-emerald-900">
-                    Ήδη ασφαλείς ({preview.already_safe.length})
+                    Ήδη ασφαλείς ({formatNumber(preview.already_safe.length)})
                   </summary>
                   <div className="mt-3 space-y-2 text-xs font-medium text-emerald-900">
                     {preview.already_safe.length ? preview.already_safe.map((entry) => (
@@ -683,7 +684,7 @@ const NumberingAlignmentModal = ({
 
                 <details className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
                   <summary className="cursor-pointer text-sm font-black text-sky-900">
-                    Νέες σειρές ({preview.new_namespaces.length})
+                    Νέες σειρές ({formatNumber(preview.new_namespaces.length)})
                   </summary>
                   <div className="mt-3 space-y-2 text-xs font-medium text-sky-900">
                     {preview.new_namespaces.length ? preview.new_namespaces.map((entry) => (
@@ -697,7 +698,7 @@ const NumberingAlignmentModal = ({
 
                 <details className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <summary className="cursor-pointer text-sm font-black text-slate-800">
-                    Ιστορικές σειρές ({preview.historical_series.length})
+                    Ιστορικές σειρές ({formatNumber(preview.historical_series.length)})
                   </summary>
                   <div className="mt-3 space-y-2 text-xs font-medium text-slate-700">
                     {preview.historical_series.length ? preview.historical_series.map((entry) => (
@@ -706,7 +707,7 @@ const NumberingAlignmentModal = ({
                           {getLegalDocumentKindLabel(entry.document_kind, entry.aade_document_type)} · σειρά «{entry.series}»
                         </div>
                         <div className="mt-1 opacity-75">
-                          {entry.document_count} εγγραφές · μέγιστος Α/Α {entry.max_aa ?? '—'} · δεν επηρεάζει τη σειρά «{entry.active_series}»
+                          {formatNumber(entry.document_count)} εγγραφές · μέγιστος Α/Α {entry.max_aa ?? '—'} · δεν επηρεάζει τη σειρά «{entry.active_series}»
                         </div>
                       </div>
                     )) : <div className="opacity-70">Καμία.</div>}
@@ -1711,7 +1712,7 @@ export default function LegalDocumentsPage({
       if (result.imported_count === 0 && result.updated_count === 0) {
         showToast('Ο συγχρονισμός ολοκληρώθηκε. Δεν βρέθηκαν παραστατικά για τα επιλεγμένα φίλτρα.', 'info');
       } else {
-        showToast(`Συγχρονισμός ολοκληρώθηκε: ${result.imported_count} νέα, ${result.updated_count} ενημερώσεις.`, 'success');
+        showToast(`Συγχρονισμός ολοκληρώθηκε: ${formatNumber(result.imported_count)} νέα, ${formatNumber(result.updated_count)} ενημερώσεις.`, 'success');
       }
 
     } catch (error: any) {
@@ -2007,7 +2008,7 @@ export default function LegalDocumentsPage({
         <p className="text-xs font-bold text-emerald-700">Στοιχεία → Έλεγχος → Έκδοση</p>
         <h2 className="text-xl font-black">Έλεγχος πιστωτικού</h2>
         <p className="text-sm text-slate-600">{document.counterpart.name} · Οι αξίες προέρχονται από το αρχικό τιμολόγιο.</p>
-        <div className="divide-y">{draftBundle.lines.map(line => <div key={line.id} className="flex justify-between gap-3 py-3"><span>{line.description} × {line.quantity}</span><strong>{money(line.gross_value)}</strong></div>)}</div>
+        <div className="divide-y">{draftBundle.lines.map(line => <div key={line.id} className="flex justify-between gap-3 py-3"><span>{line.description} × {formatNumber(line.quantity)}</span><strong>{money(line.gross_value)}</strong></div>)}</div>
         <p className="text-right text-lg font-black">Σύνολο πίστωσης: {money(document.totals.gross)}</p>
         <p className="text-sm text-slate-500">Το αρχικό τιμολόγιο διατηρείται στο αρχείο. Η επιστροφή ειδών στην αποθήκη καταχωρίζεται χωριστά.</p>
         {validationErrors.length > 0 && <p role="alert" className="text-red-700">{validationErrors[0].message}</p>}
@@ -2200,7 +2201,7 @@ export default function LegalDocumentsPage({
                   className="w-20 rounded border border-slate-200 bg-white px-2 py-1 text-right text-xs text-slate-800 outline-none"
                 />
               </label>
-              <div className="text-sm font-black text-slate-700">{draftBundle.lines.length} γραμμές · Έκπτωση {money(documentDiscountAmount)} · {money(document.totals.gross)}</div>
+              <div className="text-sm font-black text-slate-700">{formatNumber(draftBundle.lines.length)} γραμμές · Έκπτωση {money(documentDiscountAmount)} · {money(document.totals.gross)}</div>
               <ActionButton variant="secondary" disabled={!editable} onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, [
                 ...lines,
                 createManualLegalDocumentLine({
@@ -2233,7 +2234,7 @@ export default function LegalDocumentsPage({
               <tbody className="divide-y divide-slate-100">
                 {draftBundle.lines.map((line, index) => (
                   <tr key={line.id} className="align-middle">
-                    <td className="whitespace-nowrap px-1.5 py-1.5 font-bold">{line.line_number}</td>
+                    <td className="whitespace-nowrap px-1.5 py-1.5 font-bold">{formatNumber(line.line_number)}</td>
                     <td className="px-1.5 py-1.5">
                       <div className="flex min-w-0 items-center gap-0.5">
                         <div className="min-w-0 flex-1">
@@ -2679,7 +2680,7 @@ export default function LegalDocumentsPage({
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές προτιμολογίου</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-sm font-black text-slate-700">{proformaBundle.lines.length} γραμμές | {money(document.totals.gross)}</div>
+              <div className="text-sm font-black text-slate-700">{formatNumber(proformaBundle.lines.length)} γραμμές | {money(document.totals.gross)}</div>
               <ActionButton variant="secondary" onClick={() => updateProformaBundle((current, lines) => {
                 const baseLine = createManualLegalDocumentLine({
                   documentId: current.id,
@@ -2706,7 +2707,7 @@ export default function LegalDocumentsPage({
                       .filter((line) => line.source_metadata?.invoice_total_weight_source === 'missing')
                       .map((line) => (
                         <li key={line.id}>
-                          {line.sku || `Γραμμή ${line.line_number}`}
+                          {line.sku || `Γραμμή ${formatNumber(line.line_number)}`}
                           {line.source_metadata?.invoice_total_weight_missing_items?.length
                             ? `: ${line.source_metadata.invoice_total_weight_missing_items.join(', ')}`
                             : ''}
@@ -2738,7 +2739,7 @@ export default function LegalDocumentsPage({
               <tbody className="divide-y divide-slate-100">
                 {proformaBundle.lines.map((line, index) => (
                   <tr key={line.id}>
-                    <td className="px-3 py-2 font-bold">{line.line_number}</td>
+                    <td className="px-3 py-2 font-bold">{formatNumber(line.line_number)}</td>
                     <td className="px-3 py-2">
                       <SkuProductPicker
                         sku={line.sku}
@@ -2767,7 +2768,7 @@ export default function LegalDocumentsPage({
                         value={line.income_classification.classification_category}
                         onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...withManualIncomeCategory(item, event.target.value, '1.1'), proforma_id: item.proforma_id } : item), settingsDraft))}
                         className="mb-1 w-full min-w-[10rem] rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-none"
-                        aria-label={`Κατηγορία εσόδου γραμμής προτιμολογίου ${line.line_number}`}
+                        aria-label={`Κατηγορία εσόδου γραμμής προτιμολογίου ${formatNumber(line.line_number)}`}
                       >
                         {proformaIncomeCategoryOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -2994,7 +2995,7 @@ export default function LegalDocumentsPage({
         ? [
             `Τιμολόγιο: ${getLegalDocumentDisplayNumber(record.document)}`,
             `Δελτίο Αποστολής: ${getLegalDocumentDisplayNumber(deliveryLink.document)}`,
-            `Προϊόντα: ${deliveryLink.uniqueItemCount} κωδικοί · ${deliveryLink.totalQuantity} τεμάχια`,
+            `Προϊόντα: ${formatNumber(deliveryLink.uniqueItemCount)} κωδικοί · ${formatNumber(deliveryLink.totalQuantity)} τεμάχια`,
             '',
             'Θα εμφανίζονται χωριστά οι κωδικοί και οι ποσότητες του Δελτίου Αποστολής. Το επίσημο τιμολόγιο, οι αξίες και το XML της ΑΑΔΕ δεν θα μεταβληθούν.',
           ].join('\n')
@@ -3227,7 +3228,7 @@ export default function LegalDocumentsPage({
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="font-black text-slate-900">Αρχείο προτιμολογίων</h2>
-            <div className="text-sm font-medium text-slate-500">{filteredProformas.length} από {proformas.length} εγγραφές</div>
+            <div className="text-sm font-medium text-slate-500">{formatNumber(filteredProformas.length)} από {formatNumber(proformas.length)} εγγραφές</div>
           </div>
           <label className="relative w-full md:max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -3253,7 +3254,7 @@ export default function LegalDocumentsPage({
               className={`rounded-xl border px-3 py-2 text-left transition ${proformaStatusFilter === id ? 'ring-2 ring-sky-300' : 'hover:brightness-95'} ${className}`}
             >
               <div className="text-[10px] font-black uppercase tracking-wide">{label}</div>
-              <div className="text-xl font-black">{count}</div>
+              <div className="text-xl font-black">{formatNumber(count)}</div>
             </button>
           ))}
         </div>
@@ -3418,7 +3419,7 @@ export default function LegalDocumentsPage({
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="font-black text-slate-900">Αρχείο παραστατικών</h2>
-          <div className="text-sm font-medium text-slate-500">{filteredArchive.length} εγγραφές</div>
+          <div className="text-sm font-medium text-slate-500">{formatNumber(filteredArchive.length)} εγγραφές</div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
           <ActionButton onClick={() => { setDraftBundle(null); setProformaBundle(null); setActiveTab('new'); }}>
@@ -3570,7 +3571,7 @@ export default function LegalDocumentsPage({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
           <div>
             <h2 className="font-black text-slate-900">Ιστορικό συγχρονισμών</h2>
-            <div className="text-sm font-medium text-slate-500">{syncRuns.length} εκτελέσεις</div>
+            <div className="text-sm font-medium text-slate-500">{formatNumber(syncRuns.length)} εκτελέσεις</div>
           </div>
           <ActionButton
             variant="secondary"
@@ -3620,8 +3621,8 @@ export default function LegalDocumentsPage({
                 )}
               </div>
               <div className="text-right text-sm">
-                <div className="font-black text-emerald-700">{run.imported_count} νέα</div>
-                <div className="font-black text-slate-700">{run.updated_count} ενημερώσεις</div>
+                <div className="font-black text-emerald-700">{formatNumber(run.imported_count)} νέα</div>
+                <div className="font-black text-slate-700">{formatNumber(run.updated_count)} ενημερώσεις</div>
               </div>
             </div>
           ))}
@@ -3635,7 +3636,7 @@ export default function LegalDocumentsPage({
       <div className="border-b border-slate-100 p-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><Truck size={18} /></div>
-          <div><h2 className="font-black text-slate-900">Διακίνηση</h2><div className="text-sm font-medium text-slate-500">{deliveryDocuments.length} δελτία ή συνδυασμένα παραστατικά</div></div>
+          <div><h2 className="font-black text-slate-900">Διακίνηση</h2><div className="text-sm font-medium text-slate-500">{formatNumber(deliveryDocuments.length)} δελτία ή συνδυασμένα παραστατικά</div></div>
         </div>
         <p className="mt-2 max-w-3xl text-xs font-medium leading-relaxed text-slate-500">
           Προαιρετική ροή μετά την έκδοση: καταγραφή έναρξης/παράδοσης για παραστατικά με δελτίο διακίνησης.
@@ -3926,7 +3927,7 @@ export default function LegalDocumentsPage({
             tone="slate"
             title="Μεταφορείς"
             subtitle="Για δελτία διακίνησης. Αν χρησιμοποιείτε ίδια μέσα, δεν χρειάζεται εγγραφή."
-            action={<SettingsStatusBadge tone="slate">{carriers.length}</SettingsStatusBadge>}
+            action={<SettingsStatusBadge tone="slate">{formatNumber(carriers.length)}</SettingsStatusBadge>}
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <TextInput label="Όνομα" value={newCarrier.name} onChange={(value) => setNewCarrier((current) => ({ ...current, name: value }))} />
@@ -4005,10 +4006,10 @@ export default function LegalDocumentsPage({
 
   const statsStrip = (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700"><div className="text-[10px] font-black uppercase">Αποδεκτά</div><div className="text-lg font-black">{stats.issued}</div></div>
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{stats.failed}</div></div>
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{stats.printable}</div></div>
-      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{stats.proformas}</div></div>
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700"><div className="text-[10px] font-black uppercase">Αποδεκτά</div><div className="text-lg font-black">{formatNumber(stats.issued)}</div></div>
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{formatNumber(stats.failed)}</div></div>
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{formatNumber(stats.printable)}</div></div>
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{formatNumber(stats.proformas)}</div></div>
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}</div></div>
     </div>
   );

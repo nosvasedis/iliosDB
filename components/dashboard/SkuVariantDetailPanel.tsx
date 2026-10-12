@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import {
   Users,
@@ -98,7 +99,7 @@ function TimelineBars({ timeline }: { timeline: SkuVariantDetail['timeline'] }) 
               />
             </div>
             <span className="w-8 shrink-0 text-right text-[10px] font-black tabular-nums text-emerald-900">
-              {point.quantity}
+              {formatNumber(point.quantity)}
             </span>
           </div>
         ))}
@@ -123,11 +124,11 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
     String(summary.quantity),
     formatCurrency(summary.revenue),
     formatCurrency(summary.profit),
-    summary.revenue > 0 ? `${summary.margin.toFixed(1)}%` : '—',
+    summary.revenue > 0 ? `${formatDecimal(summary.margin, 1)}%` : '—',
     String(summary.customerCount),
     String(summary.orderCount),
     String(summary.shipmentCount),
-    `${summary.silverWeightGrams.toFixed(1)} g`,
+    `${formatDecimal(summary.silverWeightGrams, 1)} g`,
   ];
 
   const tabs: { id: DetailTab; label: string; hint?: string; count?: number }[] = [
@@ -188,7 +189,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                 {t.label}
                 {t.count != null && t.count > 0 && (
                   <span className={`ml-1 ${tab === t.id ? 'opacity-80' : 'opacity-60'}`}>
-                    ({t.count})
+                    ({formatNumber(t.count)})
                   </span>
                 )}
               </button>
@@ -261,14 +262,14 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
             {summary.priceOverrideCount > 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 ring-1 ring-amber-100">
                 <AlertTriangle size={14} className="text-amber-600" />
-                {summary.priceOverrideCount} γραμμ{summary.priceOverrideCount === 1 ? 'ή' : 'ές'} με χειροκίνητη τιμή
+                {formatNumber(summary.priceOverrideCount)} γραμμ{summary.priceOverrideCount === 1 ? 'ή' : 'ές'} με χειροκίνητη τιμή
               </div>
             )}
 
             {summary.giftQuantity > 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-3 py-2 text-xs font-bold text-fuchsia-900 ring-1 ring-fuchsia-100">
                 <Gift size={14} className="text-fuchsia-600" />
-                {summary.giftQuantity} τεμάχια δώρο (0€ έσοδα, κόστος παραγωγής μετράει)
+                {formatNumber(summary.giftQuantity)} τεμάχια δώρο (0€ έσοδα, κόστος παραγωγής μετράει)
               </div>
             )}
 
@@ -277,10 +278,10 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                 <p className="font-bold text-red-800">Γιατί αρνητικό κέρδος;</p>
                 <p className="mt-1 font-medium text-red-700/90">
                   {summary.giftQuantity > 0 && (
-                    <span>{summary.giftQuantity} τεμ. δώρο — το κόστος παραγωγής μετράει ως ζημία. </span>
+                    <span>{formatNumber(summary.giftQuantity)} τεμ. δώρο — το κόστος παραγωγής μετράει ως ζημία. </span>
                   )}
                   {summary.belowCostQuantity > 0 && (
-                    <span>{summary.belowCostQuantity} τεμ. κάτω από εκτιμώμενο κόστος. </span>
+                    <span>{formatNumber(summary.belowCostQuantity)} τεμ. κάτω από εκτιμώμενο κόστος. </span>
                   )}
                   {summary.giftQuantity === 0 && summary.belowCostQuantity === 0 && (
                     <span>Το συνολικό κόστος παραγωγής υπερβαίνει τα έσοδα.</span>
@@ -307,7 +308,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                         <SpecialCreationNote sku={detail.sku} note={row.itemNote} compact className="mt-1" />
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-sm font-black text-blue-900">{row.quantity} τεμ.</p>
+                        <p className="text-sm font-black text-blue-900">{formatNumber(row.quantity)} τεμ.</p>
                         <p className="text-[10px] font-semibold text-blue-600/80">{formatCurrency(row.revenue)}</p>
                       </div>
                     </button>
@@ -327,7 +328,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                     >
                       <span className="text-sm font-bold text-amber-900">{seller.name}</span>
                       <div className="text-right">
-                        <p className="text-xs font-black text-amber-900">{seller.quantity} τεμ.</p>
+                        <p className="text-xs font-black text-amber-900">{formatNumber(seller.quantity)} τεμ.</p>
                         <p className="text-[10px] text-amber-700/80">{formatCurrency(seller.revenue)}</p>
                       </div>
                     </div>
@@ -353,14 +354,14 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black text-violet-950">
-                        #{index + 1} {customer.name}
+                        #{formatNumber(index + 1)} {customer.name}
                       </p>
                       <p className="mt-0.5 text-[10px] font-semibold text-violet-600/80">
-                        {customer.orderCount} παραγγελί{customer.orderCount === 1 ? 'α' : 'ες'} · {customer.quantityShare.toFixed(1)}%
+                        {formatNumber(customer.orderCount)} παραγγελί{customer.orderCount === 1 ? 'α' : 'ες'} · {formatDecimal(customer.quantityShare, 1)}%
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-sm font-black text-violet-900">{customer.quantity} τεμ.</p>
+                      <p className="text-sm font-black text-violet-900">{formatNumber(customer.quantity)} τεμ.</p>
                       <p className="text-xs font-semibold text-blue-700">{formatCurrency(customer.revenue)}</p>
                       <p className={`text-[10px] font-bold ${customer.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                         {formatCurrency(customer.profit)}
@@ -411,7 +412,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                           {line.shipmentNumber != null && (
                             <span className="inline-flex items-center gap-0.5 rounded-md bg-cyan-50 px-1.5 py-0.5 text-cyan-800">
                               <Truck size={9} />
-                              #{line.shipmentNumber}
+                              #{formatNumber(line.shipmentNumber)}
                             </span>
                           )}
                           {line.sellerName && (
@@ -424,7 +425,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-sm font-black text-slate-800">
-                          {line.quantity}× {formatCurrency(line.unitPrice)}
+                          {formatNumber(line.quantity)}× {formatCurrency(line.unitPrice)}
                         </p>
                         <p className="text-xs font-semibold text-blue-700">{formatCurrency(line.net)}</p>
                         <p className={`text-[10px] font-bold ${line.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -463,7 +464,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
             <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 px-4 py-3 ring-1 ring-indigo-100">
               <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Εκκρεμεί αποστολή</p>
               <p className="mt-1 text-lg font-black text-indigo-950">
-                {detail.backlog.quantity} τεμ. · {formatCurrency(detail.backlog.net)}
+                {formatNumber(detail.backlog.quantity)} τεμ. · {formatCurrency(detail.backlog.net)}
               </p>
             </div>
             {detail.backlog.lines.map((line, index) => (
@@ -474,7 +475,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                 <p className="text-sm font-black text-indigo-950">{line.customerName}</p>
                 <SpecialCreationNote sku={line.sku} note={line.itemNote} compact className="mt-1" />
                 <p className="mt-0.5 text-[10px] text-indigo-700/80">
-                  #{line.orderId.slice(-8)} · {line.quantity} τεμ. · {formatCurrency(line.net)}
+                  #{line.orderId.slice(-8)} · {formatNumber(line.quantity)} τεμ. · {formatCurrency(line.net)}
                 </p>
               </div>
             ))}

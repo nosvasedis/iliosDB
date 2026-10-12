@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle2, AlertTriangle, Database, Image as ImageIcon, Settings, RefreshCw, Shield, Trash2, HardDrive } from 'lucide-react';
@@ -42,7 +43,7 @@ export default function BackupProgressModal({ isOpen, title, progress, isComplet
     const formatElapsed = (s: number) => {
         const mins = Math.floor(s / 60);
         const secs = s % 60;
-        return mins > 0 ? `${mins}λ ${secs}δ` : `${secs}δ`;
+        return mins > 0 ? `${formatNumber(mins)}λ ${formatNumber(secs)}δ` : `${formatNumber(secs)}δ`;
     };
 
     return (
@@ -82,7 +83,7 @@ export default function BackupProgressModal({ isOpen, title, progress, isComplet
 
                             {/* Stats row */}
                             <div className="flex justify-between text-xs text-slate-400 font-bold">
-                                <span>{progress.current} / {progress.total}</span>
+                                <span>{formatNumber(progress.current)} / {formatNumber(progress.total)}</span>
                                 <span>{formatElapsed(elapsed)}</span>
                             </div>
                         </>

@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import {
   Activity,
@@ -123,7 +124,7 @@ function DocumentsPaneContent({
     <div className="flex h-full flex-col justify-center gap-2">
       <p className="text-xs leading-relaxed text-slate-500">
         {issuedCount > 0
-          ? `${issuedCount} παραστατικά στην επιλεγμένη περίοδο.`
+          ? `${formatNumber(issuedCount)} παραστατικά στην επιλεγμένη περίοδο.`
           : 'Δεν έχουν εκδοθεί παραστατικά για την περίοδο.'}
       </p>
       <span
@@ -190,7 +191,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
             <div className="text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/60">Ασήμι Πωληθέν</p>
               <p className="mt-0.5 text-xl font-black tracking-tight tabular-nums">
-                {materials.silverSold.toFixed(3)}{' '}
+                {formatDecimal(materials.silverSold, 3)}{' '}
                 <span className="text-sm font-medium opacity-40">kg</span>
               </p>
               <p className="mt-0.5 text-xs font-bold text-emerald-300 tabular-nums">≈ {formatCurrency(materials.silverValue)}</p>
@@ -199,7 +200,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
             <div className="text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/60">Πέτρες & Υλικά</p>
               <p className="mt-0.5 text-lg font-black text-amber-400 tabular-nums">
-                {materials.stonesSold} <span className="text-sm font-medium opacity-40">τμχ</span>
+                {formatNumber(materials.stonesSold)} <span className="text-sm font-medium opacity-40">τμχ</span>
               </p>
             </div>
           </div>
@@ -223,13 +224,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
                   productionPulse.healthScore >= 80 ? 'text-emerald-600' : productionPulse.healthScore >= 50 ? 'text-amber-600' : 'text-red-600'
                 }`}
               >
-                {productionPulse.healthScore}%
+                {formatNumber(productionPulse.healthScore)}%
               </span>
             </div>
             <div className="space-y-1">
-              <StatLine label="Καθυστερήσεις (>48ω)" value={String(productionPulse.delayed)} valueClass="text-red-600" />
-              <StatLine label="Σε αναμονή" value={String(productionPulse.onHold)} valueClass="text-amber-600" />
-              <StatLine label="Έτοιμες παρτίδες" value={String(productionPulse.ready)} valueClass="text-emerald-600" />
+              <StatLine label="Καθυστερήσεις (>48ω)" value={formatNumber(productionPulse.delayed)} valueClass="text-red-600" />
+              <StatLine label="Σε αναμονή" value={formatNumber(productionPulse.onHold)} valueClass="text-amber-600" />
+              <StatLine label="Έτοιμες παρτίδες" value={formatNumber(productionPulse.ready)} valueClass="text-emerald-600" />
             </div>
           </div>
         </DashboardMosaicPane>
@@ -281,19 +282,19 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
           <div className="flex h-full flex-col items-center justify-center gap-2 px-1">
-            <p className="text-4xl font-black text-emerald-600 tabular-nums">{readyOrdersSummary.total}</p>
+            <p className="text-4xl font-black text-emerald-600 tabular-nums">{formatNumber(readyOrdersSummary.total)}</p>
             {readyOrdersSummary.total > 0 ? (
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {readyOrdersSummary.fullCount > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                    {readyOrdersSummary.fullCount} πλήρεις
+                    {formatNumber(readyOrdersSummary.fullCount)} πλήρεις
                   </span>
                 ) : null}
                 {readyOrdersSummary.partialCount > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
-                    {readyOrdersSummary.partialCount} μερική
+                    {formatNumber(readyOrdersSummary.partialCount)} μερική
                   </span>
                 ) : null}
               </div>
@@ -322,7 +323,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Μ.Ο. τεμάχια</p>
-              <p className="text-xl font-black text-slate-800 tabular-nums">{orderEconomics.averageBasketSize.toFixed(1)}</p>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{formatDecimal(orderEconomics.averageBasketSize, 1)}</p>
             </div>
           </div>
         </DashboardMosaicPane>
@@ -377,7 +378,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           onNavigate={onNavigate ? () => onNavigate('offers') : undefined}
         >
           <div className="flex h-full flex-col items-center justify-center">
-            <p className="text-3xl font-black text-blue-600 tabular-nums">{offersPipeline.count}</p>
+            <p className="text-3xl font-black text-blue-600 tabular-nums">{formatNumber(offersPipeline.count)}</p>
             <p className="mt-1 text-sm font-bold text-slate-600 tabular-nums">{formatCurrency(offersPipeline.totalValue)}</p>
             <p className="mt-0.5 text-[10px] text-slate-400">σε αναμονή απάντησης</p>
           </div>
@@ -535,7 +536,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
             <MosaicEmptyState message="Όλα τα είδη έχουν επαρκές απόθεμα." />
           ) : (
             <div className="flex h-full flex-col justify-center gap-2">
-              <p className="text-xs font-bold text-violet-600">{inventoryRisk.totalLowStock} είδη &lt; 5 τεμ.</p>
+              <p className="text-xs font-bold text-violet-600">{formatNumber(inventoryRisk.totalLowStock)} είδη &lt; 5 τεμ.</p>
               <div className="space-y-1.5">
                 {inventoryRisk.rows.map((row) => (
                   <div
@@ -543,12 +544,12 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
                     className="flex h-9 items-center justify-between rounded-xl bg-slate-50 px-2.5"
                   >
                     <span className="truncate text-xs font-bold text-slate-700">{row.label}</span>
-                    <span className="shrink-0 text-xs font-black text-red-600 tabular-nums">{row.stock} τεμ.</span>
+                    <span className="shrink-0 text-xs font-black text-red-600 tabular-nums">{formatNumber(row.stock)} τεμ.</span>
                   </div>
                 ))}
                 {inventoryRisk.totalLowStock > inventoryRisk.rows.length && (
                   <p className="text-center text-[10px] font-bold text-slate-400">
-                    +{inventoryRisk.totalLowStock - inventoryRisk.rows.length} ακόμη
+                    +{formatNumber(inventoryRisk.totalLowStock - inventoryRisk.rows.length)} ακόμη
                   </p>
                 )}
               </div>
@@ -570,7 +571,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
             <MosaicEmptyState message="Η ζήτηση καλύπτεται από το απόθεμα." />
           ) : (
             <div className="flex h-full flex-col justify-center gap-2">
-              <p className="text-xs font-bold text-amber-600">{demandPressure.totalPressure} είδη με έλλειμμα</p>
+              <p className="text-xs font-bold text-amber-600">{formatNumber(demandPressure.totalPressure)} είδη με έλλειμμα</p>
               <div className="space-y-1.5">
                 {demandPressure.rows.map((row) => (
                   <div
@@ -579,7 +580,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
                   >
                     <span className="truncate text-xs font-bold text-slate-700">{row.label}</span>
                     <span className="shrink-0 text-[10px] font-black text-amber-700 tabular-nums">
-                      {row.demand} ζήτ. / {row.stock} αποθ.
+                      {formatNumber(row.demand)} ζήτ. / {formatNumber(row.stock)} αποθ.
                     </span>
                   </div>
                 ))}

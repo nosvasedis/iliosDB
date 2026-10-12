@@ -1,3 +1,4 @@
+import { formatCurrency, formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { ReactNode } from 'react';
 import { StickyNote } from 'lucide-react';
 import { getSpecialCreationDisplayNote, isSpecialCreationSku } from '../utils/specialCreationSku';
@@ -33,7 +34,7 @@ export const CUSTOMER_PRINT_PAGE_CLASS =
 export const CUSTOMER_PRINT_MAIN_CLASS = 'customer-print-main flex-1 min-h-0 relative print:flex-none';
 
 function formatEuro(value: number) {
-    return `${value.toFixed(2).replace('.', ',')}€`;
+    return formatCurrency(value);
 }
 
 export interface CustomerPrintSummaryFooterProps {
@@ -77,7 +78,7 @@ export function CustomerPrintSummaryFooter({
                     {totalPieces != null && (
                         <div className="mb-0.5 flex justify-between border-b border-slate-200 pb-0.5 text-slate-700">
                             <span>Σύνολο Τεμαχίων:</span>
-                            <span className="tabular-nums font-bold">{totalPieces}</span>
+                            <span className="tabular-nums font-bold">{formatNumber(totalPieces)}</span>
                         </div>
                     )}
                     <div className="flex justify-between text-slate-600">
@@ -86,12 +87,12 @@ export function CustomerPrintSummaryFooter({
                     </div>
                     {discountAmount > 0 && (
                         <div className="flex justify-between text-rose-600">
-                            <span>Έκπτωση ({discountPercent}%):</span>
+                            <span>Έκπτωση ({formatNumber(discountPercent)}%):</span>
                             <span className="tabular-nums font-bold">-{formatEuro(discountAmount)}</span>
                         </div>
                     )}
                     <div className="mb-0.5 flex justify-between border-b border-slate-200 pb-0.5 text-slate-600">
-                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
+                        <span>Φ.Π.Α. ({formatDecimal((vatRate * 100), 0)}%):</span>
                         <span className="tabular-nums font-bold">{formatEuro(vatAmount)}</span>
                     </div>
                     <div className="flex justify-between font-black text-slate-900">

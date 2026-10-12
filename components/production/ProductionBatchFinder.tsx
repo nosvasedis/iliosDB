@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, {
     memo,
     useCallback,
@@ -360,7 +361,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
             {foundBatches.length > 0 && (
                 <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 border-b border-slate-100 shrink-0">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
-                        {foundBatches.length} αποτελέσματα
+                        {formatNumber(foundBatches.length)} αποτελέσματα
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                         {previousJumpTarget && (

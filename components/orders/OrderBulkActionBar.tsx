@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { Archive, ArchiveRestore, Ban, Loader2, Printer, Tag, UserCheck, X } from 'lucide-react';
@@ -44,7 +45,7 @@ export function OrderBulkActionBar({
                 )}
                 <div className="flex items-center gap-2 shrink-0">
                     <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/40">
-                        {count}
+                        {formatNumber(count)}
                     </div>
                     <span className="text-sm font-bold text-white/70 whitespace-nowrap">
                         {isProcessing ? 'Επεξεργασία…' : 'επιλεγμένες παραγγελίες'}

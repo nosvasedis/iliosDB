@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
@@ -95,7 +96,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 key={globalIndex}
                 className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-14 text-center flex-shrink-0">
                     <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
@@ -118,10 +119,10 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
-                    <div>{item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
+                    <div>{formatNumber(item.quantity)} x {formatDecimal(item.price_at_order, 2)}{isOverridden ? '*' : ''}</div>
                     {item.quantity !== 1 && (
                         <div className="mt-0.5 text-[9px] leading-none text-slate-400">
-                            {(item.quantity * item.price_at_order).toFixed(2).replace('.', ',')}
+                            {formatDecimal((item.quantity * item.price_at_order), 2)}
                         </div>
                     )}
                 </div>
@@ -147,7 +148,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Truck size={10}/> Τμήμα Προσφοράς #{shipment.shipment_number}</span>
+                        <span className="flex items-center gap-1"><Truck size={10}/> Τμήμα Προσφοράς #{formatNumber(shipment.shipment_number)}</span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
                         <span className="text-slate-300">|</span>
@@ -191,7 +192,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 <div className="flex shrink-0 flex-col justify-center px-1 text-right">
                     <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Καθαρή Αξία</span>
                     <span className="text-lg font-black leading-none text-slate-900 tabular-nums">
-                        {netAmount.toFixed(2).replace('.', ',')}&#8364;
+                        {formatDecimal(netAmount, 2)}&#8364;
                     </span>
                 </div>
             </div>

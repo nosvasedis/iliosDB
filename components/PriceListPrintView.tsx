@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo } from 'react';
 import { APP_LOGO } from '../constants';
@@ -96,7 +97,7 @@ export default function PriceListPrintView({ data }: Props) {
                     </div>
                     <div>
                         <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">ΣΥΝΟΛΟ</p>
-                        <p className="text-slate-800 font-bold text-sm">{data.items.length} είδη</p>
+                        <p className="text-slate-800 font-bold text-sm">{formatNumber(data.items.length)} είδη</p>
                     </div>
                 </div>
             </div>
@@ -131,7 +132,7 @@ export default function PriceListPrintView({ data }: Props) {
                                 {isSinglePrice ? (
                                     // If all variants have the same price, hide suffixes to save space/avoid clutter
                                     <span className="font-mono font-bold text-slate-700 text-[14px] whitespace-nowrap">
-                                        {item.priceGroups[0].price.toFixed(2)}€
+                                        {formatDecimal(item.priceGroups[0].price, 2)}€
                                     </span>
                                 ) : (
                                     (() => {
@@ -169,7 +170,7 @@ export default function PriceListPrintView({ data }: Props) {
                                                                     ))}
                                                                 </div>
                                                                 <span className="font-mono font-bold text-slate-600 text-[11px] whitespace-nowrap text-right">
-                                                                    {pg.price.toFixed(2)}€
+                                                                    {formatDecimal(pg.price, 2)}€
                                                                 </span>
                                                             </React.Fragment>
                                                         );
@@ -208,7 +209,7 @@ export default function PriceListPrintView({ data }: Props) {
                                                             </div>
                                                             {/* Price */}
                                                             <span className="font-mono font-bold text-slate-700 text-[12px] whitespace-nowrap">
-                                                                {pg.price.toFixed(2)}€
+                                                                {formatDecimal(pg.price, 2)}€
                                                             </span>
                                                         </div>
                                                     );

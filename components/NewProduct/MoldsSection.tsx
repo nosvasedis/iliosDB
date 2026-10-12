@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Plus, Minus, X, Search, Loader2 } from 'lucide-react';
 import { useNewProductState } from '../../hooks/useNewProductState';
@@ -49,7 +50,7 @@ export const MoldsSection: React.FC<Props> = ({ formState }) => {
                                         {selected ? (
                                             <div className="flex items-center gap-1 bg-white rounded-md border border-amber-200 shadow-sm">
                                                 <button onClick={() => actions.updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-slate-100 text-slate-500 ${selected.quantity === 1 ? 'opacity-30 cursor-not-allowed' : ''}`} disabled={selected.quantity === 1}><Minus size={12} /></button>
-                                                <span className="text-xs font-bold w-6 text-center">{selected.quantity}</span>
+                                                <span className="text-xs font-bold w-6 text-center">{formatNumber(selected.quantity)}</span>
                                                 <button onClick={() => actions.updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-slate-100 text-slate-500"><Plus size={12} /></button>
                                                 <div className="w-px h-4 bg-slate-100 mx-1"></div>
                                                 <button onClick={() => actions.removeMold(m.code)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-r-md"><X size={12} /></button>

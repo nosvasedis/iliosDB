@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import {
   PRODUCTION_SEND_STAGE_FILTER_ALL,
@@ -110,7 +111,7 @@ export const ProductionSendStageFilters = React.memo(function ProductionSendStag
             key={option.key}
             type="button"
             aria-pressed={active}
-            title={`${option.label}: ${option.quantity} τεμ.`}
+            title={`${option.label}: ${formatNumber(option.quantity)} τεμ.`}
             onClick={() => onChange(active ? PRODUCTION_SEND_STAGE_FILTER_ALL : option.key)}
             className={`flex items-center gap-1 pl-1.5 pr-1 py-1 rounded-lg text-[10px] font-black border transition-all whitespace-nowrap active:scale-[0.97] ${
               active ? styles.active : styles.idle
@@ -123,7 +124,7 @@ export const ProductionSendStageFilters = React.memo(function ProductionSendStag
                 active ? 'bg-black/15 text-current' : styles.countIdle
               }`}
             >
-              {option.quantity}
+              {formatNumber(option.quantity)}
             </span>
           </button>
         );

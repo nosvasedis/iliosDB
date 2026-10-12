@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { BatchStageHistoryEntry, ProductionBatch, ProductionStage } from '../types';
@@ -170,7 +171,7 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                             )}
                         </div>
                         <div className="mt-1 text-sm text-slate-500">
-                            Ποσότητα: <span className="font-bold text-slate-700">{batch.quantity} τεμ.</span>
+                            Ποσότητα: <span className="font-bold text-slate-700">{formatNumber(batch.quantity)} τεμ.</span>
                         </div>
                         <SpecialCreationNote sku={batch.sku} note={batch.notes} className="mt-2" />
                     </div>
@@ -213,7 +214,7 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                             </div>
                             <div className="flex items-center gap-2">
                                 <ArrowRight size={16} className="text-emerald-600" />
-                                <span>Μετακινήσεις: <span className="font-bold text-emerald-700">{sortedHistory.length}</span></span>
+                                <span>Μετακινήσεις: <span className="font-bold text-emerald-700">{formatNumber(sortedHistory.length)}</span></span>
                             </div>
                         </div>
                     )}

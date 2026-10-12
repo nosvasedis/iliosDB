@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { Filter, RotateCcw, ChevronDown } from 'lucide-react';
 import { Gender } from '../../types';
@@ -184,7 +185,7 @@ export default function SkuModalFiltersPanel({ facets, filters, onChange, open, 
           Φίλτρα
           {activeCount > 0 && (
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
-              {activeCount}
+              {formatNumber(activeCount)}
             </span>
           )}
         </span>

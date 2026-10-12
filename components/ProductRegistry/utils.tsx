@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 import React from 'react';
 import { Gem, Activity, Puzzle, Palette, Scroll, Box } from 'lucide-react';
 
@@ -26,7 +27,7 @@ export const SummaryRow: React.FC<SummaryRowProps> = ({ label, value, sub, color
             <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</span>
         </div>
         <div className="text-right">
-            <div className="font-mono font-bold text-slate-800 text-sm">{value.toFixed(2)}€</div>
+            <div className="font-mono font-bold text-slate-800 text-sm">{formatDecimal(value, 2)}€</div>
             {sub && <div className="text-[10px] text-slate-400 font-medium">{sub}</div>}
         </div>
     </div>

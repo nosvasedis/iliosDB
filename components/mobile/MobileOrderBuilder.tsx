@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../../types';
@@ -133,7 +134,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                 <div className="absolute bottom-0 inset-x-0 p-3">
                                     <div className="text-white font-black text-sm leading-tight truncate">{col.name}</div>
-                                    <div className="text-white/60 text-[9px] font-bold mt-0.5">{count} είδη</div>
+                                    <div className="text-white/60 text-[9px] font-bold mt-0.5">{formatNumber(count)} είδη</div>
                                 </div>
                             </button>
                         );
@@ -154,7 +155,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     <ChevronLeft size={16} />
                 </button>
                 <span className="font-black text-slate-800 flex-1 truncate">{selectedCollection?.name}</span>
-                <span className="text-[10px] text-slate-400 font-bold">{filteredProducts.length} είδη</span>
+                <span className="text-[10px] text-slate-400 font-bold">{formatNumber(filteredProducts.length)} είδη</span>
             </div>
             {/* Search */}
             <div className="relative shrink-0">
@@ -956,7 +957,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
                                 {items.filter(i => i.sku === activeMaster.sku).length > 0 && (
                                     <div className="mt-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                                        <Check size={9} /> {items.filter(i => i.sku === activeMaster.sku).length} προστέθηκαν
+                                        <Check size={9} /> {formatNumber(items.filter(i => i.sku === activeMaster.sku).length)} προστέθηκαν
                                     </div>
                                 )}
                             </div>
@@ -1023,7 +1024,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
                             <div className="flex items-center gap-3 sm:gap-4">
                                 <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">−</button>
-                                <span className="font-black text-lg min-w-[2ch] text-center">{qty}</span>
+                                <span className="font-black text-lg min-w-[2ch] text-center">{formatNumber(qty)}</span>
                                 <button onClick={() => setQty(qty + 1)} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">+</button>
                             </div>
                         </div>
@@ -1083,7 +1084,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                     className={`px-4 py-2.5 rounded-xl text-sm font-black border-2 transition-all active:scale-95 ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
                                                 >
                                                     {label}
-                                                    {count > 1 && <span className="ml-1 opacity-70">({count})</span>}
+                                                    {count > 1 && <span className="ml-1 opacity-70">({formatNumber(count)})</span>}
                                                 </button>
                                             );
                                         })}
@@ -1157,7 +1158,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {items.length > 0 && (
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${cartExpanded ? 'bg-slate-100 text-slate-600' : 'bg-white/20 text-white'
                                 }`}>
-                                {items.length} είδη · {formatCurrency(netAmount)}
+                                {formatNumber(items.length)} είδη · {formatCurrency(netAmount)}
                             </span>
                         )}
                         <ChevronRight size={14} className={`transition-transform duration-200 ${cartExpanded ? 'rotate-90 text-slate-400' : 'text-slate-400'
@@ -1264,7 +1265,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 )}
                                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
                                     <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">-</button>
-                                    <span className="w-4 text-center font-black text-xs">{item.quantity}</span>
+                                    <span className="w-4 text-center font-black text-xs">{formatNumber(item.quantity)}</span>
                                     <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">+</button>
                                 </div>
                             </div>
@@ -1293,7 +1294,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         <div className="text-slate-800 font-black text-lg">{formatCurrency(netAmount)}</div>
                     </div>
                     <div className="text-right">
-                        <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο · με ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο · με ΦΠΑ ({formatDecimal((vatRate * 100), 0)}%)</div>
                         <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                     </div>
                 </div>

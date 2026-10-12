@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import {
   Activity,
@@ -140,7 +141,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           <StatCard
             title={stats.labels.realizedRevenue}
             value={formatCurrency(stats.totals.realizedNet)}
-            hint={`${stats.totals.shippedPieces} τεμ. απεστάλησαν · χωρίς ΦΠΑ`}
+            hint={`${formatNumber(stats.totals.shippedPieces)} τεμ. απεστάλησαν · χωρίς ΦΠΑ`}
             icon={<Truck size={20} className="text-emerald-700" />}
             tone="border-emerald-200 bg-emerald-50 text-emerald-950"
           />
@@ -155,7 +156,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
             <StatCard
               title={stats.labels.backlogValue}
               value={formatCurrency(stats.totals.backlogNet)}
-              hint={`${stats.totals.backlogPieces} τεμ. δεν έχουν φύγει`}
+              hint={`${formatNumber(stats.totals.backlogPieces)} τεμ. δεν έχουν φύγει`}
               icon={<Package size={20} className="text-indigo-700" />}
               tone="border-indigo-200 bg-indigo-50 text-indigo-950"
             />
@@ -219,9 +220,9 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
               {topProducts.map((product, index) => (
                 <div key={product.key} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">#{index + 1} {product.sku}</p>
+                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {product.sku}</p>
                     <SpecialCreationNote sku={product.sku} note={product.itemNote} compact className="mt-1" />
-                    <p className="text-[11px] font-bold text-slate-500">{product.quantity} τεμ. · Κέρδος {formatCurrency(product.profit)}</p>
+                    <p className="text-[11px] font-bold text-slate-500">{formatNumber(product.quantity)} τεμ. · Κέρδος {formatCurrency(product.profit)}</p>
                   </div>
                   <p className="text-sm font-black text-slate-900">{formatCurrency(product.revenue)}</p>
                 </div>
@@ -264,7 +265,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-slate-900">{customer.name}</p>
-                    <p className="text-[11px] font-bold text-slate-500">{customer.orders} παραγγελίες</p>
+                    <p className="text-[11px] font-bold text-slate-500">{formatNumber(customer.orders)} παραγγελίες</p>
                   </div>
                 </div>
                 <p className="text-sm font-black text-slate-900">{formatCurrency(customer.revenue)}</p>
@@ -301,7 +302,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-3">
                   <p className="text-[9px] font-bold uppercase text-slate-400">Πλήθος</p>
-                  <p className="text-xs font-black text-slate-900">{stats.legal.issuedCount}</p>
+                  <p className="text-xs font-black text-slate-900">{formatNumber(stats.legal.issuedCount)}</p>
                 </div>
               </div>
             </div>

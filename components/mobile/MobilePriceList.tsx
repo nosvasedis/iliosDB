@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -97,12 +98,12 @@ export default function MobilePriceList({ onPrint }: Props) {
             if (selectedCollectionIds.length === 1) {
                 title = collections?.find(c => c.id === selectedCollectionIds[0])?.name || 'Συλλογή';
             } else {
-                title = `${selectedCollectionIds.length} Συλλογές`;
+                title = `${formatNumber(selectedCollectionIds.length)} Συλλογές`;
             }
         }
 
         if (items.length === 0) { showToast("Δεν υπάρχουν είδη.", "error"); return; }
-        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${items.length} Κωδικοί`, date: dateStr, items });
+        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${formatNumber(items.length)} Κωδικοί`, date: dateStr, items });
     };
 
     return (
@@ -122,7 +123,7 @@ export default function MobilePriceList({ onPrint }: Props) {
             <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
             <div className="mb-4 flex shrink-0 rounded-xl bg-slate-100 p-1">
                 <button onClick={() => { setMode('collections'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'collections' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><FolderKanban size={14}/> Συλλογές</button>
-                <button onClick={() => { setMode('custom'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'custom' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500'}`}><ListPlus size={14}/> Επιλογή ({customList.length})</button>
+                <button onClick={() => { setMode('custom'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'custom' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500'}`}><ListPlus size={14}/> Επιλογή ({formatNumber(customList.length)})</button>
             </div>
 
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
