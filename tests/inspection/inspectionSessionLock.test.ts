@@ -26,7 +26,7 @@ describe('server inspection lock',()=>{
       GRANT USAGE ON SCHEMA public,auth TO authenticated,anon,service_role;
       GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
     `);
-    await db.exec(readFileSync('supabase/migrations/20261013083918_inspection_session_lock.sql','utf8'));
+    await db.exec(readFileSync('supabase/migrations/20261013094742_inspection_session_lock.sql','utf8'));
   },60000);
   afterAll(async()=>{await db?.close();});
   it('locks only the signed session and hides unrelated table reads',async()=>{
@@ -73,6 +73,6 @@ describe('server inspection lock',()=>{
     await db.exec('RESET ROLE; SET ROLE anon');
     await expect(db.query('SELECT enter_inspection_session()')).rejects.toThrow();
     await db.exec("RESET ROLE; ALTER ROLE authenticator SET pgrst.db_pre_request='public.other_hook'");
-    await expect(db.exec(readFileSync('supabase/migrations/20261013083918_inspection_session_lock.sql','utf8'))).rejects.toThrow('chained explicitly');
+    await expect(db.exec(readFileSync('supabase/migrations/20261013094742_inspection_session_lock.sql','utf8'))).rejects.toThrow('chained explicitly');
   });
 });

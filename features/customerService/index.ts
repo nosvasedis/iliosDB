@@ -6,3 +6,4 @@ export * from './repairIntakeDraft';
 export * from './bulkConsignmentDraft';
 export * from './pendingConsignmentEdit';
 export * from './repairProductionPresentation';
+export * from './serviceBoard';

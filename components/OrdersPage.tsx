@@ -1995,7 +1995,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 const showProgress = !ready
                                                     && order.status !== OrderStatus.Delivered
                                                     && order.status !== OrderStatus.Cancelled;
-                                                const segmentBase = 'inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-xs font-black leading-none transition-colors';
+                                                const pillBase = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black leading-none shadow-sm transition-all';
+                                                const actionBase = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-black leading-none text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md';
                                                 const statusContent = (
                                                     <>
                                                         {getOrderStatusIcon(order.status, 13)}
@@ -2004,39 +2005,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 );
                                                 return (
                                                     <div className="flex min-w-0 flex-col items-start gap-2">
-                                                        <div className="inline-flex max-w-full items-stretch overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
-                                                            {canAccessOrderProductionManagement(order.status) ? (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
-                                                                    title="Διαχείριση Παραγωγής"
-                                                                    className={`${segmentBase} ${getOrderStatusClasses(order.status)} border-0 hover:brightness-95`}
-                                                                >
-                                                                    {statusContent}
-                                                                </button>
-                                                            ) : (
-                                                                <span className={`${segmentBase} ${getOrderStatusClasses(order.status)} border-0`}>{statusContent}</span>
-                                                            )}
-                                                            {canShip && (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); void openShipmentModal(order, 'full'); }}
-                                                                    className={`${segmentBase} border-l border-emerald-700/20 bg-emerald-600 text-white hover:bg-emerald-700`}
-                                                                    title="Έτοιμη 100% — δημιουργία αποστολής"
-                                                                >
-                                                                    <Truck size={13} />
-                                                                    Αποστολή
-                                                                </button>
-                                                            )}
-                                                            {canClose && (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); void handleMarkOrderDelivered(order); }}
-                                                                    className={`${segmentBase} border-l border-slate-900/20 bg-slate-700 text-white hover:bg-slate-800`}
-                                                                    title="Όλα τα τεμάχια έχουν αποσταλεί — ολοκλήρωση παραγγελίας"
-                                                                >
-                                                                    <PackageCheck size={13} />
-                                                                    Ολοκλήρωση
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                        {canAccessOrderProductionManagement(order.status) ? (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
+                                                                title="Διαχείριση Παραγωγής"
+                                                                className={`${pillBase} ${getOrderStatusClasses(order.status)} hover:-translate-y-px hover:shadow-md`}
+                                                            >
+                                                                {statusContent}
+                                                            </button>
+                                                        ) : (
+                                                            <span className={`${pillBase} ${getOrderStatusClasses(order.status)}`}>{statusContent}</span>
+                                                        )}
                                                         {showProgress && (
                                                             <div className="flex w-full min-w-0 items-center gap-2">
                                                                 <div className="min-w-0 flex-1">
@@ -2046,6 +2025,27 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                                     {formatNumber(Math.max(0, orderMeta?.readinessPercent ?? 0))}%
                                                                 </span>
                                                             </div>
+                                                        )}
+                                                        {canShip && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); void openShipmentModal(order, 'full'); }}
+                                                                className={`${actionBase} bg-emerald-600 hover:bg-emerald-700`}
+                                                                title="Έτοιμη 100% — δημιουργία αποστολής"
+                                                            >
+                                                                <Truck size={13} />
+                                                                Αποστολή
+                                                                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] tabular-nums leading-none">100%</span>
+                                                            </button>
+                                                        )}
+                                                        {canClose && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); void handleMarkOrderDelivered(order); }}
+                                                                className={`${actionBase} bg-slate-700 hover:bg-slate-800`}
+                                                                title="Όλα τα τεμάχια έχουν αποσταλεί — ενημέρωση κατάστασης"
+                                                            >
+                                                                <PackageCheck size={13} />
+                                                                Ολοκλήρωση
+                                                            </button>
                                                         )}
                                                     </div>
                                                 );

@@ -36,6 +36,7 @@ import {
     HandHeart,
     Wrench,
     ChevronDown,
+    Plus,
 } from 'lucide-react';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
@@ -58,6 +59,7 @@ import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, findLiveRepairBatch, f
 import ConsignmentBadge from './customerService/ConsignmentBadge';
 import RepairBadge from './customerService/RepairBadge';
 import RepairStageBadge from './customerService/RepairStageBadge';
+import CustomerServiceQuickForm from './customerService/CustomerServiceQuickForm';
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 
@@ -174,6 +176,7 @@ export default function CustomerDetailsModal({
     type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'consignments' | 'repairs' | 'orders';
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
     const [activeTab, setActiveTab] = useState<NormalTab | RetailTab>('overview');
+    const [serviceForm, setServiceForm] = useState<'consignment' | 'repair' | null>(null);
     const [orderQuery, setOrderQuery] = useState('');
     const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
     const tabMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1203,7 +1206,7 @@ export default function CustomerDetailsModal({
                         <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/70 p-4">
-                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-100 p-2 text-indigo-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800 shadow-sm">{formatNumber(customerConsignments.length)}</span>
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-100 p-2 text-indigo-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800 shadow-sm">{formatNumber(customerConsignments.length)}</span><button type="button" onClick={() => setServiceForm('consignment')} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-indigo-800"><Plus size={14} /> Νέα Παρακαταθήκη</button></div>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {customerConsignments.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Παρακαταθήκες για αυτόν τον πελάτη.</div> : customerConsignments.map(entry => {
@@ -1221,7 +1224,7 @@ export default function CustomerDetailsModal({
                         <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-blue-50/70 p-4">
-                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{formatNumber(customerRepairs.length)}</span>
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{formatNumber(customerRepairs.length)}</span><button type="button" onClick={() => setServiceForm('repair')} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-blue-800"><Plus size={14} /> Νέα παραλαβή</button></div>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {customerRepairs.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Επισκευές για αυτόν τον πελάτη.</div> : customerRepairs.map(item => {
@@ -1379,6 +1382,9 @@ export default function CustomerDetailsModal({
                     onPrintOrder?.(updatedOrderB);
                 }}
             />
+        )}
+        {serviceForm && customer.id && (
+            <CustomerServiceQuickForm kind={serviceForm} customerId={customer.id} onClose={() => setServiceForm(null)} />
         )}
         </>
     );

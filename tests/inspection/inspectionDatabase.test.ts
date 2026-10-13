@@ -35,7 +35,8 @@ describe('inspection snapshot database contracts', () => {
       INSERT INTO legal_documents VALUES('20000000-0000-4000-8000-000000000001','dev','2026-01-01'),('20000000-0000-4000-8000-000000000002',null,'2026-01-01');
       INSERT INTO orders(id,items) VALUES('order','[{"sku":"R1","quantity":2,"price_at_order":20,"product_details":{"supplier_cost":999},"hidden_cost":888}]');
     `);
-    await db.exec(readFileSync('supabase/migrations/20261013075005_inspection_evidence_snapshot.sql','utf8'));
+    await db.exec(readFileSync('supabase/migrations/20261013094725_inspection_evidence_snapshot.sql','utf8'));
+    await db.exec(readFileSync('supabase/migrations/20261013095519_inspection_snapshot_capacity.sql','utf8'));
   }, 60000);
   afterAll(async () => { await db?.close(); });
   it('returns all matching documents and lines without a REST page limit, and preserves unknown environments', async () => {
@@ -99,4 +100,9 @@ describe('inspection snapshot database contracts', () => {
     try { await expect(db.query("SELECT save_inspection_customer('{}')")).rejects.toThrow(); }
     finally { await db.exec('RESET ROLE'); }
   });
+  it('preserves the full archive when transmission history exceeds the former 24 MiB limit', async () => {
+    await db.exec("CREATE TABLE legal_transmissions(id uuid,document_id uuid,environment text,response_payload text); INSERT INTO legal_transmissions VALUES(gen_random_uuid(),md5('1')::uuid,'prod',repeat('x',26*1024*1024))");
+    const result=await db.query<any>("WITH s AS MATERIALIZED (SELECT get_inspection_snapshot('prod',null,null) AS v) SELECT octet_length(v::text)>24*1024*1024 AS above_old_limit,length(v->'tables'->'legal_transmissions'->0->>'response_payload') AS payload_size FROM s");
+    expect(result.rows[0]).toEqual({above_old_limit:true,payload_size:26*1024*1024});
+  },60000);
 });
