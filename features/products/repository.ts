@@ -1,9 +1,11 @@
 import { api, supabase, uploadProductImage, deleteProduct as deleteProductApi } from '../../lib/supabase';
+import { isInspectionModeActive } from '../../lib/inspectionMode';
 import { Mold, ProductMold, ProductVariant, ProductionType, RecipeItem } from '../../types';
 
 export const productsRepository = {
   getProducts: async () => {
     const products = await api.getProducts();
+    if (isInspectionModeActive()) return products;
     void import('../erpCatalog')
       .then(({ persistErpProductsAfterFullFetch }) => persistErpProductsAfterFullFetch(products))
       .catch((error) => console.warn('ERP catalogue snapshot persist failed:', error));

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { UserProfile } from '../../types';
+import { inspectionQueryKey } from '../../features/inspection/queryScope';
 
 export const sellerKeys = {
   all: ['sellers'] as const,
@@ -8,7 +9,7 @@ export const sellerKeys = {
 
 export const useSellers = () => {
   return useQuery<UserProfile[]>({
-    queryKey: sellerKeys.all,
+    queryKey: inspectionQueryKey(sellerKeys.all),
     queryFn: api.getSellers,
   });
 };

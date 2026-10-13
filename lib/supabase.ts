@@ -61,6 +61,7 @@ import { isVisibleProductCatalogRow } from '../features/products/catalogVisibili
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import {
     assertInspectionRpcAllowed,
+    assertInspectionMutationAllowed,
     assertInspectionTableAllowed,
     assertInspectionWorkerRouteAllowed,
     isInspectionModeActive,
@@ -127,7 +128,19 @@ export const supabase = new Proxy(rawSupabase, {
         if (prop === 'from') {
             return (tableName: string) => {
                 assertInspectionTableAllowed(tableName);
-                return target.from(tableName);
+                const builder = target.from(tableName);
+                return new Proxy(builder, {
+                    get(source, method) {
+                        const value = Reflect.get(source, method);
+                        if (typeof value !== 'function') return value;
+                        return (...args: unknown[]) => {
+                            if (['insert', 'update', 'upsert', 'delete'].includes(String(method))) {
+                                assertInspectionMutationAllowed(tableName, String(method).toUpperCase());
+                            }
+                            return value.apply(source, args);
+                        };
+                    },
+                });
             };
         }
         if (prop === 'rpc') {
@@ -496,6 +509,7 @@ async function safeMutate(
     options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
 ): Promise<{ data: any, error: any, queued: boolean, queueId?: number }> {
     assertInspectionTableAllowed(tableName);
+    assertInspectionMutationAllowed(tableName, method);
     const mutationData = method === 'DELETE'
         ? data
         : sanitizeMutationData(tableName, data, { preserveLightweightItems: method === 'UPDATE' });
@@ -631,6 +645,10 @@ async function fetchFullTable(
     filter?: (query: any) => any,
     options?: { bypassInspectionCheck?: boolean },
 ): Promise<any[]> {
+    if (isInspectionModeActive() && ['orders','customers','order_shipments','order_shipment_items'].includes(tableName)) {
+        const { loadInspectionSupport } = await import('../features/inspection/repository');
+        return (await loadInspectionSupport())[tableName];
+    }
     if (!options?.bypassInspectionCheck) {
         assertInspectionTableAllowed(tableName);
     }
@@ -681,15 +699,17 @@ async function fetchFullTable(
                 } else hasMore = false;
             }
             baseData = allData;
-            if (isFullRowSelect) {
+            if (isFullRowSelect && !isInspectionModeActive()) {
                 offlineDb.saveTable(tableName, allData);
             }
         } catch (err) {
+            if (isInspectionModeActive()) throw err;
             console.warn(`fetchFullTable fallback to offline cache [${tableName}]:`, err);
             baseData = await offlineDb.getTable(tableName) || [];
         }
     }
 
+    if (isInspectionModeActive()) return baseData;
     const queue = await offlineDb.getQueue();
     const pendingOps = queue.filter(op => op.table === tableName);
     if (pendingOps.length === 0) return baseData;
@@ -753,6 +773,12 @@ async function fetchRowsByFilter(
     },
 ): Promise<any> {
     assertInspectionTableAllowed(tableName);
+    if (isInspectionModeActive() && ['orders','customers','order_shipments','order_shipment_items'].includes(tableName)) {
+        const { loadInspectionSupport } = await import('../features/inspection/repository');
+        let rows = (await loadInspectionSupport())[tableName];
+        if (options?.localFilter) rows = rows.filter(options.localFilter);
+        return options?.single ? rows[0] ?? null : rows;
+    }
     if (isLocalMode || !navigator.onLine) {
         let rows = (await offlineDb.getTable(tableName)) || [];
         if (options?.localFilter) rows = rows.filter(options.localFilter);
@@ -772,6 +798,7 @@ async function fetchRowsByFilter(
         if (error) throw error;
         return data ?? (options?.single ? null : []);
     } catch (err) {
+        if (isInspectionModeActive()) throw err;
         console.warn(`fetchRowsByFilter fallback [${tableName}]:`, err);
         let rows = (await offlineDb.getTable(tableName)) || [];
         if (options?.localFilter) rows = rows.filter(options.localFilter);
@@ -1219,28 +1246,10 @@ let getProductsInFlight: Promise<Product[]> | null = null;
 
 async function getProductsUncached(): Promise<Product[]> {
     if (isInspectionModeActive()) {
-        const [prodData, varData] = await Promise.all([
-            fetchFullTable('products', '*', (q) => q.order('sku')),
-            fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
+        const [{ loadLegalCatalog }, { legalCatalogProducts }] = await Promise.all([
+            import('../features/inspection/repository'), import('../features/inspection/catalog'),
         ]);
-        if (!prodData || prodData.length === 0) return [];
-        const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
-        if (visibleProdData.length === 0) return [];
-        return mapProductsWithRelations(
-            visibleProdData,
-            {
-                variants: varData as any,
-                recipes: [],
-                molds: [],
-                collections: [],
-                stock: [],
-            },
-            {
-                publicImageBaseUrl: R2_PUBLIC_URL,
-                centralWarehouseId: SYSTEM_IDS.CENTRAL,
-                showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
-            },
-        );
+        return legalCatalogProducts((await loadLegalCatalog()).items);
     }
 
     const [prodData, suppliersData] = await Promise.all([
@@ -1318,6 +1327,12 @@ export const api = {
 
 
     getLegalSettings: async (): Promise<LegalSettings> => {
+        if (isInspectionModeActive()) {
+            const { loadInspectionSupport } = await import('../features/inspection/repository');
+            const row = (await loadInspectionSupport()).legal_settings[0];
+            if (!row) throw new Error('Δεν έχουν ανακτηθεί οι πραγματικές ρυθμίσεις εκδότη.');
+            return row;
+        }
         const mapRow = (row: any): LegalSettings => {
             const { inspection_exit_pin_hash: _pinHash, ...safeRow } = row || {};
             return {
@@ -1845,10 +1860,9 @@ export const api = {
 
     getAadeCredentialStatus: async (): Promise<AadeCredentialStatus> => {
         assertInspectionWorkerRouteAllowed('/aade/credential-status');
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/credential-status`, {
             method: 'GET',
-            headers: { Authorization: AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
         });
         const data = await parseWorkerJsonResponse(response);
         if (!response.ok) throw new Error(data?.error || `Αποτυχία ανάγνωσης AADE credentials (${response.status}).`);
@@ -1872,10 +1886,9 @@ export const api = {
         payload: AadeRegistryCredentialSavePayload,
     ): Promise<AadeCredentialStatus> => {
         assertInspectionWorkerRouteAllowed('/aade/configure-registry-credentials');
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-registry-credentials`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify(payload),
         });
         const data = await parseWorkerJsonResponse(response);
@@ -1887,14 +1900,13 @@ export const api = {
         requestedByVat: string,
     ): Promise<LegalRegistryConnectionStatus> => {
         assertInspectionWorkerRouteAllowed('/aade/test-registry-connection');
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const normalizedVat = requestedByVat.replace(/^EL/i, '').replace(/\D/g, '');
         if (!/^\d{9}$/.test(normalizedVat)) {
             throw new Error('Συμπληρώστε έγκυρο ΑΦΜ εκδότη πριν τον έλεγχο σύνδεσης.');
         }
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/test-registry-connection`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify({ requestedByVat: normalizedVat }),
         });
         const data = await parseWorkerJsonResponse(response);
@@ -1916,7 +1928,6 @@ export const api = {
         referenceDate?: string | null;
     }): Promise<AadeVatRegistryResult> => {
         assertInspectionWorkerRouteAllowed('/aade/lookup-vat-registry');
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const vatNumber = payload.vatNumber.replace(/^EL/i, '').replace(/\D/g, '');
         if (!/^\d{9}$/.test(vatNumber)) throw new Error('Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.');
         if (payload.referenceDate) {
@@ -1936,7 +1947,7 @@ export const api = {
         }
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/lookup-vat-registry`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify({
                 vatNumber,
                 requestedByVat: payload.requestedByVat || undefined,
@@ -1951,6 +1962,26 @@ export const api = {
         };
     },
 
+    getInspectionSessionState: async (): Promise<boolean> => {
+        if (isLocalMode) return false;
+        const { data, error } = await supabase.rpc('inspection_session_state');
+        if (error) throw new Error('Δεν επιβεβαιώθηκε η κατάσταση κλειδώματος της συνεδρίας. Ελέγξτε την εγκατάσταση του migration κλειδώματος.');
+        return data === true;
+    },
+    getInspectionProfile: async (): Promise<import('../types').UserProfile | null> => {
+        const { data, error } = await supabase.rpc('inspection_current_profile');
+        if (error) throw new Error('Δεν ανακτήθηκε το προφίλ της κλειδωμένης συνεδρίας.');
+        return data as import('../types').UserProfile | null;
+    },
+    enterInspectionSession: async (vault?: { id: string; key: string }): Promise<void> => {
+        const { data, error } = await supabase.rpc('enter_inspection_session', vault ? { p_vault_id: vault.id, p_vault_key: vault.key } : {});
+        if (error || data !== true) throw new Error('Δεν ενεργοποιήθηκε το κλείδωμα στον server. Ελέγξτε τη σύνδεση και το PIN εξόδου.');
+    },
+    exitInspectionSession: async (pin: string, vaultId?: string): Promise<{ unlocked: boolean; vaultKey?: string }> => {
+        const { data, error } = await supabase.rpc('exit_inspection_session', { p_pin: pin, p_vault_id: vaultId || null });
+        if (error) throw new Error('Δεν επιβεβαιώθηκε η έξοδος από τον server. Η προβολή παραμένει κλειδωμένη.');
+        return { unlocked: data?.unlocked === true, vaultKey: data?.vaultKey || undefined };
+    },
     hasInspectionExitPin: async (): Promise<boolean> => {
         if (isLocalMode) return false;
         const { data, error } = await supabase.rpc('has_inspection_exit_pin');
@@ -1971,7 +2002,7 @@ export const api = {
         return !!data;
     },
 
-    callSbz: async (route: string, payload?: unknown): Promise<any> => {
+    callSbz: async (route: string, payload?: unknown, signal?: AbortSignal): Promise<any> => {
         if (isLocalMode || !navigator.onLine) throw new Error('Η ενέργεια απαιτεί σύνδεση στο διαδίκτυο.');
         assertInspectionWorkerRouteAllowed(route);
         const { data: { session } } = await supabase.auth.getSession();
@@ -1980,9 +2011,13 @@ export const api = {
             method: payload === undefined ? 'GET' : 'POST',
             headers: { Authorization: 'Bearer ' + session.access_token, ...(payload instanceof FormData ? {} : { 'Content-Type': 'application/json' }) },
             body: payload === undefined ? undefined : payload instanceof FormData ? payload : JSON.stringify(payload),
+            signal,
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Η ενέργεια δεν ολοκληρώθηκε.');
+        if (['/sbz/submit','/sbz/cancel-delivery','/sbz/reconcile','/sbz/sync'].includes(route)) {
+            void getRegisteredQueryClient()?.invalidateQueries({ queryKey: ['inspection'] });
+        }
         return result;
     },
 
@@ -2406,6 +2441,10 @@ export const api = {
 
     // --- Seller / Πλασιέ Management ---
     getSellers: async (): Promise<import('../types').UserProfile[]> => {
+        if (isInspectionModeActive()) {
+            const { loadInspectionSupport } = await import('../features/inspection/repository');
+            return (await loadInspectionSupport()).profiles as import('../types').UserProfile[];
+        }
         const { data, error } = await supabase.from('profiles').select('*').eq('role', 'seller').order('full_name');
         if (error) throw error;
         return (data || []) as import('../types').UserProfile[];
@@ -2456,6 +2495,7 @@ export const api = {
             payload.vat_exemption_legal_note = null;
         }
         if (payload.id === '') delete payload.id;
+        if (isInspectionModeActive()) return api.callSbz('/inspection/customer', payload);
 
         const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' });
         return result.data;
@@ -2493,6 +2533,7 @@ export const api = {
         if (updates.vat_rate !== undefined && Math.abs(updates.vat_rate) >= 0.001) {
             updates = { ...updates, vat_exemption_category: null, vat_exemption_legal_note: null };
         }
+        if (isInspectionModeActive()) { await api.callSbz('/inspection/customer', { ...updates, id }); return; }
         await safeMutate('customers', 'UPDATE', updates, { match: { id } });
     },
 
@@ -3891,11 +3932,12 @@ export const api = {
 
     syncOfflineData: async (): Promise<SyncOfflineResult> => {
         if (isInspectionModeActive()) {
+            const remainingCount = await offlineDb.getQueueCount();
             return {
                 syncedCount: 0,
                 failedCount: 0,
-                remainingCount: 0,
-                wasQueueEmpty: true,
+                remainingCount,
+                wasQueueEmpty: remainingCount === 0,
             };
         }
 

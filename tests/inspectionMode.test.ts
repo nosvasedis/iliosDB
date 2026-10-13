@@ -4,8 +4,17 @@ vi.mock('../lib/offlineDb', () => ({
   offlineDb: {
     clearSyncQueue: vi.fn().mockResolvedValue(undefined),
     purgeTablesExcept: vi.fn().mockResolvedValue(undefined),
+    getInspectionVault: vi.fn().mockResolvedValue(null),
   },
 }));
+vi.mock('../lib/supabase', () => ({ api: {
+  hasInspectionExitPin: vi.fn().mockResolvedValue(true),
+  enterInspectionSession: vi.fn().mockResolvedValue(undefined),
+  exitInspectionSession: vi.fn().mockResolvedValue({ unlocked: true }),
+} }));
+vi.mock('../lib/inspectionLocalVault', () => ({ sealInspectionLocalData: vi.fn().mockResolvedValue(undefined) }));
+import { api } from '../lib/supabase';
+import { offlineDb } from '../lib/offlineDb';
 
 import {
   INSPECTION_SESSION_KEY,
@@ -89,7 +98,7 @@ describe('inspection allowlist', () => {
   });
 
   it('allows only provider and supporting AADE worker routes', () => {
-    expect(isInspectionWorkerRouteAllowed('/aade/send-invoices')).toBe(true);
+    expect(isInspectionWorkerRouteAllowed('/aade/send-invoices')).toBe(false);
     expect(isInspectionWorkerRouteAllowed('/sbz/submit')).toBe(true);
     expect(isInspectionWorkerRouteAllowed('/sbz/reconcile')).toBe(true);
     expect(isInspectionWorkerRouteAllowed('/admin/create-seller')).toBe(false);
@@ -137,7 +146,7 @@ describe('inspection mode session flag', () => {
     sessionStorage.setItem(INSPECTION_SESSION_KEY, '1');
     const { reload } = stubInspectionBrowserGlobals();
     sessionStorage.setItem(INSPECTION_SESSION_KEY, '1');
-    await exitInspectionMode();
+    await exitInspectionMode('1234');
     expect(sessionStorage.getItem(INSPECTION_SESSION_KEY)).toBeNull();
     expect(reload).toHaveBeenCalled();
   });
@@ -152,8 +161,37 @@ describe('inspection mode session flag', () => {
   it('sets flag and reloads on enterInspectionMode', async () => {
     const { reload } = stubInspectionBrowserGlobals();
     await enterInspectionMode();
-    expect(sessionStorage.getItem(INSPECTION_SESSION_KEY)).toBe('1');
+    expect(localStorage.getItem(INSPECTION_SESSION_KEY)).toBe('1');
     expect(reload).toHaveBeenCalled();
+  });
+
+  it('keeps the mode after reload or a new tab with empty sessionStorage', async () => {
+    await enterInspectionMode();
+    sessionStorage.clear();
+    expect(isInspectionModeActive()).toBe(true);
+  });
+
+  it('never deletes pending writes or business mirrors during a transition', async () => {
+    await enterInspectionMode();
+    await exitInspectionMode('1234');
+    expect(offlineDb.clearSyncQueue).not.toHaveBeenCalled();
+    expect(offlineDb.purgeTablesExcept).not.toHaveBeenCalled();
+    expect(localStorage.getItem(INSPECTION_SESSION_KEY)).toBeNull();
+  });
+
+  it('keeps the lock and avoids reload when the PIN is wrong or missing', async () => {
+    localStorage.setItem(INSPECTION_SESSION_KEY, '1');
+    vi.mocked(api.exitInspectionSession).mockResolvedValueOnce({ unlocked: false });
+    await expect(exitInspectionMode('wrong')).rejects.toThrow('κωδικός');
+    await expect(exitInspectionMode('')).rejects.toThrow('κωδικός');
+    expect(isInspectionModeActive()).toBe(true);
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
+
+  it('rejects entry until an exit PIN is configured', async () => {
+    vi.mocked(api.hasInspectionExitPin).mockResolvedValueOnce(false);
+    await expect(enterInspectionMode()).rejects.toThrow('PIN');
+    expect(isInspectionModeActive()).toBe(false);
   });
 });
 

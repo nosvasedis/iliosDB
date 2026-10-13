@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { orderKeys, ordersRepository } from '../../features/orders';
 import { Order, OrderShipment, OrderShipmentItem } from '../../types';
+import { inspectionQueryKey } from '../../features/inspection/queryScope';
 
 const THIRTY_MINUTES_MS = 1000 * 60 * 30;
 
@@ -21,7 +22,7 @@ export const useOrdersList = () => {
 /** Full orders with items JSON — use only where line-item detail is required for every order. */
 export const useOrdersWithItems = (options: OrdersQueryOptions = {}) => {
   return useQuery<Order[]>({
-    queryKey: orderKeys.all,
+    queryKey: inspectionQueryKey(orderKeys.all),
     queryFn: ordersRepository.getOrders,
     enabled: options.enabled ?? true,
     staleTime: options.staleTime ?? THIRTY_MINUTES_MS,
@@ -50,7 +51,7 @@ export const useProductionBoardOrders = () => {
 
 export const useCustomers = () => {
   return useQuery({
-    queryKey: orderKeys.customers(),
+    queryKey: inspectionQueryKey(orderKeys.customers()),
     queryFn: ordersRepository.getCustomers,
     staleTime: THIRTY_MINUTES_MS,
   });
@@ -66,7 +67,7 @@ export const useOrderShipmentsForOrder = (orderId: string) => {
 
 export const useAllShipments = (options: OrdersQueryOptions = {}) => {
   return useQuery<OrderShipment[]>({
-    queryKey: orderKeys.shipments(),
+    queryKey: inspectionQueryKey(orderKeys.shipments()),
     queryFn: ordersRepository.getShipments,
     enabled: options.enabled ?? true,
   });
@@ -74,7 +75,7 @@ export const useAllShipments = (options: OrdersQueryOptions = {}) => {
 
 export const useAllShipmentItems = (options: OrdersQueryOptions = {}) => {
   return useQuery<OrderShipmentItem[]>({
-    queryKey: orderKeys.shipmentItems(),
+    queryKey: inspectionQueryKey(orderKeys.shipmentItems()),
     queryFn: ordersRepository.getAllShipmentItems,
     enabled: options.enabled ?? true,
   });

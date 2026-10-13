@@ -1,6 +1,11 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../hooks/api/useInspection', () => ({
+  useInspectionSnapshot: vi.fn(() => ({ data: undefined, isFetching: false, error: null, refetch: vi.fn() })),
+  useLegalCatalog: vi.fn(() => ({ data: { items: [], saved: false }, isLoading: false, isError: false, refetch: vi.fn() })),
+}));
+vi.mock('../hooks/useOfflineSync', () => ({ useOfflineSync: vi.fn(() => ({ pendingCount: 3 })) }));
 
 vi.mock('../hooks/api/useProducts', () => ({
   useProducts: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
@@ -43,7 +48,8 @@ describe('InspectionModeShell', () => {
     expect(useMaterials).not.toHaveBeenCalled();
     expect(html).toContain('legal-documents');
     expect(html).toContain('Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο');
-    expect(html).toContain('SBZ ΔΟΚΙΜΕΣ');
+    expect(html).toContain('SBZ ΠΑΡΑΓΩΓΗ');
+    expect(html).toContain('3 εκκρεμείς τοπικές εργασίες');
     expect(html).toContain('Συγχρονισμός');
     expect(html).not.toContain('Συγχρονισμός ΑΑΔΕ');
     expect(html).not.toContain('διαβίβασης στην ΑΑΔΕ');

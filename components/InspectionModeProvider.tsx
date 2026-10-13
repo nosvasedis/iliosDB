@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 import {
   enterInspectionMode,
@@ -8,10 +8,10 @@ import {
   matchesInspectionExitCombo,
 } from '../lib/inspectionMode';
 import InspectionExitModal from './InspectionExitModal';
+import { useUI } from './UIProvider';
 
 interface InspectionModeContextValue {
   isInspectionMode: boolean;
-  openExitModal: () => void;
 }
 
 const InspectionModeContext = createContext<InspectionModeContextValue | undefined>(undefined);
@@ -26,44 +26,49 @@ export function useInspectionMode(): InspectionModeContextValue {
 
 export const InspectionModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
+  const { showToast } = useUI();
   const [isInspectionMode, setIsInspectionMode] = useState(() => isInspectionModeActive());
   const [exitModalOpen, setExitModalOpen] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
 
-  const openExitModal = useCallback(() => {
-    setExitModalOpen(true);
-  }, []);
-
   useEffect(() => {
     setIsInspectionMode(isInspectionModeActive());
-  }, []);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== '_ilm') return;
+      sessionStorage.removeItem('_ilm');
+      window.location.reload();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [profile?.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return;
-
       if (matchesInspectionExitCombo(event)) {
         if (!isInspectionModeActive()) return;
         event.preventDefault();
         setExitModalOpen(true);
         return;
       }
+      if (isEditableTarget(event.target)) return;
 
       if (matchesInspectionEnterCombo(event)) {
         if (isInspectionModeActive() || profile?.role !== 'admin' || isEntering) return;
         event.preventDefault();
         setIsEntering(true);
-        void enterInspectionMode().finally(() => setIsEntering(false));
+        void enterInspectionMode()
+          .catch((error) => showToast(error instanceof Error ? error.message : 'Δεν άλλαξε η προβολή.', 'error'))
+          .finally(() => setIsEntering(false));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [profile?.role, isEntering]);
+  }, [profile?.role, isEntering, showToast]);
 
   const value = useMemo(
-    () => ({ isInspectionMode, openExitModal }),
-    [isInspectionMode, openExitModal],
+    () => ({ isInspectionMode }),
+    [isInspectionMode],
   );
 
   return (

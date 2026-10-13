@@ -90,6 +90,10 @@ import {
 import { useSellers } from '../hooks/api/useSellers';
 import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
+import EvidenceSourcesEditor from './inspection/EvidenceSourcesEditor';
+import type { InspectionSnapshot } from '../features/inspection/types';
+import { useLegalCatalog } from '../hooks/api/useInspection';
+import { legalCatalogProducts } from '../features/inspection/catalog';
 import {
   buildLegalArchiveRecords,
   LEGAL_ARCHIVE_PARSE_VERSION,
@@ -169,6 +173,10 @@ function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind 
 }
 
 interface LegalDocumentsPageProps {
+  inspectionSnapshot?: InspectionSnapshot;
+  inspectionSnapshotPending?: boolean;
+  inspectionCatalogReady?: boolean;
+  initialDocumentId?: string | null;
   products: Product[];
   materials?: Material[];
   onPrintLegalDocument: (payload: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
@@ -738,14 +746,20 @@ const NumberingAlignmentModal = ({
 };
 
 export default function LegalDocumentsPage({
-  products,
+  products: suppliedProducts,
   materials = [],
   onPrintLegalDocument,
   onPrintProforma,
   presentation = 'default',
   activeTab: activeTabProp,
   onActiveTabChange,
+  inspectionSnapshot,
+  inspectionSnapshotPending = false,
+  inspectionCatalogReady = false,
+  initialDocumentId,
 }: LegalDocumentsPageProps) {
+  const catalogQuery = useLegalCatalog(presentation !== 'inspection');
+  const products = useMemo(() => catalogQuery.data ? legalCatalogProducts(catalogQuery.data.items) : suppliedProducts, [catalogQuery.data, suppliedProducts]);
   const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('new');
   const isControlledTab = activeTabProp !== undefined;
   const activeTab = isControlledTab ? activeTabProp : internalActiveTab;
@@ -851,14 +865,14 @@ export default function LegalDocumentsPage({
   const { data: credentialStatus, isLoading: loadingCredentialStatus, refetch: refetchCredentialStatus } = useAadeCredentialStatus();
   const { data: sequences = [] } = useLegalNumberingSequences();
   const { data: carriers = [] } = useLegalCarriers();
-  const { data: legalDocuments = [], isLoading: loadingDocuments } = useLegalDocuments();
+  const { data: legalDocuments = [], isLoading: loadingDocuments, isError: documentsError } = useLegalDocuments();
   const visibleLegalDocuments = useMemo(
-    () => legalDocuments.filter(
-      (document) => isWholesaleAadeDocumentType(document.aade_document_type) && (document.environment === settingsDraft.environment || !document.environment),
-    ),
-    [legalDocuments, settingsDraft.environment],
+    () => isInspectionPresentation
+      ? (inspectionSnapshot?.tables.legal_documents || []) as LegalDocument[]
+      : legalDocuments.filter((document) => isWholesaleAadeDocumentType(document.aade_document_type) && (document.environment === settingsDraft.environment || !document.environment)),
+    [legalDocuments, settingsDraft.environment, isInspectionPresentation, inspectionSnapshot],
   );
-  const { data: allLegalDocumentLines = [], isLoading: loadingArchiveLines } = useAllLegalDocumentLines();
+  const { data: allLegalDocumentLines = [], isLoading: loadingArchiveLines, isError: linesError } = useAllLegalDocumentLines();
   const { data: proformas = [], isLoading: loadingProformas } = useProformaDocuments();
   const { data: allProformaDocumentLines = [], isLoading: loadingArchiveProformaLines } = useAllProformaDocumentLines();
   const { data: legalItemAliases = [], isLoading: loadingLegalItemAliases } = useLegalExternalItemAliases();
@@ -999,13 +1013,15 @@ export default function LegalDocumentsPage({
 
   const canUseSelectedOrder = Boolean(selectedPickerRow?.selectable);
 
-  const stats = useMemo(() => ({
-    issued: visibleLegalDocuments.filter((document) => document.status === 'issued').length,
-    failed: visibleLegalDocuments.filter((document) => document.status === 'failed').length,
-    cancelled: visibleLegalDocuments.filter((document) => document.status === 'cancelled').length,
-    printable: visibleLegalDocuments.filter((document) => canPrintLegalDocument(document)).length,
+  const stats = useMemo(() => {
+    const confirmed = isInspectionPresentation ? visibleLegalDocuments.filter(document => !!document.environment) : visibleLegalDocuments;
+    return {
+    issued: confirmed.filter((document) => document.status === 'issued').length,
+    failed: confirmed.filter((document) => document.status === 'failed').length,
+    cancelled: confirmed.filter((document) => document.status === 'cancelled').length,
+    printable: confirmed.filter((document) => canPrintLegalDocument(document)).length,
     proformas: proformas.filter((document) => document.status === 'draft').length,
-  }), [visibleLegalDocuments, proformas]);
+  }; }, [visibleLegalDocuments, proformas, isInspectionPresentation]);
 
   const validationIssues = useMemo(() => {
     if (!draftBundle) return [];
@@ -1062,7 +1078,7 @@ export default function LegalDocumentsPage({
   const archiveRecords = useMemo(
     () => buildLegalArchiveRecords({
       legalDocuments: visibleLegalDocuments,
-      legalLines: allLegalDocumentLines,
+      legalLines: isInspectionPresentation ? (inspectionSnapshot?.tables.legal_document_lines || []) as LegalDocumentLine[] : allLegalDocumentLines,
       proformas,
       proformaLines: allProformaDocumentLines,
       customers,
@@ -1073,6 +1089,8 @@ export default function LegalDocumentsPage({
     }),
     [
       visibleLegalDocuments,
+      inspectionSnapshot,
+      isInspectionPresentation,
       allLegalDocumentLines,
       proformas,
       allProformaDocumentLines,
@@ -1088,7 +1106,7 @@ export default function LegalDocumentsPage({
   const archiveAutoSellerLinkingRef = useRef(new Set<string>());
 
   useEffect(() => {
-    if (activeTab !== 'archive' || enrichLegalArchive.isPending) return;
+    if (isInspectionPresentation || activeTab !== 'archive' || enrichLegalArchive.isPending) return;
     const needsEnrichment = legalDocuments.some((document) =>
       document.external_source === 'aade_sync'
       && !!document.raw_xml
@@ -1101,7 +1119,7 @@ export default function LegalDocumentsPage({
   }, [activeTab, legalDocuments, enrichLegalArchive.isPending]);
 
   useEffect(() => {
-    if (activeTab !== 'archive' || linkLegalArchiveOrder.isPending) return;
+    if (isInspectionPresentation || activeTab !== 'archive' || linkLegalArchiveOrder.isPending) return;
     const candidate = archiveRecords.find((record) =>
       !!record.autoOrderCandidate
       && !record.linkedOrder
@@ -1123,7 +1141,7 @@ export default function LegalDocumentsPage({
   }, [activeTab, archiveRecords, linkLegalArchiveOrder.isPending, userName]);
 
   useEffect(() => {
-    if (activeTab !== 'archive' || linkLegalArchiveSeller.isPending) return;
+    if (isInspectionPresentation || activeTab !== 'archive' || linkLegalArchiveSeller.isPending) return;
     const candidate = archiveRecords.find((record) =>
       record.source === 'legal'
       && !!record.autoSellerCandidate
@@ -1805,7 +1823,9 @@ export default function LegalDocumentsPage({
 
   const handlePrint = async (document: LegalDocument) => {
     try {
-      const lines = await legalRepository.getDocumentLines(document.id);
+      const lines = isInspectionPresentation && inspectionSnapshot
+        ? (inspectionSnapshot.tables.legal_document_lines || []).filter((line) => line.document_id === document.id) as LegalDocumentLine[]
+        : await legalRepository.getDocumentLines(document.id);
       if (!canPrintLegalDocument(document, lines)) {
         showToast(
           document.status === 'submitted'
@@ -1816,7 +1836,7 @@ export default function LegalDocumentsPage({
         return;
       }
       onPrintLegalDocument({ document: { ...document, lines }, lines });
-      if (isOfficialLegalDocumentPrint(document, lines)) {
+      if (isOfficialLegalDocumentPrint(document, lines) && navigator.onLine && inspectionSnapshot?.status.state !== 'saved') {
         await markPrinted.mutateAsync(document.id);
       }
     } catch (error: any) {
@@ -1845,6 +1865,12 @@ export default function LegalDocumentsPage({
       showToast(error?.message || 'Δεν φορτώθηκε το παραστατικό.', 'error');
     }
   };
+
+  useEffect(() => {
+    if (!initialDocumentId || !isInspectionPresentation) return;
+    const document = visibleLegalDocuments.find((row) => row.id === initialDocumentId);
+    if (document) setArchiveSearch(document.aade_mark || getLegalDocumentDisplayNumber(document));
+  }, [initialDocumentId]);
 
   const handleSaveSettings = async () => {
     try {
@@ -3466,6 +3492,8 @@ export default function LegalDocumentsPage({
 
   const renderArchiveTab = () => (
     <LegalArchiveWorkspace
+      readOnlyMaintenance={isInspectionPresentation}
+      initialRecordId={initialDocumentId}
       records={archiveRecords}
       customers={customers}
       products={products}
@@ -3592,7 +3620,7 @@ export default function LegalDocumentsPage({
                 showToast(error?.message || 'Δεν διαγράφηκε το ιστορικό συγχρονισμών.', 'error');
               }
             }}
-            disabled={!syncRuns.length || clearSyncRuns.isPending}
+            disabled={isInspectionPresentation || !syncRuns.length || clearSyncRuns.isPending}
           >
             {clearSyncRuns.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Διαγραφή ιστορικού
           </ActionButton>
@@ -3683,6 +3711,8 @@ export default function LegalDocumentsPage({
 
     return (
       <div className="space-y-5">
+        {!isInspectionPresentation && <EvidenceSourcesEditor value={settingsDraft.inspection_evidence_sources || []}
+          onChange={(inspection_evidence_sources) => setSettingsDraft((current) => ({ ...current, inspection_evidence_sources }))} />}
         <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
 
         <SettingsCard
@@ -4010,13 +4040,17 @@ export default function LegalDocumentsPage({
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{formatNumber(stats.failed)}</div></div>
       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{formatNumber(stats.printable)}</div></div>
       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{formatNumber(stats.proformas)}</div></div>
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}</div></div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{(isInspectionPresentation && activeTab === 'archive' ? inspectionSnapshot?.filters.environment : settingsDraft.environment) === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}</div></div>
     </div>
   );
 
   return (
     <div className="space-y-5">
-      {settingsDraft.environment === 'dev' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><strong>Δοκιμαστικό περιβάλλον</strong> · Οι εκδόσεις εδώ είναι δοκιμαστικές και έχουν ξεχωριστή αρίθμηση.</div>}
+      {(documentsError || linesError) && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Δεν έχουν ανακτηθεί όλα τα στοιχεία υποστήριξης έκδοσης. Η πληρότητα του αρχείου και των διαθέσιμων πιστώσεων χρειάζεται επιβεβαίωση.</div>}
+      {isInspectionPresentation && !!inspectionSnapshot?.tables.legal_documents.some((row) => !row.environment) && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Υπάρχουν παραστατικά άγνωστου περιβάλλοντος. Παραμένουν ορατά για διερεύνηση και δεν τεκμηριώνουν παραγωγική έκδοση μέχρι την επιβεβαίωσή τους.</div>}
+      {isInspectionPresentation && activeTab === 'archive' && visibleLegalDocuments.some(row => !row.environment) && <details className="rounded-xl border border-amber-200 bg-white p-3 text-sm"><summary className="cursor-pointer font-bold">Εκκρεμότητα περιβάλλοντος · {visibleLegalDocuments.filter(row => !row.environment).length} παραστατικά εκτός των μετρήσεων του περιβάλλοντος</summary><ul className="mt-2 space-y-1">{visibleLegalDocuments.filter(row => !row.environment).map(row => <li key={row.id}>{row.issue_date} · {getLegalDocumentDisplayNumber(row)} · MARK {row.aade_mark || 'Μη διαθέσιμο'}</li>)}</ul></details>}
+      {activeTab === 'new' && !isInspectionPresentation && (!catalogQuery.data || catalogQuery.data.saved) && <div role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{catalogQuery.isFetching ? 'Ανάκτηση καταλόγου έκδοσης από τον server…' : catalogQuery.data?.saved ? 'Χρησιμοποιείται αποθηκευμένος κατάλογος. Ανανεώστε τον πριν από νέα έκδοση.' : 'Δεν ανακτήθηκε ο κατάλογος έκδοσης.'}<button type="button" className="ml-2 font-bold underline" onClick={() => void catalogQuery.refetch()}>Ανανέωση καταλόγου</button></div>}
+      {settingsDraft.environment === 'dev' && activeTab !== 'archive' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><strong>Δοκιμαστικό περιβάλλον</strong> · Οι εκδόσεις εδώ είναι δοκιμαστικές και έχουν ξεχωριστή αρίθμηση.</div>}
       {isInspectionPresentation ? (
         statsStrip
       ) : (
@@ -4061,11 +4095,14 @@ export default function LegalDocumentsPage({
       )}
 
       <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        {activeTab === 'new' && renderNewTab()}
-        {activeTab === 'archive' && renderArchiveTab()}
+        {activeTab === 'new' && (isInspectionPresentation ? inspectionCatalogReady : catalogQuery.data && !catalogQuery.data.saved) && renderNewTab()}
+        {activeTab === 'new' && isInspectionPresentation && !inspectionCatalogReady && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Για νέα δημιουργία απαιτούνται σύνδεση και ενημερωμένος κατάλογος έκδοσης από τον server.</p>}
+        {activeTab === 'archive' && (isInspectionPresentation && !inspectionSnapshot
+          ? <p className="rounded-xl border bg-white p-5">{inspectionSnapshotPending ? 'Ανάκτηση στιγμιότυπου αρχείου…' : 'Δεν ανακτήθηκε το αρχείο. Χρησιμοποιήστε την Ανανέωση στοιχείων.'}</p>
+          : renderArchiveTab())}
         {activeTab === 'sync' && renderSyncTab()}
         {activeTab === 'delivery' && renderDeliveryTab()}
-        {activeTab === 'settings' && renderSettingsTab()}
+        {activeTab === 'settings' && <fieldset disabled={isInspectionPresentation} className="min-w-0">{isInspectionPresentation && <p className="mb-3 text-sm font-bold text-slate-500">Στοιχεία εκδότη και σύνδεσης · μόνο ανάγνωση. Οι αλλαγές γίνονται μετά από έξοδο με PIN.</p>}{renderSettingsTab()}</fieldset>}
       </div>
 
       {creditSource && <CreditDocumentModal original={creditSource.document} lines={creditSource.lines} available={creditSource.available} reservedLines={creditSource.reservedLines} onClose={() => setCreditSource(null)} onCreate={async bundle => { await saveDraft.mutateAsync(bundle); setCreditSource(null); setDraftBundle(bundle); setActiveTab('new'); showToast('Το πιστωτικό αποθηκεύτηκε ως προσχέδιο. Ελέγξτε το πριν την έκδοση.', 'success'); }} />}

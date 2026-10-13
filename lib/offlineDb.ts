@@ -5,6 +5,14 @@
  * Includes a "Sync Queue" for offline writes.
  */
 
+import { isInspectionModeActive } from './inspectionMode';
+export interface InspectionLocalSnapshot { tables: [IDBValidKey, any][]; queue: any[] }
+export interface InspectionVaultMetadata { id: string; localKeys?: string[]; localHashes?: string[] }
+const VAULT_META = '__inspection_vault';
+const isInspectionKey = (key: IDBValidKey) => typeof key === 'string' && key.startsWith('inspection:v1:');
+function assertWritable(key?: IDBValidKey) {
+    if (isInspectionModeActive() && (!key || !isInspectionKey(key))) throw new Error('Τα τοπικά δεδομένα της κανονικής εφαρμογής είναι κλειδωμένα.');
+}
 const DB_NAME = 'IliosERP_Offline_Mirror';
 const DB_VERSION = 3;
 const STORE_NAME = 'table_cache';
@@ -30,7 +38,41 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 export const offlineDb = {
+    getInspectionVault: async (): Promise<InspectionVaultMetadata | null> => offlineDb.getValue(VAULT_META),
+    readInspectionLocalSnapshot: async (): Promise<InspectionLocalSnapshot> => {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORE_NAME, SYNC_STORE], 'readonly');
+            const tables = tx.objectStore(STORE_NAME);
+            const keys = tables.getAllKeys(); const values = tables.getAll(); const queue = tx.objectStore(SYNC_STORE).getAll();
+            tx.oncomplete = () => resolve({ tables: keys.result.map((key, i) => [key, values.result[i]] as [IDBValidKey, any]).filter(([key]) => key !== VAULT_META && !isInspectionKey(key)), queue: queue.result });
+            tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+        });
+    },
+    replaceInspectionLocalSnapshot: async (expected: InspectionLocalSnapshot, replacement: InspectionLocalSnapshot, vault: InspectionVaultMetadata | null): Promise<void> => {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORE_NAME, SYNC_STORE], 'readwrite');
+            const tables = tx.objectStore(STORE_NAME); const queueStore = tx.objectStore(SYNC_STORE);
+            const keys = tables.getAllKeys(); const values = tables.getAll(); const queue = queueStore.getAll();
+            let completed = 0; let conflict = false;
+            const compareAndWrite = () => {
+                if (++completed !== 3) return;
+                const current = { tables: keys.result.map((key, i) => [key, values.result[i]]).filter(([key]) => key !== VAULT_META && !isInspectionKey(key)), queue: queue.result };
+                if (JSON.stringify(current) !== JSON.stringify(expected)) { conflict = true; tx.abort(); return; }
+                const replacementKeys = new Set(replacement.tables.map(([key]) => key));
+                expected.tables.forEach(([key]) => { if (!replacementKeys.has(key)) tables.delete(key); });
+                replacement.tables.forEach(([key, value]) => tables.put(value, key));
+                replacement.queue.forEach(value => queueStore.put(value));
+                if (vault) tables.put(vault, VAULT_META); else tables.delete(VAULT_META);
+            };
+            keys.onsuccess = compareAndWrite; values.onsuccess = compareAndWrite; queue.onsuccess = compareAndWrite;
+            tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(conflict ? new Error('Τα τοπικά δεδομένα άλλαξαν κατά τη μετάβαση. Ανανεώστε για ασφαλή επανάληψη· καμία εργασία δεν διαγράφηκε.') : tx.error);
+        });
+    },
     saveValue: async <T>(key: string, value: T): Promise<void> => {
+        assertWritable(key);
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
         tx.objectStore(STORE_NAME).put(value, key);
@@ -57,6 +99,7 @@ export const offlineDb = {
     },
 
     saveTable: async (tableName: string, data: any[]) => {
+        assertWritable(tableName);
         try {
             const db = await openDB();
             const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -72,6 +115,7 @@ export const offlineDb = {
     },
 
     saveTablesAtomic: async (tables: Record<string, any[]>) => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
@@ -84,6 +128,7 @@ export const offlineDb = {
     },
 
     getTable: async (tableName: string): Promise<any[] | null> => {
+        if (isInspectionModeActive()) throw new Error('Τα παλιά τοπικά αντίγραφα είναι κλειδωμένα. Χρησιμοποιήστε τα στοιχεία της λειτουργίας ελέγχου.');
         try {
             const db = await openDB();
             const tx = db.transaction(STORE_NAME, 'readonly');
@@ -101,6 +146,7 @@ export const offlineDb = {
     },
 
     enqueue: async (operation: { type: string, table: string, method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT', data: any, match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }): Promise<number> => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         const store = tx.objectStore(SYNC_STORE);
@@ -116,6 +162,7 @@ export const offlineDb = {
     },
 
     getQueue: async (): Promise<any[]> => {
+        if (isInspectionModeActive()) throw new Error('Οι εκκρεμείς εργασίες είναι κλειδωμένες μέχρι την έξοδο με PIN.');
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readonly');
         const store = tx.objectStore(SYNC_STORE);
@@ -136,6 +183,7 @@ export const offlineDb = {
     },
 
     dequeue: async (id: number) => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         tx.objectStore(SYNC_STORE).delete(id);
@@ -146,6 +194,7 @@ export const offlineDb = {
     },
 
     clearAll: async () => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
         tx.objectStore(STORE_NAME).clear();
@@ -154,6 +203,7 @@ export const offlineDb = {
     },
 
     clearSyncQueue: async () => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(SYNC_STORE, 'readwrite');
         tx.objectStore(SYNC_STORE).clear();
@@ -164,6 +214,7 @@ export const offlineDb = {
     },
 
     purgeTablesExcept: async (allowedTables: Set<string>) => {
+        assertWritable();
         const db = await openDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);

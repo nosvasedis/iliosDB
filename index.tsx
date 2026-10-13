@@ -16,6 +16,8 @@ import {
 import { isInspectionModeActive } from './lib/inspectionMode';
 
 const PERSIST_CACHE_KEY = 'ilios-react-query-cache';
+// Do this before the persister can restore the ordinary ERP catalogue on a reload.
+if (isInspectionModeActive()) window.localStorage.removeItem(PERSIST_CACHE_KEY);
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 const THIRTY_MINUTES_MS = 1000 * 60 * 30;
 

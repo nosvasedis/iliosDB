@@ -3,6 +3,7 @@ import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { Product } from '../../types';
 import { productKeys, productsRepository } from '../../features/products';
 import { refreshErpProducts, removeProductsFromCache } from '../../features/erpCatalog';
+import { inspectionQueryKey } from '../../features/inspection/queryScope';
 
 type ProductsQueryOptions = {
     enabled?: boolean;
@@ -12,7 +13,7 @@ type ProductsQueryOptions = {
 
 export const useProducts = (options: ProductsQueryOptions = {}) => {
     return useQuery<Product[]>({
-        queryKey: productKeys.all,
+        queryKey: inspectionQueryKey(productKeys.all),
         queryFn: productsRepository.getProducts,
         enabled: options.enabled ?? true,
         // Inherit global staleTime (30m) unless overridden — avoids full-catalog remount storms.

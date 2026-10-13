@@ -56,6 +56,7 @@ describe('automatic backup schedule and retention', () => {
 describe('Worker admin authorization', () => {
     it('validates the bearer token and approved admin profile', async () => {
         const fetchFn = async (url: string) => {
+            if (url.includes('/rpc/inspection_session_state')) return Response.json(false);
             if (url.includes('/auth/v1/user')) {
                 return new Response(JSON.stringify({ id: 'u1' }), { status: 200 });
             }

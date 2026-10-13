@@ -5,10 +5,13 @@ import {
   RefreshCw,
   Settings,
   Truck,
+  List,
+  ClipboardCheck,
+  Package,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { APP_ICON_ONLY, APP_LOGO } from '../constants';
-import { useProducts } from '../hooks/api/useProducts';
 import { useLegalSettings } from '../hooks/api/useLegalDocuments';
 import { useRealtimeInvalidation } from '../hooks/api/useRealtimeInvalidation';
 import { usePrint } from './PrintContext';
@@ -31,21 +34,32 @@ import {
   sidebarMainClass,
 } from './layout/SidebarChrome';
 import { prefersCollapsedDesktopSidebar } from '../features/layout/sidebarChrome';
+import { useInspectionSnapshot, useLegalCatalog } from '../hooks/api/useInspection';
+import { legalCatalogProducts } from '../features/inspection/catalog';
+import { useOfflineSync } from '../hooks/useOfflineSync';
+import InspectionWorkspace, { InspectionStatusPanel, type InspectionExtraTab } from './inspection/InspectionWorkspace';
+import type { InspectionFilters } from '../features/inspection/types';
 
 const LegalDocumentsPage = lazyWithChunkRecovery(
   () => import('./LegalDocumentsPage'),
   import.meta.url,
 );
 
-const inspectionNavItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
+type InspectionTab = LegalTab | InspectionExtraTab;
+const inspectionNavItems: Array<{ id: InspectionTab; label: string; icon: LucideIcon }> = [
   { id: 'new', label: 'Δημιουργία', icon: FileCheck2 },
   { id: 'archive', label: 'Αρχείο', icon: Archive },
+  { id: 'registry', label: 'Μητρώο κωδικών', icon: List },
+  { id: 'readiness', label: 'Πληρότητα & πηγές', icon: ClipboardCheck },
+  { id: 'inventory', label: 'Εσωτερικά υπόλοιπα', icon: Package },
+  { id: 'third_parties', label: 'Αγαθά τρίτων', icon: Users },
   { id: 'sync', label: 'Συγχρονισμός', icon: RefreshCw },
   { id: 'delivery', label: 'Διακίνηση', icon: Truck },
   { id: 'settings', label: 'Ρυθμίσεις', icon: Settings },
 ];
 
-const tabTitles: Record<LegalTab, string> = {
+const tabTitles: Record<InspectionTab, string> = {
+  registry: 'Μητρώο κωδικών', readiness: 'Πληρότητα και πηγές', inventory: 'Εσωτερικά υπόλοιπα αποθήκης', third_parties: 'Αγαθά σε και από τρίτους',
   new: 'Δημιουργία παραστατικού',
   archive: 'Αρχείο παραστατικών',
   sync: 'Συγχρονισμός παραστατικών μέσω SBZ',
@@ -54,7 +68,11 @@ const tabTitles: Record<LegalTab, string> = {
 };
 
 const InspectionModeShell: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<LegalTab>('new');
+  const [activeTab, setActiveTab] = useState<InspectionTab>('archive');
+  const [filters, setFilters] = useState<InspectionFilters>({ environment: 'prod', dateFrom: '', dateTo: '' });
+  const [documentToOpen, setDocumentToOpen] = useState<string | null>(null);
+  const snapshotQuery = useInspectionSnapshot(filters);
+  const { pendingCount } = useOfflineSync();
   const [isCollapsed, setIsCollapsed] = useState(() =>
     typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
   );
@@ -64,8 +82,11 @@ const InspectionModeShell: React.FC = () => {
   // Keep inspection mode inside its legal-data allowlist. Product recipes are
   // already stripped by the inspection catalogue loader, so loading the full
   // materials table here would expose unrelated ERP cost and stock data.
-  const { data: products, isLoading: loadingProducts, isError: productsError } = useProducts();
-  const { data: legalSettings } = useLegalSettings();
+  const catalogQuery = useLegalCatalog();
+  const products = React.useMemo(() => legalCatalogProducts(catalogQuery.data?.items || []), [catalogQuery.data]);
+  const { isLoading: loadingProducts, isError: productsError, refetch: refreshProducts } = catalogQuery;
+  const { data: queriedLegalSettings } = useLegalSettings();
+  const legalSettings = queriedLegalSettings || snapshotQuery.data?.tables.legal_settings?.[0]?.settings;
   const { setLegalDocumentToPrint, setProformaToPrint } = usePrint();
   useRealtimeInvalidation();
 
@@ -85,14 +106,14 @@ const InspectionModeShell: React.FC = () => {
   }, []);
 
   const issuerName = legalSettings?.issuer?.business_name || legalSettings?.issuer?.name;
-  const isProduction = legalSettings?.environment === 'prod';
+  const isProduction = ['new','sync','settings'].includes(activeTab) ? legalSettings?.environment === 'prod' : filters.environment === 'prod';
   const environment = isProduction ? 'ΠΑΡΑΓΩΓΗ' : 'ΔΟΚΙΜΕΣ';
 
-  if (loadingProducts) {
+  if (loadingProducts && !snapshotQuery.data) {
     return <IliosLoader variant="screen" detail="Προετοιμασία παραστατικών" />;
   }
 
-  if (productsError || !products) {
+  if (productsError && !snapshotQuery.data) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-600 p-6 text-center">
         <p className="text-lg font-bold text-slate-900 mb-2">Δεν ήταν δυνατή η φόρτωση του συστήματος</p>
@@ -131,7 +152,7 @@ const InspectionModeShell: React.FC = () => {
               <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
             <div className={isCollapsed ? 'mt-0.5' : 'absolute right-2 top-2'}>
-              <SidebarConnectionBadge isLocalMode={false} isOnline={isOnline} isSyncing={false} pendingCount={0} />
+              <SidebarConnectionBadge isLocalMode={false} isOnline={isOnline} isSyncing={false} pendingCount={pendingCount} />
             </div>
           </div>
 
@@ -183,16 +204,29 @@ const InspectionModeShell: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {productsError && <p role="alert" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ο κατάλογος έκδοσης δεν ανακτήθηκε. Τα στοιχεία του στιγμιοτύπου παραμένουν διαθέσιμα.<button type="button" className="ml-2 font-bold underline" onClick={() => void refreshProducts()}>Ανανέωση καταλόγου</button></p>}
+              {catalogQuery.data?.saved && <p role="alert" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ο κατάλογος είναι αποθηκευμένο αντίγραφο της {new Date(catalogQuery.data.fetchedAt).toLocaleString('el-GR')}. Η νέα δημιουργία απαιτεί επιτυχή ενημέρωση.<button type="button" className="ml-2 font-bold underline" onClick={() => void refreshProducts()}>Ανανέωση καταλόγου</button></p>}
+              <InspectionStatusPanel snapshot={snapshotQuery.data} loading={snapshotQuery.isFetching} error={snapshotQuery.error} pendingCount={pendingCount}
+                filters={filters} onFilters={setFilters} onRefresh={() => void snapshotQuery.refetch()} />
+              {['registry', 'readiness', 'inventory', 'third_parties'].includes(activeTab) ? (
+                snapshotQuery.data ? <InspectionWorkspace tab={activeTab as InspectionExtraTab} snapshot={snapshotQuery.data} onOpenDocument={(id) => { setDocumentToOpen(id); setActiveTab('archive'); }} />
+                  : <p className="rounded-xl border bg-white p-5">{snapshotQuery.isFetching ? 'Ανάκτηση…' : 'Τα στοιχεία δεν είναι διαθέσιμα. Χρησιμοποιήστε την Ανανέωση στοιχείων.'}</p>
+              ) : (
               <Suspense fallback={<IliosLoader variant="section" detail={tabTitles[activeTab]} />}>
                 <LegalDocumentsPage
                   products={products}
                   presentation="inspection"
-                  activeTab={activeTab}
+                  activeTab={activeTab as LegalTab}
+                  inspectionSnapshot={snapshotQuery.data}
+                  inspectionSnapshotPending={snapshotQuery.isFetching}
+                  inspectionCatalogReady={!!catalogQuery.data && !catalogQuery.data.saved && isOnline}
+                  initialDocumentId={documentToOpen}
                   onActiveTabChange={setActiveTab}
                   onPrintLegalDocument={setLegalDocumentToPrint}
                   onPrintProforma={setProformaToPrint}
                 />
               </Suspense>
+              )}
             </div>
           </div>
         </main>

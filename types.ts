@@ -112,6 +112,8 @@ export interface Collection {
 }
 
 export interface Product {
+  /** Calculated from the complete server-side recipe; never recompute from a reduced catalogue. */
+  resolved_invoice_weight?: { value: number | null; source: 'automatic' | 'manual' | 'missing'; missingItems: string[] };
   sku: string;
   prefix: string;
   category: string;
@@ -1090,6 +1092,7 @@ export interface LegalIncomeClassification {
 }
 
 export interface LegalSettings {
+  inspection_evidence_sources?: import('./features/inspection/types').InspectionEvidenceSource[];
   id: string;
   environment: LegalEnvironment;
   issuer: LegalIssuerSettings;

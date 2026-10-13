@@ -22,7 +22,7 @@ export function useOfflineSync(): OfflineSyncState {
 
     // Poll pending queue count every 5s
     const refreshPendingCount = useCallback(async () => {
-        if (isLocalMode || isInspectionModeActive()) {
+        if (isLocalMode) {
             setPendingCount(0);
             setSyncStatus('online');
             return;

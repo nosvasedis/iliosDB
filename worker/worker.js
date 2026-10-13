@@ -5,6 +5,8 @@
  */
 
 import { handleSbzRoute } from './sbz.ts';
+import { handleInspectionRoute } from './inspection.ts';
+import { isInspectionWorkerRouteAllowed } from '../lib/inspectionAllowedTables.ts';
 import {
   CATALOG_PREPARE_FAILED_ERROR,
   CATALOG_PREPARE_FAILED_STATUS,
@@ -151,6 +153,13 @@ export async function verifyAdminAccess(request, env, fetchFn = fetch) {
   const [profile] = await profileResponse.json();
   if (profile?.role !== 'admin' || profile?.is_approved !== true) {
     return { ok: false, status: 403, error: 'Approved administrator access is required.' };
+  }
+  const stateResponse = await fetchFn(`${env.SUPABASE_URL}/rest/v1/rpc/inspection_session_state`, { method: 'POST', headers, body: '{}' });
+  if (!stateResponse.ok) return { ok: false, status: 503, error: 'Unable to verify inspection session lock.' };
+  const locked = await stateResponse.json();
+  if (typeof locked !== 'boolean') return { ok: false, status: 503, error: 'Invalid inspection session state.' };
+  if (locked && !isInspectionWorkerRouteAllowed(new URL(request.url).pathname)) {
+    return { ok: false, status: 403, error: 'Η συνεδρία είναι κλειδωμένη. Απαιτείται έξοδος με PIN.' };
   }
   return { ok: true, status: 200, userId: user.id };
 }
@@ -1471,6 +1480,11 @@ export default {
       const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
 
+      if (['/inspection/snapshot', '/inspection/support', '/inspection/customer', '/legal/catalog'].includes(url.pathname)) {
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        return handleInspectionRoute(request, env, CORS_HEADERS);
+      }
       if (url.pathname.startsWith('/sbz/')) {
         const access = await verifyAdminAccess(request, env);
         if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
@@ -1498,6 +1512,11 @@ export default {
         return operation;
       }
       const registryRoutes = new Set(['/aade/credential-status', '/aade/configure-registry-credentials', '/aade/test-registry-connection', '/aade/lookup-vat-registry']);
+      if (registryRoutes.has(url.pathname)) {
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        return handleAadeRoute(request, env, CORS_HEADERS, url);
+      }
       if (url.pathname.startsWith('/aade/') && !registryRoutes.has(url.pathname)) {
         return jsonResponse({ error: 'Η απευθείας διαβίβαση myDATA έχει καταργηθεί. Χρησιμοποιήστε τον πάροχο SBZ.' }, 410, CORS_HEADERS);
       }

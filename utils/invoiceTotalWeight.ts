@@ -25,6 +25,7 @@ function resolveProductWeight(
   context: WeightContext,
   visiting: Set<string>,
 ): InvoiceTotalWeightResult {
+  if (product.resolved_invoice_weight) return product.resolved_invoice_weight;
   const manualWeight = Number(product.invoice_total_weight_g);
   if (Number.isFinite(manualWeight) && manualWeight > 0) {
     return { value: manualWeight, source: 'manual', missingItems: [] };

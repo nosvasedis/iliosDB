@@ -1,9 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { getRegisteredQueryClient } from './queryClientRegistry';
-import { offlineDb } from './offlineDb';
 import {
   INSPECTION_ALLOWED_TABLES,
-  isInspectionQueryKeyAllowed,
   isInspectionRpcAllowed,
   isInspectionWorkerRouteAllowed,
 } from './inspectionAllowedTables';
@@ -20,14 +18,27 @@ class InspectionAccessError extends Error {
 }
 
 export function isInspectionModeActive(): boolean {
-  if (typeof sessionStorage === 'undefined') return false;
-  return sessionStorage.getItem(INSPECTION_SESSION_KEY) === '1';
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(INSPECTION_SESSION_KEY) === '1') return true;
+  // Upgrade the old tab-only lock without losing it during a reload.
+  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(INSPECTION_SESSION_KEY) === '1') {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(INSPECTION_SESSION_KEY, '1');
+    return true;
+  }
+  return false;
 }
 
 export function assertInspectionTableAllowed(tableName: string): void {
   if (!isInspectionModeActive()) return;
   if (!INSPECTION_ALLOWED_TABLES.has(tableName)) {
     throw new InspectionAccessError(tableName);
+  }
+}
+
+export function assertInspectionMutationAllowed(tableName: string, method: string): void {
+  if (!isInspectionModeActive()) return;
+  if (['legal_settings', 'legal_numbering_sequences', 'legal_carriers', 'legal_sync_runs', 'products', 'product_variants', 'profiles'].includes(tableName)
+    || (method === 'DELETE' && tableName !== 'legal_document_lines' && tableName !== 'proforma_document_lines')) {
+    throw new Error('Αυτή η μεταβολή γίνεται από την κανονική λειτουργία, μετά από έξοδο με PIN.');
   }
 }
 
@@ -62,19 +73,16 @@ export function matchesInspectionExitCombo(event: KeyboardEvent): boolean {
 }
 
 export async function purgeOfflineInspectionStores(): Promise<void> {
-  await offlineDb.clearSyncQueue();
-  await offlineDb.purgeTablesExcept(INSPECTION_ALLOWED_TABLES);
+  // Business mirrors and queued writes are records, not disposable UI state.
+  // Inspection loaders use their own namespace and never merge this queue.
+  // Deliberately preserve both stores, including unsynced local-mode changes.
 }
 
 export async function purgeInspectionSensitiveState(queryClient?: QueryClient | null): Promise<void> {
   const client = queryClient ?? getRegisteredQueryClient();
   if (client) {
-    const queries = client.getQueryCache().getAll();
-    for (const query of queries) {
-      if (!isInspectionQueryKeyAllowed(query.queryKey)) {
-        client.removeQueries({ queryKey: query.queryKey, exact: true });
-      }
-    }
+    await client.cancelQueries();
+    client.clear();
   }
 
   if (typeof localStorage !== 'undefined') {
@@ -84,23 +92,55 @@ export async function purgeInspectionSensitiveState(queryClient?: QueryClient | 
   await purgeOfflineInspectionStores();
 }
 
-export function clearInspectionModeFlag(): void {
+function clearInspectionModeFlag(): void {
+  if (typeof localStorage !== 'undefined') localStorage.removeItem(INSPECTION_SESSION_KEY);
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.removeItem(INSPECTION_SESSION_KEY);
   }
 }
 
 export async function enterInspectionMode(): Promise<void> {
-  await purgeInspectionSensitiveState();
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(INSPECTION_SESSION_KEY, '1');
+  const client = getRegisteredQueryClient();
+  if (client?.isMutating()) {
+    throw new Error('Ολοκληρώστε τις ενεργές εργασίες πριν αλλάξετε προβολή.');
   }
+  const { api } = await import('./supabase');
+  if (!(await api.hasInspectionExitPin())) throw new Error('Ορίστε πρώτα PIN εξόδου στις ρυθμίσεις παραστατικών.');
+  const { sealInspectionLocalData } = await import('./inspectionLocalVault');
+  await client?.cancelQueries();
+  try { await sealInspectionLocalData(); }
+  catch (error) {
+    if (isInspectionModeActive()) {
+      await purgeInspectionSensitiveState();
+      window.location.reload();
+    }
+    throw error;
+  }
+  localStorage.setItem(INSPECTION_SESSION_KEY, '1');
+  if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(INSPECTION_SESSION_KEY);
+  await purgeInspectionSensitiveState();
   window.location.reload();
 }
 
-export async function exitInspectionMode(): Promise<void> {
-  clearInspectionModeFlag();
+export async function exitInspectionMode(pin: string): Promise<void> {
+  const { api } = await import('./supabase');
+  if (getRegisteredQueryClient()?.isMutating()) throw new Error('Ολοκληρώστε τις ενεργές εργασίες πριν από την έξοδο.');
+  if (!pin) throw new Error('Απαιτείται κωδικός εξόδου.');
+  const { offlineDb } = await import('./offlineDb');
+  const vault = await offlineDb.getInspectionVault();
+  const result = await api.exitInspectionSession(pin, vault?.id);
+  if (!result.unlocked) throw new Error('Λανθασμένος κωδικός εξόδου ή πολλές προσπάθειες. Περιμένετε ένα λεπτό και δοκιμάστε ξανά.');
+  if (vault) {
+    try {
+      const { restoreInspectionLocalData } = await import('./inspectionLocalVault');
+      await restoreInspectionLocalData(result.vaultKey, vault.id);
+    } catch (error) {
+      await api.enterInspectionSession();
+      throw error;
+    }
+  }
   await purgeInspectionSensitiveState();
+  clearInspectionModeFlag();
   window.location.reload();
 }
 

@@ -685,6 +685,8 @@ function OrderLinkEditor({
 }
 
 interface LegalArchiveWorkspaceProps {
+  readOnlyMaintenance?: boolean;
+  initialRecordId?: string | null;
   records: LegalArchiveRecord[];
   customers: Customer[];
   products: Product[];
@@ -881,6 +883,13 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     const query = props.initialQuery || '';
     setFilters((current) => current.query === query ? current : ({ ...current, query }));
   }, [props.initialQuery]);
+  useEffect(() => {
+    if (!props.initialRecordId) return;
+    const index = filtered.findIndex((record) => record.id === props.initialRecordId);
+    if (index < 0) return;
+    setPage(Math.floor(index / PAGE_SIZE) + 1);
+    setExpanded((current) => new Set(current).add(filtered[index].key));
+  }, [props.initialRecordId, filtered]);
 
   const activeFilterChips: Array<{
     key: string;
@@ -1178,7 +1187,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <input type="file" accept="application/pdf,image/jpeg" className="sr-only" onChange={e=>{const file=e.target.files?.[0];if(file)props.onAttachLegal?.(document,file);e.target.value='';}} />
             </label>
           )}
-          {!document.aa && ['draft','failed'].includes(document.status) && (
+          {!props.readOnlyMaintenance && !document.aa && ['draft','failed'].includes(document.status) && (
             <ArchiveActionButton compact={compact} tone="danger" title="Διαγραφή" onClick={() => props.onDeleteLegal(document)} disabled={props.mutating}>
               {icon(<Trash2 size={14} />, 'Διαγραφή')}
             </ArchiveActionButton>
@@ -1202,7 +1211,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         <ArchiveActionButton compact={compact} tone="danger" title="Ακύρωση" onClick={() => props.onVoidProforma(document)} disabled={document.status !== 'draft'}>
           {icon(<Ban size={14} />, 'Ακύρωση')}
         </ArchiveActionButton>
-        <ArchiveActionButton compact={compact} tone="danger" title="Διαγραφή" onClick={() => props.onDeleteProforma(document)} disabled={props.mutating}>
+        <ArchiveActionButton compact={compact} tone="danger" title="Διαγραφή" onClick={() => props.onDeleteProforma(document)} disabled={props.readOnlyMaintenance || props.mutating}>
           {icon(<Trash2 size={14} />, 'Διαγραφή')}
         </ArchiveActionButton>
       </div>
@@ -1227,6 +1236,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
     return (
       <div className="space-y-4 bg-slate-50/80 p-4">
+        {props.readOnlyMaintenance && record.source === 'legal' && <p className="text-sm font-bold text-slate-600">Περιβάλλον παραστατικού: {(record.document as LegalDocument).environment === 'prod' ? 'Παραγωγή' : (record.document as LegalDocument).environment === 'dev' ? 'Δοκιμές' : 'Άγνωστο · χρειάζεται επιβεβαίωση'}</p>}
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="flex border-b border-slate-200 bg-slate-50/90">
             {([

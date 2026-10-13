@@ -28,7 +28,7 @@ const InspectionExitModal: React.FC<InspectionExitModalProps> = ({ isOpen, onClo
         if (!cancelled) setPinConfigured(configured);
       })
       .catch(() => {
-        if (!cancelled) setPinConfigured(false);
+        if (!cancelled) setError('Δεν επιβεβαιώθηκε η σύνδεση με τον server. Η λειτουργία παραμένει κλειδωμένη· μπορείτε να ξαναδοκιμάσετε.');
       });
 
     return () => {
@@ -48,12 +48,7 @@ const InspectionExitModal: React.FC<InspectionExitModalProps> = ({ isOpen, onClo
     setIsSubmitting(true);
     setError(null);
     try {
-      const valid = await api.verifyInspectionExitPin(pin);
-      if (!valid) {
-        setError('Λανθασμένος κωδικός.');
-        return;
-      }
-      await exitInspectionMode();
+      await exitInspectionMode(pin);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Αποτυχία εξόδου.');
     } finally {

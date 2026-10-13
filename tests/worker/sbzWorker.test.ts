@@ -99,6 +99,7 @@ describe('SBZ Worker boundary',()=>{
     const fetcher=vi.fn(async(input:any,options:any={})=>{
       const url=new URL(String(input));
       if(url.pathname==='/auth/v1/user')return Response.json({id:actor});
+      if(url.pathname==='/rest/v1/rpc/inspection_session_state')return Response.json(false);
       if(url.pathname==='/rest/v1/profiles')return Response.json([{role:'admin',is_approved:true}]);
       if(url.hostname==='api.cloudflare.com'){
         expect(options.method).toBe('PUT');secrets.push(JSON.parse(options.body));return Response.json({success:true});

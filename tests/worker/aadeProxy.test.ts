@@ -19,6 +19,7 @@ const env = {
   CLOUDFLARE_ACCOUNT_ID: 'cf-account',
   AADE_REGISTRY_USERNAME: 'registry-user',
   AADE_REGISTRY_PASSWORD: 'registry-password',
+  SUPABASE_URL: 'https://db.example', SUPABASE_SERVICE_ROLE_KEY: 'service',
 };
 
 afterEach(() => {
@@ -29,7 +30,7 @@ describe('AADE Worker proxy', () => {
   it('keeps AADE routes auth-gated', async () => {
     const response = await worker.fetch(new Request('https://worker.example/aade/credential-status'), env);
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
   });
 
   it('reports exact missing AADE and Cloudflare secrets', () => {
@@ -154,11 +155,17 @@ describe('AADE Worker proxy', () => {
           <onomasia>ILIOS TEST</onomasia></basic_rec>
         <firm_act_tab></firm_act_tab>
       </rg_ws_public2_result_rtType>`, { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
+    const registryFetch = fetchMock;
+    vi.stubGlobal('fetch', vi.fn(async (url: any, options: any) => {
+      if (String(url).includes('/auth/v1/user')) return Response.json({ id: 'admin' });
+      if (String(url).includes('/rest/v1/profiles')) return Response.json([{ role: 'admin', is_approved: true }]);
+      if (String(url).includes('/rpc/inspection_session_state')) return Response.json(false);
+      return registryFetch(url, options);
+    }));
 
     const response = await worker.fetch(new Request('https://worker.example/aade/test-registry-connection', {
       method: 'POST',
-      headers: { Authorization: 'secret', 'Content-Type': 'application/json' },
+      headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestedByVat: '094259216' }),
     }), env);
     const data = await response.json();

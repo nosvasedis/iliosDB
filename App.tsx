@@ -129,7 +129,7 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
           </div>
           <h2 className="text-xl font-bold text-slate-800 mb-2">Σφάλμα Προφίλ</h2>
           <p className="text-slate-500 mb-6 text-sm">
-            Δεν βρέθηκαν πληροφορίες προφίλ για το λογαριασμό σας. Παρακαλώ προσπαθήστε ξανά ή επικοινωνήστε με τον διαχειριστή.
+            {isInspectionModeActive() ? 'Η προβολή παραμένει κλειδωμένη, αλλά δεν ολοκληρώθηκε ο έλεγχος πρόσβασης ή η ασφαλής μετάβαση. Δοκιμάστε Ανανέωση ή έξοδο με Ctrl+Shift+Alt+U και PIN.' : 'Δεν επιβεβαιώθηκαν πληροφορίες προφίλ και κατάστασης συνεδρίας. Παρακαλώ προσπαθήστε ξανά ή επικοινωνήστε με τον διαχειριστή.'}
           </p>
           <div className="flex gap-2 justify-center">
             <button onClick={refreshProfile} className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-red-700 transition-colors text-sm shadow-md">
@@ -152,10 +152,10 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
 
 function AppContent() {
   const { profile } = useAuth();
-  const isMobile = useIsMobile();
 
-  if (profile?.role === 'admin' && !isMobile && isInspectionModeActive()) {
-    return <InspectionModeShell />;
+  if (isInspectionModeActive()) {
+    return profile?.role === 'admin' ? <InspectionModeShell />
+      : <div className="flex h-screen items-center justify-center bg-slate-50 p-6 text-center font-bold">Η προβολή ελέγχου παραμένει ενεργή σε αυτόν τον browser. Απαιτείται σύνδεση εγκεκριμένου διαχειριστή.</div>;
   }
 
   return <ErpAppContent />;
@@ -591,13 +591,13 @@ export default function App() {
   }
   return (
     <AuthProvider>
-      <AuthGuard>
-        <InspectionModeProvider>
+      <InspectionModeProvider>
+        <AuthGuard>
           <PrintProvider>
             <AppContent />
           </PrintProvider>
-        </InspectionModeProvider>
-      </AuthGuard>
+        </AuthGuard>
+      </InspectionModeProvider>
     </AuthProvider>
   );
 }

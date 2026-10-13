@@ -279,6 +279,9 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
       new?: Record<string, unknown>;
       old?: Record<string, unknown>;
     }) => {
+      if (isInspectionModeActive()) {
+        void queryClient.invalidateQueries({ queryKey: ['inspection'] });
+      }
       if (scope === 'seller'
         && payload.table
         && (SELLER_CATALOG_REALTIME_TABLES as readonly string[]).includes(payload.table)) {
