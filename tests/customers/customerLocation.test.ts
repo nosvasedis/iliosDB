@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OrderStatus, type Customer, type Order } from '../../types';
 import {
-  activityFromDays,
   buildCustomerDirectory,
   composeBranchAddress,
   detectCountryInAddress,
@@ -121,13 +120,13 @@ describe('customer directory', () => {
     const b = customer('ΟΔΟΣ 1, 49100 - ΚΕΡΚΥΡΑ', { id: 'b' });
     const sys = customer(undefined, { id: 'sys', full_name: 'Λιανική' });
     const directory = buildCustomerDirectory([a, b, sys], [
-      order('a', '2026-10-01T00:00:00Z', 100),
-      order('a', '2026-01-01T00:00:00Z', 50),
+      order('a', '2026-10-01T00:00:00Z', 124),
+      order('a', '2026-01-01T00:00:00Z', 62),
       order('a', '2026-10-10T00:00:00Z', 999, OrderStatus.Cancelled),
       order('b', '2025-01-01T00:00:00Z', 10),
     ], { systemCustomerId: 'sys', now });
     const [ea, eb, es] = directory;
-    expect(ea).toMatchObject({ orderCount: 2, revenue: 150, activity: 'active', daysSinceLastOrder: 13 });
+    expect(ea).toMatchObject({ orderCount: 2, revenue: 150, yearRevenue: 150, yearOrderCount: 2, activity: 'quiet', tier: null, daysSinceLastOrder: 13 });
     expect(eb.activity).toBe('inactive');
     expect(es).toMatchObject({ isSystem: true, activity: 'none' });
 
@@ -141,13 +140,6 @@ describe('customer directory', () => {
     expect(matchesCustomerSearch(ea, 'ναυπλιο')).toBe(true);
     expect(matchesCustomerSearch(ea, 'Αργολίδα')).toBe(true);
     expect(matchesCustomerSearch(ea, '21100')).toBe(true);
-  });
-
-  it('buckets activity thresholds', () => {
-    expect(activityFromDays(null)).toBe('none');
-    expect(activityFromDays(90)).toBe('active');
-    expect(activityFromDays(200)).toBe('quiet');
-    expect(activityFromDays(400)).toBe('inactive');
   });
 
   it('builds initials', () => {

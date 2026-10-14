@@ -43,12 +43,97 @@ export interface CustomerLocation {
 
 export type CustomerActivity = 'active' | 'quiet' | 'inactive' | 'none';
 
-export const ACTIVITY_META: Record<CustomerActivity, { label: string; hint: string; color: string; dot: string; soft: string }> = {
-  active: { label: 'Ενεργός', hint: 'Παραγγελία τις τελευταίες 90 ημέρες', color: '#059669', dot: 'bg-emerald-500', soft: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
-  quiet: { label: 'Σε ύφεση', hint: 'Τελευταία παραγγελία 3–12 μήνες πριν', color: '#d97706', dot: 'bg-amber-500', soft: 'bg-amber-50 text-amber-700 ring-amber-100' },
-  inactive: { label: 'Ανενεργός', hint: 'Καμία παραγγελία πάνω από έναν χρόνο', color: '#e11d48', dot: 'bg-rose-500', soft: 'bg-rose-50 text-rose-700 ring-rose-100' },
-  none: { label: 'Χωρίς παραγγελίες', hint: 'Δεν έχει καταχωρηθεί παραγγελία', color: '#64748b', dot: 'bg-slate-400', soft: 'bg-slate-100 text-slate-600 ring-slate-200' },
+/** Calendar-year order turnover, net of VAT; cancelled orders are excluded. */
+export const QUIET_THRESHOLD_EUR = 500;
+
+export const ACTIVITY_META: Record<CustomerActivity, { label: string; plural: string; hint: string; color: string; dot: string; soft: string }> = {
+  active: { label: 'Ενεργός', plural: 'Ενεργοί', hint: 'Αγορές από 500 € φέτος, χωρίς ΦΠΑ', color: '#059669', dot: 'bg-emerald-500', soft: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  quiet: { label: 'Σε ύφεση', plural: 'Σε ύφεση', hint: 'Παραγγελία φέτος, με καθαρό τζίρο κάτω από 500 €', color: '#d97706', dot: 'bg-amber-500', soft: 'bg-amber-50 text-amber-700 ring-amber-100' },
+  inactive: { label: 'Ανενεργός', plural: 'Ανενεργοί', hint: 'Καμία αγορά στο τρέχον ημερολογιακό έτος', color: '#e11d48', dot: 'bg-rose-500', soft: 'bg-rose-50 text-rose-700 ring-rose-100' },
+  none: { label: 'Χωρίς παραγγελίες', plural: 'Χωρίς παραγγελίες', hint: 'Δεν έχει καταχωρηθεί μη ακυρωμένη παραγγελία', color: '#64748b', dot: 'bg-slate-400', soft: 'bg-slate-100 text-slate-600 ring-slate-200' },
 };
+
+export type CustomerTier = 'top' | 'key' | 'steady' | 'regular';
+export const TIER_ORDER: CustomerTier[] = ['top', 'key', 'steady', 'regular'];
+export const TIER_META: Record<CustomerTier, { label: string; plural: string; min: number; max: number | null; color: string; dot: string; soft: string }> = {
+  top: { label: 'Κορυφαίος', plural: 'Κορυφαίοι', min: 10000, max: null, color: '#7c3aed', dot: 'bg-violet-600', soft: 'bg-violet-50 text-violet-800 ring-violet-200' },
+  key: { label: 'Βασικός', plural: 'Βασικοί', min: 5000, max: 10000, color: '#047857', dot: 'bg-emerald-700', soft: 'bg-emerald-100 text-emerald-900 ring-emerald-200' },
+  steady: { label: 'Σταθερός', plural: 'Σταθεροί', min: 2000, max: 5000, color: '#059669', dot: 'bg-emerald-500', soft: 'bg-emerald-50 text-emerald-800 ring-emerald-100' },
+  regular: { label: 'Τακτικός', plural: 'Τακτικοί', min: QUIET_THRESHOLD_EUR, max: 2000, color: '#0d9488', dot: 'bg-teal-500', soft: 'bg-teal-50 text-teal-800 ring-teal-100' },
+};
+
+export function tierRangeLabel(tier: CustomerTier): string {
+  const { min, max } = TIER_META[tier];
+  const fmt = (value: number) => `${value.toLocaleString('el-GR')} €`;
+  return max === null ? `Από ${fmt(min)}` : `${fmt(min)} έως < ${fmt(max)}`;
+}
+
+export interface CustomerClassification {
+  activity: CustomerActivity;
+  tier: CustomerTier | null;
+}
+
+export function classifyCustomer(yearNet: number, hasAnyOrder: boolean, hasYearOrder = yearNet > 0): CustomerClassification {
+  if (!hasAnyOrder) return { activity: 'none', tier: null };
+  if (!hasYearOrder) return { activity: 'inactive', tier: null };
+  if (yearNet < QUIET_THRESHOLD_EUR) return { activity: 'quiet', tier: null };
+  return { activity: 'active', tier: TIER_ORDER.find(tier => yearNet >= TIER_META[tier].min) ?? 'regular' };
+}
+
+export function nextCategoryGap(yearNet: number): { label: string; missing: number } | null {
+  const next = [...TIER_ORDER].reverse().find(tier => TIER_META[tier].min > yearNet);
+  return next ? { label: TIER_META[next].label, missing: Math.round((TIER_META[next].min - yearNet) * 100) / 100 } : null;
+}
+
+/** Order totals already include discounts and VAT. Keep money at cent precision. */
+export function orderNetValue(order: Pick<Order, 'total_price' | 'vat_rate'>): number {
+  const gross = Number(order.total_price);
+  const vat = order.vat_rate ?? 0.24;
+  if (!Number.isFinite(gross) || !Number.isFinite(vat) || vat < 0) return 0;
+  return Math.round((gross / (1 + vat) + Number.EPSILON) * 100) / 100;
+}
+
+const revenueYearFormatter = new Intl.DateTimeFormat('en', { timeZone: 'Europe/Athens', year: 'numeric' });
+
+export interface CustomerOrderSummary extends CustomerClassification {
+  orderCount: number;
+  /** All-time net order value. */
+  revenue: number;
+  /** Current calendar-year net order value in the business timezone (Greece). */
+  yearRevenue: number;
+  yearOrderCount: number;
+  lastOrderAt: string | null;
+  daysSinceLastOrder: number | null;
+}
+
+/** Shared by directory, customer profiles and mobile. Ignores future/invalid dates. */
+export function summarizeCustomerOrders(orders: Order[] | undefined, now = Date.now()): CustomerOrderSummary {
+  const year = revenueYearFormatter.format(now);
+  let orderCount = 0;
+  let revenueCents = 0;
+  let yearRevenueCents = 0;
+  let yearOrderCount = 0;
+  let lastOrderAt: string | null = null;
+  let lastTime = -Infinity;
+  for (const order of orders ?? []) {
+    const time = new Date(order.created_at).getTime();
+    if (order.status === OrderStatus.Cancelled || !Number.isFinite(time) || time > now) continue;
+    const cents = Math.round(orderNetValue(order) * 100);
+    orderCount += 1;
+    revenueCents += cents;
+    if (revenueYearFormatter.format(time) === year) {
+      yearOrderCount += 1;
+      yearRevenueCents += cents;
+    }
+    if (time > lastTime) { lastTime = time; lastOrderAt = order.created_at; }
+  }
+  const yearRevenue = yearRevenueCents / 100;
+  return {
+    orderCount, revenue: revenueCents / 100, yearRevenue, yearOrderCount, lastOrderAt,
+    daysSinceLastOrder: lastOrderAt ? Math.floor((now - lastTime) / DAY_MS) : null,
+    ...classifyCustomer(yearRevenue, orderCount > 0, yearOrderCount > 0),
+  };
+}
 
 export const PRECISION_LABEL: Record<LocationPrecision, string> = {
   exact: 'Ακριβής θέση',
@@ -403,7 +488,7 @@ export function buildCustomerPlaces(customer: Customer): CustomerPlace[] {
 // Directory (per-customer stats + location) and region filtering
 // ---------------------------------------------------------------------------
 
-export interface CustomerDirectoryEntry {
+export interface CustomerDirectoryEntry extends CustomerOrderSummary {
   customer: Customer;
   /** Main location (main shop, else fiscal seat) — used for badges and sorting. */
   location: CustomerLocation;
@@ -413,22 +498,10 @@ export interface CustomerDirectoryEntry {
   places: CustomerPlace[];
   /** Locations considered by the Περιοχή filter (never empty). */
   regionLocations: CustomerLocation[];
-  orderCount: number;
-  revenue: number;
-  lastOrderAt: string | null;
-  daysSinceLastOrder: number | null;
-  activity: CustomerActivity;
   isSystem: boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function activityFromDays(days: number | null): CustomerActivity {
-  if (days === null) return 'none';
-  if (days <= 90) return 'active';
-  if (days <= 365) return 'quiet';
-  return 'inactive';
-}
 
 export function buildCustomerDirectory(
   customers: Customer[],
@@ -436,22 +509,17 @@ export function buildCustomerDirectory(
   options: { systemCustomerId?: string; now?: number } = {},
 ): CustomerDirectoryEntry[] {
   const now = options.now ?? Date.now();
-  const stats = new Map<string, { count: number; revenue: number; last: string | null }>();
+  const ordersByCustomer = new Map<string, Order[]>();
   for (const order of orders ?? []) {
-    if (!order.customer_id || order.status === OrderStatus.Cancelled) continue;
-    const s = stats.get(order.customer_id) ?? { count: 0, revenue: 0, last: null };
-    s.count += 1;
-    s.revenue += Number(order.total_price) || 0;
-    if (!s.last || new Date(order.created_at).getTime() > new Date(s.last).getTime()) s.last = order.created_at;
-    stats.set(order.customer_id, s);
+    if (!order.customer_id) continue;
+    const list = ordersByCustomer.get(order.customer_id) ?? [];
+    list.push(order);
+    ordersByCustomer.set(order.customer_id, list);
   }
 
   return customers.map((customer) => {
     const isSystem = customer.id === options.systemCustomerId;
-    const s = stats.get(customer.id);
-    const lastOrderAt = s?.last ?? null;
-    const lastTime = lastOrderAt ? new Date(lastOrderAt).getTime() : NaN;
-    const daysSinceLastOrder = Number.isFinite(lastTime) ? Math.max(0, Math.floor((now - lastTime) / DAY_MS)) : null;
+    const summary = summarizeCustomerOrders(ordersByCustomer.get(customer.id), now);
 
     const fiscalLocation = isSystem ? { ...EMPTY_LOCATION } : resolveCustomerLocation(customer);
     const places = isSystem ? [] : buildCustomerPlaces(customer);
@@ -466,11 +534,7 @@ export function buildCustomerDirectory(
       fiscalLocation,
       places,
       regionLocations,
-      orderCount: s?.count ?? 0,
-      revenue: s?.revenue ?? 0,
-      lastOrderAt,
-      daysSinceLastOrder,
-      activity: activityFromDays(daysSinceLastOrder),
+      ...summary,
       isSystem,
     };
   });
@@ -581,7 +645,7 @@ export type SortDirection = 'asc' | 'desc';
 export const CUSTOMER_SORT_OPTIONS: Array<{ key: CustomerSortKey; label: string; defaultDir: SortDirection }> = [
   { key: 'name', label: 'Αλφαβητικά', defaultDir: 'asc' },
   { key: 'recent', label: 'Πρόσφατη παραγγελία', defaultDir: 'desc' },
-  { key: 'revenue', label: 'Τζίρος', defaultDir: 'desc' },
+  { key: 'revenue', label: 'Τζίρος φέτος', defaultDir: 'desc' },
   { key: 'orders', label: 'Παραγγελίες', defaultDir: 'desc' },
   { key: 'region', label: 'Περιοχή', defaultDir: 'asc' },
 ];
@@ -595,7 +659,7 @@ export function sortCustomerDirectory(entries: CustomerDirectoryEntry[], key: Cu
   const value = (e: CustomerDirectoryEntry): number | string | null => {
     switch (key) {
       case 'recent': return e.lastOrderAt ? new Date(e.lastOrderAt).getTime() : null;
-      case 'revenue': return e.orderCount ? e.revenue : null;
+      case 'revenue': return e.orderCount ? e.yearRevenue : null;
       case 'orders': return e.orderCount || null;
       case 'region': return e.location.periferiaLabel
         ? `${e.location.periferiaLabel}|${e.location.unitLabel ?? ''}|${e.location.town ?? ''}` : null;

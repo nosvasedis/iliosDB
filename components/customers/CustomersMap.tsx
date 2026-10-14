@@ -686,7 +686,7 @@ function SelectedCustomerCard({
           <div className="line-clamp-2 text-sm font-black leading-tight text-slate-900">{customer.full_name}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {customer.customer_code && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">#{customer.customer_code}</span>}
-            <ActivityBadge activity={entry.activity} />
+            <ActivityBadge activity={entry.activity} tier={entry.tier} />
           </div>
         </div>
         <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Κλείσιμο">
@@ -725,7 +725,7 @@ function SelectedCustomerCard({
 
       <div className="mx-4 mt-3 grid grid-cols-3 divide-x divide-slate-100 rounded-2xl bg-slate-50 py-2 text-center">
         <div><div className="text-sm font-black text-slate-800">{entry.orderCount}</div><div className="text-[9px] font-bold uppercase text-slate-400">Παραγγ.</div></div>
-        <div><div className="truncate px-1 text-sm font-black text-slate-800">{formatCurrency(entry.revenue)}</div><div className="text-[9px] font-bold uppercase text-slate-400">Τζίρος</div></div>
+        <div title="Χωρίς ΦΠΑ, από 1 Ιανουαρίου έως σήμερα"><div className="truncate px-1 text-sm font-black text-slate-800">{formatCurrency(entry.yearRevenue)}</div><div className="text-[9px] font-bold uppercase text-slate-400">Τζίρος φέτος</div></div>
         <div><div className="text-sm font-black text-slate-800">{formatDaysAgo(entry.daysSinceLastOrder)}</div><div className="text-[9px] font-bold uppercase text-slate-400">Τελευταία</div></div>
       </div>
 

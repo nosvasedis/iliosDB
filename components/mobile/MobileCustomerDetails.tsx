@@ -18,8 +18,8 @@ import {
   Store,
 } from 'lucide-react';
 import { Customer, Order, OrderStatus } from '../../types';
-import { RegionPill } from '../customers/customerUi';
-import { composeBranchAddress, customerBranches, isDomesticCountry, normalizeCountry, resolveBranchLocation } from '../../features/customers/customerLocation';
+import { CustomerCategorySummary, RegionPill } from '../customers/customerUi';
+import { composeBranchAddress, customerBranches, isDomesticCountry, normalizeCountry, resolveBranchLocation, summarizeCustomerOrders } from '../../features/customers/customerLocation';
 import { countryDisplayName } from '../../features/customers/greekRegions';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getSpecialCreationDisplayNote } from '../../utils/specialCreationSku';
@@ -46,6 +46,7 @@ const normalize = (value: string) => value.toLowerCase().normalize('NFD').replac
 export default function MobileCustomerDetails({ customer, orders, onClose, onEdit }: Props) {
   const [tab, setTab] = useState<DetailTab>('overview');
   const [orderQuery, setOrderQuery] = useState('');
+  const summary = useMemo(() => summarizeCustomerOrders(orders.filter(order => order.customer_id === customer.id)), [orders, customer.id]);
   const customerOrders = useMemo(() => orders
     .filter(order => order.status !== OrderStatus.Cancelled && (order.customer_id === customer.id || order.customer_name === customer.full_name))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [customer, orders]);
@@ -87,6 +88,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
       <main id={`mobile-customer-${tab}`} role="tabpanel" className="min-h-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 custom-scrollbar">
         {tab === 'overview' && (
           <div className="space-y-4">
+            <CustomerCategorySummary summary={summary} />
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-700"><Wallet size={11} /> Καθαρή αξία</p><p className="mt-2 font-mono text-xl font-black text-emerald-950">{formatCurrency(totalNet)}</p></div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-blue-700"><ShoppingBag size={11} /> Παραγγελίες</p><p className="mt-2 font-mono text-xl font-black text-blue-950">{formatNumber(customerOrders.length)}</p></div>

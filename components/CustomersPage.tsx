@@ -14,6 +14,7 @@ import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import DesktopPageHeader from './DesktopPageHeader';
 import {
   ACTIVITY_META,
+  TIER_META,
   CUSTOMER_SORT_OPTIONS,
   matchesCustomerSearch,
   matchesEntryRegion,
@@ -21,6 +22,7 @@ import {
   regionFilterLabel,
   sortCustomerDirectory,
   type CustomerActivity,
+  type CustomerTier,
   type CustomerDirectoryEntry,
   type CustomerSortKey,
   type RegionFilterKey,
@@ -31,6 +33,7 @@ import { useCustomerDirectory } from './customers/useCustomerDirectory';
 import CustomerCard, { SystemCustomerCard } from './customers/CustomerCard';
 import CustomerListView from './customers/CustomerListView';
 import CustomerRegionFilter from './customers/CustomerRegionFilter';
+import CustomerCategoryFilter from './customers/CustomerCategoryFilter';
 
 const CustomersMap = React.lazy(() => import('./customers/CustomersMap'));
 
@@ -62,8 +65,6 @@ const VIEW_OPTIONS: Array<{ id: ViewMode; label: string; icon: typeof LayoutGrid
     { id: 'list', label: 'Λίστα', icon: List },
     { id: 'map', label: 'Χάρτης', icon: MapIcon },
 ];
-
-const ACTIVITY_FILTERS: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
 
 /** Card grid that adapts to any width instead of fixed breakpoints. */
 const CARD_GRID_STYLE: React.CSSProperties = { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 288px), 1fr))' };
@@ -134,6 +135,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [sortKey, setSortKey] = useState<CustomerSortKey>(initialPrefs.sortKey ?? 'name');
     const [sortDir, setSortDir] = useState<SortDirection>(initialPrefs.sortDir ?? 'asc');
     const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
+    const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
+    const setCategoryFilter = (activity: CustomerActivity | null, tier: CustomerTier | null = null) => {
+        setActivityFilter(activity);
+        setTierFilter(activity === 'active' ? tier : null);
+    };
     const [searchTerm, setSearchTerm] = useState('');
     const isWide = useMediaQuery(DOCKED_PANEL_QUERY);
     const [panelDocked, setPanelDocked] = useState<boolean>(initialPrefs.panel ?? true);
@@ -176,8 +182,9 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const filtered = useMemo(() => regular.filter(e =>
         matchesEntryRegion(e, regions)
         && (!activityFilter || e.activity === activityFilter)
+        && (!tierFilter || e.tier === tierFilter)
         && matchesCustomerSearch(e, searchTerm)
-    ), [regular, regions, activityFilter, searchTerm]);
+    ), [regular, regions, activityFilter, tierFilter, searchTerm]);
 
     const sorted = useMemo(() => sortCustomerDirectory(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
@@ -210,7 +217,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     }), [regular, regionCounts]);
 
     const hasFilters = regions.length > 0 || Boolean(activityFilter) || Boolean(searchTerm);
-    const clearFilters = () => { setRegions([]); setActivityFilter(null); setSearchTerm(''); };
+    const clearFilters = () => { setRegions([]); setCategoryFilter(null); setSearchTerm(''); };
 
     // --- Actions ------------------------------------------------------------
     const openCustomer = (c: Customer) => { setSelectedCustomer(c); setIsCreating(false); };
@@ -387,8 +394,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:gap-3">
                         <KpiTile icon={Users} label="Πελάτες" value={kpis.total} hint="Χωρίς τη Λιανική" tone="bg-slate-900/5 text-slate-700"
                             active={!hasFilters} onClick={hasFilters ? clearFilters : undefined} />
-                        <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint="Παραγγελία σε 90 ημέρες" tone="bg-emerald-50 text-emerald-600"
-                            active={activityFilter === 'active'} onClick={() => setActivityFilter(activityFilter === 'active' ? null : 'active')} />
+                        <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint={ACTIVITY_META.active.hint} tone="bg-emerald-50 text-emerald-600"
+                            active={activityFilter === 'active'} onClick={() => setCategoryFilter(activityFilter === 'active' ? null : 'active')} />
                         <KpiTile icon={MapIcon} label="Περιοχές" value={kpis.units} hint={`${kpis.periferies} περιφέρειες`} tone="bg-sky-50 text-sky-600"
                             active={view === 'map'} onClick={() => setView('map')} />
                         <KpiTile icon={MapPinOff} label="Χωρίς περιοχή" value={kpis.noRegion} hint="Ελλιπής διεύθυνση / ΤΚ" tone="bg-amber-50 text-amber-600"
@@ -442,26 +449,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             {regions.length > 0 && <span className="rounded-full bg-sky-600 px-1.5 text-[10px] text-white">{regions.length}</span>}
                         </button>
 
-                        <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100 [scrollbar-width:none]">
-                            <button
-                                type="button"
-                                onClick={() => setActivityFilter(null)}
-                                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${!activityFilter ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                Όλοι
-                            </button>
-                            {ACTIVITY_FILTERS.map(a => (
-                                <button
-                                    key={a}
-                                    type="button"
-                                    title={ACTIVITY_META[a].hint}
-                                    onClick={() => setActivityFilter(activityFilter === a ? null : a)}
-                                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${activityFilter === a ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                                >
-                                    <span className={`h-2 w-2 shrink-0 rounded-full ${ACTIVITY_META[a].dot}`} /> {ACTIVITY_META[a].label}
-                                </button>
-                            ))}
-                        </div>
+                        <CustomerCategoryFilter entries={regular} activity={activityFilter} tier={tierFilter} onChange={setCategoryFilter} />
 
                         <span className="flex-1" />
                         <span className="hidden shrink-0 whitespace-nowrap text-xs font-bold text-slate-400 md:inline">
@@ -501,8 +489,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             ))}
                             {activityFilter && (
                                 <span className="flex items-center gap-1 rounded-full bg-slate-200/70 py-1 pl-3 pr-1 text-[11px] font-bold text-slate-700">
-                                    {ACTIVITY_META[activityFilter].label}
-                                    <button type="button" onClick={() => setActivityFilter(null)} className="rounded-full p-0.5 hover:bg-slate-300" aria-label="Αφαίρεση φίλτρου">
+                                    {ACTIVITY_META[activityFilter].plural}{tierFilter ? ` · ${TIER_META[tierFilter].plural}` : ''}
+                                    <button type="button" onClick={() => setCategoryFilter(null)} className="rounded-full p-0.5 hover:bg-slate-300" aria-label="Αφαίρεση φίλτρου">
                                         <X size={12} />
                                     </button>
                                 </span>

@@ -2,11 +2,17 @@ import React from 'react';
 import { MapPin } from 'lucide-react';
 import {
   ACTIVITY_META,
+  nextCategoryGap,
+  TIER_META,
+  tierRangeLabel,
   customerAvatarGradient,
   customerInitials,
   type CustomerActivity,
   type CustomerLocation,
+  type CustomerOrderSummary,
+  type CustomerTier,
 } from '../../features/customers/customerLocation';
+import { formatCurrency } from '../../utils/numberFormat';
 
 export function CustomerAvatar({ name, seed, size = 44, className = '' }: { name: string; seed: string; size?: number; className?: string }) {
   return (
@@ -20,16 +26,35 @@ export function CustomerAvatar({ name, seed, size = 44, className = '' }: { name
   );
 }
 
-export function ActivityBadge({ activity, compact = false }: { activity: CustomerActivity; compact?: boolean }) {
-  const meta = ACTIVITY_META[activity];
+export function ActivityBadge({ activity, tier = null, compact = false }: { activity: CustomerActivity; tier?: CustomerTier | null; compact?: boolean }) {
+  const activeTier = activity === 'active' ? tier : null;
+  const meta = activeTier ? TIER_META[activeTier] : ACTIVITY_META[activity];
+  const label = activeTier ? `${ACTIVITY_META.active.label} · ${meta.label}` : meta.label;
+  const hint = activeTier ? `${tierRangeLabel(activeTier)} φέτος, χωρίς ΦΠΑ` : ACTIVITY_META[activity].hint;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${meta.soft}`}
-      title={meta.hint}
+      title={hint}
+      aria-label={compact ? label : undefined}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-      {compact ? null : meta.label}
+      {compact ? null : label}
     </span>
+  );
+}
+
+export function CustomerCategorySummary({ summary }: { summary: CustomerOrderSummary }) {
+  const next = nextCategoryGap(summary.yearRevenue);
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-4" aria-label="Κατηγορία πελάτη βάσει ετήσιου τζίρου">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-black text-slate-800">Κατηγορία φέτος</span>
+        <ActivityBadge activity={summary.activity} tier={summary.tier} />
+      </div>
+      <p className="mt-2 text-sm font-black text-slate-900">{formatCurrency(summary.yearRevenue)} <span className="text-[11px] font-semibold text-slate-500">χωρίς ΦΠΑ · {summary.yearOrderCount} παραγγ. φέτος</span></p>
+      <p className="mt-1 text-[11px] text-slate-500">{next ? `Ακόμη ${formatCurrency(next.missing)} για την κατηγορία «${next.label}».` : 'Στην ανώτερη κατηγορία ετήσιου τζίρου.'}</p>
+      <p className="mt-2 text-[10px] leading-relaxed text-slate-400">Από 1 Ιανουαρίου έως σήμερα, με βάση την ημερομηνία παραγγελίας. Οι ακυρωμένες εξαιρούνται.</p>
+    </section>
   );
 }
 

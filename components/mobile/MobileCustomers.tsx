@@ -22,12 +22,15 @@ import { resolveCustomerAnalyticsCategory } from '../../features/customers/custo
 import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
 import { useCustomerDirectory } from '../customers/useCustomerDirectory';
 import CustomerRegionFilter from '../customers/CustomerRegionFilter';
+import CustomerCategoryFilter from '../customers/CustomerCategoryFilter';
 import { ActivityBadge, CustomerAvatar, RegionPill } from '../customers/customerUi';
 import {
     matchesCustomerSearch,
     matchesEntryRegion,
     regionFilterLabel,
     type CustomerDirectoryEntry,
+    type CustomerActivity,
+    type CustomerTier,
     type RegionFilterKey,
 } from '../../features/customers/customerLocation';
 import { GREEK_PERIFERIES } from '../../features/customers/greekRegions';
@@ -68,14 +71,17 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [regionSelection, setRegionSelection] = useState<RegionFilterKey[]>([]);
     const [customerView, setCustomerView] = useState<'list' | 'map'>('list');
     const [showRegionSheet, setShowRegionSheet] = useState(false);
+    const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
+    const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
     const directoryById = useMemo(() => new Map(directory.map(e => [e.customer.id, e])), [directory]);
     const regionChips = useMemo(() => GREEK_PERIFERIES
         .map(p => ({ key: `p:${p.id}`, label: p.short, count: regionCounts.periferia[p.id] ?? 0 }))
         .filter(c => c.count > 0)
         .sort((a, b) => b.count - a.count), [regionCounts]);
     const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => directory
-        .filter(e => !e.isSystem && matchesEntryRegion(e, regionSelection) && matchesCustomerSearch(e, search)),
-    [directory, regionSelection, search]);
+        .filter(e => !e.isSystem && matchesEntryRegion(e, regionSelection) && matchesCustomerSearch(e, search)
+            && (!activityFilter || e.activity === activityFilter) && (!tierFilter || e.tier === tierFilter)),
+    [directory, regionSelection, search, activityFilter, tierFilter]);
     const toggleRegionChip = (key: RegionFilterKey) =>
         setRegionSelection(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
     const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null, branchId?: string | null) => {
@@ -106,7 +112,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const filteredList = useMemo(() => {
         if (mode === 'customers') {
             if (!customers) return [];
-            const system = regionSelection.length === 0
+            const system = regionSelection.length === 0 && !activityFilter
                 ? directory.filter(e => e.isSystem && matchesCustomerSearch(e, search)).map(e => e.customer)
                 : [];
             return [...system, ...filteredEntries.map(e => e.customer)]
@@ -118,7 +124,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 s.contact_person?.toLowerCase().includes(search.toLowerCase())
             );
         }
-    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection]);
+    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, activityFilter]);
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
@@ -736,6 +742,13 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 </div>
             )}
 
+            {mode === 'customers' && (
+                <CustomerCategoryFilter entries={directory} activity={activityFilter} tier={tierFilter} onChange={(activity, tier) => {
+                    setActivityFilter(activity);
+                    setTierFilter(activity === 'active' ? tier : null);
+                }} />
+            )}
+
             {mode === 'customers' && showRegionSheet && (
                 <div className="fixed inset-0 z-[1200] flex flex-col justify-end bg-slate-900/40" onClick={() => setShowRegionSheet(false)}>
                     <div className="flex max-h-[80vh] flex-col rounded-t-3xl bg-white p-4 pb-8 shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -824,7 +837,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     {mode === 'customers' && directoryById.get(item.id) && (
                                         <div className="flex flex-wrap items-center gap-1.5">
                                             <RegionPill location={directoryById.get(item.id)!.location} className="max-w-[75%]" />
-                                            <ActivityBadge activity={directoryById.get(item.id)!.activity} />
+                                            <ActivityBadge activity={directoryById.get(item.id)!.activity} tier={directoryById.get(item.id)!.tier} />
+                                            <span className="text-[10px] font-bold text-slate-500">{formatCurrency(directoryById.get(item.id)!.yearRevenue)} φέτος, χωρίς ΦΠΑ</span>
                                         </div>
                                     )}
                                     {item.phone && (

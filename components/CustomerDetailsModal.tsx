@@ -69,7 +69,7 @@ import RepairStageBadge from './customerService/RepairStageBadge';
 import CustomerServiceQuickForm from './customerService/CustomerServiceQuickForm';
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
-import { ActivityBadge, CustomerAvatar, RegionPill } from './customers/customerUi';
+import { ActivityBadge, CustomerAvatar, CustomerCategorySummary, RegionPill } from './customers/customerUi';
 import {
     addressCountryMismatch,
     CountryMismatchHint,
@@ -79,7 +79,7 @@ import {
     withCustomerCountry,
 } from './customers/customerProfileFields';
 import {
-    activityFromDays,
+    summarizeCustomerOrders,
     composeBranchAddress,
     customerBranches,
     formatDaysAgo,
@@ -345,6 +345,8 @@ export default function CustomerDetailsModal({
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         const totalSpent = customerOrders.reduce((acc, o) => acc + netOf(o), 0);
+        // Use the directory's customer-id association for the category as well.
+        const summary = summarizeCustomerOrders(orders.filter(o => o.customer_id === customer.id));
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
 
@@ -399,7 +401,7 @@ export default function CustomerDetailsModal({
             latestOrder,
             firstOrder: oldestOrder,
             daysSinceLast,
-            activity: activityFromDays(daysSinceLast),
+            summary,
             activeMonths,
         };
     }, [customer, orders]);
@@ -571,7 +573,7 @@ export default function CustomerDetailsModal({
         !isRetailSystemCustomer && customer.full_name && customer.full_name !== RETAIL_CUSTOMER_NAME
             ? getNextNamedayForName(customer.full_name)
             : null;
-    const isVip = stats.totalSpent > 1000 && !isRetailSystemCustomer;
+    const isVip = stats.summary.tier === 'top' && !isRetailSystemCustomer;
     const vatPercent = formatDecimal(((customer.vat_rate ?? 0.24) * 100), 0);
 
     // -----------------------------------------------------------------------
@@ -765,6 +767,7 @@ export default function CustomerDetailsModal({
 
     const normalOverview = (
         <div className="space-y-5">
+            <CustomerCategorySummary summary={stats.summary} />
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <KpiCard icon={Wallet} label="Καθαρός τζίρος" value={formatCurrency(stats.totalSpent)} sub={`${formatCurrency(stats.last12mSpent)} τους τελευταίους 12 μήνες`} tone="bg-emerald-50 text-emerald-600" />
                 <KpiCard icon={ShoppingBag} label="Παραγγελίες" value={formatNumber(stats.orderCount)} sub={`${formatNumber(stats.totalItems)} τεμάχια συνολικά`} tone="bg-sky-50 text-sky-600" />
@@ -1298,7 +1301,7 @@ export default function CustomerDetailsModal({
                                 {isRetailSystemCustomer ? (
                                     <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-fuchsia-800">Συστημικός · μόνο ανάγνωση</span>
                                 ) : (
-                                    <ActivityBadge activity={stats.activity} />
+                                    <ActivityBadge activity={stats.summary.activity} tier={stats.summary.tier} />
                                 )}
                                 {!isRetailSystemCustomer && !isDomestic && (
                                     <span className="flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-800"><Globe2 size={11} /> {countryName}</span>
