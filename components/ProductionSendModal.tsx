@@ -1110,13 +1110,31 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         );
     }, [priceSyncPreview, order, showToast]);
 
+    const hasUnsavedPrices = useMemo(() => hasUnsavedOrderPriceChanges(order, orderProp), [order, orderProp]);
+
+    const savePriceChanges = useCallback(async (): Promise<boolean> => {
+        setIsWorking(true);
+        try {
+            await ordersRepository.updateOrder(order);
+            await invalidateOrdersAndBatches(queryClient);
+            onOrderUpdated?.(order);
+            showToast('Οι τιμές αποθηκεύτηκαν.', 'success');
+            return true;
+        } catch {
+            showToast('Σφάλμα κατά την αποθήκευση των τιμών.', 'error');
+            return false;
+        } finally {
+            setIsWorking(false);
+        }
+    }, [order, onOrderUpdated, queryClient, showToast]);
+
     const requestClose = useCallback(async (afterClose?: () => void) => {
         const finishClose = () => {
             onClose();
             afterClose?.();
         };
 
-        if (!hasUnsavedOrderPriceChanges(order, orderProp)) {
+        if (!hasUnsavedPrices) {
             finishClose();
             return;
         }
@@ -1138,19 +1156,44 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             return;
         }
 
-        setIsWorking(true);
-        try {
-            await ordersRepository.updateOrder(order);
-            await invalidateOrdersAndBatches(queryClient);
-            onOrderUpdated?.(order);
-            showToast('Οι τιμές αποθηκεύτηκαν.', 'success');
-            finishClose();
-        } catch {
-            showToast('Σφάλμα κατά την αποθήκευση των τιμών.', 'error');
-        } finally {
-            setIsWorking(false);
-        }
-    }, [order, orderProp, confirm, onClose, onOrderUpdated, queryClient, showToast]);
+        if (await savePriceChanges()) finishClose();
+    }, [hasUnsavedPrices, orderProp, confirm, onClose, savePriceChanges]);
+
+    // ─── Order progress overview (sidebar footer) ───────────────────────────
+    const orderProgress = useMemo(() => {
+        const ordered = order.items.reduce((s, i) => s + i.quantity, 0);
+        const shipped = rows.reduce((s, r) => s + r.shippedQty, 0);
+        const ready = rows.reduce((s, r) => s + r.readyQty, 0);
+        const inProgress = rows.reduce((s, r) => s + r.inProgressQty, 0);
+        const remaining = totalRemaining;
+        const base = Math.max(1, ordered, shipped + ready + inProgress + remaining);
+        const pct = (qty: number) => (qty / base) * 100;
+        return { ordered, shipped, ready, inProgress, remaining, pct };
+    }, [order.items, rows, totalRemaining]);
+
+    // ─── Keyboard: Escape closes the top-most local overlay ─────────────────
+    // Skips while a separately-managed modal (history, price sync, shipment
+    // undo, image zoom) is open, since those handle their own dismissal.
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            if (zoomImageUrl || historyModalBatch || priceSyncPreviewModalOpen || shipmentUndoRequest) return;
+            if (stockDecision) { if (!isSending) setStockDecision(null); return; }
+            if (splitTarget) { setSplitTarget(null); return; }
+            if (editingNoteBatch) { setEditingNoteBatch(null); return; }
+            if (bulkNoteOpen) { if (!isSavingBulkNote) setBulkNoteOpen(false); return; }
+            if (holdingBatch) { setHoldingBatch(null); setHoldReason(''); return; }
+            if (activeStagePopup) { setActiveStagePopup(null); }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [zoomImageUrl, historyModalBatch, priceSyncPreviewModalOpen, shipmentUndoRequest, stockDecision, isSending, splitTarget, editingNoteBatch, bulkNoteOpen, isSavingBulkNote, holdingBatch, activeStagePopup]);
+
+    const submitOnCtrlEnter = (action: () => void) => (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); action(); }
+    };
+
+    const isSplitMoving = splitTarget ? movingBatchIds.has(splitTarget.batch.id) : false;
 
     // ═════════════════════════════════════════════════════════════════════════
     // RENDER
@@ -1180,7 +1223,27 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     <User size={13} className="mt-0.5 shrink-0" />
                                     <span className="break-words">{order.customer_name}</span>
                                 </span>
+                                {hasUnsavedPrices && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 py-0.5 pl-2 pr-0.5 text-[10px] font-black text-amber-800">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                        Μη αποθηκευμένες τιμές
+                                        <button
+                                            type="button"
+                                            onClick={() => void savePriceChanges()}
+                                            disabled={isWorking}
+                                            className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+                                        >
+                                            <Save size={10} /> Αποθήκευση
+                                        </button>
+                                    </span>
+                                )}
                             </div>
+                            {order.notes && (
+                                <div className="lg:hidden mt-1.5 flex items-start gap-1.5 rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-1 text-[10px] font-bold leading-snug text-yellow-800">
+                                    <AlertCircle size={12} className="shrink-0 mt-px" />
+                                    <span className="break-words line-clamp-2" title={order.notes}>{order.notes}</span>
+                                </div>
+                            )}
 
                             {/* Pipeline Bar */}
                             <StagePipelineBar
@@ -1194,26 +1257,27 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         </div>
                     </div>
 
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex items-start gap-1.5 shrink-0">
                         {order.notes && (
                             <div className="hidden lg:flex items-start gap-2 bg-yellow-50 text-yellow-800 px-3 py-1.5 rounded-xl border border-yellow-100 mr-2 max-w-[500px]" title={order.notes}>
                                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                <span className="text-[10px] font-bold break-words whitespace-normal leading-snug">{order.notes}</span>
+                                <span className="text-[10px] font-bold break-words whitespace-normal leading-snug line-clamp-4">{order.notes}</span>
                             </div>
                         )}
                         <button
                             onClick={handleSyncPricesClick}
                             title="Συγχρονισμός τιμών με τον κατάλογο"
-                            className="p-2 hover:bg-amber-100 rounded-full text-slate-500 hover:text-amber-700 transition-colors"
+                            aria-label="Συγχρονισμός τιμών με τον κατάλογο"
+                            className="p-2 rounded-xl border border-transparent text-slate-500 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                         >
-                            <RefreshCw size={22} />
+                            <RefreshCw size={20} />
                         </button>
                         {onBack && (
-                            <button onClick={() => void requestClose(onBack)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors" title="Πίσω">
-                                <ArrowLeft size={22} />
+                            <button onClick={() => void requestClose(onBack)} aria-label="Πίσω" className="p-2 rounded-xl border border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-colors" title="Πίσω">
+                                <ArrowLeft size={20} />
                             </button>
                         )}
-                        <button onClick={() => void requestClose()} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors" title="Κλείσιμο"><X size={22} /></button>
+                        <button onClick={() => void requestClose()} aria-label="Κλείσιμο" className="p-2 rounded-xl border border-transparent text-slate-400 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-colors" title="Κλείσιμο"><X size={20} /></button>
                     </div>
                 </div>
 
@@ -1276,110 +1340,120 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
                         {/* Virtualized Item List */}
                         <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                            {sendSelectionSummary.visiblePendingQty > 0 && (
-                                <div className="sticky top-0 z-[6] mx-3 mt-3 mb-2 bg-amber-50/95 backdrop-blur-sm border border-amber-200 rounded-xl p-2.5 shadow-sm">
-                                    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                                        <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                            <div className="flex items-center gap-1.5 text-[11px] font-black text-amber-900 mr-1">
-                                                <Factory size={13} />
-                                                Εκκρεμή για Παραγωγή
+                            {(sendSelectionSummary.visiblePendingQty > 0 || visibleActiveBatches.length > 0) && (
+                                <div className="sticky top-0 z-[6] space-y-2 bg-gradient-to-b from-slate-50 via-slate-50/95 to-slate-50/0 px-3 pt-3 pb-3">
+                                    {sendSelectionSummary.visiblePendingQty > 0 && (
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-2 shadow-sm backdrop-blur-sm">
+                                            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white shadow-sm">
+                                                        <Factory size={12} /> Εκκρεμή για Παραγωγή
+                                                    </span>
+                                                    <span className="rounded-lg border border-amber-200 bg-white/80 px-2 py-1 text-[11px] font-black text-amber-800" title="Ορατό υπόλοιπο που δεν έχει σταλεί ακόμη στην παραγωγή">
+                                                        Υπόλοιπο <span className="tabular-nums">{formatNumber(sendSelectionSummary.visiblePendingQty)}</span>
+                                                    </span>
+                                                    <span className={`rounded-lg border px-2 py-1 text-[11px] font-black transition-colors ${sendSelectionSummary.totalSelectedQty > 0 ? 'border-emerald-300 bg-emerald-600 text-white' : 'border-slate-200 bg-white/80 text-slate-500'}`}>
+                                                        Επιλεγμένα <span className="tabular-nums">{formatNumber(sendSelectionSummary.totalSelectedQty)}</span> τεμ. · <span className="tabular-nums">{formatNumber(sendSelectionSummary.selectedLineCount)}</span> γραμμ.
+                                                    </span>
+                                                    {sendSelectionSummary.hiddenSelectedQty > 0 && (
+                                                        <span className="rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-black text-orange-700">
+                                                            +{formatNumber(sendSelectionSummary.hiddenSelectedQty)} κρυφά από φίλτρα
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm divide-x divide-slate-200">
+                                                        <button
+                                                            onClick={handleSelectVisible}
+                                                            disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Επιλογή όλου του ορατού υπολοίπου"
+                                                        >
+                                                            <CheckSquare size={13} /> Επιλογή ορατών
+                                                        </button>
+                                                        <button
+                                                            onClick={handleUnselectVisible}
+                                                            disabled={sendSelectionSummary.visibleSelectedQty === 0}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Αποεπιλογή των ορατών γραμμών"
+                                                        >
+                                                            <Square size={13} /> Αποεπιλογή
+                                                        </button>
+                                                        <button
+                                                            onClick={handleClearSelection}
+                                                            disabled={totalToSend === 0}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Καθαρισμός όλων των επιλογών (και των κρυφών)"
+                                                        >
+                                                            <X size={13} /> Καθαρισμός
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleSend}
+                                                        disabled={isSending || isLoadingShipments || totalToSend === 0}
+                                                        className="lg:hidden flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        {isSending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                                        Έναρξη επιλεγμένων
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <span className="text-[11px] font-black text-amber-700 bg-white/70 border border-amber-200 px-2 py-1 rounded-md">
-                                                Ορατό υπόλοιπο: {formatNumber(sendSelectionSummary.visiblePendingQty)}
-                                            </span>
-                                            <span className="text-[11px] font-black text-emerald-700 bg-white/70 border border-emerald-200 px-2 py-1 rounded-md">
-                                                Επιλεγμένα: {formatNumber(sendSelectionSummary.totalSelectedQty)} τεμ. / {formatNumber(sendSelectionSummary.selectedLineCount)} γραμμ.
-                                            </span>
-                                            {sendSelectionSummary.hiddenSelectedQty > 0 && (
-                                                <span className="text-[11px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md">
-                                                    +{formatNumber(sendSelectionSummary.hiddenSelectedQty)} κρυφά από φίλτρα
-                                                </span>
-                                            )}
                                         </div>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <button
-                                                onClick={handleSelectVisible}
-                                                disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0}
-                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                <CheckSquare size={13} /> Επιλογή ορατών
-                                            </button>
-                                            <button
-                                                onClick={handleUnselectVisible}
-                                                disabled={sendSelectionSummary.visibleSelectedQty === 0}
-                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                <Square size={13} /> Αποεπιλογή ορατών
-                                            </button>
-                                            <button
-                                                onClick={handleClearSelection}
-                                                disabled={totalToSend === 0}
-                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                <X size={13} /> Καθαρισμός όλων
-                                            </button>
-                                            <button
-                                                onClick={handleSend}
-                                                disabled={isSending || isLoadingShipments || totalToSend === 0}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                                            >
-                                                {isSending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                                                Έναρξη επιλεγμένων
-                                            </button>
+                                    )}
+                                    {visibleActiveBatches.length > 0 && (
+                                        <div className="rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur-sm">
+                                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white divide-x divide-slate-200">
+                                                        <button
+                                                            onClick={() => selectBatchIds(visibleActiveBatches.map(b => b.id))}
+                                                            className="px-2.5 py-1 text-[11px] font-black text-blue-700 transition-colors hover:bg-blue-50"
+                                                            title="Επιλογή όλων των ορατών παρτίδων"
+                                                        >
+                                                            Επιλ. όλων
+                                                        </button>
+                                                        <button
+                                                            onClick={() => clearBatchSelection(Array.from(selectedBatchIds))}
+                                                            disabled={totalSelectedCount === 0}
+                                                            className="px-2.5 py-1 text-[11px] font-black text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            Καθαρ.
+                                                        </button>
+                                                    </div>
+                                                    <span className={`rounded-lg px-2 py-1 text-[11px] font-black transition-colors ${totalSelectedCount > 0 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                        <span className="tabular-nums">{formatNumber(totalSelectedCount)}</span> {totalSelectedCount === 1 ? 'παρτίδα' : 'παρτίδες'}
+                                                        {(searchTerm || filterStage !== PRODUCTION_SEND_STAGE_FILTER_ALL) && selectedVisibleActiveCount !== totalSelectedCount && (
+                                                            <span className="ml-1 opacity-75">({formatNumber(selectedVisibleActiveCount)} ορατές)</span>
+                                                        )}
+                                                    </span>
+                                                    <button
+                                                        onClick={handleBulkRevert}
+                                                        disabled={isAnySelectedMoving || totalSelectedCount === 0}
+                                                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        title="Επαναφορά επιλεγμένων παρτίδων από παραγωγή"
+                                                    >
+                                                        <RotateCcw size={12} strokeWidth={2.5} />
+                                                        Επαναφορά
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openBulkNoteModal(Array.from(selectedBatchIds))}
+                                                        disabled={isAnySelectedMoving || totalSelectedCount === 0}
+                                                        className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        title="Σημείωση σε όλες τις επιλεγμένες παρτίδες"
+                                                    >
+                                                        <StickyNote size={12} />
+                                                        Σημείωση
+                                                    </button>
+                                                </div>
+                                                <BulkStageActions
+                                                    disabled={isAnySelectedMoving || totalSelectedCount === 0}
+                                                    onMove={(stage, options) => handleBulkStageMove(stage, Array.from(selectedBatchIds), options)}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
-                            {/* Sticky bulk bar */}
-                            {visibleActiveBatches.length > 0 && (
-                                <div className={`sticky ${sendSelectionSummary.visiblePendingQty > 0 ? 'top-[104px]' : 'top-0'} z-[5] mx-3 mt-3 mb-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-2.5 shadow-sm`}>
-                                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <button
-                                                onClick={() => selectBatchIds(visibleActiveBatches.map(b => b.id))}
-                                                className="px-2.5 py-1 rounded-md text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                                            >
-                                                Επιλ. όλων
-                                            </button>
-                                            <button
-                                                onClick={() => clearBatchSelection(Array.from(selectedBatchIds))}
-                                                className="px-2.5 py-1 rounded-md text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
-                                            >
-                                                Καθαρ.
-                                            </button>
-                                            <span className="text-[11px] font-black text-slate-500">
-                                                Επιλ: <span className="text-slate-900">{formatNumber(totalSelectedCount)}</span>
-                                                {(searchTerm || filterStage !== PRODUCTION_SEND_STAGE_FILTER_ALL) && selectedVisibleActiveCount !== totalSelectedCount && (
-                                                    <span className="text-slate-400 ml-1">({formatNumber(selectedVisibleActiveCount)} ορατές)</span>
-                                                )}
-                                            </span>
-                                            <button
-                                                onClick={handleBulkRevert}
-                                                disabled={isAnySelectedMoving || totalSelectedCount === 0}
-                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Επαναφορά επιλεγμένων παρτίδων από παραγωγή"
-                                            >
-                                                <RotateCcw size={12} strokeWidth={2.5} />
-                                                Επαναφορά ({formatNumber(totalSelectedCount)})
-                                            </button>
-                                            <button
-                                                onClick={() => openBulkNoteModal(Array.from(selectedBatchIds))}
-                                                disabled={isAnySelectedMoving || totalSelectedCount === 0}
-                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Σημείωση σε όλες τις επιλεγμένες παρτίδες"
-                                            >
-                                                <StickyNote size={12} />
-                                                Σημείωση ({formatNumber(totalSelectedCount)})
-                                            </button>
-                                        </div>
-                                        <BulkStageActions
-                                            disabled={isAnySelectedMoving || totalSelectedCount === 0}
-                                            onMove={(stage, options) => handleBulkStageMove(stage, Array.from(selectedBatchIds), options)}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
                             {filteredRows.length > 0 ? (
                                 <div className="px-3 pb-3" style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                                     {rowVirtualizer.getVirtualItems().map(virtualRow => {
@@ -1479,6 +1553,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 {isSending ? <Loader2 className="animate-spin" size={18} /> : <Factory size={18} />}
                                 {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
                             </button>
+                            {totalToSend === 0 && sendSelectionSummary.totalPendingQty > 0 && !isSending && (
+                                <p className="-mt-1 text-center text-[10px] font-bold text-emerald-700/80">
+                                    Ορίστε ποσότητες στα είδη ή πατήστε «Επιλογή ορατών».
+                                </p>
+                            )}
                             <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
                                 <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
                                     <div className="text-slate-500 uppercase tracking-widest">Γραμμές</div>
@@ -1648,21 +1727,35 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
                         {/* Totals Footer */}
                         <div className="p-3 bg-white border-t border-slate-200">
-                            <div className="grid grid-cols-3 gap-2 w-full mb-3">
-                                <button onClick={handleSelectVisible} disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold hover:bg-blue-200 transition-colors border border-blue-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <CheckSquare size={12} /> Ορατά
-                                </button>
-                                <button onClick={handleUnselectVisible} disabled={sendSelectionSummary.visibleSelectedQty === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <Square size={12} /> Αποεπ.
-                                </button>
-                                <button onClick={handleClearSelection} disabled={totalToSend === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <X size={12} /> Όλα
-                                </button>
+                            <div className="flex items-baseline justify-between mb-2">
+                                <h3 className="font-bold text-slate-500 uppercase text-[10px] tracking-widest">Πρόοδος Παραγγελίας</h3>
+                                <span className="text-[11px] font-black text-slate-900 tabular-nums">{formatNumber(orderProgress.ordered)} <span className="font-bold text-slate-400">τεμ.</span></span>
                             </div>
-                            <div className="space-y-1 text-[11px] pt-2 border-t border-slate-100">
-                                <div className="flex justify-between text-slate-500"><span>Σύνολο Παραγγελίας:</span><span className="font-bold text-slate-900">{formatNumber(order.items.reduce((s, i) => s + i.quantity, 0))}</span></div>
-                                <div className="flex justify-between text-slate-500"><span>Σε Παραγωγή / Έτοιμα:</span><span className="font-bold text-blue-600">{formatNumber(rows.reduce((s, r) => s + r.inProgressQty + r.readyQty, 0))}</span></div>
-                                <div className="flex justify-between text-slate-500"><span>Υπόλοιπο:</span><span className="font-bold text-amber-600">{formatNumber(totalRemaining)}</span></div>
+                            <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/70">
+                                {([
+                                    ['shipped', orderProgress.shipped, 'bg-slate-700'],
+                                    ['ready', orderProgress.ready, 'bg-emerald-500'],
+                                    ['inProgress', orderProgress.inProgress, 'bg-blue-500'],
+                                    ['remaining', orderProgress.remaining, 'bg-amber-400'],
+                                ] as const).map(([key, qty, cls]) => qty > 0 && (
+                                    <div key={key} className={`${cls} h-full border-r border-white/60 last:border-r-0 transition-[width] duration-300`} style={{ width: `${orderProgress.pct(qty)}%` }} />
+                                ))}
+                            </div>
+                            <div className="mt-2.5 grid grid-cols-4 gap-1.5 text-center">
+                                {([
+                                    ['Απεστάλη', orderProgress.shipped, 'bg-slate-700', 'text-slate-800'],
+                                    ['Έτοιμα', orderProgress.ready, 'bg-emerald-500', 'text-emerald-700'],
+                                    ['Σε παραγωγή', orderProgress.inProgress, 'bg-blue-500', 'text-blue-700'],
+                                    ['Υπόλοιπο', orderProgress.remaining, 'bg-amber-400', 'text-amber-700'],
+                                ] as const).map(([label, qty, dot, text]) => (
+                                    <div key={label} className="rounded-lg bg-slate-50 px-1 py-1.5">
+                                        <div className={`text-sm font-black tabular-nums leading-none ${qty > 0 ? text : 'text-slate-300'}`}>{formatNumber(qty)}</div>
+                                        <div className="mt-1 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500 leading-none">
+                                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+                                            <span>{label}</span>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -1676,17 +1769,39 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 <div className="fixed inset-0 z-[250] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                            <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><Scissors className="text-blue-500" /> Διαχωρισμός</h3>
-                            <button onClick={() => setSplitTarget(null)}><X size={18} className="text-slate-400" /></button>
+                            <div className="min-w-0">
+                                <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><Scissors size={18} className="text-blue-500" /> Διαχωρισμός</h3>
+                                <SkuColorizedText sku={splitTarget.batch.sku} suffix={splitTarget.batch.variant_suffix || ''} gender={products.find(p => p.sku === splitTarget.batch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-600" />
+                            </div>
+                            <button onClick={() => setSplitTarget(null)} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"><X size={18} /></button>
                         </div>
                         <div className="text-center">
                             <div className="text-xs font-bold text-slate-400 uppercase mb-1">Μετακίνηση Ποσότητας</div>
                             <div className="flex items-center justify-center gap-4">
-                                <button onClick={() => setSplitQty(Math.max(1, splitQty - 1))} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-lg text-slate-600 hover:bg-slate-200">-</button>
-                                <span className="text-2xl font-black text-slate-900 w-14 text-center">{formatNumber(splitQty)}</span>
-                                <button onClick={() => setSplitQty(Math.min(splitTarget.maxQty, splitQty + 1))} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-lg text-slate-600 hover:bg-slate-200">+</button>
+                                <button onClick={() => setSplitQty(Math.max(1, splitQty - 1))} disabled={splitQty <= 1} aria-label="Μείωση" className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-40"><Minus size={16} /></button>
+                                <span className="text-3xl font-black text-slate-900 w-16 text-center tabular-nums">{formatNumber(splitQty)}</span>
+                                <button onClick={() => setSplitQty(Math.min(splitTarget.maxQty, splitQty + 1))} disabled={splitQty >= splitTarget.maxQty} aria-label="Αύξηση" className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-40"><Plus size={16} /></button>
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-1 font-bold">από {formatNumber(splitTarget.maxQty)}</div>
+                            <div className="mt-2 flex items-center justify-center gap-1.5">
+                                <span className="text-[10px] text-slate-400 font-bold">από {formatNumber(splitTarget.maxQty)}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSplitQty(splitTarget.maxQty)}
+                                    className={`rounded-full border px-2 py-0.5 text-[10px] font-black transition-colors ${splitQty === splitTarget.maxQty ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    Όλα
+                                </button>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                    <div className="text-slate-400 uppercase tracking-wider">Μένουν στο τρέχον</div>
+                                    <div className="text-sm font-black text-slate-800 tabular-nums">{formatNumber(splitTarget.maxQty - splitQty)}</div>
+                                </div>
+                                <div className="rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5">
+                                    <div className="text-blue-500 uppercase tracking-wider">Μετακινούνται</div>
+                                    <div className="text-sm font-black text-blue-700 tabular-nums">{formatNumber(splitQty)}</div>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σε Στάδιο</label>
@@ -1698,8 +1813,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 })}
                             </select>
                         </div>
-                        <button onClick={handleSplit} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
-                            <Split size={16} /> Εκτέλεση
+                        <button onClick={handleSplit} disabled={isSplitMoving} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all hover:bg-blue-700 flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-wait">
+                            {isSplitMoving ? <Loader2 size={16} className="animate-spin" /> : <Split size={16} />}
+                            {splitQty >= splitTarget.maxQty ? 'Μετακίνηση όλης της παρτίδας' : 'Εκτέλεση'}
                         </button>
                     </div>
                 </div>
@@ -1711,12 +1827,17 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Σημείωση</h3>
-                            <button onClick={() => setEditingNoteBatch(null)}><X size={18} className="text-slate-400" /></button>
+                            <button onClick={() => setEditingNoteBatch(null)} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-40"><X size={18} /></button>
                         </div>
-                        <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none h-28 resize-none text-sm" placeholder="Σημείωση..." autoFocus />
-                        <button onClick={handleSaveNote} className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
-                            <Save size={16} /> Αποθήκευση
+                        <div className="text-xs font-bold text-slate-500">
+                            <SkuColorizedText sku={editingNoteBatch.sku} suffix={editingNoteBatch.variant_suffix || ''} gender={products.find(p => p.sku === editingNoteBatch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-700" />
+                            <span className="ml-1.5 text-slate-400">· {formatNumber(editingNoteBatch.quantity)} τεμ.</span>
+                        </div>
+                        <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={submitOnCtrlEnter(() => { if (!isWorking) void handleSaveNote(); })}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm" placeholder="Σημείωση..." autoFocus />
+                        <button onClick={handleSaveNote} disabled={isWorking} className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all hover:bg-slate-800 flex items-center justify-center gap-2 text-sm disabled:opacity-60">
+                            {isWorking ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
+                            <kbd className="ml-1 hidden sm:inline rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
                         </button>
                     </div>
                 </div>
@@ -1728,13 +1849,14 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Μαζική Σημείωση</h3>
-                            <button onClick={() => { if (!isSavingBulkNote) setBulkNoteOpen(false); }} disabled={isSavingBulkNote}><X size={18} className="text-slate-400" /></button>
+                            <button onClick={() => { if (!isSavingBulkNote) setBulkNoteOpen(false); }} disabled={isSavingBulkNote} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-40"><X size={18} /></button>
                         </div>
                         <p className="text-xs font-bold text-slate-500">Εφαρμογή σε {formatNumber(bulkNoteBatchIds.length)} {bulkNoteBatchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'}.</p>
                         <textarea
                             value={bulkNoteText}
                             onChange={(e) => setBulkNoteText(e.target.value)}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none h-28 resize-none text-sm"
+                            onKeyDown={submitOnCtrlEnter(() => { if (!isSavingBulkNote) void handleSaveBulkNote(); })}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm"
                             placeholder="Σημείωση..."
                             autoFocus
                         />
@@ -1744,6 +1866,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm disabled:opacity-50"
                         >
                             {isSavingBulkNote ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
+                            <kbd className="ml-1 hidden sm:inline rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
                         </button>
                     </div>
                 </div>
@@ -1755,10 +1878,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4 border border-amber-200">
                         <div className="flex justify-between items-center pb-2 border-b border-amber-100">
                             <h3 className="font-black text-base text-amber-800 flex items-center gap-2"><PauseCircle className="text-amber-500" /> Θέση σε Αναμονή</h3>
-                            <button onClick={() => { setHoldingBatch(null); setHoldReason(''); }}><X size={18} className="text-slate-400" /></button>
+                            <button onClick={() => { setHoldingBatch(null); setHoldReason(''); }} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-40"><X size={18} /></button>
                         </div>
                         <div className="text-xs font-bold text-slate-600 mb-2">Γιατί σταματάει η παραγωγή του {holdingBatch.sku}{holdingBatch.variant_suffix || ''};</div>
-                        <textarea value={holdReason} onChange={(e) => setHoldReason(e.target.value)}
+                        <textarea value={holdReason} onChange={(e) => setHoldReason(e.target.value)} onKeyDown={submitOnCtrlEnter(() => { if (!movingBatchIds.has(holdingBatch.id)) void confirmHold(); })}
                             className="w-full p-3 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-28 resize-none text-sm font-bold text-slate-800"
                             placeholder="π.χ. Έλλειψη εξαρτήματος..." autoFocus />
                         {(() => {
@@ -1824,7 +1947,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         <Printer size={15} /><span className="hidden sm:inline">Εκτύπωση</span>
                                     </button>
                                 )}
-                                <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={24} /></button>
+                                <button onClick={() => setActiveStagePopup(null)} aria-label="Κλείσιμο" title="Κλείσιμο (Esc)" className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={24} /></button>
                             </div>
                         </div>
 
@@ -2079,7 +2202,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Stock Decision */}
             {stockDecision && (
-                <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setStockDecision(null)}>
+                <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => { if (!isSending) setStockDecision(null); }}>
                     <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="px-5 py-4 border-b border-slate-100">
                             <div className="flex items-center justify-between">
@@ -2087,7 +2210,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     <h3 className="text-base font-black text-slate-900">Αυτόματη κατανομή αποθέματος</h3>
                                     <p className="text-xs text-slate-500 font-medium mt-0.5">Το δεσμευμένο απόθεμα θα χρησιμοποιηθεί πρώτο και η υπόλοιπη ποσότητα θα δρομολογηθεί στην παραγωγή ή στην προμήθεια.</p>
                                 </div>
-                                <button onClick={() => setStockDecision(null)} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"><X size={14} /></button>
+                                <button onClick={() => setStockDecision(null)} disabled={isSending} aria-label="Κλείσιμο" className="w-8 h-8 shrink-0 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors disabled:opacity-40"><X size={14} /></button>
                             </div>
                         </div>
                         <div className="px-5 py-3 space-y-2.5 overflow-y-auto max-h-[50vh]">
