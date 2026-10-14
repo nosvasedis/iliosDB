@@ -2,8 +2,10 @@
  * Static Greek geography used to derive a customer's Περιοχή and map position
  * from the free-text address (AADE style: "ΟΔΟΣ 12, 21100 - ΝΑΥΠΛΙΟ").
  *
- * Levels follow the Kallikratis structure: 13 Περιφέρειες → Περιφερειακές Ενότητες (ΠΕ),
- * plus the autonomous Άγιον Όρος. Coordinates are the ΠΕ seat (good enough as an area pin).
+ * Top level = the geographic areas people actually use when talking about customers
+ * (e.g. Κυκλάδες / Δωδεκάνησα instead of the administrative "Νότιο Αιγαίο", Αχαΐα & Ηλεία
+ * under Πελοπόννησος). Second level = Περιφερειακή Ενότητα or, for island groups, the island.
+ * Coordinates are the seat / main town (good enough as an area pin).
  */
 
 export type LatLng = readonly [number, number];
@@ -22,18 +24,18 @@ export interface GreekRegionalUnit {
 }
 
 export const GREEK_PERIFERIES: GreekPeriferia[] = [
-  { id: 'attiki', label: 'Αττική', short: 'Αττική' },
-  { id: 'kentriki-makedonia', label: 'Κεντρική Μακεδονία', short: 'Κ. Μακεδονία' },
-  { id: 'anatoliki-makedonia-thraki', label: 'Ανατολική Μακεδονία & Θράκη', short: 'ΑΜ-Θράκη' },
-  { id: 'dytiki-makedonia', label: 'Δυτική Μακεδονία', short: 'Δ. Μακεδονία' },
-  { id: 'ipeiros', label: 'Ήπειρος', short: 'Ήπειρος' },
-  { id: 'thessalia', label: 'Θεσσαλία', short: 'Θεσσαλία' },
-  { id: 'sterea', label: 'Στερεά Ελλάδα', short: 'Στερεά' },
-  { id: 'dytiki-ellada', label: 'Δυτική Ελλάδα', short: 'Δ. Ελλάδα' },
+  { id: 'attiki', label: 'Αττική & Αργοσαρωνικός', short: 'Αττική' },
   { id: 'peloponnisos', label: 'Πελοπόννησος', short: 'Πελοπόννησος' },
+  { id: 'sterea', label: 'Στερεά Ελλάδα & Εύβοια', short: 'Στερεά' },
+  { id: 'thessalia', label: 'Θεσσαλία & Σποράδες', short: 'Θεσσαλία' },
+  { id: 'ipeiros', label: 'Ήπειρος', short: 'Ήπειρος' },
+  { id: 'kentriki-makedonia', label: 'Κεντρική Μακεδονία & Χαλκιδική', short: 'Κ. Μακεδονία' },
+  { id: 'dytiki-makedonia', label: 'Δυτική Μακεδονία', short: 'Δ. Μακεδονία' },
+  { id: 'anatoliki-makedonia-thraki', label: 'Ανατ. Μακεδονία & Θράκη', short: 'Θράκη' },
   { id: 'ionia', label: 'Ιόνια Νησιά', short: 'Ιόνια' },
-  { id: 'voreio-aigaio', label: 'Βόρειο Αιγαίο', short: 'Β. Αιγαίο' },
-  { id: 'notio-aigaio', label: 'Νότιο Αιγαίο', short: 'Ν. Αιγαίο' },
+  { id: 'kyklades', label: 'Κυκλάδες', short: 'Κυκλάδες' },
+  { id: 'dodekanisa', label: 'Δωδεκάνησα', short: 'Δωδεκάνησα' },
+  { id: 'voreio-aigaio', label: 'Λέσβος, Χίος, Σάμος & Λήμνος', short: 'Λέσβος-Χίος-Σάμος' },
   { id: 'kriti', label: 'Κρήτη', short: 'Κρήτη' },
   { id: 'agion-oros', label: 'Άγιον Όρος', short: 'Άγιον Όρος' },
 ];
@@ -48,7 +50,7 @@ export const GREEK_REGIONAL_UNITS: GreekRegionalUnit[] = [
   unit('athina-notia', 'Νότια Προάστια', 'attiki', 37.9000, 23.7300),
   unit('athina-dytika', 'Δυτικά Προάστια', 'attiki', 38.0154, 23.6919),
   unit('peiraias', 'Πειραιάς', 'attiki', 37.9420, 23.6465),
-  unit('attiki-nisoi', 'Νησιά Αττικής', 'attiki', 37.7467, 23.4283),
+  unit('attiki-nisoi', 'Αργοσαρωνικός & Κύθηρα', 'attiki', 37.7467, 23.4283),
   unit('anatoliki-attiki', 'Ανατολική Αττική', 'attiki', 38.0000, 23.8800),
   unit('dytiki-attiki', 'Δυτική Αττική', 'attiki', 38.0413, 23.5427),
   // Κεντρική Μακεδονία
@@ -88,11 +90,10 @@ export const GREEK_REGIONAL_UNITS: GreekRegionalUnit[] = [
   unit('evrytania', 'Ευρυτανία', 'sterea', 38.9131, 21.7928),
   unit('fthiotida', 'Φθιώτιδα', 'sterea', 38.8999, 22.4344),
   unit('fokida', 'Φωκίδα', 'sterea', 38.5276, 22.3762),
-  // Δυτική Ελλάδα
-  unit('aitoloakarnania', 'Αιτωλοακαρνανία', 'dytiki-ellada', 38.6218, 21.4077),
-  unit('achaia', 'Αχαΐα', 'dytiki-ellada', 38.2466, 21.7346),
-  unit('ileia', 'Ηλεία', 'dytiki-ellada', 37.6751, 21.4410),
+  unit('aitoloakarnania', 'Αιτωλοακαρνανία', 'sterea', 38.6218, 21.4077),
   // Πελοπόννησος
+  unit('achaia', 'Αχαΐα', 'peloponnisos', 38.2466, 21.7346),
+  unit('ileia', 'Ηλεία', 'peloponnisos', 37.6751, 21.4410),
   unit('argolida', 'Αργολίδα', 'peloponnisos', 37.5673, 22.8015),
   unit('arkadia', 'Αρκαδία', 'peloponnisos', 37.5089, 22.3794),
   unit('korinthia', 'Κορινθία', 'peloponnisos', 37.9386, 22.9322),
@@ -110,20 +111,35 @@ export const GREEK_REGIONAL_UNITS: GreekRegionalUnit[] = [
   unit('limnos', 'Λήμνος', 'voreio-aigaio', 39.8740, 25.0740),
   unit('samos', 'Σάμος', 'voreio-aigaio', 37.7548, 26.9777),
   unit('chios', 'Χίος', 'voreio-aigaio', 38.3710, 26.1358),
-  // Νότιο Αιγαίο
-  unit('andros', 'Άνδρος', 'notio-aigaio', 37.8420, 24.9370),
-  unit('thira', 'Σαντορίνη', 'notio-aigaio', 36.4167, 25.4320),
-  unit('kalymnos', 'Κάλυμνος', 'notio-aigaio', 36.9500, 26.9833),
-  unit('karpathos', 'Κάρπαθος', 'notio-aigaio', 35.5078, 27.2130),
-  unit('kea-kythnos', 'Κέα - Κύθνος', 'notio-aigaio', 37.6660, 24.3190),
-  unit('kos', 'Κως', 'notio-aigaio', 36.8933, 27.2889),
-  unit('milos', 'Μήλος', 'notio-aigaio', 36.7260, 24.4460),
-  unit('mykonos', 'Μύκονος', 'notio-aigaio', 37.4467, 25.3289),
-  unit('naxos', 'Νάξος', 'notio-aigaio', 37.1036, 25.3763),
-  unit('paros', 'Πάρος', 'notio-aigaio', 37.0853, 25.1500),
-  unit('rodos', 'Ρόδος', 'notio-aigaio', 36.4349, 28.2176),
-  unit('syros', 'Σύρος', 'notio-aigaio', 37.4448, 24.9430),
-  unit('tinos', 'Τήνος', 'notio-aigaio', 37.5380, 25.1630),
+  // Κυκλάδες (ανά νησί)
+  unit('mykonos', 'Μύκονος', 'kyklades', 37.4467, 25.3289),
+  unit('thira', 'Σαντορίνη', 'kyklades', 36.4167, 25.4320),
+  unit('paros', 'Πάρος', 'kyklades', 37.0853, 25.1500),
+  unit('antiparos', 'Αντίπαρος', 'kyklades', 37.0390, 25.0820),
+  unit('naxos', 'Νάξος', 'kyklades', 37.1036, 25.3763),
+  unit('syros', 'Σύρος', 'kyklades', 37.4448, 24.9430),
+  unit('tinos', 'Τήνος', 'kyklades', 37.5380, 25.1630),
+  unit('andros', 'Άνδρος', 'kyklades', 37.8420, 24.9370),
+  unit('milos', 'Μήλος', 'kyklades', 36.7260, 24.4460),
+  unit('sifnos', 'Σίφνος', 'kyklades', 36.9750, 24.7190),
+  unit('serifos', 'Σέριφος', 'kyklades', 37.1530, 24.5040),
+  unit('ios', 'Ίος', 'kyklades', 36.7230, 25.2820),
+  unit('folegandros', 'Φολέγανδρος', 'kyklades', 36.6200, 24.9200),
+  unit('amorgos', 'Αμοργός', 'kyklades', 36.8330, 25.9000),
+  unit('kea', 'Κέα', 'kyklades', 37.6660, 24.3190),
+  unit('kythnos', 'Κύθνος', 'kyklades', 37.3880, 24.4250),
+  unit('kyklades-loipa', 'Μικρές Κυκλάδες', 'kyklades', 36.9000, 25.6000),
+  // Δωδεκάνησα (ανά νησί)
+  unit('rodos', 'Ρόδος', 'dodekanisa', 36.4349, 28.2176),
+  unit('kos', 'Κως', 'dodekanisa', 36.8933, 27.2889),
+  unit('kalymnos', 'Κάλυμνος', 'dodekanisa', 36.9500, 26.9833),
+  unit('leros', 'Λέρος', 'dodekanisa', 37.1500, 26.8500),
+  unit('patmos', 'Πάτμος', 'dodekanisa', 37.3220, 26.5450),
+  unit('karpathos', 'Κάρπαθος', 'dodekanisa', 35.5078, 27.2130),
+  unit('kasos', 'Κάσος', 'dodekanisa', 35.4170, 26.9250),
+  unit('symi', 'Σύμη', 'dodekanisa', 36.6150, 27.8380),
+  unit('astypalaia', 'Αστυπάλαια', 'dodekanisa', 36.5470, 26.3520),
+  unit('nisyros-tilos', 'Νίσυρος & Τήλος', 'dodekanisa', 36.5870, 27.1640),
   // Κρήτη
   unit('irakleio', 'Ηράκλειο', 'kriti', 35.3387, 25.1442),
   unit('lasithi', 'Λασίθι', 'kriti', 35.1904, 25.7164),
@@ -141,7 +157,8 @@ export const PERIFERIA_BY_ID: Record<string, GreekPeriferia> =
 
 /** Centres for postal areas shared by several ΠΕ (e.g. 840xx "rest of Cyclades"). */
 export const PERIFERIA_FALLBACK_CENTER: Record<string, LatLng> = {
-  'notio-aigaio': [37.0500, 25.2000],
+  kyklades: [37.0500, 25.2000],
+  dodekanisa: [36.4000, 27.4000],
 };
 
 /**
@@ -215,7 +232,7 @@ const PREFIX_RANGES: Array<[number, number, string]> = [
   [830, 832, 'samos'],
   [833, 833, 'ikaria'],
   [834, 839, 'samos'],
-  [840, 840, 'periferia:notio-aigaio'],
+  [840, 840, 'periferia:kyklades'],
   [841, 841, 'syros'],
   [842, 842, 'tinos'],
   [843, 843, 'naxos'],
@@ -224,14 +241,17 @@ const PREFIX_RANGES: Array<[number, number, string]> = [
   [846, 846, 'mykonos'],
   [847, 847, 'thira'],
   [848, 848, 'milos'],
-  [849, 850, 'periferia:notio-aigaio'],
+  [849, 849, 'periferia:kyklades'],
+  [850, 850, 'periferia:dodekanisa'],
   [851, 851, 'rodos'],
   [852, 852, 'kalymnos'],
   [853, 853, 'kos'],
-  [854, 855, 'kalymnos'],
-  [856, 856, 'rodos'],
-  [857, 858, 'karpathos'],
-  [859, 859, 'periferia:notio-aigaio'],
+  [854, 854, 'leros'],
+  [855, 855, 'patmos'],
+  [856, 856, 'symi'],
+  [857, 857, 'karpathos'],
+  [858, 858, 'kasos'],
+  [859, 859, 'astypalaia'],
 ];
 
 const EXACT_POSTAL: Record<string, string> = {
@@ -386,7 +406,6 @@ export const GREEK_TOWNS: GreekTown[] = [
   town(['Άμφισσα'], 'fokida', 38.5276, 22.3762),
   town(['Δελφοί'], 'fokida', 38.4824, 22.5010),
   town(['Γαλαξίδι'], 'fokida', 38.3790, 22.3810),
-  // Δυτική Ελλάδα
   town(['Αγρίνιο'], 'aitoloakarnania', 38.6218, 21.4077),
   town(['Μεσολόγγι'], 'aitoloakarnania', 38.3687, 21.4300),
   town(['Ναύπακτος'], 'aitoloakarnania', 38.3920, 21.8280),
@@ -441,28 +460,32 @@ export const GREEK_TOWNS: GreekTown[] = [
   town(['Πυθαγόρειο'], 'samos', 37.6910, 26.9440),
   town(['Καρλόβασι'], 'samos', 37.7920, 26.7050),
   town(['Χίος'], 'chios', 38.3710, 26.1358),
-  // Νότιο Αιγαίο — Κυκλάδες
+  // Κυκλάδες
   town(['Άνδρος'], 'andros', 37.8420, 24.9370),
-  town(['Θήρα', 'Σαντορίνη', 'Φηρά', 'Santorini'], 'thira', 36.4167, 25.4320),
+  town(['Σαντορίνη', 'Θήρα', 'Φηρά', 'Santorini'], 'thira', 36.4167, 25.4320),
   town(['Οία'], 'thira', 36.4610, 25.3750),
   town(['Καμάρι'], 'thira', 36.3770, 25.4800),
-  town(['Ίος'], 'thira', 36.7230, 25.2820),
-  town(['Φολέγανδρος'], 'thira', 36.6200, 24.9200),
-  town(['Αμοργός'], 'thira', 36.8330, 25.9000),
-  town(['Ανάφη'], 'thira', 36.3580, 25.7770),
-  town(['Κέα', 'Τζιά', 'Ιουλίδα'], 'kea-kythnos', 37.6660, 24.3190),
-  town(['Κύθνος'], 'kea-kythnos', 37.3880, 24.4250),
-  town(['Μήλος', 'Αδάμαντας', 'Αδάμας'], 'milos', 36.7260, 24.4460),
-  town(['Σίφνος', 'Απολλωνία'], 'milos', 36.9750, 24.7190),
-  town(['Σέριφος'], 'milos', 37.1530, 24.5040),
+  town(['Πύργος Καλλίστης'], 'thira', 36.3830, 25.4500),
+  town(['Ίος', 'Χώρα Ίου'], 'ios', 36.7230, 25.2820),
+  town(['Φολέγανδρος'], 'folegandros', 36.6200, 24.9200),
+  town(['Αμοργός', 'Κατάπολα', 'Αιγιάλη'], 'amorgos', 36.8330, 25.9000),
+  town(['Ανάφη'], 'kyklades-loipa', 36.3580, 25.7770),
+  town(['Κουφονήσια', 'Κουφονήσι'], 'kyklades-loipa', 36.9360, 25.6000),
+  town(['Σίκινος'], 'kyklades-loipa', 36.6830, 25.1170),
+  town(['Κέα', 'Τζιά', 'Ιουλίδα'], 'kea', 37.6660, 24.3190),
+  town(['Κύθνος'], 'kythnos', 37.3880, 24.4250),
+  town(['Μήλος', 'Αδάμαντας', 'Αδάμας', 'Πλάκα Μήλου'], 'milos', 36.7260, 24.4460),
   town(['Κίμωλος'], 'milos', 36.7950, 24.5720),
+  town(['Σίφνος', 'Απολλωνία', 'Καμάρες'], 'sifnos', 36.9750, 24.7190),
+  town(['Σέριφος'], 'serifos', 37.1530, 24.5040),
   town(['Μύκονος', 'Mykonos'], 'mykonos', 37.4467, 25.3289),
   town(['Νάξος'], 'naxos', 37.1036, 25.3763),
   town(['Πάρος', 'Παροικιά'], 'paros', 37.0853, 25.1500),
-  town(['Αντίπαρος'], 'paros', 37.0390, 25.0820),
+  town(['Νάουσα Πάρου', 'Νάουσα'], 'paros', 37.1240, 25.2370),
+  town(['Αντίπαρος'], 'antiparos', 37.0390, 25.0820),
   town(['Σύρος', 'Ερμούπολη'], 'syros', 37.4448, 24.9430),
   town(['Τήνος'], 'tinos', 37.5380, 25.1630),
-  // Νότιο Αιγαίο — Δωδεκάνησα
+  // Δωδεκάνησα
   town(['Ρόδος', 'Rhodes'], 'rodos', 36.4349, 28.2176),
   town(['Ιαλυσός'], 'rodos', 36.4170, 28.1580),
   town(['Λίνδος'], 'rodos', 36.0917, 28.0858),
@@ -470,16 +493,16 @@ export const GREEK_TOWNS: GreekTown[] = [
   town(['Αφάντου'], 'rodos', 36.2930, 28.1660),
   town(['Αρχάγγελος'], 'rodos', 36.2130, 28.1150),
   town(['Κρεμαστή'], 'rodos', 36.4100, 28.1200),
-  town(['Σύμη'], 'rodos', 36.6150, 27.8380),
-  town(['Τήλος'], 'rodos', 36.4330, 27.3830),
+  town(['Σύμη'], 'symi', 36.6150, 27.8380),
+  town(['Τήλος'], 'nisyros-tilos', 36.4330, 27.3830),
   town(['Κάλυμνος', 'Πόθια'], 'kalymnos', 36.9500, 26.9833),
-  town(['Λέρος'], 'kalymnos', 37.1500, 26.8500),
-  town(['Πάτμος'], 'kalymnos', 37.3220, 26.5450),
-  town(['Αστυπάλαια'], 'kalymnos', 36.5470, 26.3520),
+  town(['Λέρος', 'Λακκί', 'Αγία Μαρίνα Λέρου'], 'leros', 37.1500, 26.8500),
+  town(['Πάτμος', 'Σκάλα Πάτμου'], 'patmos', 37.3220, 26.5450),
+  town(['Αστυπάλαια'], 'astypalaia', 36.5470, 26.3520),
   town(['Κάρπαθος', 'Πηγάδια'], 'karpathos', 35.5078, 27.2130),
-  town(['Κάσος'], 'karpathos', 35.4170, 26.9250),
+  town(['Κάσος'], 'kasos', 35.4170, 26.9250),
   town(['Κως', 'Κώς', 'Kos'], 'kos', 36.8933, 27.2889),
-  town(['Νίσυρος'], 'kos', 36.5870, 27.1640),
+  town(['Νίσυρος'], 'nisyros-tilos', 36.5870, 27.1640),
   town(['Καρδάμαινα'], 'kos', 36.7830, 27.1440),
   // Κρήτη
   town(['Ηράκλειο', 'Ηρακλειο', 'Heraklion'], 'irakleio', 35.3387, 25.1442),

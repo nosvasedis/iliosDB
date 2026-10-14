@@ -137,12 +137,18 @@ export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address
   let matchedTown: GreekTown | null = null;
   if (place) {
     const candidates = townCandidates(place);
-    if (postal?.unitId) matchedTown = candidates.find(t => t.unitId === postal.unitId) ?? null;
-    else if (postal) matchedTown = candidates.find(t => REGIONAL_UNIT_BY_ID[t.unitId]?.periferiaId === postal.periferiaId) ?? null;
-    else matchedTown = candidates[0] ?? null;
+    const samePeriferia = (t: GreekTown) => REGIONAL_UNIT_BY_ID[t.unitId]?.periferiaId === postal?.periferiaId;
+    if (postal) {
+      // Exact ΠΕ first; otherwise a town of the same area (islands sharing a postal prefix, e.g. Νίσυρος 853xx).
+      matchedTown = (postal.unitId ? candidates.find(t => t.unitId === postal.unitId) : undefined)
+        ?? candidates.find(samePeriferia)
+        ?? null;
+    } else {
+      matchedTown = candidates[0] ?? null;
+    }
   }
 
-  const unitId = postal?.unitId ?? matchedTown?.unitId ?? null;
+  const unitId = matchedTown?.unitId ?? postal?.unitId ?? null;
   const unitInfo = unitId ? REGIONAL_UNIT_BY_ID[unitId] : null;
   const periferiaId = unitInfo?.periferiaId ?? postal?.periferiaId ?? null;
   const town = matchedTown ? matchedTown.names[0] : place ? titleCase(place) : null;

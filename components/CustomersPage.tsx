@@ -1,8 +1,8 @@
-import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
 import {
   Activity, ArrowDownWideNarrow, ArrowUpNarrowWide, LayoutGrid, List, Loader2, Map as MapIcon, MapPinOff,
-  Plus, Search, SlidersHorizontal, Sparkles, UserPlus, Users, X,
+  PanelLeftClose, PanelLeftOpen, Plus, Search, Sparkles, UserPlus, Users, X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_NAME } from '../lib/supabase';
@@ -42,7 +42,7 @@ type ViewMode = 'cards' | 'list' | 'map';
 
 const STORAGE_KEY = 'ilios.customersPage.v2';
 
-interface StoredPrefs { view?: ViewMode; regions?: RegionFilterKey[]; sortKey?: CustomerSortKey; sortDir?: SortDirection }
+interface StoredPrefs { view?: ViewMode; regions?: RegionFilterKey[]; sortKey?: CustomerSortKey; sortDir?: SortDirection; panel?: boolean }
 
 function readPrefs(): StoredPrefs {
     try {
@@ -65,6 +65,24 @@ const VIEW_OPTIONS: Array<{ id: ViewMode; label: string; icon: typeof LayoutGrid
 
 const ACTIVITY_FILTERS: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
 
+/** Card grid that adapts to any width instead of fixed breakpoints. */
+const CARD_GRID_STYLE: React.CSSProperties = { gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 288px), 1fr))' };
+
+/** Wide enough to keep the Περιοχές panel docked next to the cards. */
+const DOCKED_PANEL_QUERY = '(min-width: 1536px)';
+
+function useMediaQuery(query: string): boolean {
+    const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+    useEffect(() => {
+        const mq = window.matchMedia(query);
+        const update = () => setMatches(mq.matches);
+        update();
+        mq.addEventListener('change', update);
+        return () => mq.removeEventListener('change', update);
+    }, [query]);
+    return matches;
+}
+
 function KpiTile({ icon: Icon, label, value, hint, tone, active, onClick }: {
     icon: typeof Users; label: string; value: React.ReactNode; hint?: string;
     tone: string; active?: boolean; onClick?: () => void;
@@ -74,17 +92,17 @@ function KpiTile({ icon: Icon, label, value, hint, tone, active, onClick }: {
             type="button"
             onClick={onClick}
             disabled={!onClick}
-            className={`flex min-w-0 items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${active
+            className={`flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition xl:px-4 ${active
                 ? 'border-[#060b00] bg-[#060b00] text-white shadow-lg'
                 : 'border-slate-100 bg-slate-50/60 hover:border-slate-200 hover:bg-white disabled:hover:border-slate-100 disabled:hover:bg-slate-50/60'}`}
         >
-            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/15 text-white' : tone}`}>
-                <Icon size={18} />
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl xl:h-9 xl:w-9 ${active ? 'bg-white/15 text-white' : tone}`}>
+                <Icon size={17} />
             </span>
             <span className="min-w-0">
                 <span className="block text-lg font-black leading-none tabular-nums">{value}</span>
                 <span className={`mt-1 block truncate text-[11px] font-bold ${active ? 'text-white/70' : 'text-slate-500'}`}>{label}</span>
-                {hint && <span className={`block truncate text-[10px] ${active ? 'text-white/50' : 'text-slate-400'}`}>{hint}</span>}
+                {hint && <span className={`hidden truncate text-[10px] 2xl:block ${active ? 'text-white/50' : 'text-slate-400'}`}>{hint}</span>}
             </span>
         </button>
     );
@@ -117,15 +135,28 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [sortDir, setSortDir] = useState<SortDirection>(initialPrefs.sortDir ?? 'asc');
     const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [showRegionPanel, setShowRegionPanel] = useState(false);
+    const isWide = useMediaQuery(DOCKED_PANEL_QUERY);
+    const [panelDocked, setPanelDocked] = useState<boolean>(initialPrefs.panel ?? true);
+    const [panelDrawerOpen, setPanelDrawerOpen] = useState(false);
     const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number } | null>(null);
 
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
     const persist = useCallback((patch: StoredPrefs) => {
-        writePrefs({ view, regions, sortKey, sortDir, ...patch });
-    }, [view, regions, sortKey, sortDir]);
+        writePrefs({ view, regions, sortKey, sortDir, panel: panelDocked, ...patch });
+    }, [view, regions, sortKey, sortDir, panelDocked]);
+
+    const showDockedPanel = isWide && panelDocked;
+    const toggleRegionPanel = () => {
+        if (isWide) {
+            setPanelDocked(!panelDocked);
+            persist({ panel: !panelDocked });
+        } else {
+            setPanelDrawerOpen(open => !open);
+        }
+    };
+    useEffect(() => { if (isWide) setPanelDrawerOpen(false); }, [isWide]);
 
     const setView = (next: ViewMode) => { setViewState(next); persist({ view: next }); };
     const setRegions = (next: RegionFilterKey[]) => { setRegionsState(next); persist({ regions: next }); };
@@ -262,7 +293,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     );
 
     const renderCards = (list: CustomerDirectoryEntry[]) => (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-4" style={CARD_GRID_STYLE}>
             {list.map(entry => (
                 <CustomerCard
                     key={entry.customer.id}
@@ -308,7 +339,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     : 'Διαχείριση πελατολογίου και ιστορικού.'}
                 tail={(
                     <>
-                        <div className="relative min-w-[14rem] flex-1 md:max-w-sm md:flex-none">
+                        <div className="relative min-w-[11rem] flex-1 xl:max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
@@ -334,9 +365,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                         role="tab"
                                         aria-selected={active}
                                         onClick={() => setView(opt.id)}
+                                        title={opt.label}
                                         className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        <Icon size={15} /> {opt.label}
+                                        <Icon size={15} /> <span className="hidden xl:inline">{opt.label}</span>
                                     </button>
                                 );
                             })}
@@ -344,14 +376,15 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         <button
                             type="button"
                             onClick={startCreate}
-                            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
+                            title="Νέος πελάτης"
+                            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-3.5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
                         >
-                            <Plus size={18} strokeWidth={3} /> Νέος πελάτης
+                            <Plus size={18} strokeWidth={3} /> <span className="hidden xl:inline">Νέος πελάτης</span>
                         </button>
                     </>
                 )}
                 below={(
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:gap-3">
                         <KpiTile icon={Users} label="Πελάτες" value={kpis.total} hint="Χωρίς τη Λιανική" tone="bg-slate-900/5 text-slate-700"
                             active={!hasFilters} onClick={hasFilters ? clearFilters : undefined} />
                         <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint="Παραγγελία σε 90 ημέρες" tone="bg-emerald-50 text-emerald-600"
@@ -365,27 +398,55 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 )}
             />
 
-            <div className="flex min-h-0 flex-1 gap-4">
-                <aside className="hidden w-72 shrink-0 flex-col rounded-3xl border border-slate-100 bg-white p-4 shadow-sm lg:flex">
-                    {regionFilterPanel}
-                </aside>
+            <div className="relative flex min-h-0 flex-1 gap-4">
+                {showDockedPanel && (
+                    <aside className="flex w-72 shrink-0 flex-col rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+                        {regionFilterPanel}
+                    </aside>
+                )}
+
+                {!isWide && panelDrawerOpen && (
+                    <div className="absolute inset-0 z-40 flex">
+                        <aside className="flex w-80 max-w-[85%] flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl animate-in slide-in-from-left-4 fade-in duration-150">
+                            {regionFilterPanel}
+                            <button
+                                type="button"
+                                onClick={() => setPanelDrawerOpen(false)}
+                                className="mt-3 rounded-xl bg-[#060b00] py-2.5 text-xs font-bold text-white"
+                            >
+                                Εμφάνιση {sorted.length} πελατών
+                            </button>
+                        </aside>
+                        <button
+                            type="button"
+                            aria-label="Κλείσιμο φίλτρου περιοχών"
+                            onClick={() => setPanelDrawerOpen(false)}
+                            className="ml-2 flex-1 rounded-3xl bg-slate-900/10 backdrop-blur-[1px]"
+                        />
+                    </div>
+                )}
 
                 <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     {/* Toolbar */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
                         <button
                             type="button"
-                            onClick={() => setShowRegionPanel(v => !v)}
-                            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition lg:hidden ${regions.length ? 'border-sky-200 bg-sky-50 text-sky-800' : 'border-slate-200 bg-white text-slate-600'}`}
+                            onClick={toggleRegionPanel}
+                            title={showDockedPanel ? 'Απόκρυψη περιοχών' : 'Φίλτρο περιοχών'}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition ${regions.length || panelDrawerOpen
+                                ? 'border-sky-200 bg-sky-50 text-sky-800'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
                         >
-                            <SlidersHorizontal size={14} /> Περιοχές{regions.length ? ` (${regions.length})` : ''}
+                            {showDockedPanel ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+                            Περιοχές
+                            {regions.length > 0 && <span className="rounded-full bg-sky-600 px-1.5 text-[10px] text-white">{regions.length}</span>}
                         </button>
 
-                        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                        <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100 [scrollbar-width:none]">
                             <button
                                 type="button"
                                 onClick={() => setActivityFilter(null)}
-                                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${!activityFilter ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${!activityFilter ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                             >
                                 Όλοι
                             </button>
@@ -395,33 +456,19 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     type="button"
                                     title={ACTIVITY_META[a].hint}
                                     onClick={() => setActivityFilter(activityFilter === a ? null : a)}
-                                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${activityFilter === a ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${activityFilter === a ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                                 >
-                                    <span className={`h-2 w-2 rounded-full ${ACTIVITY_META[a].dot}`} /> {ACTIVITY_META[a].label}
+                                    <span className={`h-2 w-2 shrink-0 rounded-full ${ACTIVITY_META[a].dot}`} /> {ACTIVITY_META[a].label}
                                 </button>
                             ))}
                         </div>
 
-                        {regions.map(key => (
-                            <span key={key} className="flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-3 pr-1 text-[11px] font-bold text-sky-900">
-                                {regionFilterLabel(key)}
-                                <button type="button" onClick={() => setRegions(regions.filter(k => k !== key))} className="rounded-full p-0.5 hover:bg-sky-200" aria-label="Αφαίρεση φίλτρου">
-                                    <X size={12} />
-                                </button>
-                            </span>
-                        ))}
-                        {hasFilters && (
-                            <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-[11px] font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                                Καθαρισμός όλων
-                            </button>
-                        )}
-
                         <span className="flex-1" />
-                        <span className="text-xs font-bold text-slate-400">
+                        <span className="hidden shrink-0 whitespace-nowrap text-xs font-bold text-slate-400 md:inline">
                             {sorted.length} {sorted.length === 1 ? 'πελάτης' : 'πελάτες'}
                         </span>
                         {view !== 'map' && (
-                            <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                            <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
                                 <select
                                     value={sortKey}
                                     onChange={e => applySort(e.target.value as CustomerSortKey, CUSTOMER_SORT_OPTIONS.find(o => o.key === e.target.value)?.defaultDir)}
@@ -442,9 +489,27 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         )}
                     </div>
 
-                    {showRegionPanel && (
-                        <div className="max-h-[50vh] rounded-3xl border border-slate-100 bg-white p-4 shadow-lg lg:hidden">
-                            {regionFilterPanel}
+                    {(regions.length > 0 || hasFilters) && (
+                        <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+                            {regions.map(key => (
+                                <span key={key} className="flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-3 pr-1 text-[11px] font-bold text-sky-900">
+                                    {regionFilterLabel(key)}
+                                    <button type="button" onClick={() => setRegions(regions.filter(k => k !== key))} className="rounded-full p-0.5 hover:bg-sky-200" aria-label="Αφαίρεση φίλτρου">
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            ))}
+                            {activityFilter && (
+                                <span className="flex items-center gap-1 rounded-full bg-slate-200/70 py-1 pl-3 pr-1 text-[11px] font-bold text-slate-700">
+                                    {ACTIVITY_META[activityFilter].label}
+                                    <button type="button" onClick={() => setActivityFilter(null)} className="rounded-full p-0.5 hover:bg-slate-300" aria-label="Αφαίρεση φίλτρου">
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            )}
+                            <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-[11px] font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                Καθαρισμός όλων
+                            </button>
                         </div>
                     )}
 
@@ -473,7 +538,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             )}
 
                             {isLoading ? (
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                <div className="grid gap-4" style={CARD_GRID_STYLE}>
                                     {Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
                                 </div>
                             ) : emptyState || (view === 'list' ? (

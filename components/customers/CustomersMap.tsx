@@ -36,6 +36,42 @@ const GREECE_BOUNDS: L.LatLngBoundsExpression = [[34.8, 19.4], [41.75, 28.3]];
 const MAX_BOUNDS: L.LatLngBoundsExpression = [[31.5, 15.5], [44.5, 32.5]];
 const ACTIVITY_ORDER: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
 
+/** Free basemaps that need no API key. Order = automatic fallback order. */
+type BasemapId = 'streets' | 'light' | 'satellite';
+const BASEMAPS: Array<{ id: BasemapId; label: string; url: string; maxNativeZoom: number; attribution: string }> = [
+  {
+    id: 'streets',
+    label: 'Χάρτης',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    maxNativeZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>',
+  },
+  {
+    id: 'light',
+    label: 'Απλός',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    maxNativeZoom: 16,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap',
+  },
+  {
+    id: 'satellite',
+    label: 'Δορυφόρος',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    maxNativeZoom: 19,
+    attribution: 'Tiles &copy; Esri &mdash; Maxar, Earthstar Geographics',
+  },
+];
+const BASEMAP_STORAGE_KEY = 'ilios.customersMap.basemap';
+
+function readBasemap(): BasemapId {
+  try {
+    const stored = localStorage.getItem(BASEMAP_STORAGE_KEY);
+    return BASEMAPS.some(b => b.id === stored) ? stored as BasemapId : 'streets';
+  } catch {
+    return 'streets';
+  }
+}
+
 const tuple = (c: LatLng): L.LatLngTuple => [c[0], c[1]];
 
 const escapeHtml = (value: string) =>
@@ -109,7 +145,6 @@ export default function CustomersMap({
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markersRef = useRef(new Map<string, L.Marker>());
   const mapClickRef = useRef<((latlng: L.LatLng) => void) | null>(null);
-  const tilesLoadedRef = useRef(false);
   const fitKeyRef = useRef<string | null>(null);
   const handledFocusRef = useRef<number | null>(null);
 
@@ -118,6 +153,10 @@ export default function CustomersMap({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tilesOffline, setTilesOffline] = useState(false);
+  const [basemap, setBasemap] = useState<BasemapId>(readBasemap);
+  const [mapReady, setMapReady] = useState(false);
+  /** Basemaps that failed in this session (to skip them when falling back). */
+  const failedBasemapsRef = useRef(new Set<BasemapId>());
   const [listQuery, setListQuery] = useState('');
 
   const entryById = useMemo(() => new Map(entries.map(e => [e.customer.id, e])), [entries]);
@@ -144,21 +183,6 @@ export default function CustomersMap({
     map.attributionControl.setPrefix(false);
     L.control.zoom({ position: 'bottomright', zoomInTitle: 'Μεγέθυνση', zoomOutTitle: 'Σμίκρυνση' }).addTo(map);
 
-    let failures = 0;
-    const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>',
-    });
-    tiles.on('tileload', () => {
-      if (!tilesLoadedRef.current) { tilesLoadedRef.current = true; setTilesOffline(false); }
-    });
-    tiles.on('tileerror', () => {
-      failures += 1;
-      if (!tilesLoadedRef.current && failures >= 4) setTilesOffline(true);
-    });
-    tiles.addTo(map);
-
     const cluster = L.markerClusterGroup({
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
@@ -173,10 +197,12 @@ export default function CustomersMap({
     ro.observe(el);
     mapRef.current = map;
     clusterRef.current = cluster;
+    setMapReady(true);
     const markers = markersRef.current;
     return () => {
       ro.disconnect();
       map.remove();
+      setMapReady(false);
       mapRef.current = null;
       clusterRef.current = null;
       markers.clear();
@@ -184,10 +210,47 @@ export default function CustomersMap({
     };
   }, []);
 
+  // --- Basemap (keyless providers with automatic fallback) -----------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const config = BASEMAPS.find(b => b.id === basemap) ?? BASEMAPS[0];
+    let loaded = false;
+    let failures = 0;
+    const layer = L.tileLayer(config.url, {
+      maxZoom: 19,
+      maxNativeZoom: config.maxNativeZoom,
+      attribution: config.attribution,
+    });
+    layer.on('tileload', () => {
+      if (loaded) return;
+      loaded = true;
+      failedBasemapsRef.current.delete(config.id);
+      setTilesOffline(false);
+    });
+    layer.on('tileerror', () => {
+      failures += 1;
+      if (loaded || failures < 4) return;
+      failedBasemapsRef.current.add(config.id);
+      const next = BASEMAPS.find(b => !failedBasemapsRef.current.has(b.id));
+      if (next) setBasemap(next.id);
+      else setTilesOffline(true);
+    });
+    layer.addTo(map);
+    layer.bringToBack();
+    return () => { layer.remove(); };
+  }, [basemap, mapReady]);
+
+  const chooseBasemap = (id: BasemapId) => {
+    failedBasemapsRef.current.delete(id);
+    setBasemap(id);
+    try { localStorage.setItem(BASEMAP_STORAGE_KEY, id); } catch { /* storage unavailable */ }
+  };
+
   // --- Markers -------------------------------------------------------------
   useEffect(() => {
     const cluster = clusterRef.current;
-    if (!cluster) return;
+    if (!cluster || !mapReady) return;
     cluster.clearLayers();
     markersRef.current.clear();
     const markers = located
@@ -206,7 +269,7 @@ export default function CustomersMap({
         return marker;
       });
     cluster.addLayers(markers);
-  }, [located, editingId]);
+  }, [located, editingId, mapReady]);
 
   // Highlight the selected pin.
   const prevSelectedRef = useRef<string | null>(null);
@@ -267,11 +330,11 @@ export default function CustomersMap({
   }, []);
 
   useEffect(() => {
-    if (!focusRequest || handledFocusRef.current === focusRequest.nonce) return;
+    if (!mapReady || !focusRequest || handledFocusRef.current === focusRequest.nonce) return;
     if (!entryById.has(focusRequest.id)) return;
     handledFocusRef.current = focusRequest.nonce;
     focusCustomer(focusRequest.id);
-  }, [focusRequest, entryById, focusCustomer]);
+  }, [focusRequest, entryById, focusCustomer, mapReady]);
 
   // Drop the selection when the customer is filtered out.
   useEffect(() => {
@@ -391,13 +454,25 @@ export default function CustomersMap({
               <Globe size={14} /> {compact ? null : 'Όλη η Ελλάδα'}
             </button>
           </div>
+          <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+            {BASEMAPS.map(b => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => chooseBasemap(b.id)}
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${basemap === b.id ? 'bg-[#060b00] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
           <div className="pointer-events-auto rounded-full bg-[#060b00]/90 px-3 py-1 text-[11px] font-bold text-white shadow-lg">
             {located.length} στον χάρτη{unlocated.length ? ` · ${unlocated.length} χωρίς θέση` : ''}
           </div>
         </div>
 
         {/* Legend */}
-        <div className={`pointer-events-none absolute z-[500] ${compact ? 'left-3 top-3' : 'bottom-3 left-3'}`}>
+        <div className={`pointer-events-none absolute bottom-3 left-3 z-[500]`}>
           <div className="pointer-events-auto rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-200 backdrop-blur">
             <div className={`flex ${compact ? 'flex-col gap-1' : 'items-center gap-3'}`}>
               {ACTIVITY_ORDER.map(a => (
@@ -427,7 +502,7 @@ export default function CustomersMap({
         {tilesOffline && (
           <div className="absolute inset-x-3 top-16 z-[550] mx-auto flex max-w-md items-start gap-2 rounded-2xl bg-amber-50 p-3 text-xs font-semibold text-amber-800 shadow-lg ring-1 ring-amber-200">
             <WifiOff size={16} className="mt-0.5 shrink-0" />
-            Το υπόβαθρο του χάρτη δεν φορτώνει (χωρίς σύνδεση;). Οι πινέζες εμφανίζονται κανονικά.
+            Το υπόβαθρο του χάρτη δεν φορτώνει (χωρίς σύνδεση στο internet;). Οι πινέζες εμφανίζονται κανονικά.
           </div>
         )}
 

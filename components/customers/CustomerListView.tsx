@@ -18,13 +18,13 @@ interface Props {
   onShowOnMap: (entry: CustomerDirectoryEntry) => void;
 }
 
-function SortHeader({ label, k, sortKey, sortDir, onSort, align = 'left' }: {
+function SortHeader({ label, k, sortKey, sortDir, onSort, align = 'left', className = '' }: {
   label: string; k: CustomerSortKey; sortKey: CustomerSortKey; sortDir: SortDirection;
-  onSort: (key: CustomerSortKey) => void; align?: 'left' | 'right';
+  onSort: (key: CustomerSortKey) => void; align?: 'left' | 'right'; className?: string;
 }) {
   const active = sortKey === k;
   return (
-    <th className={`px-3 py-3 ${align === 'right' ? 'text-right' : 'text-left'}`}>
+    <th className={`px-3 py-3 ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}>
       <button
         type="button"
         onClick={() => onSort(k)}
@@ -45,11 +45,11 @@ export default function CustomerListView({ entries, sortKey, sortDir, onSort, on
         <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
           <tr>
             <SortHeader label="Πελάτης" k="name" {...headerProps} />
-            <SortHeader label="Περιοχή" k="region" {...headerProps} />
+            <SortHeader label="Περιοχή" k="region" className="hidden w-[28%] xl:table-cell" {...headerProps} />
             <th className="hidden w-36 px-3 py-3 text-left text-[10px] font-black uppercase tracking-wide text-slate-400 xl:table-cell">Τηλέφωνο</th>
-            <SortHeader label="Παραγγ." k="orders" align="right" {...headerProps} />
-            <SortHeader label="Τζίρος" k="revenue" align="right" {...headerProps} />
-            <SortHeader label="Τελευταία" k="recent" align="right" {...headerProps} />
+            <SortHeader label="Παραγγ." k="orders" align="right" className="w-24" {...headerProps} />
+            <SortHeader label="Τζίρος" k="revenue" align="right" className="w-32" {...headerProps} />
+            <SortHeader label="Τελευταία" k="recent" align="right" className="hidden w-32 lg:table-cell" {...headerProps} />
             <th className="w-12 px-3 py-3" />
           </tr>
         </thead>
@@ -67,18 +67,19 @@ export default function CustomerListView({ entries, sortKey, sortDir, onSort, on
                     <CustomerAvatar name={customer.full_name} seed={customer.id} size={34} className="rounded-xl" />
                     <div className="min-w-0">
                       <div className="truncate font-bold text-slate-800" title={customer.full_name}>{customer.full_name}</div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                      <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">
                         {customer.customer_code && <span className="font-mono font-bold">#{customer.customer_code}</span>}
                         <ActivityBadge activity={entry.activity} />
+                        <RegionPill location={location} className="min-w-0 xl:hidden" />
                       </div>
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2.5"><RegionPill location={location} /></td>
+                <td className="hidden px-3 py-2.5 xl:table-cell"><RegionPill location={location} /></td>
                 <td className="hidden truncate px-3 py-2.5 text-xs font-semibold text-slate-600 xl:table-cell">{customer.phone || <span className="text-slate-300">—</span>}</td>
-                <td className="w-24 px-3 py-2.5 text-right font-bold tabular-nums text-slate-700">{entry.orderCount || <span className="text-slate-300">0</span>}</td>
-                <td className="w-32 px-3 py-2.5 text-right font-bold tabular-nums text-slate-700">{entry.revenue ? formatCurrency(entry.revenue) : <span className="text-slate-300">—</span>}</td>
-                <td className="w-32 px-3 py-2.5 text-right text-xs font-semibold text-slate-500" title={entry.lastOrderAt ? new Date(entry.lastOrderAt).toLocaleDateString('el-GR') : undefined}>
+                <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-700">{entry.orderCount || <span className="text-slate-300">0</span>}</td>
+                <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-700">{entry.revenue ? formatCurrency(entry.revenue) : <span className="text-slate-300">—</span>}</td>
+                <td className="hidden px-3 py-2.5 text-right text-xs font-semibold text-slate-500 lg:table-cell" title={entry.lastOrderAt ? new Date(entry.lastOrderAt).toLocaleDateString('el-GR') : undefined}>
                   {formatDaysAgo(entry.daysSinceLastOrder)}
                 </td>
                 <td className="px-3 py-2.5 text-right">

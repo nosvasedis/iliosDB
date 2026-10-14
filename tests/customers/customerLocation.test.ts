@@ -40,7 +40,9 @@ describe('resolveCustomerLocation', () => {
     ['ΟΔΟΣ 1, 63200 - Ν ΜΟΥΔΑΝΙΑ', 'chalkidiki', 'Νέα Μουδανιά', 'town'],
     ['ΟΔΟΣ 1, 18020 - ΠΟΡΟΣ', 'attiki-nisoi', 'Πόρος', 'town'],
     ['ΟΔΟΣ 1, 50200 - ΠΤΟΛΕΜΑΙΔΑ', 'kozani', 'Πτολεμαΐδα', 'town'],
-    ['ΟΔΟΣ 1, 84700 - ΘΗΡΑ', 'thira', 'Θήρα', 'town'],
+    ['ΟΔΟΣ 1, 84700 - ΘΗΡΑ', 'thira', 'Σαντορίνη', 'town'],
+    ['ΟΔΟΣ 1, 85303 - ΝΙΣΥΡΟΣ', 'nisyros-tilos', 'Νίσυρος', 'town'],
+    ['ΟΔΟΣ 1, 84001 - ΙΟΣ', 'ios', 'Ίος', 'town'],
     ['ΟΔΟΣ 1, 73011 - ΧΩΡΑ ΣΦΑΚΙΩΝ', 'chania', 'Χώρα Σφακίων', 'town'],
   ];
   it.each(cases)('%s → %s', (address, unitId, town, precision) => {
@@ -61,10 +63,17 @@ describe('resolveCustomerLocation', () => {
   });
 
   it('ignores a town that contradicts the postal code', () => {
-    // Νάουσα exists in Ημαθία; 844xx is Πάρος, so the postal area wins.
-    const loc = resolveCustomerLocation(customer('ΟΔΟΣ 1, 84401 - ΝΑΟΥΣΑ'));
-    expect(loc.unitId).toBe('paros');
-    expect(loc.precision).toBe('area');
+    // Νάουσα exists in Ημαθία and in Πάρο; 844xx picks the Πάρος one.
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 84401 - ΝΑΟΥΣΑ'))).toMatchObject({ unitId: 'paros', precision: 'town' });
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 59200 - ΝΑΟΥΣΑ'))).toMatchObject({ unitId: 'imathia', precision: 'town' });
+    // Βέροια is in Ημαθία; a Cretan postal code must win.
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 71201 - ΒΕΡΟΙΑ'))).toMatchObject({ unitId: 'irakleio', precision: 'area' });
+  });
+
+  it('groups islands as Κυκλάδες / Δωδεκάνησα', () => {
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 84600 - ΜΥΚΟΝΟΣ')).periferiaLabel).toBe('Κυκλάδες');
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 85100 - ΡΟΔΟΣ')).periferiaLabel).toBe('Δωδεκάνησα');
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 26221 - ΠΑΤΡΑ')).periferiaId).toBe('peloponnisos');
   });
 
   it('prefers saved coordinates', () => {
@@ -91,7 +100,9 @@ describe('region data integrity', () => {
     expect(lookupPostalArea('54622')?.unitId).toBe('thessaloniki');
     expect(lookupPostalArea('49100')?.unitId).toBe('kerkyra');
     expect(lookupPostalArea('64004')?.unitId).toBe('thasos');
-    expect(lookupPostalArea('84001')).toEqual({ unitId: null, periferiaId: 'notio-aigaio' });
+    expect(lookupPostalArea('84001')).toEqual({ unitId: null, periferiaId: 'kyklades' });
+    expect(lookupPostalArea('85100')?.unitId).toBe('rodos');
+    expect(lookupPostalArea('85400')?.unitId).toBe('leros');
     expect(lookupPostalArea('99999')).toBeNull();
   });
 });
