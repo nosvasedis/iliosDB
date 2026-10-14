@@ -93,7 +93,7 @@ import { isInspectionModeActive } from '../lib/inspectionMode';
 import EvidenceSourcesEditor from './inspection/EvidenceSourcesEditor';
 import type { InspectionSnapshot } from '../features/inspection/types';
 import { useLegalCatalog } from '../hooks/api/useInspection';
-import { legalCatalogProducts } from '../features/inspection/catalog';
+import { legalCatalogProducts as mapLegalCatalogProducts } from '../features/inspection/catalog';
 import {
   buildLegalArchiveRecords,
   LEGAL_ARCHIVE_PARSE_VERSION,
@@ -759,7 +759,7 @@ export default function LegalDocumentsPage({
   initialDocumentId,
 }: LegalDocumentsPageProps) {
   const catalogQuery = useLegalCatalog(presentation !== 'inspection');
-  const products = useMemo(() => catalogQuery.data ? legalCatalogProducts(catalogQuery.data.items) : suppliedProducts, [catalogQuery.data, suppliedProducts]);
+  const products = useMemo<Product[]>(() => catalogQuery.data ? mapLegalCatalogProducts(catalogQuery.data.items) : suppliedProducts, [catalogQuery.data, suppliedProducts]);
   const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('new');
   const isControlledTab = activeTabProp !== undefined;
   const activeTab = isControlledTab ? activeTabProp : internalActiveTab;

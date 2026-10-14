@@ -16,11 +16,10 @@ import { SYSTEM_IDS } from '../../../lib/supabase';
 import { PRODUCTION_STAGES } from '../../../utils/productionStages';
 import { getCatalogSelectionPricing } from '../../../utils/skuProductPicker';
 import SkuProductPicker from '../../legal/SkuProductPicker';
-import { BTN_PRIMARY, BTN_SECONDARY } from '../../ui/designTokens';
 import { REPAIR_COST_TYPE_LABELS, formatGreekMoney, repairOutstanding } from '../../../features/customerService';
 import type { ServiceController, ServiceOperation } from '../useServiceController';
 import SettleConsignmentModal from '../consignments/SettleConsignmentModal';
-import { ChoicePills, DANGER_BUTTON, Field, SERVICE_INPUT, ServiceModal } from './serviceUi';
+import { ACTION_PRIMARY, ACTION_QUIET, ChoicePills, DANGER_BUTTON, Field, SERVICE_INPUT, ServiceModal } from './serviceUi';
 
 const PAYMENT_METHODS = ['Μετρητά', 'Κάρτα', 'Τράπεζα', 'Άλλο'] as const;
 
@@ -31,8 +30,8 @@ function money(value: number): number {
 function Footer({ busy, onCancel, onSubmit, label, disabled, danger = false, icon }: { busy: boolean; onCancel: () => void; onSubmit: () => void; label: string; disabled?: boolean; danger?: boolean; icon?: React.ReactNode }) {
   return (
     <>
-      <button type="button" className={BTN_SECONDARY} onClick={onCancel} disabled={busy}>Άκυρο</button>
-      <button type="button" className={`${danger ? DANGER_BUTTON : BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0`} onClick={onSubmit} disabled={busy || disabled}>
+      <button type="button" className={ACTION_QUIET} onClick={onCancel} disabled={busy}>Άκυρο</button>
+      <button type="button" className={`${danger ? DANGER_BUTTON : ACTION_PRIMARY}`} onClick={onSubmit} disabled={busy || disabled}>
         {busy ? <Loader2 size={15} className="animate-spin" /> : icon}
         {label}
       </button>
@@ -158,7 +157,7 @@ function PaymentDialog({ outstanding, busy, close, onSubmit }: DialogBase & { ou
         <Field label="Ποσό" error={money(amount) > outstanding ? 'Το ποσό ξεπερνά το υπόλοιπο.' : null}>
           <div className="flex gap-2">
             <input type="number" min={0} step="0.01" className={SERVICE_INPUT} value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
-            {money(amount) !== outstanding && <button type="button" className={BTN_SECONDARY} onClick={() => setAmount(outstanding)}>Όλο</button>}
+            {money(amount) !== outstanding && <button type="button" className={ACTION_QUIET} onClick={() => setAmount(outstanding)}>Όλο</button>}
           </div>
         </Field>
         <Field label="Τρόπος πληρωμής"><ChoicePills<(typeof PAYMENT_METHODS)[number]> value={method} onChange={setMethod} options={PAYMENT_METHODS.map((value) => ({ value, label: value }))} /></Field>
@@ -342,7 +341,7 @@ function ChargeDialog({ ctl, itemId, code, busy, close, run }: DialogBase & { ct
             <Field label="Έχουν εισπραχθεί" error={paid > amount ? 'Πάνω από τη χρέωση.' : null}>
               <div className="flex gap-1.5">
                 <input type="number" min={0} step="0.01" className={SERVICE_INPUT} value={paid} onChange={(event) => setPaid(Number(event.target.value))} />
-                <button type="button" title="Εξοφλήθηκε" className={`${BTN_SECONDARY} px-2.5`} onClick={() => setPaid(amount)}>✓</button>
+                <button type="button" title="Εξοφλήθηκε" className={`${ACTION_QUIET} px-2.5`} onClick={() => setPaid(amount)}>✓</button>
               </div>
             </Field>
           </div>
@@ -370,9 +369,9 @@ function DeliverDialog({ ctl, operation, busy, close, run }: DialogBase & { ctl:
       footer={<Footer busy={busy} onCancel={close} label={label} icon={<PackageCheck size={15} />} onSubmit={submit} />}>
       {outstanding > 0 ? (
         <div className="space-y-3">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <div className="text-xs font-bold text-amber-800">Υπόλοιπο χρέωσης</div>
-            <div className="text-2xl font-black text-amber-900">{formatGreekMoney(outstanding)}</div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">Υπόλοιπο χρέωσης</div>
+            <div className="text-2xl font-black tabular-nums text-slate-900">{formatGreekMoney(outstanding)}</div>
           </div>
           <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3">
             <input type="checkbox" className="h-5 w-5 accent-[#060b00]" checked={collectNow} onChange={(event) => setCollectNow(event.target.checked)} />

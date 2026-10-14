@@ -5,7 +5,6 @@ import SkuProductPicker from '../../legal/SkuProductPicker';
 import SkuColorizedText from '../../SkuColorizedText';
 import CustomerSearchSelect from '../CustomerSearchSelect';
 import { formatOrderId } from '../../../utils/orderUtils';
-import { BTN_PRIMARY, BTN_SECONDARY } from '../../ui/designTokens';
 import {
   buildPurchaseChips,
   createEmptyRepairDraftRow,
@@ -18,7 +17,7 @@ import {
   type RepairDraftRow,
 } from '../../../features/customerService';
 import type { ServiceController } from '../useServiceController';
-import { ChoicePills, Field, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
+import { ACTION_PRIMARY, ACTION_QUIET, ChoicePills, Field, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
 
 const QUICK_FAULTS = ['Κόλληση', 'Κούμπωμα', 'Αλλαγή μεγέθους', 'Γυάλισμα', 'Πέτρα', 'Επιμετάλλωση', 'Αλυσίδα'];
 
@@ -93,8 +92,8 @@ export default function QuickRepairForm({ ctl, presetCustomerId, lockCustomer = 
           <div className="mr-auto min-w-0 text-xs">
             {issues.length > 0 ? <span className="font-bold text-slate-400">{issues[0]}</span> : <span className="font-black text-slate-700">{formatGreekNumber(rows.length)} {rows.length === 1 ? 'τεμάχιο' : 'τεμάχια'}</span>}
           </div>
-          <button type="button" className={BTN_SECONDARY} onClick={onClose} disabled={saving}>Άκυρο</button>
-          <button type="button" className={`${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0`} onClick={submit} disabled={saving || issues.length > 0}>
+          <button type="button" className={ACTION_QUIET} onClick={onClose} disabled={saving}>Άκυρο</button>
+          <button type="button" className={`${ACTION_PRIMARY}`} onClick={submit} disabled={saving || issues.length > 0}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Wrench size={15} />} Παραλαβή
           </button>
         </>
@@ -121,7 +120,7 @@ export default function QuickRepairForm({ ctl, presetCustomerId, lockCustomer = 
                   <div className="mb-1.5 text-[11px] font-bold text-slate-500">Αγόρασε από εμάς; Διαλέξτε το:</div>
                   <div className="flex flex-wrap gap-1.5">
                     {chips.map((chip) => (
-                      <button key={chip.key} type="button" onClick={() => applyChip(row.id, chip)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-left transition hover:border-blue-300 hover:bg-blue-50">
+                      <button key={chip.key} type="button" onClick={() => applyChip(row.id, chip)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-left transition hover:border-slate-300 hover:bg-slate-50">
                         <SkuColorizedText sku={chip.sku} suffix={chip.variantSuffix} className="text-[11px] font-black" />
                         <span className="ml-1 text-[9px] font-bold text-slate-400">{chip.source === 'consignment' ? 'Παρακ.' : chip.orderId ? `#${formatOrderId(chip.orderId)}` : ''}{chip.date ? ` · ${formatGreekDateOnly(chip.date)}` : ''}</span>
                       </button>
@@ -131,12 +130,12 @@ export default function QuickRepairForm({ ctl, presetCustomerId, lockCustomer = 
               )}
 
               {linked ? (
-                <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
-                  <div className="min-w-0 text-xs text-blue-900">
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="min-w-0 text-xs text-slate-700">
                     {row.sku && <SkuColorizedText sku={row.sku} suffix={row.variantSuffix} className="font-black" />}
-                    <span className="ml-1.5 font-bold text-blue-700">{row.orderId ? `από παραγγελία #${formatOrderId(row.orderId)}` : 'από πώληση Παρακαταθήκης'}</span>
+                    <span className="ml-1.5 text-slate-500">{row.orderId ? `από παραγγελία #${formatOrderId(row.orderId)}` : 'από πώληση Παρακαταθήκης'}</span>
                   </div>
-                  {!isRework && <button type="button" className="rounded-lg p-1 text-blue-500 hover:bg-blue-100" aria-label="Αλλαγή" onClick={() => update(row.id, { originType: 'legacy_own', orderId: '', orderLineId: '', sourceConsignmentSettlementId: '', sku: '', variantSuffix: '', sizeInfo: '' })}><X size={14} /></button>}
+                  {!isRework && <button type="button" className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700" aria-label="Αλλαγή" onClick={() => update(row.id, { originType: 'legacy_own', orderId: '', orderLineId: '', sourceConsignmentSettlementId: '', sku: '', variantSuffix: '', sizeInfo: '' })}><X size={14} /></button>}
                 </div>
               ) : (
                 <div className="mb-3 space-y-3">

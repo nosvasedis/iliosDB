@@ -4,7 +4,6 @@ import SkuProductPicker from '../../legal/SkuProductPicker';
 import CustomerSearchSelect from '../CustomerSearchSelect';
 import { getCatalogSelectionPricing } from '../../../utils/skuProductPicker';
 import { formatOrderId } from '../../../utils/orderUtils';
-import { BTN_PRIMARY, BTN_SECONDARY } from '../../ui/designTokens';
 import {
   createEmptyConsignmentDraftRow,
   findTaggedConsignmentOrderLines,
@@ -17,7 +16,7 @@ import {
   type ConsignmentDraftRow,
 } from '../../../features/customerService';
 import type { ServiceController } from '../useServiceController';
-import { Field, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
+import { ACTION_PRIMARY, ACTION_QUIET, Field, ROW_BUTTON, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
 
 const REVIEW_PRESETS = [
   { days: 14, label: '2 εβδ.' },
@@ -122,8 +121,8 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
               ? <span className="font-bold text-slate-400">{issues[0]}</span>
               : <span className="font-black text-slate-700">{formatGreekNumber(pieces)} τεμ. · {formatGreekMoney(value)}</span>}
           </div>
-          <button type="button" className={BTN_SECONDARY} onClick={onClose} disabled={saving}>Άκυρο</button>
-          <button type="button" className={`${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0`} onClick={submit} disabled={saving || issues.length > 0}>
+          <button type="button" className={ACTION_QUIET} onClick={onClose} disabled={saving}>Άκυρο</button>
+          <button type="button" className={`${ACTION_PRIMARY}`} onClick={submit} disabled={saving || issues.length > 0}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : handoffNow ? <PackageCheck size={15} /> : <Plus size={15} />}
             {handoffNow ? 'Δημιουργία & παράδοση' : 'Δημιουργία'}
           </button>
@@ -136,13 +135,13 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
         </Field>
 
         {tagged.length > 0 && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 sm:flex-row sm:items-center">
-            <ShoppingBag size={18} className="shrink-0 text-indigo-700" />
-            <div className="min-w-0 flex-1 text-sm text-indigo-900">
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center">
+            <ShoppingBag size={17} className="shrink-0 text-slate-400" />
+            <div className="min-w-0 flex-1 text-sm text-slate-700">
               <strong>{formatGreekNumber(tagged.length)} γραμμές</strong> από παραγγελίες του πελάτη είναι σημειωμένες ως Παρακαταθήκη
-              <span className="text-indigo-700"> ({[...new Set(tagged.map((line) => `#${formatOrderId(line.orderId)}`))].slice(0, 3).join(', ')})</span>.
+              <span className="text-slate-500"> ({[...new Set(tagged.map((line) => `#${formatOrderId(line.orderId)}`))].slice(0, 3).join(', ')})</span>.
             </div>
-            <button type="button" className="shrink-0 rounded-xl bg-indigo-700 px-3 py-2 text-xs font-black text-white hover:bg-indigo-800" onClick={addTagged}>Προσθήκη όλων</button>
+            <button type="button" className={ROW_BUTTON} onClick={addTagged}>Προσθήκη όλων</button>
           </div>
         )}
 
@@ -165,7 +164,7 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
                     compact
                     catalogOnly
                   />
-                  {row.orderLineId && <div className="mt-1 text-[10px] font-bold text-indigo-600">από παραγγελία #{formatOrderId(row.sourceOrderId)}</div>}
+                  {row.orderLineId && <div className="mt-1 text-[10px] text-slate-400">από παραγγελία #{formatOrderId(row.sourceOrderId)}</div>}
                 </div>
                 <label className="flex items-center gap-1.5 sm:block">
                   <span className="text-[10px] font-bold text-slate-400 sm:hidden">Ποσ.</span>
@@ -217,7 +216,7 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
               </Field>
               <Field label="Σημείωση"><input className={SERVICE_INPUT} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Προαιρετικά" /></Field>
               {onOpenBulk && (
-                <button type="button" className="text-left text-xs font-bold text-indigo-700 hover:underline sm:col-span-2" onClick={onOpenBulk}>
+                <button type="button" className="text-left text-xs font-bold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline sm:col-span-2" onClick={onOpenBulk}>
                   Πολλοί πελάτες μαζί; Άνοιγμα μαζικής δημιουργίας →
                 </button>
               )}

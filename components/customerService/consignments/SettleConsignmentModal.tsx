@@ -1,15 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import type { Consignment } from '../../../types';
-import { BTN_PRIMARY, BTN_SECONDARY } from '../../ui/designTokens';
 import { buildSettlementSteps, formatGreekMoney, formatGreekNumber } from '../../../features/customerService';
 import SkuColorizedText from '../../SkuColorizedText';
 import ConsignmentSkuThumb from '../ConsignmentSkuThumb';
 import type { ServiceController } from '../useServiceController';
-import { SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
+import { ACTION_PRIMARY, ACTION_QUIET, GHOST_BUTTON, ROW_BUTTON, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
 
 function MiniStepper({ value, max, onChange, tone }: { value: number; max: number; onChange: (value: number) => void; tone: 'emerald' | 'amber' }) {
-  const ring = tone === 'emerald' ? 'focus:border-emerald-400' : 'focus:border-amber-400';
+  const ring = 'focus:border-slate-400';
   return (
     <div className="flex items-center gap-1">
       <button type="button" className="h-8 w-8 rounded-lg border border-slate-200 bg-white font-black text-slate-500 hover:bg-slate-50 disabled:opacity-30" disabled={value <= 0} onClick={() => onChange(value - 1)} aria-label="Μείωση">−</button>
@@ -62,12 +61,12 @@ export default function SettleConsignmentModal({ ctl, entry }: { ctl: ServiceCon
       footer={(
         <>
           <div className="mr-auto text-xs text-slate-500">
-            <span className="font-black text-emerald-700">{formatGreekNumber(soldPieces)} πωλήσεις · {formatGreekMoney(soldValue)}</span>
-            {' · '}<span className="font-black text-amber-700">{formatGreekNumber(returnedPieces)} επιστροφές</span>
+            <span className="font-bold text-slate-700">{formatGreekNumber(soldPieces)} πωλήσεις · {formatGreekMoney(soldValue)}</span>
+            {' · '}<span className="font-bold text-slate-700">{formatGreekNumber(returnedPieces)} επιστροφές</span>
             {' · '}μένουν {formatGreekNumber(Math.max(0, remaining))} στον πελάτη
           </div>
-          <button type="button" className={BTN_SECONDARY} onClick={close} disabled={busy}>Άκυρο</button>
-          <button type="button" className={`${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`} disabled={busy || steps.length === 0 || issues.length > 0} onClick={submit}>
+          <button type="button" className={ACTION_QUIET} onClick={close} disabled={busy}>Άκυρο</button>
+          <button type="button" className={`${ACTION_PRIMARY}`} disabled={busy || steps.length === 0 || issues.length > 0} onClick={submit}>
             {busy && <Loader2 size={15} className="animate-spin" />} Καταχώριση
           </button>
         </>
@@ -78,19 +77,19 @@ export default function SettleConsignmentModal({ ctl, entry }: { ctl: ServiceCon
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100" onClick={() => fillAll('sold')}>Πουλήθηκαν όλα</button>
-            <button type="button" className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100" onClick={() => fillAll('returned')}>Επιστρέφονται όλα</button>
-            <button type="button" className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100" onClick={() => setCounts({})}>Μηδενισμός</button>
+            <button type="button" className={ROW_BUTTON} onClick={() => fillAll('sold')}>Πουλήθηκαν όλα</button>
+            <button type="button" className={ROW_BUTTON} onClick={() => fillAll('returned')}>Επιστρέφονται όλα</button>
+            <button type="button" className={GHOST_BUTTON} onClick={() => setCounts({})}>Μηδενισμός</button>
           </div>
           <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100">
-            <div className="hidden grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-400 sm:grid">
-              <span>Τεμάχιο</span><span className="text-emerald-700">Πουλήθηκαν</span><span className="text-amber-700">Επιστροφή</span>
+            <div className="hidden grid-cols-[minmax(0,1fr)_128px_128px] gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-400 sm:grid">
+              <span>Τεμάχιο</span><span>Πουλήθηκαν</span><span>Επιστράφηκαν</span>
             </div>
             {lines.map((line) => {
               const value = get(line.id);
               const over = value.sold + value.returned > line.pending_quantity;
               return (
-                <div key={line.id} className={`grid grid-cols-2 items-center gap-3 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_120px_120px] ${over ? 'bg-rose-50' : ''}`}>
+                <div key={line.id} className={`grid grid-cols-2 items-center gap-3 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_128px_128px] ${over ? 'bg-rose-50' : ''}`}>
                   <div className="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
                     <ConsignmentSkuThumb product={ctl.productBySku.get(line.product_sku)} sku={line.product_sku} quantity={line.pending_quantity} />
                     <div className="min-w-0">

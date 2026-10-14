@@ -115,7 +115,7 @@ export default function RepairsPage() {
           <KpiChip label="Σε εξέλιξη" value={formatGreekNumber(kpis.active)} tone="blue" />
           <KpiChip label="Περιμένουν έλεγχο" value={formatGreekNumber(kpis.quality)} tone={kpis.quality > 0 ? 'amber' : 'slate'} />
           <KpiChip label="Έτοιμες για παράδοση" value={formatGreekNumber(kpis.ready)} tone={kpis.ready > 0 ? 'emerald' : 'slate'} />
-          <KpiChip label="Ανείσπρακτα" value={formatGreekMoney(kpis.outstanding)} tone={kpis.outstanding > 0 ? 'rose' : 'slate'} />
+          <KpiChip label="Ανείσπρακτα" value={formatGreekMoney(kpis.outstanding)} tone={kpis.outstanding > 0 ? 'rose' : 'slate'} alert={kpis.outstanding > 0} />
         </div>
 
         <ServiceToolbar<View>

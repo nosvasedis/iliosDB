@@ -122,8 +122,8 @@ export default function ConsignmentsPage() {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <KpiChip label="Τεμάχια σε πελάτες" value={formatGreekNumber(kpis.pieces)} tone="indigo" />
           <KpiChip label="Αξία σε πελάτες" value={formatGreekMoney(kpis.value)} tone="blue" />
-          <KpiChip label="Ανείσπρακτα" value={formatGreekMoney(kpis.due)} tone={kpis.due > 0 ? 'rose' : 'slate'} />
-          <KpiChip label="Εκπρόθεσμες" value={formatGreekNumber(kpis.overdue)} tone={kpis.overdue > 0 ? 'amber' : 'slate'} onClick={kpis.overdue > 0 || overdueOnly ? () => setOverdueOnly((value) => !value) : undefined} active={overdueOnly} />
+          <KpiChip label="Ανείσπρακτα" value={formatGreekMoney(kpis.due)} tone={kpis.due > 0 ? 'rose' : 'slate'} alert={kpis.due > 0} />
+          <KpiChip label="Εκπρόθεσμες" value={formatGreekNumber(kpis.overdue)} tone={kpis.overdue > 0 ? 'rose' : 'slate'} alert={kpis.overdue > 0} onClick={kpis.overdue > 0 || overdueOnly ? () => setOverdueOnly((value) => !value) : undefined} active={overdueOnly} />
         </div>
 
         <ServiceToolbar<View>
@@ -167,7 +167,7 @@ export default function ConsignmentsPage() {
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                   <h3 className="font-black text-slate-900">{ctl.customerName(group.id)}</h3>
                   <div className="flex flex-wrap gap-3 text-xs">
-                    <span className="font-bold text-indigo-700">{formatGreekNumber(group.pending)} τεμ. · {formatGreekMoney(group.value)}</span>
+                    <span className="font-bold text-slate-600">{formatGreekNumber(group.pending)} τεμ. · {formatGreekMoney(group.value)}</span>
                     {group.due > 0 && <span className="font-black text-rose-600">Οφείλει {formatGreekMoney(group.due)}</span>}
                   </div>
                 </div>
