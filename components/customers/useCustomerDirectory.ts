@@ -4,7 +4,7 @@ import type { Customer, Order } from '../../types';
 import { RETAIL_CUSTOMER_ID } from '../../lib/supabase';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
 import { ordersRepository } from '../../features/orders';
-import { buildCustomerDirectory, countRegions, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
+import { buildCustomerDirectory, countRegions, customerBranches, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
 import type { LatLng } from '../../features/customers/greekRegions';
 
 /** Shared customer directory (stats + derived Περιοχή) and pin persistence for desktop and mobile. */
@@ -18,14 +18,30 @@ export function useCustomerDirectory(customers: Customer[] | undefined, orders: 
   const regionCounts = useMemo(() => countRegions(directory), [directory]);
   const canEditLocation = !isInspectionModeActive();
 
-  const saveLocation = useCallback(async (customerId: string, coords: LatLng | null) => {
-    const patch = (list: Customer[] | undefined) => list?.map(c => c.id === customerId
-      ? { ...c, latitude: coords ? coords[0] : null, longitude: coords ? coords[1] : null }
-      : c);
+  /**
+   * Saves a manual pin. With `branchId` it moves that shop's pin, otherwise the fiscal-seat pin.
+   * `null` coords go back to the automatic (address-based) position.
+   */
+  const saveLocation = useCallback(async (customerId: string, coords: LatLng | null, branchId?: string | null) => {
+    const lat = coords ? coords[0] : null;
+    const lng = coords ? coords[1] : null;
+    const current = queryClient.getQueriesData<Customer[]>({ queryKey: ['customers'] })
+      .flatMap(([, list]) => list ?? [])
+      .find(c => c.id === customerId);
+
+    const patchCustomer = (c: Customer): Customer => (branchId
+      ? { ...c, branches: customerBranches(c).map(b => (b.id === branchId ? { ...b, latitude: lat, longitude: lng } : b)) }
+      : { ...c, latitude: lat, longitude: lng });
+
     const snapshot = queryClient.getQueriesData<Customer[]>({ queryKey: ['customers'] });
-    queryClient.setQueriesData<Customer[]>({ queryKey: ['customers'] }, patch);
+    queryClient.setQueriesData<Customer[]>({ queryKey: ['customers'] }, list => list?.map(c => (c.id === customerId ? patchCustomer(c) : c)));
     try {
-      await ordersRepository.updateCustomerLocation(customerId, coords);
+      if (branchId) {
+        if (!current) throw new Error('Ο πελάτης δεν βρέθηκε.');
+        await ordersRepository.updateCustomerBranches(customerId, patchCustomer(current).branches ?? []);
+      } else {
+        await ordersRepository.updateCustomerLocation(customerId, coords);
+      }
     } catch (error) {
       snapshot.forEach(([key, data]) => queryClient.setQueryData(key, data));
       throw error;

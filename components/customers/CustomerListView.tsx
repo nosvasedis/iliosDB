@@ -86,7 +86,7 @@ export default function CustomerListView({ entries, sortKey, sortDir, onSort, on
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); onShowOnMap(entry); }}
-                    disabled={!location.coords}
+                    disabled={!entry.places.some(p => p.location.coords)}
                     className="rounded-lg p-1.5 text-slate-300 transition hover:bg-sky-100 hover:text-sky-700 disabled:opacity-30 group-hover:text-slate-500"
                     title={location.coords ? 'Στον χάρτη' : 'Χωρίς τοποθεσία'}
                   >

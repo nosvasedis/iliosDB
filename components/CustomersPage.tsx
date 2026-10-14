@@ -16,7 +16,7 @@ import {
   ACTIVITY_META,
   CUSTOMER_SORT_OPTIONS,
   matchesCustomerSearch,
-  matchesRegionFilter,
+  matchesEntryRegion,
   NO_REGION_KEY,
   regionFilterLabel,
   sortCustomerDirectory,
@@ -174,7 +174,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const systemEntry = useMemo(() => directory.find(e => e.isSystem) ?? null, [directory]);
 
     const filtered = useMemo(() => regular.filter(e =>
-        matchesRegionFilter(e.location, regions)
+        matchesEntryRegion(e, regions)
         && (!activityFilter || e.activity === activityFilter)
         && matchesCustomerSearch(e, searchTerm)
     ), [regular, regions, activityFilter, searchTerm]);
@@ -277,9 +277,9 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         }
     };
 
-    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null) => {
+    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null, branchId?: string | null) => {
         try {
-            await saveLocation(customerId, coords);
+            await saveLocation(customerId, coords, branchId);
             showToast(coords ? 'Η θέση στον χάρτη αποθηκεύτηκε.' : 'Επαναφορά στην αυτόματη θέση.', 'success');
         } catch (e) {
             showToast('Η αποθήκευση της θέσης απέτυχε.', 'error');
@@ -522,6 +522,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         )}>
                             <CustomersMap
                                 className="flex-1"
+                                regionSelection={regions}
                                 entries={sorted}
                                 focusRequest={focusRequest}
                                 onOpenCustomer={openCustomer}

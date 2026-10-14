@@ -3,16 +3,21 @@ import { L } from './leafletSetup';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import {
-  AlertTriangle, Check, ExternalLink, Globe, Loader2, Mail, MapPin, Maximize2, Move, Phone, RotateCcw, Search, WifiOff, X,
+  AlertTriangle, Check, ExternalLink, Globe, Landmark, Loader2, Mail, MapPin, Maximize2, Move, Phone, Plane, RotateCcw, Search, Store, WifiOff, X,
 } from 'lucide-react';
 import type { Customer } from '../../types';
 import {
   ACTIVITY_META,
+  customerBranches,
   customerInitials,
   formatDaysAgo,
+  isDomesticCountry,
+  matchesRegionFilter,
   PRECISION_LABEL,
   type CustomerActivity,
   type CustomerDirectoryEntry,
+  type CustomerPlace,
+  type RegionFilterKey,
 } from '../../features/customers/customerLocation';
 import type { LatLng } from '../../features/customers/greekRegions';
 import { formatCurrency } from '../../utils/numberFormat';
@@ -22,10 +27,13 @@ import { ActivityBadge, CustomerAvatar, locationText } from './customerUi';
 export interface CustomersMapProps {
   /** Already filtered entries (system customer excluded). */
   entries: CustomerDirectoryEntry[];
+  /** Active Περιοχή filter — only the matching shops of each customer are pinned. */
+  regionSelection?: RegionFilterKey[];
   /** Bump `nonce` to fly to a customer (e.g. from a card's "Στον χάρτη"). */
   focusRequest?: { id: string; nonce: number } | null;
   onOpenCustomer: (customer: Customer) => void;
-  onSaveLocation: (customerId: string, coords: LatLng | null) => Promise<void>;
+  /** `branchId` set → that shop's pin; otherwise the fiscal-seat pin. */
+  onSaveLocation: (customerId: string, coords: LatLng | null, branchId?: string | null) => Promise<void>;
   canEditLocation: boolean;
   /** Mobile layout: no side panel, bottom sheet for the selected customer. */
   compact?: boolean;
@@ -33,7 +41,18 @@ export interface CustomersMapProps {
 }
 
 const GREECE_BOUNDS: L.LatLngBoundsExpression = [[34.8, 19.4], [41.75, 28.3]];
-const MAX_BOUNDS: L.LatLngBoundsExpression = [[31.5, 15.5], [44.5, 32.5]];
+const WORLD_BOUNDS: L.LatLngBoundsExpression = [[-85, -200], [85, 200]];
+
+/** A pin: one shop of a customer (or its fiscal seat when it has no shops). */
+interface MapPoint {
+  id: string;
+  entry: CustomerDirectoryEntry;
+  place: CustomerPlace;
+}
+
+const pointTitle = (point: MapPoint) => (point.place.kind === 'branch' && point.entry.places.length > 1
+  ? `${point.entry.customer.full_name} — ${point.place.label}`
+  : point.entry.customer.full_name);
 const ACTIVITY_ORDER: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
 
 /** Free basemaps that need no API key. Order = automatic fallback order. */
@@ -77,14 +96,16 @@ const tuple = (c: LatLng): L.LatLngTuple => [c[0], c[1]];
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string));
 
-function pinIcon(entry: CustomerDirectoryEntry, state: { selected?: boolean; editing?: boolean } = {}) {
+function pinIcon(point: MapPoint, state: { selected?: boolean; editing?: boolean } = {}) {
+  const { entry, place } = point;
   const classes = ['cm-pin'];
   if (state.selected) classes.push('is-selected');
   if (state.editing) classes.push('is-editing');
-  if (entry.location.precision === 'area') classes.push('is-approx');
-  if (entry.location.precision === 'exact') classes.push('is-exact');
+  if (place.location.precision === 'area') classes.push('is-approx');
+  if (place.location.precision === 'exact') classes.push('is-exact');
+  const badge = place.kind === 'fiscal' ? '<em class="cm-pin-badge">ΦΕ</em>' : '';
   return L.divIcon({
-    html: `<div class="${classes.join(' ')}" style="--pin:${ACTIVITY_META[entry.activity].color}"><div class="cm-pin-head"><span>${escapeHtml(customerInitials(entry.customer.full_name))}</span></div></div>`,
+    html: `<div class="${classes.join(' ')}" style="--pin:${ACTIVITY_META[entry.activity].color}"><div class="cm-pin-head"><span>${escapeHtml(customerInitials(entry.customer.full_name))}</span></div>${badge}</div>`,
     className: 'cm-pin-icon',
     iconSize: [36, 46],
     iconAnchor: [18, 40],
@@ -135,10 +156,11 @@ const MAP_CSS = `
 .cm-root .leaflet-control-zoom a{width:34px;height:34px;line-height:34px;color:#0f172a;font-weight:700}
 .cm-root .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.75);border-top-left-radius:8px}
 .cm-root.cm-placing .leaflet-container{cursor:crosshair}
+.cm-pin-badge{position:absolute;right:-2px;top:-4px;font-style:normal;font-size:7px;font-weight:900;line-height:1;padding:2px 3px;border-radius:9999px;background:#fff;color:#334155;box-shadow:0 1px 4px rgba(15,23,42,.25)}
 `;
 
 export default function CustomersMap({
-  entries, focusRequest, onOpenCustomer, onSaveLocation, canEditLocation, compact = false, className = '',
+  entries, regionSelection = [], focusRequest, onOpenCustomer, onSaveLocation, canEditLocation, compact = false, className = '',
 }: CustomersMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -159,10 +181,21 @@ export default function CustomersMap({
   const failedBasemapsRef = useRef(new Set<BasemapId>());
   const [listQuery, setListQuery] = useState('');
 
-  const entryById = useMemo(() => new Map(entries.map(e => [e.customer.id, e])), [entries]);
-  const located = useMemo(() => entries.filter(e => e.location.coords), [entries]);
-  const unlocated = useMemo(() => entries.filter(e => !e.location.coords), [entries]);
-  const selectedEntry = selectedId ? entryById.get(selectedId) ?? null : null;
+  // One point per shop (or the fiscal seat when there are no shops). With an active
+  // Περιοχή filter only the matching shops are shown.
+  const points = useMemo<MapPoint[]>(() => entries.flatMap((entry) => {
+    const matching = regionSelection.length
+      ? entry.places.filter(place => matchesRegionFilter(place.location, regionSelection))
+      : entry.places;
+    const shown = matching.length ? matching : entry.places;
+    return shown.map(place => ({ id: `${entry.customer.id}|${place.key}`, entry, place }));
+  }), [entries, regionSelection]);
+
+  const pointById = useMemo(() => new Map(points.map(p => [p.id, p])), [points]);
+  const located = useMemo(() => points.filter(p => p.place.location.coords), [points]);
+  const unlocated = useMemo(() => points.filter(p => !p.place.location.coords), [points]);
+  const abroadCount = useMemo(() => located.filter(p => !isDomesticCountry(p.place.location.countryCode)).length, [located]);
+  const selectedPoint = selectedId ? pointById.get(selectedId) ?? null : null;
   const editingId = editing?.id ?? null;
 
   const selectedIdRef = useRef(selectedId);
@@ -174,10 +207,11 @@ export default function CustomersMap({
     if (!el) return;
     const map = L.map(el, {
       zoomControl: false,
-      minZoom: 5,
+      minZoom: 2,
       maxZoom: 18,
-      maxBounds: MAX_BOUNDS,
-      maxBoundsViscosity: 0.8,
+      maxBounds: WORLD_BOUNDS,
+      maxBoundsViscosity: 0.9,
+      worldCopyJump: true,
     });
     map.fitBounds(GREECE_BOUNDS, { animate: false });
     map.attributionControl.setPrefix(false);
@@ -254,18 +288,18 @@ export default function CustomersMap({
     cluster.clearLayers();
     markersRef.current.clear();
     const markers = located
-      .filter(e => e.customer.id !== editingId)
-      .map((entry) => {
-        const marker = L.marker(tuple(entry.location.coords as LatLng), {
-          icon: pinIcon(entry, { selected: entry.customer.id === selectedIdRef.current }),
-          title: entry.customer.full_name,
+      .filter(p => p.id !== editingId)
+      .map((point) => {
+        const marker = L.marker(tuple(point.place.location.coords as LatLng), {
+          icon: pinIcon(point, { selected: point.id === selectedIdRef.current }),
+          title: pointTitle(point),
           riseOnHover: true,
           keyboard: true,
-          activity: entry.activity,
+          activity: point.entry.activity,
         } as L.MarkerOptions);
-        marker.bindTooltip(escapeHtml(entry.customer.full_name), { direction: 'top', className: 'cm-tooltip' });
-        marker.on('click', () => { setError(null); setSelectedId(entry.customer.id); });
-        markersRef.current.set(entry.customer.id, marker);
+        marker.bindTooltip(escapeHtml(pointTitle(point)), { direction: 'top', className: 'cm-tooltip' });
+        marker.on('click', () => { setError(null); setSelectedId(point.id); });
+        markersRef.current.set(point.id, marker);
         return marker;
       });
     cluster.addLayers(markers);
@@ -276,26 +310,29 @@ export default function CustomersMap({
   useEffect(() => {
     const prev = prevSelectedRef.current;
     if (prev && prev !== selectedId) {
-      const entry = entryById.get(prev);
+      const point = pointById.get(prev);
       const marker = markersRef.current.get(prev);
-      if (entry && marker) marker.setIcon(pinIcon(entry));
+      if (point && marker) marker.setIcon(pinIcon(point));
     }
     if (selectedId) {
-      const entry = entryById.get(selectedId);
+      const point = pointById.get(selectedId);
       const marker = markersRef.current.get(selectedId);
-      if (entry && marker) {
-        marker.setIcon(pinIcon(entry, { selected: true }));
+      if (point && marker) {
+        marker.setIcon(pinIcon(point, { selected: true }));
         marker.setZIndexOffset(1000);
       }
     }
     prevSelectedRef.current = selectedId;
-  }, [selectedId, entryById]);
+  }, [selectedId, pointById]);
 
   // --- Viewport ------------------------------------------------------------
-  const fitToEntries = useCallback((animate = true) => {
+  /** Frames the points; by default Greece-only so one overseas shop doesn't zoom out to the world. */
+  const fitToPoints = useCallback((animate = true, includeAbroad = false) => {
     const map = mapRef.current;
     if (!map) return;
-    const coords = located.map(e => tuple(e.location.coords as LatLng));
+    const domestic = located.filter(p => isDomesticCountry(p.place.location.countryCode));
+    const target = includeAbroad || domestic.length === 0 ? located : domestic;
+    const coords = target.map(p => tuple(p.place.location.coords as LatLng));
     if (coords.length === 0) map.fitBounds(GREECE_BOUNDS, { animate });
     else if (coords.length === 1) map.setView(coords[0], 11, { animate });
     else map.fitBounds(L.latLngBounds(coords), { padding: [56, 56], maxZoom: 11, animate });
@@ -305,19 +342,24 @@ export default function CustomersMap({
     mapRef.current?.fitBounds(GREECE_BOUNDS);
   }, []);
 
+  const focusPointIdFor = useCallback((customerId: string) => {
+    const own = points.filter(p => p.entry.customer.id === customerId);
+    return (own.find(p => p.place.location.coords) ?? own[0])?.id ?? null;
+  }, [points]);
+
   // Refit whenever the filtered set changes (not on mere data refreshes).
   useEffect(() => {
     if (editingId) return;
-    const key = located.map(e => e.customer.id).sort().join('|');
+    const key = located.map(p => p.id).sort().join('|');
     if (fitKeyRef.current === key) return;
     const first = fitKeyRef.current === null;
     fitKeyRef.current = key;
-    const focusPending = focusRequest && handledFocusRef.current !== focusRequest.nonce && entryById.has(focusRequest.id);
+    const focusPending = focusRequest && handledFocusRef.current !== focusRequest.nonce && focusPointIdFor(focusRequest.id);
     if (focusPending) return; // the focus effect frames the map instead
-    fitToEntries(!first);
-  }, [located, editingId, fitToEntries, focusRequest, entryById]);
+    fitToPoints(!first);
+  }, [located, editingId, fitToPoints, focusRequest, focusPointIdFor]);
 
-  const focusCustomer = useCallback((id: string) => {
+  const focusPoint = useCallback((id: string) => {
     setError(null);
     setSelectedId(id);
     const marker = markersRef.current.get(id);
@@ -331,35 +373,37 @@ export default function CustomersMap({
 
   useEffect(() => {
     if (!mapReady || !focusRequest || handledFocusRef.current === focusRequest.nonce) return;
-    if (!entryById.has(focusRequest.id)) return;
+    const pointId = focusPointIdFor(focusRequest.id);
+    if (!pointId) return;
     handledFocusRef.current = focusRequest.nonce;
-    focusCustomer(focusRequest.id);
-  }, [focusRequest, entryById, focusCustomer, mapReady]);
+    focusPoint(pointId);
+  }, [focusRequest, focusPointIdFor, focusPoint, mapReady]);
 
-  // Drop the selection when the customer is filtered out.
+  // Drop the selection when the point is filtered out.
   useEffect(() => {
-    if (selectedId && !entryById.has(selectedId)) setSelectedId(null);
-  }, [selectedId, entryById]);
+    if (selectedId && !pointById.has(selectedId)) setSelectedId(null);
+  }, [selectedId, pointById]);
 
   // --- Manual placement ----------------------------------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !editingId || !editing) return;
-    const entry = entryById.get(editingId);
-    if (!entry) return;
+    const point = pointById.get(editingId);
+    if (!point) return;
     const marker = L.marker(tuple(editing.coords), {
       draggable: true,
       autoPan: true,
       zIndexOffset: 2000,
-      icon: pinIcon(entry, { editing: true, selected: true }),
+      icon: pinIcon(point, { editing: true, selected: true }),
     }).addTo(map);
     marker.on('dragend', () => {
-      const p = marker.getLatLng();
+      const p = marker.getLatLng().wrap();
       setEditing(prev => (prev ? { ...prev, coords: [p.lat, p.lng] } : prev));
     });
     mapClickRef.current = (latlng) => {
-      marker.setLatLng(latlng);
-      setEditing(prev => (prev ? { ...prev, coords: [latlng.lat, latlng.lng] } : prev));
+      const p = latlng.wrap();
+      marker.setLatLng(p);
+      setEditing(prev => (prev ? { ...prev, coords: [p.lat, p.lng] } : prev));
     };
     if (!map.getBounds().contains(marker.getLatLng()) || map.getZoom() < 12) {
       map.setView(marker.getLatLng(), Math.max(map.getZoom(), 13));
@@ -372,26 +416,28 @@ export default function CustomersMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
-  const startEditing = (entry: CustomerDirectoryEntry) => {
+  const startEditing = (point: MapPoint) => {
     const map = mapRef.current;
     const center = map?.getCenter();
-    const coords: LatLng = entry.location.coords ?? (center ? [center.lat, center.lng] : [38.3, 23.7]);
+    const coords: LatLng = point.place.location.coords ?? (center ? [center.lat, center.lng] : [38.3, 23.7]);
     setError(null);
-    setSelectedId(entry.customer.id);
-    setEditing({ id: entry.customer.id, coords });
+    setSelectedId(point.id);
+    setEditing({ id: point.id, coords });
   };
 
   const saveEditing = async () => {
     if (!editing) return;
+    const point = pointById.get(editing.id);
+    if (!point) return;
     const [lat, lng] = editing.coords;
-    if (lat < 34 || lat > 42 || lng < 19 || lng > 30) {
-      setError('Η πινέζα πρέπει να βρίσκεται εντός Ελλάδας.');
+    if (isDomesticCountry(point.place.location.countryCode) && (lat < 34 || lat > 42 || lng < 19 || lng > 30)) {
+      setError('Ο πελάτης είναι στην Ελλάδα — η πινέζα πρέπει να βρίσκεται εντός Ελλάδας. Για πελάτη εξωτερικού αλλάξτε πρώτα τη χώρα του.');
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await onSaveLocation(editing.id, [Number(lat.toFixed(6)), Number(lng.toFixed(6))]);
+      await onSaveLocation(point.entry.customer.id, [Number(lat.toFixed(6)), Number(lng.toFixed(6))], point.place.branchId);
       setEditing(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Η αποθήκευση της θέσης απέτυχε.');
@@ -400,11 +446,11 @@ export default function CustomersMap({
     }
   };
 
-  const resetToAutomatic = async (entry: CustomerDirectoryEntry) => {
+  const resetToAutomatic = async (point: MapPoint) => {
     setSaving(true);
     setError(null);
     try {
-      await onSaveLocation(entry.customer.id, null);
+      await onSaveLocation(point.entry.customer.id, null, point.place.branchId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Η επαναφορά απέτυχε.');
     } finally {
@@ -412,27 +458,29 @@ export default function CustomersMap({
     }
   };
 
-  const listEntries = useMemo(() => {
+  const listPoints = useMemo(() => {
     const filtered = listQuery
-      ? located.filter(e => normalizedIncludes(`${e.customer.full_name} ${locationText(e.location) ?? ''}`, listQuery))
+      ? located.filter(p => normalizedIncludes(`${p.entry.customer.full_name} ${p.place.label} ${locationText(p.place.location) ?? ''}`, listQuery))
       : located;
-    return [...filtered].sort((a, b) => a.customer.full_name.localeCompare(b.customer.full_name, 'el', { sensitivity: 'base' }));
+    return [...filtered].sort((a, b) =>
+      a.entry.customer.full_name.localeCompare(b.entry.customer.full_name, 'el', { sensitivity: 'base' })
+      || a.place.label.localeCompare(b.place.label, 'el'));
   }, [located, listQuery]);
 
-  const card = selectedEntry ? (
+  const card = selectedPoint ? (
     <SelectedCustomerCard
-      entry={selectedEntry}
+      point={selectedPoint}
       compact={compact}
-      editing={editing?.id === selectedEntry.customer.id ? editing.coords : null}
+      editing={editing?.id === selectedPoint.id ? editing.coords : null}
       saving={saving}
       error={error}
       canEditLocation={canEditLocation}
       onClose={() => { setSelectedId(null); setEditing(null); setError(null); }}
-      onOpen={() => onOpenCustomer(selectedEntry.customer)}
-      onStartEditing={() => startEditing(selectedEntry)}
+      onOpen={() => onOpenCustomer(selectedPoint.entry.customer)}
+      onStartEditing={() => startEditing(selectedPoint)}
       onCancelEditing={() => { setEditing(null); setError(null); }}
       onSave={saveEditing}
-      onReset={() => resetToAutomatic(selectedEntry)}
+      onReset={() => resetToAutomatic(selectedPoint)}
     />
   ) : null;
 
@@ -446,13 +494,21 @@ export default function CustomersMap({
         {/* Top-right controls */}
         <div className="pointer-events-none absolute right-3 top-3 z-[500] flex flex-col items-end gap-2">
           <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur">
-            <button type="button" onClick={() => fitToEntries()} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50" title="Προσαρμογή στους πελάτες που εμφανίζονται">
+            <button type="button" onClick={() => fitToPoints()} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50" title="Προσαρμογή στους πελάτες που εμφανίζονται">
               <Maximize2 size={14} /> {compact ? null : 'Προσαρμογή'}
             </button>
             <span className="w-px bg-slate-200" />
             <button type="button" onClick={showGreece} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50" title="Όλη η Ελλάδα">
-              <Globe size={14} /> {compact ? null : 'Όλη η Ελλάδα'}
+              <Globe size={14} /> {compact ? null : 'Ελλάδα'}
             </button>
+            {abroadCount > 0 && (
+              <>
+                <span className="w-px bg-slate-200" />
+                <button type="button" onClick={() => fitToPoints(true, true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-50" title="Εμφάνιση και των πελατών εξωτερικού">
+                  <Plane size={14} /> {compact ? abroadCount : `Εξωτερικό (${abroadCount})`}
+                </button>
+              </>
+            )}
           </div>
           <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
             {BASEMAPS.map(b => (
@@ -467,12 +523,12 @@ export default function CustomersMap({
             ))}
           </div>
           <div className="pointer-events-auto rounded-full bg-[#060b00]/90 px-3 py-1 text-[11px] font-bold text-white shadow-lg">
-            {located.length} στον χάρτη{unlocated.length ? ` · ${unlocated.length} χωρίς θέση` : ''}
+            {located.length} {located.length === 1 ? 'σημείο' : 'σημεία'}{unlocated.length ? ` · ${unlocated.length} χωρίς θέση` : ''}
           </div>
         </div>
 
         {/* Legend */}
-        <div className={`pointer-events-none absolute bottom-3 left-3 z-[500]`}>
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[500]">
           <div className="pointer-events-auto rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-200 backdrop-blur">
             <div className={`flex ${compact ? 'flex-col gap-1' : 'items-center gap-3'}`}>
               {ACTIVITY_ORDER.map(a => (
@@ -483,9 +539,9 @@ export default function CustomersMap({
               ))}
             </div>
             {!compact && (
-              <div className="mt-1.5 flex items-center gap-1.5 border-t border-slate-100 pt-1.5 text-[10px] font-medium text-slate-400">
-                <span className="inline-block h-2.5 w-4 rounded-full border border-dashed border-slate-400" />
-                Διακεκομμένο: θέση κατά προσέγγιση από τον ΤΚ
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-1.5 text-[10px] font-medium text-slate-400">
+                <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-4 rounded-full border border-dashed border-slate-400" /> θέση κατά προσέγγιση</span>
+                <span className="flex items-center gap-1.5"><span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-black text-slate-700 ring-1 ring-slate-300">ΦΕ</span> φορολογική έδρα (χωρίς κατάστημα)</span>
               </div>
             )}
           </div>
@@ -511,7 +567,7 @@ export default function CustomersMap({
             <div className="rounded-2xl bg-white/95 px-5 py-4 text-center shadow-xl ring-1 ring-slate-200">
               <MapPin className="mx-auto mb-1 text-slate-300" size={26} />
               <div className="text-sm font-bold text-slate-700">Κανένας πελάτης στον χάρτη</div>
-              <div className="text-xs text-slate-400">Αλλάξτε τα φίλτρα ή συμπληρώστε διευθύνσεις.</div>
+              <div className="text-xs text-slate-400">Αλλάξτε τα φίλτρα ή συμπληρώστε διευθύνσεις καταστημάτων.</div>
             </div>
           </div>
         )}
@@ -529,7 +585,7 @@ export default function CustomersMap({
       {!compact && (
         <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm xl:flex">
           <div className="border-b border-slate-100 p-4">
-            <div className="text-sm font-black text-slate-800">Πελάτες στον χάρτη</div>
+            <div className="text-sm font-black text-slate-800">Καταστήματα στον χάρτη</div>
             <div className="text-[11px] font-medium text-slate-400">Πατήστε για εστίαση στην πινέζα.</div>
             <div className="relative mt-3">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -542,38 +598,45 @@ export default function CustomersMap({
             </div>
           </div>
           <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-            {listEntries.map(entry => (
-              <button
-                key={entry.customer.id}
-                type="button"
-                onClick={() => focusCustomer(entry.customer.id)}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition ${selectedId === entry.customer.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}
-              >
-                <CustomerAvatar name={entry.customer.full_name} seed={entry.customer.id} size={30} className="rounded-xl ring-0" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold">{entry.customer.full_name}</span>
-                  <span className={`block truncate text-[10px] ${selectedId === entry.customer.id ? 'text-slate-300' : 'text-slate-400'}`}>{locationText(entry.location) ?? '—'}</span>
-                </span>
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: ACTIVITY_META[entry.activity].color }} />
-              </button>
-            ))}
-            {listEntries.length === 0 && <div className="p-4 text-center text-xs italic text-slate-400">Κανένα αποτέλεσμα.</div>}
+            {listPoints.map(point => {
+              const active = selectedId === point.id;
+              return (
+                <button
+                  key={point.id}
+                  type="button"
+                  onClick={() => focusPoint(point.id)}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition ${active ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}
+                >
+                  <CustomerAvatar name={point.entry.customer.full_name} seed={point.entry.customer.id} size={30} className="rounded-xl ring-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold">{point.entry.customer.full_name}</span>
+                    <span className={`block truncate text-[10px] ${active ? 'text-slate-300' : 'text-slate-400'}`}>
+                      {point.place.kind === 'branch' ? `${point.place.label} · ` : ''}{locationText(point.place.location) ?? '—'}
+                    </span>
+                  </span>
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: ACTIVITY_META[point.entry.activity].color }} />
+                </button>
+              );
+            })}
+            {listPoints.length === 0 && <div className="p-4 text-center text-xs italic text-slate-400">Κανένα αποτέλεσμα.</div>}
 
             {unlocated.length > 0 && (
               <div className="mt-3 border-t border-slate-100 pt-3">
                 <div className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-black uppercase tracking-wide text-amber-600">
                   <AlertTriangle size={12} /> Χωρίς τοποθεσία ({unlocated.length})
                 </div>
-                {unlocated.map(entry => (
-                  <div key={entry.customer.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5">
+                {unlocated.map(point => (
+                  <div key={point.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-bold text-slate-700">{entry.customer.full_name}</span>
-                      <span className="block truncate text-[10px] text-slate-400">{entry.customer.address || 'Χωρίς διεύθυνση'}</span>
+                      <span className="block truncate text-xs font-bold text-slate-700">{point.entry.customer.full_name}</span>
+                      <span className="block truncate text-[10px] text-slate-400">
+                        {point.place.kind === 'branch' ? `${point.place.label} · ` : ''}{point.place.address || 'Χωρίς διεύθυνση'}
+                      </span>
                     </span>
                     {canEditLocation && (
                       <button
                         type="button"
-                        onClick={() => startEditing(entry)}
+                        onClick={() => startEditing(point)}
                         className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-200"
                       >
                         Τοποθέτηση
@@ -591,7 +654,7 @@ export default function CustomersMap({
 }
 
 interface SelectedCardProps {
-  entry: CustomerDirectoryEntry;
+  point: MapPoint;
   compact: boolean;
   editing: LatLng | null;
   saving: boolean;
@@ -606,10 +669,15 @@ interface SelectedCardProps {
 }
 
 function SelectedCustomerCard({
-  entry, compact, editing, saving, error, canEditLocation, onClose, onOpen, onStartEditing, onCancelEditing, onSave, onReset,
+  point, compact, editing, saving, error, canEditLocation, onClose, onOpen, onStartEditing, onCancelEditing, onSave, onReset,
 }: SelectedCardProps) {
-  const { customer, location } = entry;
+  const { entry, place } = point;
+  const { customer } = entry;
+  const location = place.location;
   const where = locationText(location);
+  const shopCount = entry.places.filter(p => p.kind === 'branch').length;
+  const branch = place.branchId ? customerBranches(customer).find(b => b.id === place.branchId) : null;
+  const phone = branch?.phone || customer.phone;
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
       <div className="flex items-start gap-3 p-4 pb-3">
@@ -628,6 +696,14 @@ function SelectedCustomerCard({
 
       <div className="space-y-1.5 px-4 text-xs text-slate-600">
         <div className="flex items-start gap-2">
+          {place.kind === 'branch' ? <Store size={13} className="mt-0.5 shrink-0 text-sky-500" /> : <Landmark size={13} className="mt-0.5 shrink-0 text-slate-400" />}
+          <span className="min-w-0">
+            <span className="font-bold text-slate-800">{place.label}</span>
+            {shopCount > 1 && <span className="text-slate-400"> · 1 από {shopCount} καταστήματα</span>}
+            {place.address && <span className="block text-[11px] text-slate-500">{place.address}</span>}
+          </span>
+        </div>
+        <div className="flex items-start gap-2">
           <MapPin size={13} className="mt-0.5 shrink-0 text-sky-500" />
           <span className="min-w-0">
             <span className="font-bold text-slate-800">{where ?? 'Χωρίς περιοχή'}</span>
@@ -635,9 +711,9 @@ function SelectedCustomerCard({
             <span className="block text-[10px] text-slate-400">{PRECISION_LABEL[location.precision]}{location.postalCode ? ` · ΤΚ ${location.postalCode}` : ''}</span>
           </span>
         </div>
-        {customer.phone && (
-          <a href={`tel:${customer.phone}`} className="flex items-center gap-2 font-semibold text-slate-700 hover:text-sky-700">
-            <Phone size={13} className="text-slate-400" /> {customer.phone}
+        {phone && (
+          <a href={`tel:${phone}`} className="flex items-center gap-2 font-semibold text-slate-700 hover:text-sky-700">
+            <Phone size={13} className="text-slate-400" /> {phone}
           </a>
         )}
         {customer.email && !compact && (

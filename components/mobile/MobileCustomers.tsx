@@ -25,12 +25,15 @@ import CustomerRegionFilter from '../customers/CustomerRegionFilter';
 import { ActivityBadge, CustomerAvatar, RegionPill } from '../customers/customerUi';
 import {
     matchesCustomerSearch,
-    matchesRegionFilter,
+    matchesEntryRegion,
     regionFilterLabel,
     type CustomerDirectoryEntry,
     type RegionFilterKey,
 } from '../../features/customers/customerLocation';
 import { GREEK_PERIFERIES } from '../../features/customers/greekRegions';
+import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from '../customers/customerProfileFields';
+import { isDomesticCountry } from '../../features/customers/customerLocation';
+import { isInspectionModeActive } from '../../lib/inspectionMode';
 
 const CustomersMap = React.lazy(() => import('../customers/CustomersMap'));
 
@@ -71,13 +74,13 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         .filter(c => c.count > 0)
         .sort((a, b) => b.count - a.count), [regionCounts]);
     const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => directory
-        .filter(e => !e.isSystem && matchesRegionFilter(e.location, regionSelection) && matchesCustomerSearch(e, search)),
+        .filter(e => !e.isSystem && matchesEntryRegion(e, regionSelection) && matchesCustomerSearch(e, search)),
     [directory, regionSelection, search]);
     const toggleRegionChip = (key: RegionFilterKey) =>
         setRegionSelection(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
-    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null) => {
+    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null, branchId?: string | null) => {
         try {
-            await saveLocation(customerId, coords);
+            await saveLocation(customerId, coords, branchId);
             showToast(coords ? 'Η θέση αποθηκεύτηκε.' : 'Επαναφορά στην αυτόματη θέση.', 'success');
         } catch (e) {
             showToast('Η αποθήκευση της θέσης απέτυχε.', 'error');
@@ -476,9 +479,20 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-sm">
                         {editType === 'customer' && (
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 block">Χωρα φορολογικης εδρας</label>
+                                <CountrySelect
+                                    value={editData.country}
+                                    disabled={isRetailSystemCustomer}
+                                    onChange={code => setEditData({ ...editData, country: code })}
+                                />
+                                <OverseasVatSuggestion customer={editData} onChange={setEditData} />
+                            </div>
+                        )}
+                        {editType === 'customer' && (
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block flex items-center gap-1">
-                                    <Hash size={12} /> ΑΦΜ
+                                    <Hash size={12} /> {isDomesticCountry(editData.country) ? 'ΑΦΜ' : 'VAT / Tax ID'}
                                 </label>
                                 <div className="flex gap-2">
                                     <input
@@ -488,13 +502,15 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                         className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-slate-900 font-mono"
                                         placeholder="9 ψηφία..."
                                     />
-                                    <button
-                                        onClick={handleAfmLookup}
-                                        disabled={isSearchingAfm || isRetailSystemCustomer}
-                                        className="p-3 bg-blue-500 text-white rounded-xl shadow-md active:scale-95"
-                                    >
-                                        {isSearchingAfm ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} className="fill-current" />}
-                                    </button>
+                                    {isDomesticCountry(editData.country) && (
+                                        <button
+                                            onClick={handleAfmLookup}
+                                            disabled={isSearchingAfm || isRetailSystemCustomer}
+                                            className="p-3 bg-blue-500 text-white rounded-xl shadow-md active:scale-95"
+                                        >
+                                            {isSearchingAfm ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} className="fill-current" />}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -551,7 +567,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Διευθυνση</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">{editType === 'customer' ? 'Φορολογικη εδρα (παραστατικα)' : 'Διευθυνση'}</label>
                             <input
                                 value={editData.address || ''}
                                 onChange={e => setEditData({ ...editData, address: e.target.value })}
@@ -559,6 +575,17 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                             />
                         </div>
+                        {editType === 'customer' && !isRetailSystemCustomer && (
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Καταστηματα / υποκαταστηματα</label>
+                                <CustomerBranchesEditor
+                                    customer={editData}
+                                    onChange={next => setEditData({ ...editData, branches: next })}
+                                    disabled={isInspectionModeActive()}
+                                    disabledReason="Σε λειτουργία ελέγχου τα καταστήματα δεν τροποποιούνται."
+                                />
+                            </div>
+                        )}
                         {editType === 'customer' && (
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
@@ -728,6 +755,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         <CustomersMap
                             compact
                             className="flex-1"
+                            regionSelection={regionSelection}
                             entries={filteredEntries}
                             onOpenCustomer={handleItemClick}
                             onSaveLocation={handleSaveLocation}

@@ -15,8 +15,12 @@ import {
   StickyNote,
   User,
   Wallet,
+  Store,
 } from 'lucide-react';
 import { Customer, Order, OrderStatus } from '../../types';
+import { RegionPill } from '../customers/customerUi';
+import { composeBranchAddress, customerBranches, isDomesticCountry, normalizeCountry, resolveBranchLocation } from '../../features/customers/customerLocation';
+import { countryDisplayName } from '../../features/customers/greekRegions';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getSpecialCreationDisplayNote } from '../../utils/specialCreationSku';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../../features/orders/statusPresentation';
@@ -92,9 +96,29 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
             <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <h2 className="flex items-center gap-2 text-xs font-black text-slate-900"><Building2 size={15} className="text-cyan-600" /> Στοιχεία επικοινωνίας και τιμολόγησης</h2>
               <div className="mt-4 space-y-3">
-                {[{ icon: Phone, label: 'Τηλέφωνο', value: customer.phone }, { icon: Mail, label: 'Email', value: customer.email }, { icon: MapPin, label: 'Διεύθυνση', value: customer.address }, { icon: Receipt, label: 'ΑΦΜ', value: customer.vat_number }, { icon: Building2, label: 'Επάγγελμα', value: customer.profession }, { icon: Building2, label: 'ΔΟΥ', value: customer.tax_office }].map(row => { const Icon = row.icon; return <div key={row.label} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3"><Icon size={15} className="mt-0.5 shrink-0 text-slate-400" /><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{row.label}</p><p className="mt-0.5 break-words text-xs font-bold text-slate-700">{row.value || 'Δεν έχει καταχωρηθεί'}</p></div></div>; })}
+                {[{ icon: Phone, label: 'Τηλέφωνο', value: customer.phone }, { icon: Mail, label: 'Email', value: customer.email }, { icon: MapPin, label: isDomesticCountry(customer.country) ? 'Φορολογική έδρα' : `Φορολογική έδρα · ${countryDisplayName(normalizeCountry(customer.country))}`, value: customer.address }, { icon: Receipt, label: isDomesticCountry(customer.country) ? 'ΑΦΜ' : 'VAT / Tax ID', value: customer.vat_number }, { icon: Building2, label: 'Επάγγελμα', value: customer.profession }, { icon: Building2, label: 'ΔΟΥ', value: customer.tax_office }].map(row => { const Icon = row.icon; return <div key={row.label} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3"><Icon size={15} className="mt-0.5 shrink-0 text-slate-400" /><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{row.label}</p><p className="mt-0.5 break-words text-xs font-bold text-slate-700">{row.value || 'Δεν έχει καταχωρηθεί'}</p></div></div>; })}
               </div>
             </section>
+            {customerBranches(customer).length > 0 && (
+              <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <h2 className="flex items-center gap-2 text-xs font-black text-slate-900"><Store size={15} className="text-sky-600" /> Καταστήματα ({customerBranches(customer).length})</h2>
+                <div className="mt-3 space-y-2">
+                  {customerBranches(customer).map(branch => (
+                    <div key={branch.id} className="rounded-xl bg-slate-50 p-3">
+                      <p className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                        {branch.label}
+                        {branch.is_primary && <span className="rounded-full bg-sky-100 px-1.5 text-[9px] font-black uppercase text-sky-700">Κύριο</span>}
+                      </p>
+                      {composeBranchAddress(branch) && <p className="mt-0.5 text-xs font-semibold text-slate-600">{composeBranchAddress(branch)}</p>}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <RegionPill location={resolveBranchLocation(customer, branch)} />
+                        {branch.phone && <a href={`tel:${branch.phone}`} className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700"><Phone size={11} /> {branch.phone}</a>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             {customer.notes && <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><h2 className="flex items-center gap-2 text-xs font-black text-amber-950"><StickyNote size={15} /> Σημειώσεις</h2><p className="mt-2 whitespace-pre-wrap text-xs font-medium leading-relaxed text-amber-900">{customer.notes}</p></section>}
           </div>
         )}

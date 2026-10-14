@@ -1,6 +1,6 @@
 import React from 'react';
-import { Briefcase, ChevronRight, Mail, MapPinned, Phone, Store } from 'lucide-react';
-import { ACTIVITY_META, formatDaysAgo, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
+import { Briefcase, ChevronRight, Globe2, Mail, MapPinned, Phone, Store } from 'lucide-react';
+import { ACTIVITY_META, formatDaysAgo, isDomesticCountry, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
 import { formatCurrency } from '../../utils/numberFormat';
 import { ActivityBadge, CustomerAvatar, RegionPill } from './customerUi';
 
@@ -24,6 +24,7 @@ function Stat({ label, value, title }: { label: string; value: React.ReactNode; 
 export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCardProps) {
   const { customer, location } = entry;
   const accent = ACTIVITY_META[entry.activity].color;
+  const shopCount = entry.places.filter(p => p.kind === 'branch').length;
   const lastOrderTitle = entry.lastOrderAt ? new Date(entry.lastOrderAt).toLocaleDateString('el-GR') : undefined;
 
   return (
@@ -60,6 +61,16 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCar
       <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5">
         <RegionPill location={location} className="max-w-[70%]" />
         <ActivityBadge activity={entry.activity} />
+        {shopCount > 1 && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-100" title={entry.places.map(p => p.label).join(' · ')}>
+            <Store size={10} /> {shopCount} καταστήματα
+          </span>
+        )}
+        {!isDomesticCountry(entry.fiscalLocation.countryCode) && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-100">
+            <Globe2 size={10} /> Εξωτερικό
+          </span>
+        )}
       </div>
 
       <div className="mt-4 grid grid-cols-3 divide-x divide-slate-100 rounded-2xl bg-slate-50/80 py-2.5">
@@ -96,7 +107,7 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCar
           <button
             type="button"
             onClick={stop(onShowOnMap)}
-            disabled={!location.coords}
+            disabled={!entry.places.some(p => p.location.coords)}
             className="rounded-xl p-2 text-slate-400 transition hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-30"
             title={location.coords ? 'Στον χάρτη' : 'Χωρίς τοποθεσία'}
           >

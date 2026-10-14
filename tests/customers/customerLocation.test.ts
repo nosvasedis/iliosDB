@@ -3,6 +3,8 @@ import { OrderStatus, type Customer, type Order } from '../../types';
 import {
   activityFromDays,
   buildCustomerDirectory,
+  composeBranchAddress,
+  matchesEntryRegion,
   countRegions,
   customerInitials,
   matchesCustomerSearch,
@@ -175,5 +177,54 @@ describe('production address coverage', () => {
     expect(loc.coords).not.toBeNull();
     const place = splitGreekAddress(`ΟΔΟΣ 1, ${tail}`).place;
     expect(loc.precision).toBe(place && !regionWords.has(place) ? 'town' : 'area');
+  });
+});
+
+describe('overseas customers and shops', () => {
+  it('places overseas customers under «Εξωτερικό» by country and city', () => {
+    const ny = resolveCustomerLocation(customer('New York', { country: 'US' }));
+    expect(ny).toMatchObject({ countryCode: 'US', periferiaId: 'exoteriko', unitId: 'country-US', town: 'New York', precision: 'town' });
+    const cy = resolveCustomerLocation(customer('Μακαρίου 12, 3030 Λεμεσός', { country: 'CY' }));
+    expect(cy).toMatchObject({ unitId: 'country-CY', town: 'Λεμεσός', precision: 'town' });
+    const de = resolveCustomerLocation(customer('Hauptstr. 1, 99999 Kleinstadt', { country: 'DE' }));
+    expect(de).toMatchObject({ unitId: 'country-DE', precision: 'area' });
+    expect(de.coords).not.toBeNull();
+  });
+
+  it('treats a missing / EL country as Greece', () => {
+    expect(resolveCustomerLocation(customer('ΟΔΟΣ 1, 21100 - ΝΑΥΠΛΙΟ', { country: 'EL' })).countryCode).toBe('GR');
+    expect(resolveCustomerLocation(customer('Σαντορίνη')).unitId).toBe('thira');
+  });
+
+  it('uses shops for the map/region and keeps the fiscal seat separately', () => {
+    const c = customer('ΟΔΟΣ 1, 10563 - ΑΘΗΝΑ', {
+      id: 'shops',
+      branches: [
+        { id: 'b2', label: 'Οία', street: 'Κεντρικός 2', postal_code: '84702', city: 'Οία' },
+        { id: 'b1', label: 'Μύκονος', street: 'Ματογιάννη 5', postal_code: '84600', city: 'Μύκονος', is_primary: true },
+      ],
+    });
+    const [entry] = buildCustomerDirectory([c], [], {});
+    expect(entry.fiscalLocation.unitId).toBe('athina-kentro');
+    expect(entry.places.map(p => p.branchId)).toEqual(['b1', 'b2']);
+    expect(entry.location.unitId).toBe('mykonos');
+    expect(matchesEntryRegion(entry, ['u:thira'])).toBe(true);
+    expect(matchesEntryRegion(entry, ['u:athina-kentro'])).toBe(false);
+    const counts = countRegions([entry]);
+    expect(counts.periferia).toEqual({ kyklades: 1 });
+    expect(counts.units).toEqual({ mykonos: 1, thira: 1 });
+  });
+
+  it('falls back to the fiscal seat when shops have no usable address', () => {
+    const c = customer('ΟΔΟΣ 1, 49100 - ΚΕΡΚΥΡΑ', { id: 'empty-shop', branches: [{ id: 'x', label: 'Νέο' }] });
+    const [entry] = buildCustomerDirectory([c], [], {});
+    expect(entry.places).toHaveLength(1);
+    expect(entry.location.unitId).toBe('kerkyra');
+    expect(matchesEntryRegion(entry, ['p:ionia'])).toBe(true);
+  });
+
+  it('composes shop addresses like AADE', () => {
+    expect(composeBranchAddress({ street: 'Ερμού 1', postal_code: '10563', city: 'Αθήνα' })).toBe('Ερμού 1, 10563 - Αθήνα');
+    expect(composeBranchAddress({ street: '', postal_code: '', city: 'Ρόδος' })).toBe('Ρόδος');
   });
 });

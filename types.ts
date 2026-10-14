@@ -541,7 +541,32 @@ export interface Customer {
   /** Manual map position; null means "derive from the address". */
   latitude?: number | null;
   longitude?: number | null;
+  /** ISO-3166 alpha-2 country of the fiscal seat (`address`). Defaults to GR. */
+  country?: string | null;
+  /** Real shop locations (υποκαταστήματα). `address` remains the fiscal seat (φορολογική έδρα). */
+  branches?: CustomerBranch[] | null;
   created_at: string;
+}
+
+/** A customer's shop / υποκατάστημα. Stored as JSON on the customer row. */
+export interface CustomerBranch {
+  id: string;
+  /** e.g. «Κατάστημα Οίας» */
+  label: string;
+  /** Οδός & αριθμός */
+  street?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
+  /** ISO-3166 alpha-2; falls back to the customer's country. */
+  country?: string | null;
+  phone?: string | null;
+  contact_person?: string | null;
+  notes?: string | null;
+  /** Manual map position; null = derive from the address. */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Default delivery point (δελτία αποστολής) and the customer's main region. */
+  is_primary?: boolean;
 }
 
 export enum ProductionStage {

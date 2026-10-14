@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { resolveInvoiceTotalWeight } from './invoiceTotalWeight';
+import { composeBranchAddress, primaryBranch } from '../features/customers/customerLocation';
 import { formatDecimal, getVariantComponents } from './pricingEngine';
 import {
   isLegalRepairItemCode,
@@ -322,7 +323,7 @@ export function buildPdfDispatchDetails(
     dispatch_method: resolveSbzDispatchMethod(existing),
     move_purpose: resolveLegalMovePurpose(existing?.move_purpose, settings, aadeDocumentType),
     delivery_address: existing?.delivery_address
-      || (customer?.address ? parseLegalPartyAddress(customer.address) : null)
+      || resolveCustomerDeliveryAddress(customer)
       || counterpartAddress
       || null,
   };
@@ -820,6 +821,32 @@ export function buildPublicVatLookupResult(
   };
 }
 
+/**
+ * VAT id as myDATA expects it: 9 digits for Greek parties; for foreign parties the
+ * national id without the country prefix (e.g. "DE 123 456 789" → "123456789").
+ */
+export function normalizeCounterpartVatNumber(value: string | null | undefined, country?: string | null): string {
+  const code = normalizeLegalCountryCode(country);
+  if (code === 'GR') return normalizeVatNumber(value);
+  const compact = String(value || '').toUpperCase().replace(/[\s.\-/]/g, '');
+  return compact.startsWith(code) ? compact.slice(code.length) : compact;
+}
+
+/**
+ * Where goods are delivered: the customer's main shop (υποκατάστημα) when registered,
+ * otherwise the fiscal seat. The counterpart address on documents always stays the fiscal seat.
+ */
+export function resolveCustomerDeliveryAddress(customer?: Customer | null, branchId?: string | null): LegalPartyAddress | null {
+  if (!customer) return null;
+  const branches = Array.isArray(customer.branches) ? customer.branches : [];
+  const branch = branchId ? branches.find((b) => b?.id === branchId) : primaryBranch(customer);
+  if (branch) {
+    const parsed = parseLegalPartyAddress(composeBranchAddress(branch));
+    if (parsed) return parsed;
+  }
+  return customer.address ? parseLegalPartyAddress(customer.address) : null;
+}
+
 function buildEmptyCounterpart(): LegalParty {
   return {
     customer_code: null,
@@ -839,8 +866,8 @@ export function buildCounterpartFromCustomer(customer?: Customer | null): LegalP
   if (!customer) return buildEmptyCounterpart();
   return {
     customer_code: customer.customer_code || null,
-    vat_number: normalizeVatNumber(customer.vat_number),
-    country: 'GR',
+    vat_number: normalizeCounterpartVatNumber(customer.vat_number, customer.country),
+    country: normalizeLegalCountryCode(customer.country),
     branch: 0,
     name: customer.full_name,
     address: customer.address ? parseLegalPartyAddress(customer.address) : null,
@@ -1853,7 +1880,7 @@ export function buildDefaultDeliveryDetails(
     dispatch_method: DEFAULT_SBZ_DISPATCH_METHOD,
     vehicle_number: '',
     loading_address: settings.loading_address || settings.issuer.address || null,
-    delivery_address: customer?.address ? parseLegalPartyAddress(customer.address) : null,
+    delivery_address: resolveCustomerDeliveryAddress(customer),
     carrier_id: null,
     carrier_name: null,
     carrier_vat_number: null,

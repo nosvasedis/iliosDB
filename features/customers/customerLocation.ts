@@ -1,7 +1,10 @@
-import type { Customer, Order } from '../../types';
+import type { Customer, CustomerBranch, Order } from '../../types';
 import { OrderStatus } from '../../types';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import {
+  ABROAD_PERIFERIA_ID,
+  countryDisplayName,
+  countryUnitId,
   GREEK_TOWNS,
   type GreekTown,
   type LatLng,
@@ -9,11 +12,15 @@ import {
   PERIFERIA_BY_ID,
   PERIFERIA_FALLBACK_CENTER,
   REGIONAL_UNIT_BY_ID,
+  WORLD_CITIES,
+  type WorldCity,
 } from './greekRegions';
 
 export type LocationPrecision = 'exact' | 'town' | 'area' | 'none';
 
 export interface CustomerLocation {
+  /** ISO-3166 alpha-2 (GR for domestic). */
+  countryCode: string;
   postalCode: string | null;
   /** Display name of the town (gazetteer spelling when matched). */
   town: string | null;
@@ -37,14 +44,23 @@ export const ACTIVITY_META: Record<CustomerActivity, { label: string; hint: stri
 export const PRECISION_LABEL: Record<LocationPrecision, string> = {
   exact: 'Ακριβής θέση',
   town: 'Θέση πόλης',
-  area: 'Κατά προσέγγιση (ΤΚ)',
+  area: 'Κατά προσέγγιση',
   none: 'Χωρίς τοποθεσία',
 };
 
 const EMPTY_LOCATION: CustomerLocation = {
-  postalCode: null, town: null, unitId: null, unitLabel: null,
+  countryCode: 'GR', postalCode: null, town: null, unitId: null, unitLabel: null,
   periferiaId: null, periferiaLabel: null, coords: null, precision: 'none',
 };
+
+/** ISO-3166 alpha-2, treating EL/GRC/empty as GR. */
+export function normalizeCountry(country?: string | null): string {
+  const value = String(country ?? '').trim().toUpperCase();
+  if (!value || value === 'EL' || value === 'GRC') return 'GR';
+  return value;
+}
+
+export const isDomesticCountry = (country?: string | null) => normalizeCountry(country) === 'GR';
 
 /** Accent/case/final-sigma insensitive key with punctuation collapsed. */
 export function placeKey(value: string): string {
@@ -68,6 +84,17 @@ const TOWN_INDEX: Map<string, GreekTown[]> = (() => {
   return index;
 })();
 
+const CITY_INDEX: Map<string, WorldCity[]> = (() => {
+  const index = new Map<string, WorldCity[]>();
+  for (const c of WORLD_CITIES) {
+    for (const name of c.names) {
+      const key = placeKey(name);
+      index.set(key, [...(index.get(key) ?? []), c]);
+    }
+  }
+  return index;
+})();
+
 /** Extracts the postal code (last 5-digit group, also "123 45") and the place text that follows it. */
 export function splitGreekAddress(address?: string | null): { postalCode: string | null; place: string | null } {
   const raw = String(address ?? '').replace(/\s+/g, ' ').trim();
@@ -79,9 +106,11 @@ export function splitGreekAddress(address?: string | null): { postalCode: string
     const place = after.replace(/^[\s,\-–—.]+/, '').replace(/[\s,.]+$/, '').trim();
     return { postalCode: `${last[1]}${last[2]}`, place: place || null };
   }
-  // No postal code: the last comma-separated part is the best guess for the place.
+  // No postal code: the last comma-separated part is the best guess for the place
+  // ("Οδός 3, Ρόδος"), or the whole text when it is just a place name ("Σαντορίνη").
   const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
-  return { postalCode: null, place: parts.length > 1 ? parts[parts.length - 1] : null };
+  if (parts.length > 1) return { postalCode: null, place: parts[parts.length - 1] };
+  return { postalCode: null, place: /\d|@/.test(raw) ? null : raw };
 }
 
 function townCandidates(place: string): GreekTown[] {
@@ -125,13 +154,59 @@ function spread(center: LatLng, seed: string, radius: number): LatLng {
   return [center[0] + Math.sin(angle) * dist, center[1] + Math.cos(angle) * dist * 1.3];
 }
 
-export function hasSavedCoordinates(customer: Pick<Customer, 'latitude' | 'longitude'>): boolean {
-  return typeof customer.latitude === 'number' && typeof customer.longitude === 'number'
-    && Number.isFinite(customer.latitude) && Number.isFinite(customer.longitude);
+export function hasSavedCoordinates(point: { latitude?: number | null; longitude?: number | null }): boolean {
+  return typeof point.latitude === 'number' && typeof point.longitude === 'number'
+    && Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
 }
 
-export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address' | 'latitude' | 'longitude'>): CustomerLocation {
-  const { postalCode, place } = splitGreekAddress(customer.address);
+/** Anything that has an address: the fiscal seat or a shop. */
+export interface PlaceInput {
+  /** Stable seed for the pin offset. */
+  id: string;
+  address?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+function resolveAbroadLocation(input: PlaceInput, countryCode: string): CustomerLocation {
+  const unitInfo = REGIONAL_UNIT_BY_ID[countryUnitId(countryCode)];
+  const parts = String(input.address ?? '').split(/[,\n]/).map(p => p.trim()).filter(Boolean);
+  let matched: WorldCity | null = null;
+  let rawPlace: string | null = null;
+  for (const part of [...parts].reverse()) {
+    const cleaned = part.replace(/\b[A-Z]{0,2}-?\d[\d\s-]*\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleaned) continue;
+    rawPlace = rawPlace ?? cleaned;
+    const key = placeKey(cleaned);
+    const hit = (CITY_INDEX.get(key) ?? []).find(c => c.country === countryCode)
+      ?? WORLD_CITIES.find(c => c.country === countryCode && c.names.some(n => key.includes(placeKey(n))));
+    if (hit) { matched = hit; break; }
+  }
+
+  const base: CustomerLocation = {
+    countryCode,
+    postalCode: null,
+    town: matched ? matched.names[0] : rawPlace,
+    unitId: unitInfo?.id ?? countryUnitId(countryCode),
+    unitLabel: unitInfo?.label ?? countryDisplayName(countryCode),
+    periferiaId: ABROAD_PERIFERIA_ID,
+    periferiaLabel: PERIFERIA_BY_ID[ABROAD_PERIFERIA_ID]?.label ?? 'Εξωτερικό',
+    coords: null,
+    precision: 'none',
+  };
+  if (hasSavedCoordinates(input)) return { ...base, coords: [input.latitude as number, input.longitude as number], precision: 'exact' };
+  if (matched) return { ...base, coords: spread(matched.center, input.id, 0.01), precision: 'town' };
+  if (unitInfo) return { ...base, coords: spread(unitInfo.center, input.id, 0.05), precision: 'area' };
+  return base;
+}
+
+/** Region + map position of any address (fiscal seat or shop). */
+export function resolvePlaceLocation(input: PlaceInput): CustomerLocation {
+  const countryCode = normalizeCountry(input.country);
+  if (countryCode !== 'GR') return resolveAbroadLocation(input, countryCode);
+
+  const { postalCode, place } = splitGreekAddress(input.address);
   const postal = postalCode ? lookupPostalArea(postalCode) : null;
 
   let matchedTown: GreekTown | null = null;
@@ -154,6 +229,7 @@ export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address
   const town = matchedTown ? matchedTown.names[0] : place ? titleCase(place) : null;
 
   const base: CustomerLocation = {
+    countryCode,
     postalCode,
     town,
     unitId,
@@ -164,17 +240,94 @@ export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address
     precision: 'none',
   };
 
-  if (hasSavedCoordinates(customer)) {
-    return { ...base, coords: [customer.latitude as number, customer.longitude as number], precision: 'exact' };
+  if (hasSavedCoordinates(input)) {
+    return { ...base, coords: [input.latitude as number, input.longitude as number], precision: 'exact' };
   }
   if (matchedTown) {
-    return { ...base, coords: spread(matchedTown.center, customer.id, 0.006), precision: 'town' };
+    return { ...base, coords: spread(matchedTown.center, input.id, 0.006), precision: 'town' };
   }
   const areaCenter = unitInfo?.center ?? (periferiaId ? PERIFERIA_FALLBACK_CENTER[periferiaId] : undefined);
   if (areaCenter) {
-    return { ...base, coords: spread(areaCenter, customer.id, 0.02), precision: 'area' };
+    return { ...base, coords: spread(areaCenter, input.id, 0.02), precision: 'area' };
   }
   return postalCode || town ? base : { ...EMPTY_LOCATION };
+}
+
+/** Location of the fiscal seat (φορολογική έδρα). */
+export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address' | 'latitude' | 'longitude' | 'country'>): CustomerLocation {
+  return resolvePlaceLocation({
+    id: customer.id,
+    address: customer.address,
+    country: customer.country,
+    latitude: customer.latitude,
+    longitude: customer.longitude,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Shops (υποκαταστήματα)
+// ---------------------------------------------------------------------------
+
+/** "Οδός 12, 84600 - Μύκονος" — the same shape AADE uses, so the resolver and legal parser understand it. */
+export function composeBranchAddress(branch: Pick<CustomerBranch, 'street' | 'postal_code' | 'city'>): string {
+  const street = String(branch.street ?? '').trim();
+  const place = [String(branch.postal_code ?? '').trim(), String(branch.city ?? '').trim()].filter(Boolean).join(' - ');
+  return [street, place].filter(Boolean).join(', ');
+}
+
+/** Valid shops, main one first. Tolerates legacy/null JSON. */
+export function customerBranches(customer: Pick<Customer, 'branches'>): CustomerBranch[] {
+  const list = Array.isArray(customer.branches) ? customer.branches.filter(b => b && typeof b === 'object' && b.id) : [];
+  return [...list].sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)));
+}
+
+export function primaryBranch(customer: Pick<Customer, 'branches'>): CustomerBranch | null {
+  return customerBranches(customer)[0] ?? null;
+}
+
+export function resolveBranchLocation(customer: Pick<Customer, 'id' | 'country'>, branch: CustomerBranch): CustomerLocation {
+  return resolvePlaceLocation({
+    id: `${customer.id}:${branch.id}`,
+    address: composeBranchAddress(branch),
+    country: branch.country || customer.country,
+    latitude: branch.latitude,
+    longitude: branch.longitude,
+  });
+}
+
+/** A point of presence of a customer: each shop, or the fiscal seat when no shops are registered. */
+export interface CustomerPlace {
+  key: string;
+  kind: 'fiscal' | 'branch';
+  branchId: string | null;
+  label: string;
+  address: string | null;
+  location: CustomerLocation;
+  isPrimary: boolean;
+}
+
+export function buildCustomerPlaces(customer: Customer): CustomerPlace[] {
+  const branches = customerBranches(customer);
+  if (branches.length > 0) {
+    return branches.map((branch, index) => ({
+      key: `b:${branch.id}`,
+      kind: 'branch' as const,
+      branchId: branch.id,
+      label: branch.label?.trim() || `Κατάστημα ${index + 1}`,
+      address: composeBranchAddress(branch) || null,
+      location: resolveBranchLocation(customer, branch),
+      isPrimary: index === 0,
+    }));
+  }
+  return [{
+    key: 'fiscal',
+    kind: 'fiscal',
+    branchId: null,
+    label: 'Φορολογική έδρα',
+    address: customer.address || null,
+    location: resolveCustomerLocation(customer),
+    isPrimary: true,
+  }];
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +336,14 @@ export function resolveCustomerLocation(customer: Pick<Customer, 'id' | 'address
 
 export interface CustomerDirectoryEntry {
   customer: Customer;
+  /** Main location (main shop, else fiscal seat) — used for badges and sorting. */
   location: CustomerLocation;
+  /** Fiscal seat location (for documents / reference). */
+  fiscalLocation: CustomerLocation;
+  /** Map points: every shop, or the fiscal seat when there are no shops. */
+  places: CustomerPlace[];
+  /** Locations considered by the Περιοχή filter (never empty). */
+  regionLocations: CustomerLocation[];
   orderCount: number;
   revenue: number;
   lastOrderAt: string | null;
@@ -223,9 +383,20 @@ export function buildCustomerDirectory(
     const lastOrderAt = s?.last ?? null;
     const lastTime = lastOrderAt ? new Date(lastOrderAt).getTime() : NaN;
     const daysSinceLastOrder = Number.isFinite(lastTime) ? Math.max(0, Math.floor((now - lastTime) / DAY_MS)) : null;
+
+    const fiscalLocation = isSystem ? { ...EMPTY_LOCATION } : resolveCustomerLocation(customer);
+    const places = isSystem ? [] : buildCustomerPlaces(customer);
+    const placed = places.map(p => p.location).filter(l => l.periferiaId);
+    // Shops without a recognisable address fall back to the fiscal seat for the region filter.
+    const regionLocations = placed.length > 0 ? placed : [fiscalLocation];
+    const location = places.find(p => p.location.periferiaId)?.location ?? places[0]?.location ?? fiscalLocation;
+
     return {
       customer,
-      location: isSystem ? { ...EMPTY_LOCATION } : resolveCustomerLocation(customer),
+      location: location.periferiaId ? location : (fiscalLocation.periferiaId ? fiscalLocation : location),
+      fiscalLocation,
+      places,
+      regionLocations,
       orderCount: s?.count ?? 0,
       revenue: s?.revenue ?? 0,
       lastOrderAt,
@@ -250,20 +421,32 @@ export function matchesRegionFilter(location: CustomerLocation, selection: Regio
   });
 }
 
+/** A customer matches when any of its shops (or its fiscal seat) is in the selected areas. */
+export function matchesEntryRegion(entry: Pick<CustomerDirectoryEntry, 'regionLocations'>, selection: RegionFilterKey[]): boolean {
+  if (selection.length === 0) return true;
+  return entry.regionLocations.some(location => matchesRegionFilter(location, selection));
+}
+
 export interface RegionCounts {
   periferia: Record<string, number>;
   units: Record<string, number>;
   none: number;
 }
 
+/** Customers per area (a customer with shops in two areas counts in both). */
 export function countRegions(entries: CustomerDirectoryEntry[]): RegionCounts {
   const counts: RegionCounts = { periferia: {}, units: {}, none: 0 };
   for (const entry of entries) {
     if (entry.isSystem) continue;
-    const { periferiaId, unitId } = entry.location;
-    if (!periferiaId) { counts.none += 1; continue; }
-    counts.periferia[periferiaId] = (counts.periferia[periferiaId] ?? 0) + 1;
-    if (unitId) counts.units[unitId] = (counts.units[unitId] ?? 0) + 1;
+    const periferies = new Set<string>();
+    const units = new Set<string>();
+    entry.regionLocations.forEach(l => {
+      if (l.periferiaId) periferies.add(l.periferiaId);
+      if (l.unitId) units.add(l.unitId);
+    });
+    if (periferies.size === 0) { counts.none += 1; continue; }
+    periferies.forEach(id => { counts.periferia[id] = (counts.periferia[id] ?? 0) + 1; });
+    units.forEach(id => { counts.units[id] = (counts.units[id] ?? 0) + 1; });
   }
   return counts;
 }
@@ -292,14 +475,16 @@ export function formatDaysAgo(days: number | null): string {
 export function matchesCustomerSearch(entry: CustomerDirectoryEntry, term: string): boolean {
   const q = placeKey(term);
   if (!q) return true;
-  const { customer: c, location: l } = entry;
+  const { customer: c } = entry;
+  const locations = [entry.fiscalLocation, ...entry.places.map(p => p.location)];
   const haystack = [
     c.full_name, c.profession, c.address, c.email, c.tax_office,
-    l.town, l.unitLabel, l.periferiaLabel,
+    ...entry.places.flatMap(p => [p.label, p.address]),
+    ...locations.flatMap(l => [l.town, l.unitLabel, l.periferiaLabel]),
   ].filter(Boolean).map(v => placeKey(String(v))).join(' | ');
   if (haystack.includes(q)) return true;
   const digits = term.replace(/\s+/g, '');
-  return Boolean(digits) && [c.phone, c.customer_code, c.vat_number, l.postalCode]
+  return Boolean(digits) && [c.phone, c.customer_code, c.vat_number, ...customerBranches(c).map(b => b.phone), ...locations.map(l => l.postalCode)]
     .some(v => v && String(v).replace(/\s+/g, '').includes(digits));
 }
 
@@ -308,7 +493,7 @@ export function customerInitials(name: string): string {
   if (words.length === 0) return '?';
   const first = words[0][0] ?? '';
   const second = words.length > 1 ? words[1][0] : words[0][1] ?? '';
-  return (first + second).normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleUpperCase('el-GR');
+  return (first + second).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleUpperCase('el-GR');
 }
 
 const AVATAR_GRADIENTS = [

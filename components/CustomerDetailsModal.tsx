@@ -41,6 +41,9 @@ import {
     Clock,
     Store,
     ChevronRight,
+    Globe2,
+    Landmark,
+    Star,
 } from 'lucide-react';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
@@ -67,12 +70,20 @@ import CustomerServiceQuickForm from './customerService/CustomerServiceQuickForm
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 import { ActivityBadge, CustomerAvatar, RegionPill } from './customers/customerUi';
+import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from './customers/customerProfileFields';
 import {
     activityFromDays,
+    composeBranchAddress,
+    customerBranches,
     formatDaysAgo,
+    isDomesticCountry,
+    normalizeCountry,
     PRECISION_LABEL,
+    resolveBranchLocation,
     resolveCustomerLocation,
 } from '../features/customers/customerLocation';
+import { countryDisplayName } from '../features/customers/greekRegions';
+import { isInspectionModeActive } from '../lib/inspectionMode';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -233,6 +244,17 @@ export default function CustomerDetailsModal({
     const { data: customerServiceData } = useCustomerServiceWorkspace();
     const customerLocation = useMemo(() => resolveCustomerLocation(customer), [customer]);
     const draftLocation = useMemo(() => resolveCustomerLocation(editForm), [editForm]);
+    const branches = useMemo(() => customerBranches(customer), [customer]);
+    const isDomestic = isDomesticCountry(customer.country);
+    const draftIsDomestic = isDomesticCountry(editForm.country);
+    const countryName = countryDisplayName(normalizeCountry(customer.country));
+    const inspectionLocked = isInspectionModeActive();
+    /** Main place for the location card: main shop, else fiscal seat. */
+    const mainBranch = branches[0] ?? null;
+    const mainLocation = useMemo(
+        () => (mainBranch ? resolveBranchLocation(customer, mainBranch) : customerLocation),
+        [customer, mainBranch, customerLocation],
+    );
 
     const customerConsignments = useMemo(
         () => (customerServiceData?.consignments || []).filter(entry => entry.customer_id === customer.id),
@@ -386,7 +408,7 @@ export default function CustomerDetailsModal({
     }, [batchesByOrderId, shipmentItemsByOrderId, shippedQtyByOrderId, stats.history]);
 
     const filteredOrders = useMemo(() => {
-        const q = orderQuery.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const q = orderQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (!q) return stats.history;
         return stats.history.filter(o => {
             if (o.id.toLowerCase().includes(q)) return true;
@@ -404,12 +426,12 @@ export default function CustomerDetailsModal({
                     .join(' ')
                     .toLowerCase()
                     .normalize('NFD')
-                    .replace(/[̀-ͯ]/g, '');
+                    .replace(/[\u0300-\u036f]/g, '');
                 return haystack.includes(q);
             })) return true;
             if (isRetailSystemCustomer) {
                 const raw = extractRetailClientFromNotes(o.notes).retailClientLabel || '';
-                const label = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                const label = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                 if (label.includes(q)) return true;
             }
             return false;
@@ -445,9 +467,21 @@ export default function CustomerDetailsModal({
             showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error');
             return;
         }
+        const cleanBranches = (Array.isArray(editForm.branches) ? editForm.branches : [])
+            .filter(b => b.label?.trim() || b.street?.trim() || b.city?.trim())
+            .map((b, index) => ({ ...b, label: b.label?.trim() || `Κατάστημα ${index + 1}` }));
+        if (cleanBranches.length > 0 && !cleanBranches.some(b => b.is_primary)) cleanBranches[0] = { ...cleanBranches[0], is_primary: true };
+        const payload: Customer = {
+            ...editForm,
+            country: normalizeCountry(editForm.country),
+            vat_number: draftIsDomestic
+                ? editForm.vat_number
+                : (editForm.vat_number || '').toUpperCase().replace(/\s+/g, ''),
+            branches: cleanBranches,
+        };
         setIsSaving(true);
         try {
-            await onUpdate(editForm);
+            await onUpdate(payload);
             setIsEditing(false);
         } catch (e) {
             console.error('Save error:', e);
@@ -545,24 +579,72 @@ export default function CustomerDetailsModal({
                     <InfoRow icon={Phone} label="Τηλέφωνο" value={customer.phone} href={customer.phone ? `tel:${customer.phone}` : undefined} copyValue={customer.phone} onCopy={copyValue} />
                     <InfoRow icon={Mail} label="Email" value={customer.email} href={customer.email ? `mailto:${customer.email}` : undefined} copyValue={customer.email} onCopy={copyValue} />
                     <InfoRow
-                        icon={MapPin}
-                        label="Διεύθυνση"
+                        icon={Landmark}
+                        label="Φορολογική έδρα · παραστατικά"
                         value={customer.address ? (
                             <span className="block">
                                 {customer.address}
-                                <span className="mt-1 flex"><RegionPill location={customerLocation} /></span>
+                                {!isDomestic && <span className="block text-xs font-semibold text-violet-700">{countryName}</span>}
+                                {branches.length === 0 && <span className="mt-1 flex"><RegionPill location={customerLocation} /></span>}
                             </span>
-                        ) : undefined}
+                        ) : (!isDomestic ? countryName : undefined)}
                         copyValue={customer.address}
                         onCopy={copyValue}
                     />
                 </div>
             </section>
             <section>
+                <SectionTitle
+                    icon={Store}
+                    title={`Καταστήματα${branches.length ? ` (${branches.length})` : ''}`}
+                    action={<button type="button" onClick={startEditing} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">{branches.length ? 'Διαχείριση' : 'Προσθήκη'}</button>}
+                />
+                {branches.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-[12px] text-slate-400">
+                        Χωρίς καταχωρημένα καταστήματα — στον χάρτη χρησιμοποιείται η φορολογική έδρα.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {branches.map(branch => {
+                            const location = resolveBranchLocation(customer, branch);
+                            const address = composeBranchAddress(branch);
+                            return (
+                                <div key={branch.id} className="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                                    <div className="flex items-center gap-1.5">
+                                        {branch.is_primary ? <Star size={12} className="shrink-0 fill-sky-500 text-sky-500" /> : <Store size={12} className="shrink-0 text-slate-400" />}
+                                        <span className="truncate text-[13px] font-black text-slate-800">{branch.label}</span>
+                                        {branch.is_primary && <span className="ml-auto shrink-0 rounded-full bg-sky-50 px-1.5 py-px text-[9px] font-black uppercase text-sky-700">Κύριο</span>}
+                                    </div>
+                                    {address && (
+                                        <div className="mt-0.5 flex items-start gap-1 text-[12px] font-semibold text-slate-600">
+                                            <span className="min-w-0 flex-1 break-words">{address}</span>
+                                            <button type="button" onClick={() => copyValue(address, branch.label)} className="shrink-0 rounded p-0.5 text-slate-300 hover:text-slate-700" title="Αντιγραφή διεύθυνσης"><Copy size={12} /></button>
+                                        </div>
+                                    )}
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                        <RegionPill location={location} />
+                                        {branch.phone && (
+                                            <a href={`tel:${branch.phone}`} className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-100 hover:text-sky-700">
+                                                <Phone size={10} /> {branch.phone}
+                                            </a>
+                                        )}
+                                    </div>
+                                    {(branch.contact_person || branch.notes) && (
+                                        <div className="mt-1 text-[11px] text-slate-400">{[branch.contact_person, branch.notes].filter(Boolean).join(' · ')}</div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
+            <section>
                 <SectionTitle icon={Receipt} title="Φορολογικά στοιχεία" />
                 <div className="space-y-0.5">
-                    <InfoRow icon={Hash} label="ΑΦΜ" value={customer.vat_number} mono copyValue={customer.vat_number} onCopy={copyValue} />
-                    <InfoRow icon={Building2} label="ΔΟΥ" value={customer.tax_office} />
+                    <InfoRow icon={Hash} label={isDomestic ? 'ΑΦΜ' : 'VAT / Tax ID'} value={customer.vat_number} mono copyValue={customer.vat_number} onCopy={copyValue} />
+                    {isDomestic
+                        ? <InfoRow icon={Building2} label="ΔΟΥ" value={customer.tax_office} />
+                        : <InfoRow icon={Globe2} label="Χώρα" value={countryName} />}
                     <InfoRow icon={Briefcase} label="Επάγγελμα" value={customer.profession} />
                     <InfoRow
                         icon={Receipt}
@@ -706,13 +788,21 @@ export default function CustomerDetailsModal({
                     </div>
 
                     <div className={`${sectionCard} p-5`}>
-                        <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800"><MapPin size={16} className="text-sky-500" /> Τοποθεσία</h3>
-                        <div className="text-sm font-bold text-slate-800">{customerLocation.town || customerLocation.unitLabel || 'Άγνωστη περιοχή'}</div>
+                        <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800">
+                            <MapPin size={16} className="text-sky-500" /> {branches.length > 1 ? `Καταστήματα (${branches.length})` : mainBranch ? 'Κατάστημα' : 'Τοποθεσία'}
+                        </h3>
+                        {mainBranch && <div className="mb-1 flex items-center gap-1 text-[11px] font-black uppercase text-sky-700"><Star size={11} className="fill-sky-500 text-sky-500" /> {mainBranch.label}</div>}
+                        <div className="text-sm font-bold text-slate-800">{mainLocation.town || mainLocation.unitLabel || 'Άγνωστη περιοχή'}</div>
                         <div className="text-xs text-slate-500">
-                            {[customerLocation.unitLabel !== customerLocation.town ? customerLocation.unitLabel : null, customerLocation.periferiaLabel].filter(Boolean).join(' · ') || 'Συμπληρώστε ΤΚ και πόλη στη διεύθυνση.'}
+                            {[mainLocation.unitLabel !== mainLocation.town ? mainLocation.unitLabel : null, mainLocation.periferiaLabel].filter(Boolean).join(' · ') || 'Συμπληρώστε ΤΚ και πόλη στη διεύθυνση.'}
                         </div>
-                        <div className="mt-1 text-[11px] text-slate-400">{PRECISION_LABEL[customerLocation.precision]}{customerLocation.postalCode ? ` · ΤΚ ${customerLocation.postalCode}` : ''}</div>
-                        {onShowOnMap && customerLocation.coords && (
+                        <div className="mt-1 text-[11px] text-slate-400">{PRECISION_LABEL[mainLocation.precision]}{mainLocation.postalCode ? ` · ΤΚ ${mainLocation.postalCode}` : ''}</div>
+                        {branches.length > 1 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                                {branches.slice(1).map(branch => <RegionPill key={branch.id} location={resolveBranchLocation(customer, branch)} />)}
+                            </div>
+                        )}
+                        {onShowOnMap && mainLocation.coords && (
                             <button type="button" onClick={onShowOnMap} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#060b00] py-2 text-xs font-bold text-white hover:bg-black">
                                 <Navigation size={13} /> Προβολή στον χάρτη
                             </button>
@@ -973,29 +1063,53 @@ export default function CustomerDetailsModal({
                             autoFocus
                         />
                     </FormField>
-                    <FormField label="ΑΦΜ" hint="Πατήστε ⚡ για αυτόματη συμπλήρωση από το μητρώο ΑΑΔΕ.">
-                        <div className="flex gap-2">
+                    <FormField label="Χώρα φορολογικής έδρας" hint={draftIsDomestic ? 'Ελληνικός πελάτης — ΑΦΜ και ΔΟΥ από την ΑΑΔΕ.' : 'Πελάτης εξωτερικού — στα παραστατικά δηλώνεται η χώρα και το VAT/Tax ID.'}>
+                        <CountrySelect
+                            value={editForm.country}
+                            onChange={code => setEditForm({
+                                ...editForm,
+                                country: code,
+                                // Greek ΑΦΜ is digits only; keep what was typed when switching away.
+                                vat_number: isDomesticCountry(code) ? (editForm.vat_number || '').replace(/\D/g, '').slice(0, 9) : editForm.vat_number,
+                            })}
+                        />
+                    </FormField>
+                    {draftIsDomestic ? (
+                        <FormField label="ΑΦΜ" hint="Πατήστε ⚡ για αυτόματη συμπλήρωση από το μητρώο ΑΑΔΕ.">
+                            <div className="flex gap-2">
+                                <input
+                                    className={`${inputClass} flex-1 font-mono`}
+                                    placeholder="9 ψηφία"
+                                    inputMode="numeric"
+                                    value={editForm.vat_number || ''}
+                                    onChange={e => setEditForm({ ...editForm, vat_number: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAfmLookup}
+                                    disabled={isSearchingAfm}
+                                    className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black disabled:opacity-50"
+                                    title="Αναζήτηση στο μητρώο ΑΑΔΕ"
+                                >
+                                    {isSearchingAfm ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} ΑΑΔΕ
+                                </button>
+                            </div>
+                        </FormField>
+                    ) : (
+                        <FormField label="VAT / Tax ID" hint="Π.χ. DE123456789 ή τοπικός φορολογικός αριθμός.">
                             <input
-                                className={`${inputClass} flex-1 font-mono`}
-                                placeholder="9 ψηφία"
-                                inputMode="numeric"
+                                className={`${inputClass} font-mono uppercase`}
                                 value={editForm.vat_number || ''}
-                                onChange={e => setEditForm({ ...editForm, vat_number: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                                onChange={e => setEditForm({ ...editForm, vat_number: e.target.value.slice(0, 20) })}
+                                placeholder="VAT number"
                             />
-                            <button
-                                type="button"
-                                onClick={handleAfmLookup}
-                                disabled={isSearchingAfm}
-                                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black disabled:opacity-50"
-                                title="Αναζήτηση στο μητρώο ΑΑΔΕ"
-                            >
-                                {isSearchingAfm ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} ΑΑΔΕ
-                            </button>
-                        </div>
-                    </FormField>
-                    <FormField label="ΔΟΥ">
-                        <input className={inputClass} value={editForm.tax_office || ''} onChange={e => setEditForm({ ...editForm, tax_office: e.target.value })} placeholder="π.χ. Α' Αθηνών" />
-                    </FormField>
+                        </FormField>
+                    )}
+                    {draftIsDomestic && (
+                        <FormField label="ΔΟΥ">
+                            <input className={inputClass} value={editForm.tax_office || ''} onChange={e => setEditForm({ ...editForm, tax_office: e.target.value })} placeholder="π.χ. Α' Αθηνών" />
+                        </FormField>
+                    )}
                     <FormField label="Επάγγελμα / κύρια δραστηριότητα" className="sm:col-span-2">
                         <input className={inputClass} value={editForm.profession || ''} onChange={e => setEditForm({ ...editForm, profession: e.target.value })} />
                     </FormField>
@@ -1012,25 +1126,36 @@ export default function CustomerDetailsModal({
                         <input type="email" className={inputClass} value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} placeholder="name@example.gr" />
                     </FormField>
                     <FormField
-                        label="Διεύθυνση"
+                        label={draftIsDomestic ? 'Φορολογική έδρα (όπως στην ΑΑΔΕ)' : 'Διεύθυνση έδρας'}
                         className="sm:col-span-2"
                         hint={(
                             <span className="flex flex-wrap items-center gap-1.5">
-                                Μορφή: «Οδός αριθμός, ΤΚ - Πόλη». Περιοχή που αναγνωρίστηκε:
+                                Εμφανίζεται στα παραστατικά και τις παραγγελίες.{draftIsDomestic ? ' Μορφή: «Οδός αριθμός, ΤΚ - Πόλη».' : ' Μορφή: «Street 1, City».'} Αναγνωρίστηκε:
                                 <RegionPill location={draftLocation} />
                             </span>
                         )}
                     >
                         <div className="relative">
-                            <MapPin size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-                            <input className={`${inputClass} pl-9`} value={editForm.address || ''} onChange={e => setEditForm({ ...editForm, address: e.target.value })} placeholder="π.χ. Ερμού 12, 10563 - Αθήνα" />
+                            <Landmark size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                            <input className={`${inputClass} pl-9`} value={editForm.address || ''} onChange={e => setEditForm({ ...editForm, address: e.target.value })} placeholder={draftIsDomestic ? 'π.χ. Ερμού 12, 10563 - Αθήνα' : 'e.g. 31-05 Ditmars Blvd, New York'} />
                         </div>
                     </FormField>
                 </div>
             </section>
 
             <section className={`${sectionCard} p-5`}>
+                <SectionTitle icon={Store} title="Καταστήματα / υποκαταστήματα" />
+                <CustomerBranchesEditor
+                    customer={editForm}
+                    onChange={next => setEditForm({ ...editForm, branches: next })}
+                    disabled={inspectionLocked}
+                    disabledReason="Σε λειτουργία ελέγχου τα καταστήματα δεν τροποποιούνται."
+                />
+            </section>
+
+            <section className={`${sectionCard} p-5`}>
                 <SectionTitle icon={Receipt} title="Τιμολόγηση" />
+                <div className="mb-3"><OverseasVatSuggestion customer={editForm} onChange={setEditForm} /></div>
                 <FormField label="Καθεστώς ΦΠΑ">
                     <div className="grid grid-cols-3 gap-2">
                         {[
@@ -1154,6 +1279,9 @@ export default function CustomerDetailsModal({
                                 ) : (
                                     <ActivityBadge activity={stats.activity} />
                                 )}
+                                {!isRetailSystemCustomer && !isDomestic && (
+                                    <span className="flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-800"><Globe2 size={11} /> {countryName}</span>
+                                )}
                                 {isVip && (
                                     <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900"><Trophy size={10} /> VIP</span>
                                 )}
@@ -1173,7 +1301,7 @@ export default function CustomerDetailsModal({
                                 <div className="relative mt-4 grid grid-cols-4 gap-2">
                                     <QuickAction icon={Phone} label="Κλήση" href={customer.phone ? `tel:${customer.phone}` : undefined} disabled={!customer.phone} />
                                     <QuickAction icon={Mail} label="Email" href={customer.email ? `mailto:${customer.email}` : undefined} disabled={!customer.email} />
-                                    <QuickAction icon={Navigation} label="Χάρτης" onClick={onShowOnMap} disabled={!onShowOnMap || !customerLocation.coords} title={customerLocation.coords ? 'Προβολή στον χάρτη' : 'Χωρίς τοποθεσία'} />
+                                    <QuickAction icon={Navigation} label="Χάρτης" onClick={onShowOnMap} disabled={!onShowOnMap || !mainLocation.coords} title={mainLocation.coords ? 'Προβολή στον χάρτη' : 'Χωρίς τοποθεσία'} />
                                     <QuickAction icon={Pencil} label="Αλλαγή" onClick={startEditing} disabled={isEditing} title="Επεξεργασία στοιχείων" />
                                 </div>
                             )}

@@ -15,6 +15,8 @@ import {
 import { useUI } from './UIProvider';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
+import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from './customers/customerProfileFields';
+import { isDomesticCountry, normalizeCountry } from '../features/customers/customerLocation';
 
 export interface CreateCustomerModalProps {
     draft: Customer;
@@ -22,7 +24,7 @@ export interface CreateCustomerModalProps {
     onCancel: () => void;
 }
 
-type CreateTab = 'general' | 'fiscal' | 'notes';
+type CreateTab = 'general' | 'fiscal' | 'branches' | 'notes';
 
 export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateCustomerModalProps) {
     const [form, setForm] = useState<Customer>(draft);
@@ -30,6 +32,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
     const { showToast } = useUI();
+    const isDomestic = isDomesticCountry(form.country);
 
     useEffect(() => {
         setForm(draft);
@@ -69,9 +72,18 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
             setTab('fiscal');
             return;
         }
+        const branches = (Array.isArray(form.branches) ? form.branches : [])
+            .filter(b => b.label?.trim() || b.street?.trim() || b.city?.trim())
+            .map((b, index) => ({ ...b, label: b.label?.trim() || `Κατάστημα ${index + 1}` }));
+        if (branches.length > 0 && !branches.some(b => b.is_primary)) branches[0] = { ...branches[0], is_primary: true };
         setIsSaving(true);
         try {
-            await onSave(form);
+            await onSave({
+                ...form,
+                country: normalizeCountry(form.country),
+                vat_number: isDomestic ? form.vat_number : (form.vat_number || '').toUpperCase().replace(/\s+/g, ''),
+                branches,
+            });
         } catch {
             // Parent shows error toast
         } finally {
@@ -94,7 +106,8 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
 
     const tabs: { id: CreateTab; label: string; hint: string }[] = [
         { id: 'general', label: 'Γενικά', hint: 'Όνομα, επικοινωνία, διεύθυνση' },
-        { id: 'fiscal', label: 'Φορολογικά', hint: 'ΑΦΜ, ΦΠΑ' },
+        { id: 'fiscal', label: 'Φορολογικά', hint: 'Χώρα, ΑΦΜ, ΦΠΑ' },
+        { id: 'branches', label: 'Καταστήματα', hint: 'Σημεία πώλησης' },
         { id: 'notes', label: 'Σημειώσεις', hint: 'Εσωτερικές σημειώσεις' },
     ];
 
@@ -216,7 +229,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     </div>
                                     <div className="mt-4">
                                         <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                            Διεύθυνση
+                                            Φορολογική έδρα (διεύθυνση παραστατικών)
                                         </label>
                                         <div className="relative">
                                             <MapPin
@@ -243,6 +256,30 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     Φορολογικά
                                 </div>
                                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                    Χώρα φορολογικής έδρας
+                                </label>
+                                <CountrySelect
+                                    value={form.country}
+                                    onChange={code => setForm({
+                                        ...form,
+                                        country: code,
+                                        vat_number: isDomesticCountry(code) ? (form.vat_number || '').replace(/\D/g, '').slice(0, 9) : form.vat_number,
+                                    })}
+                                />
+                                {!isDomestic && (
+                                    <div className="mt-5">
+                                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">VAT / Tax ID</label>
+                                        <input
+                                            type="text"
+                                            className={`${inputClass} font-mono uppercase tracking-wide`}
+                                            placeholder="π.χ. DE123456789"
+                                            value={form.vat_number || ''}
+                                            onChange={e => setForm({ ...form, vat_number: e.target.value.slice(0, 20) })}
+                                        />
+                                    </div>
+                                )}
+                                {isDomestic && (<>
+                                <label className="mb-1 mt-5 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
                                     ΑΦΜ — αυτόματη συμπλήρωση από βάση
                                 </label>
                                 <div className="flex gap-2">
@@ -270,6 +307,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     Συμπληρώνει όπου είναι διαθέσιμα επωνυμία, διεύθυνση, τηλέφωνο και email. Μπορείτε να επιστρέψετε
                                     στα «Γενικά» για διόρθωση.
                                 </p>
+                                </>)}
                                 <div className="mt-5">
                                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
                                         Επάγγελμα / κύρια δραστηριότητα
@@ -281,13 +319,18 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                         onChange={e => setForm({ ...form, profession: e.target.value })}
                                     />
                                 </div>
+                                {isDomestic && (
+                                    <div className="mt-5">
+                                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">ΔΟΥ</label>
+                                        <input
+                                            className={inputClass}
+                                            value={form.tax_office || ''}
+                                            onChange={e => setForm({ ...form, tax_office: e.target.value })}
+                                        />
+                                    </div>
+                                )}
                                 <div className="mt-5">
-                                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">ΔΟΥ</label>
-                                    <input
-                                        className={inputClass}
-                                        value={form.tax_office || ''}
-                                        onChange={e => setForm({ ...form, tax_office: e.target.value })}
-                                    />
+                                    <OverseasVatSuggestion customer={form} onChange={setForm} />
                                 </div>
                                 <div className="mt-5">
                                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -309,6 +352,12 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                 <div className="mt-5">
                                     <CustomerVatExemptionFields customer={form} onChange={setForm} />
                                 </div>
+                            </div>
+                        )}
+
+                        {tab === 'branches' && (
+                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                                <CustomerBranchesEditor customer={form} onChange={next => setForm({ ...form, branches: next })} />
                             </div>
                         )}
 

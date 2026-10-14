@@ -23,6 +23,38 @@ export interface GreekRegionalUnit {
   center: LatLng;
 }
 
+/** Overseas customers are grouped under one top-level area, split by country. */
+export const ABROAD_PERIFERIA_ID = 'exoteriko';
+export const countryUnitId = (code: string) => `country-${code.toUpperCase()}`;
+
+export function countryDisplayName(code: string): string {
+  const upper = code.toUpperCase();
+  try {
+    return new Intl.DisplayNames(['el'], { type: 'region' }).of(upper) || upper;
+  } catch {
+    return upper;
+  }
+}
+
+/** Capital / main business city per country (ISO-3166 alpha-2). */
+export const COUNTRY_CENTERS: Record<string, LatLng> = {
+  CY: [35.1856, 33.3823], DE: [52.5200, 13.4050], IT: [41.9028, 12.4964], FR: [48.8566, 2.3522],
+  ES: [40.4168, -3.7038], NL: [52.3676, 4.9041], BE: [50.8503, 4.3517], AT: [48.2082, 16.3738],
+  BG: [42.6977, 23.3219], RO: [44.4268, 26.1025], PL: [52.2297, 21.0122], CZ: [50.0755, 14.4378],
+  HU: [47.4979, 19.0402], PT: [38.7223, -9.1393], SE: [59.3293, 18.0686], DK: [55.6761, 12.5683],
+  FI: [60.1699, 24.9384], IE: [53.3498, -6.2603], LU: [49.6116, 6.1319], MT: [35.8989, 14.5146],
+  SI: [46.0569, 14.5058], SK: [48.1486, 17.1077], HR: [45.8150, 15.9819], LT: [54.6872, 25.2797],
+  LV: [56.9496, 24.1052], EE: [59.4370, 24.7536], GB: [51.5074, -0.1278], US: [40.7128, -74.0060],
+  CH: [47.3769, 8.5417], TR: [41.0082, 28.9784], AL: [41.3275, 19.8187], MK: [41.9981, 21.4254],
+  RS: [44.7866, 20.4489], BA: [43.8563, 18.4131], ME: [42.4304, 19.2594], UA: [50.4501, 30.5234],
+  CN: [39.9042, 116.4074], IN: [28.6139, 77.2090], AE: [25.2048, 55.2708], IL: [32.0853, 34.7818],
+  EG: [30.0444, 31.2357], AU: [-33.8688, 151.2093], CA: [43.6532, -79.3832], JP: [35.6762, 139.6503],
+  NO: [59.9139, 10.7522], RU: [55.7558, 37.6173], SA: [24.7136, 46.6753], QA: [25.2854, 51.5310],
+  LB: [33.8938, 35.5018], JO: [31.9454, 35.9284], ZA: [-26.2041, 28.0473], BR: [-23.5505, -46.6333],
+  AR: [-34.6037, -58.3816], MX: [19.4326, -99.1332], KR: [37.5665, 126.9780], SG: [1.3521, 103.8198],
+  HK: [22.3193, 114.1694], GE: [41.7151, 44.8271], AM: [40.1792, 44.4991], MD: [47.0105, 28.8638],
+};
+
 export const GREEK_PERIFERIES: GreekPeriferia[] = [
   { id: 'attiki', label: 'Αττική & Αργοσαρωνικός', short: 'Αττική' },
   { id: 'peloponnisos', label: 'Πελοπόννησος', short: 'Πελοπόννησος' },
@@ -38,6 +70,7 @@ export const GREEK_PERIFERIES: GreekPeriferia[] = [
   { id: 'voreio-aigaio', label: 'Λέσβος, Χίος, Σάμος & Λήμνος', short: 'Λέσβος-Χίος-Σάμος' },
   { id: 'kriti', label: 'Κρήτη', short: 'Κρήτη' },
   { id: 'agion-oros', label: 'Άγιον Όρος', short: 'Άγιον Όρος' },
+  { id: ABROAD_PERIFERIA_ID, label: 'Εξωτερικό', short: 'Εξωτερικό' },
 ];
 
 const unit = (id: string, label: string, periferiaId: string, lat: number, lng: number): GreekRegionalUnit =>
@@ -148,6 +181,11 @@ export const GREEK_REGIONAL_UNITS: GreekRegionalUnit[] = [
   // Άγιον Όρος
   unit('agion-oros', 'Άγιον Όρος', 'agion-oros', 40.2550, 24.2440),
 ];
+
+/** One unit per known country under «Εξωτερικό». */
+export const ABROAD_UNITS: GreekRegionalUnit[] = Object.entries(COUNTRY_CENTERS)
+  .map(([code, center]) => ({ id: countryUnitId(code), label: countryDisplayName(code), periferiaId: ABROAD_PERIFERIA_ID, center }));
+GREEK_REGIONAL_UNITS.push(...ABROAD_UNITS);
 
 export const REGIONAL_UNIT_BY_ID: Record<string, GreekRegionalUnit> =
   Object.fromEntries(GREEK_REGIONAL_UNITS.map(u => [u.id, u]));
@@ -528,4 +566,82 @@ export const GREEK_TOWNS: GreekTown[] = [
   // Άγιον Όρος
   town(['Καρυές'], 'agion-oros', 40.2550, 24.2440),
   town(['Δάφνη Άθω', 'Δάφνη'], 'agion-oros', 40.2120, 24.2220),
+];
+
+export interface WorldCity {
+  names: string[];
+  country: string;
+  center: LatLng;
+}
+
+const city = (names: string[], country: string, lat: number, lng: number): WorldCity => ({ names, country, center: [lat, lng] });
+
+/** Main cities for overseas customers (matched only inside the customer's country). */
+export const WORLD_CITIES: WorldCity[] = [
+  // Κύπρος
+  city(['Λευκωσία', 'Nicosia', 'Lefkosia'], 'CY', 35.1856, 33.3823),
+  city(['Λεμεσός', 'Limassol', 'Lemesos'], 'CY', 34.7071, 33.0226),
+  city(['Λάρνακα', 'Larnaca', 'Larnaka'], 'CY', 34.9003, 33.6232),
+  city(['Πάφος', 'Paphos', 'Pafos'], 'CY', 34.7754, 32.4245),
+  city(['Αγία Νάπα', 'Ayia Napa', 'Agia Napa'], 'CY', 34.9823, 33.9999),
+  city(['Παραλίμνι', 'Paralimni', 'Πρωταράς', 'Protaras'], 'CY', 35.0381, 33.9822),
+  // ΗΠΑ / Καναδάς
+  city(['New York', 'Νέα Υόρκη', 'NYC', 'Manhattan', 'Brooklyn'], 'US', 40.7128, -74.0060),
+  city(['Astoria', 'Queens', 'Αστόρια'], 'US', 40.7644, -73.9235),
+  city(['Chicago', 'Σικάγο'], 'US', 41.8781, -87.6298),
+  city(['Los Angeles', 'Λος Άντζελες'], 'US', 34.0522, -118.2437),
+  city(['Boston', 'Βοστώνη'], 'US', 42.3601, -71.0589),
+  city(['Miami', 'Μαϊάμι'], 'US', 25.7617, -80.1918),
+  city(['San Francisco', 'Σαν Φρανσίσκο'], 'US', 37.7749, -122.4194),
+  city(['Las Vegas', 'Λας Βέγκας'], 'US', 36.1699, -115.1398),
+  city(['Washington', 'Ουάσιγκτον'], 'US', 38.9072, -77.0369),
+  city(['Toronto', 'Τορόντο'], 'CA', 43.6532, -79.3832),
+  city(['Montreal', 'Μόντρεαλ'], 'CA', 45.5017, -73.5673),
+  city(['Vancouver', 'Βανκούβερ'], 'CA', 49.2827, -123.1207),
+  // Ευρώπη
+  city(['London', 'Λονδίνο'], 'GB', 51.5074, -0.1278),
+  city(['Paris', 'Παρίσι'], 'FR', 48.8566, 2.3522),
+  city(['Nice', 'Νίκαια Γαλλίας'], 'FR', 43.7102, 7.2620),
+  city(['Berlin', 'Βερολίνο'], 'DE', 52.5200, 13.4050),
+  city(['München', 'Munich', 'Μόναχο'], 'DE', 48.1351, 11.5820),
+  city(['Frankfurt', 'Φρανκφούρτη'], 'DE', 50.1109, 8.6821),
+  city(['Hamburg', 'Αμβούργο'], 'DE', 53.5511, 9.9937),
+  city(['Stuttgart', 'Στουτγάρδη'], 'DE', 48.7758, 9.1829),
+  city(['Düsseldorf', 'Dusseldorf', 'Ντίσελντορφ'], 'DE', 51.2277, 6.7735),
+  city(['Köln', 'Cologne', 'Κολωνία'], 'DE', 50.9375, 6.9603),
+  city(['Roma', 'Rome', 'Ρώμη'], 'IT', 41.9028, 12.4964),
+  city(['Milano', 'Milan', 'Μιλάνο'], 'IT', 45.4642, 9.1900),
+  city(['Venezia', 'Venice', 'Βενετία'], 'IT', 45.4408, 12.3155),
+  city(['Firenze', 'Florence', 'Φλωρεντία'], 'IT', 43.7696, 11.2558),
+  city(['Madrid', 'Μαδρίτη'], 'ES', 40.4168, -3.7038),
+  city(['Barcelona', 'Βαρκελώνη'], 'ES', 41.3851, 2.1734),
+  city(['Amsterdam', 'Άμστερνταμ'], 'NL', 52.3676, 4.9041),
+  city(['Rotterdam', 'Ρότερνταμ'], 'NL', 51.9244, 4.4777),
+  city(['Brussels', 'Bruxelles', 'Βρυξέλλες'], 'BE', 50.8503, 4.3517),
+  city(['Antwerpen', 'Antwerp', 'Αμβέρσα'], 'BE', 51.2194, 4.4025),
+  city(['Wien', 'Vienna', 'Βιέννη'], 'AT', 48.2082, 16.3738),
+  city(['Zürich', 'Zurich', 'Ζυρίχη'], 'CH', 47.3769, 8.5417),
+  city(['Genève', 'Geneva', 'Γενεύη'], 'CH', 46.2044, 6.1432),
+  city(['Sofia', 'Σόφια'], 'BG', 42.6977, 23.3219),
+  city(['Plovdiv', 'Φιλιππούπολη'], 'BG', 42.1354, 24.7453),
+  city(['Bucharest', 'București', 'Βουκουρέστι'], 'RO', 44.4268, 26.1025),
+  city(['Istanbul', 'Κωνσταντινούπολη', 'Πόλη'], 'TR', 41.0082, 28.9784),
+  city(['İzmir', 'Izmir', 'Σμύρνη'], 'TR', 38.4237, 27.1428),
+  city(['Tirana', 'Τίρανα'], 'AL', 41.3275, 19.8187),
+  city(['Skopje', 'Σκόπια'], 'MK', 41.9981, 21.4254),
+  city(['Belgrade', 'Beograd', 'Βελιγράδι'], 'RS', 44.7866, 20.4489),
+  city(['Stockholm', 'Στοκχόλμη'], 'SE', 59.3293, 18.0686),
+  city(['København', 'Copenhagen', 'Κοπεγχάγη'], 'DK', 55.6761, 12.5683),
+  city(['Lisboa', 'Lisbon', 'Λισαβόνα'], 'PT', 38.7223, -9.1393),
+  city(['Dublin', 'Δουβλίνο'], 'IE', 53.3498, -6.2603),
+  city(['Warszawa', 'Warsaw', 'Βαρσοβία'], 'PL', 52.2297, 21.0122),
+  city(['Praha', 'Prague', 'Πράγα'], 'CZ', 50.0755, 14.4378),
+  city(['Budapest', 'Βουδαπέστη'], 'HU', 47.4979, 19.0402),
+  // Μέση Ανατολή / λοιπά
+  city(['Dubai', 'Ντουμπάι'], 'AE', 25.2048, 55.2708),
+  city(['Abu Dhabi', 'Άμπου Ντάμπι'], 'AE', 24.4539, 54.3773),
+  city(['Tel Aviv', 'Τελ Αβίβ'], 'IL', 32.0853, 34.7818),
+  city(['Cairo', 'Κάιρο'], 'EG', 30.0444, 31.2357),
+  city(['Sydney', 'Σίδνεϊ'], 'AU', -33.8688, 151.2093),
+  city(['Melbourne', 'Μελβούρνη'], 'AU', -37.8136, 144.9631),
 ];

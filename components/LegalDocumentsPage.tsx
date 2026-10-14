@@ -37,7 +37,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { AadeVatRegistryResult, Customer, Material, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { AadeVatRegistryResult, Customer, Material, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalPartyAddress, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
@@ -92,6 +92,7 @@ import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import EvidenceSourcesEditor from './inspection/EvidenceSourcesEditor';
 import type { InspectionSnapshot } from '../features/inspection/types';
+import { customerBranches } from '../features/customers/customerLocation';
 import { useLegalCatalog } from '../hooks/api/useInspection';
 import { legalCatalogProducts as mapLegalCatalogProducts } from '../features/inspection/catalog';
 import {
@@ -144,6 +145,7 @@ import {
   normalizeProformaDocumentAddresses,
   normalizeVatNumber,
   parseLegalPartyAddress,
+  resolveCustomerDeliveryAddress,
   PAYMENT_METHOD_CODES,
   PAYMENT_METHOD_LABELS,
   recalculateLegalDocument,
@@ -166,6 +168,18 @@ import { describeCustomerVatLookup, lookupCustomerVat } from '../features/custom
 export type LegalTab = 'new' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
 type CreationDocumentType = LegalDocumentKind | 'proforma' | 'service_invoice';
+
+/** Which delivery point the current address corresponds to: a shop id, 'fiscal', or 'custom'. */
+function deliveryBranchValue(customer: Customer, address?: LegalPartyAddress | null): string {
+  const norm = (v: unknown) => String(v ?? '').trim().toLocaleLowerCase('el-GR');
+  const same = (a?: LegalPartyAddress | null, b?: LegalPartyAddress | null) => Boolean(a && b)
+    && (['street', 'number', 'postal_code', 'city'] as const).every((key) => norm(a?.[key]) === norm(b?.[key]));
+  for (const branch of customerBranches(customer)) {
+    if (same(address, resolveCustomerDeliveryAddress(customer, branch.id))) return branch.id;
+  }
+  if (!address || same(address, customer.address ? parseLegalPartyAddress(customer.address) : null)) return 'fiscal';
+  return 'custom';
+}
 
 function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind {
   if (type === 'service_invoice' || type === 'proforma') return 'invoice';
@@ -2197,6 +2211,26 @@ export default function LegalDocumentsPage({
                       {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
                     </SelectInput>
                     <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
+                    {selectedCustomer && customerBranches(selectedCustomer).length > 0 ? (
+                      <SelectInput
+                        label="Τόπος παράδοσης"
+                        value={deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address)}
+                        onChange={(value) => updateDraftDocument((current) => ({
+                          ...current,
+                          delivery: {
+                            ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)),
+                            delivery_address: resolveCustomerDeliveryAddress(selectedCustomer, value === 'fiscal' ? null : value)
+                              ?? (value === 'fiscal' && selectedCustomer.address ? parseLegalPartyAddress(selectedCustomer.address) : null),
+                          },
+                        }))}
+                      >
+                        {deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address) === 'custom' && <option value="custom">Χειροκίνητη διεύθυνση</option>}
+                        {customerBranches(selectedCustomer).map((branch) => (
+                          <option key={branch.id} value={branch.id}>Κατάστημα: {branch.label}{branch.city ? ` (${branch.city})` : ''}</option>
+                        ))}
+                        <option value="fiscal">Φορολογική έδρα</option>
+                      </SelectInput>
+                    ) : null}
                     <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { api } from '../../lib/supabase';
-import { Customer, Material, Order, OrderShipment, OrderShipmentItem, Product, ProductionBatch } from '../../types';
+import { Customer, CustomerBranch, Material, Order, OrderShipment, OrderShipmentItem, Product, ProductionBatch } from '../../types';
 
 export const ordersRepository = {
   getOrders: () => api.getOrders(),
@@ -12,6 +12,8 @@ export const ordersRepository = {
   /** Manual map pin; `null` clears it so the pin is derived from the address again. */
   updateCustomerLocation: (customerId: string, coords: readonly [number, number] | null) =>
     api.updateCustomer(customerId, { latitude: coords ? coords[0] : null, longitude: coords ? coords[1] : null }),
+  /** Replaces the customer's shop list (υποκαταστήματα). */
+  updateCustomerBranches: (customerId: string, branches: CustomerBranch[]) => api.updateCustomer(customerId, { branches }),
   deleteCustomer: (customerId: string) => api.deleteCustomer(customerId),
   saveOrder: (order: Order) => api.saveOrder(order),
   updateOrder: (order: Order, isNewPart?: boolean) => api.updateOrder(order, isNewPart),
