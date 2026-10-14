@@ -4,7 +4,9 @@ import {
   activityFromDays,
   buildCustomerDirectory,
   composeBranchAddress,
+  detectCountryInAddress,
   matchesEntryRegion,
+  splitForeignAddress,
   countRegions,
   customerInitials,
   matchesCustomerSearch,
@@ -226,5 +228,32 @@ describe('overseas customers and shops', () => {
   it('composes shop addresses like AADE', () => {
     expect(composeBranchAddress({ street: 'Ερμού 1', postal_code: '10563', city: 'Αθήνα' })).toBe('Ερμού 1, 10563 - Αθήνα');
     expect(composeBranchAddress({ street: '', postal_code: '', city: 'Ρόδος' })).toBe('Ρόδος');
+  });
+});
+
+describe('foreign address recognition', () => {
+  const US_ADDRESS = '280 Main Rd #1, Township of Washington, NJ 07676, Ηνωμένες Πολιτείες';
+
+  it('detects the country named in the address', () => {
+    expect(detectCountryInAddress(US_ADDRESS)).toBe('US');
+    expect(detectCountryInAddress('Ερμού 1, 10563 - Αθήνα')).toBeNull();
+    expect(detectCountryInAddress('Κύπρου 12, Αθήνα')).toBeNull();
+    expect(detectCountryInAddress('1 High St, London, UK')).toBe('GB');
+  });
+
+  it('resolves a US client even when the country field was left at Greece', () => {
+    const loc = resolveCustomerLocation(customer(US_ADDRESS));
+    expect(loc).toMatchObject({ countryCode: 'US', periferiaId: 'exoteriko', unitId: 'country-US', countryInferred: true, precision: 'area', town: 'Township of Washington, NJ' });
+    expect(loc.coords![0]).toBeGreaterThan(39);
+    expect(loc.coords![0]).toBeLessThan(41);
+  });
+
+  it('uses the US state for the pin with an explicit country', () => {
+    const loc = resolveCustomerLocation(customer(US_ADDRESS, { country: 'US' }));
+    expect(loc).toMatchObject({ countryInferred: false, town: 'Township of Washington, NJ', precision: 'area' });
+  });
+
+  it('splits foreign addresses into shop fields', () => {
+    expect(splitForeignAddress(US_ADDRESS)).toEqual({ street: '280 Main Rd #1', postal_code: '07676', city: 'Township of Washington, NJ' });
   });
 });

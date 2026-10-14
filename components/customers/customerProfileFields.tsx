@@ -1,12 +1,20 @@
 import React, { useMemo } from 'react';
-import { Copy, Globe2, Lightbulb, MapPinned, Plus, Star, Store, Trash2 } from 'lucide-react';
+import { AlertTriangle, Copy, Globe2, Lightbulb, MapPinned, Plus, Star, Store, Trash2 } from 'lucide-react';
 import type { Customer, CustomerBranch } from '../../types';
 import {
   AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   listLegalCountryOptions,
   parseLegalPartyAddress,
 } from '../../utils/legalDocuments';
-import { isDomesticCountry, normalizeCountry, resolveBranchLocation } from '../../features/customers/customerLocation';
+import {
+  composeBranchAddress,
+  detectCountryInAddress,
+  isDomesticCountry,
+  normalizeCountry,
+  resolveBranchLocation,
+  splitForeignAddress,
+} from '../../features/customers/customerLocation';
+import { countryDisplayName } from '../../features/customers/greekRegions';
 import { RegionPill } from './customerUi';
 
 const EU_COUNTRIES = new Set([
@@ -33,6 +41,52 @@ export function CountrySelect({ value, onChange, className = '', disabled }: {
     >
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
+  );
+}
+
+/**
+ * Changes the fiscal-seat country and carries the shops that were on the old country along
+ * (shops explicitly set to another country keep theirs). Greek ΑΦΜ stays digits-only.
+ */
+export function withCustomerCountry(customer: Customer, code: string): Customer {
+  const previous = normalizeCountry(customer.country);
+  const next = normalizeCountry(code);
+  const branches = Array.isArray(customer.branches)
+    ? customer.branches.map(b => (!b.country || normalizeCountry(b.country) === previous ? { ...b, country: next } : b))
+    : customer.branches;
+  return {
+    ...customer,
+    country: next,
+    branches,
+    vat_number: isDomesticCountry(next) ? (customer.vat_number || '').replace(/\D/g, '').slice(0, 9) : customer.vat_number,
+  };
+}
+
+/** Country named in the address but not set in the «Χώρα» field (it drives myDATA). */
+export function addressCountryMismatch(customer: Pick<Customer, 'address' | 'country'>): string | null {
+  const detected = detectCountryInAddress(customer.address);
+  return detected && detected !== normalizeCountry(customer.country) ? detected : null;
+}
+
+export function CountryMismatchHint({ customer, onFix, busy }: { customer: Customer; onFix: (code: string) => void; busy?: boolean }) {
+  const detected = addressCountryMismatch(customer);
+  if (!detected) return null;
+  return (
+    <div className="flex flex-wrap items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+      <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-500" />
+      <div className="min-w-0 flex-1 leading-snug">
+        Η διεύθυνση αναφέρει <b>{countryDisplayName(detected)}</b>, αλλά η χώρα του πελάτη είναι <b>{countryDisplayName(normalizeCountry(customer.country))}</b>.
+        Η χώρα χρησιμοποιείται στα παραστατικά (myDATA) και στον χάρτη.
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onFix(detected)}
+        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-black text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
+      >
+        Ορισμός χώρας: {countryDisplayName(detected)}
+      </button>
+    </div>
   );
 }
 
@@ -111,7 +165,7 @@ export function CustomerBranchesEditor({ customer, onChange, disabled, disabledR
       street: seed?.street ?? '',
       postal_code: seed?.postal_code ?? '',
       city: seed?.city ?? '',
-      country: normalizeCountry(customer.country),
+      country: (seed && detectCountryInAddress(customer.address)) || normalizeCountry(customer.country),
       phone: null,
       contact_person: null,
       notes: null,
@@ -123,6 +177,11 @@ export function CustomerBranchesEditor({ customer, onChange, disabled, disabledR
   };
 
   const copyFromFiscal = () => {
+    const foreign = !isDomesticCountry(customer.country) || Boolean(detectCountryInAddress(customer.address));
+    if (foreign) {
+      add({ label: 'Κατάστημα έδρας', ...splitForeignAddress(customer.address) });
+      return;
+    }
     const parsed = parseLegalPartyAddress(customer.address);
     add({
       label: 'Κατάστημα έδρας',
@@ -165,6 +224,9 @@ export function CustomerBranchesEditor({ customer, onChange, disabled, disabledR
       ) : (
         branches.map((branch) => {
           const location = resolveBranchLocation(customer, branch);
+          const branchCountry = normalizeCountry(branch.country || customer.country);
+          const namedCountry = detectCountryInAddress(composeBranchAddress(branch));
+          const mismatch = namedCountry && namedCountry !== branchCountry ? namedCountry : null;
           return (
             <div key={branch.id} className={`rounded-2xl border p-3.5 transition ${branch.is_primary ? 'border-sky-200 bg-sky-50/40' : 'border-slate-200 bg-white'}`}>
               <div className="flex items-center gap-2">
@@ -208,6 +270,15 @@ export function CustomerBranchesEditor({ customer, onChange, disabled, disabledR
                 {typeof branch.latitude === 'number' && <span className="font-semibold text-emerald-600">· χειροκίνητη πινέζα</span>}
                 {!isDomesticCountry(branch.country || customer.country) && <span className="flex items-center gap-1 font-semibold text-violet-600"><Globe2 size={12} /> εξωτερικό</span>}
               </div>
+              {mismatch && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200">
+                  <AlertTriangle size={12} className="text-amber-500" />
+                  Η διεύθυνση αναφέρει {countryDisplayName(mismatch)} — η χώρα του καταστήματος είναι {countryDisplayName(branchCountry)}.
+                  <button type="button" disabled={disabled} onClick={() => update(branch.id, { country: mismatch })} className="rounded-md bg-amber-600 px-2 py-0.5 text-[10px] font-black text-white hover:bg-amber-700">
+                    Διόρθωση
+                  </button>
+                </div>
+              )}
             </div>
           );
         })

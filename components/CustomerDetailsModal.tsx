@@ -70,7 +70,14 @@ import CustomerServiceQuickForm from './customerService/CustomerServiceQuickForm
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 import { ActivityBadge, CustomerAvatar, RegionPill } from './customers/customerUi';
-import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from './customers/customerProfileFields';
+import {
+    addressCountryMismatch,
+    CountryMismatchHint,
+    CountrySelect,
+    CustomerBranchesEditor,
+    OverseasVatSuggestion,
+    withCustomerCountry,
+} from './customers/customerProfileFields';
 import {
     activityFromDays,
     composeBranchAddress,
@@ -571,8 +578,24 @@ export default function CustomerDetailsModal({
     // Sections
     // -----------------------------------------------------------------------
 
+    /** One-click fix when the address names another country than the «Χώρα» field. */
+    const [isFixingCountry, setIsFixingCountry] = useState(false);
+    const fixCountry = async (code: string) => {
+        setIsFixingCountry(true);
+        try {
+            await onUpdate(withCustomerCountry(customer, code));
+        } catch (e) {
+            console.error('Country fix error:', e);
+        } finally {
+            setIsFixingCountry(false);
+        }
+    };
+
     const detailsSections = (
         <div className="space-y-5">
+            {!isRetailSystemCustomer && addressCountryMismatch(customer) && !inspectionLocked && (
+                <CountryMismatchHint customer={customer} onFix={fixCountry} busy={isFixingCountry} />
+            )}
             <section>
                 <SectionTitle icon={Phone} title="Επικοινωνία" />
                 <div className="space-y-0.5">
@@ -1066,12 +1089,7 @@ export default function CustomerDetailsModal({
                     <FormField label="Χώρα φορολογικής έδρας" hint={draftIsDomestic ? 'Ελληνικός πελάτης — ΑΦΜ και ΔΟΥ από την ΑΑΔΕ.' : 'Πελάτης εξωτερικού — στα παραστατικά δηλώνεται η χώρα και το VAT/Tax ID.'}>
                         <CountrySelect
                             value={editForm.country}
-                            onChange={code => setEditForm({
-                                ...editForm,
-                                country: code,
-                                // Greek ΑΦΜ is digits only; keep what was typed when switching away.
-                                vat_number: isDomesticCountry(code) ? (editForm.vat_number || '').replace(/\D/g, '').slice(0, 9) : editForm.vat_number,
-                            })}
+                            onChange={code => setEditForm(withCustomerCountry(editForm, code))}
                         />
                     </FormField>
                     {draftIsDomestic ? (
@@ -1140,6 +1158,9 @@ export default function CustomerDetailsModal({
                             <input className={`${inputClass} pl-9`} value={editForm.address || ''} onChange={e => setEditForm({ ...editForm, address: e.target.value })} placeholder={draftIsDomestic ? 'π.χ. Ερμού 12, 10563 - Αθήνα' : 'e.g. 31-05 Ditmars Blvd, New York'} />
                         </div>
                     </FormField>
+                    <div className="sm:col-span-2 empty:hidden">
+                        <CountryMismatchHint customer={editForm} onFix={code => setEditForm(withCustomerCountry(editForm, code))} />
+                    </div>
                 </div>
             </section>
 

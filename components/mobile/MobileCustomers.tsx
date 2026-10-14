@@ -31,7 +31,7 @@ import {
     type RegionFilterKey,
 } from '../../features/customers/customerLocation';
 import { GREEK_PERIFERIES } from '../../features/customers/greekRegions';
-import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from '../customers/customerProfileFields';
+import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion, withCustomerCountry } from '../customers/customerProfileFields';
 import { isDomesticCountry } from '../../features/customers/customerLocation';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
 
@@ -484,7 +484,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 <CountrySelect
                                     value={editData.country}
                                     disabled={isRetailSystemCustomer}
-                                    onChange={code => setEditData({ ...editData, country: code })}
+                                    onChange={code => setEditData(withCustomerCountry(editData, code))}
                                 />
                                 <OverseasVatSuggestion customer={editData} onChange={setEditData} />
                             </div>
@@ -575,6 +575,9 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                             />
                         </div>
+                        {editType === 'customer' && !isRetailSystemCustomer && (
+                            <CountryMismatchHint customer={editData} onFix={code => setEditData(withCustomerCountry(editData, code))} />
+                        )}
                         {editType === 'customer' && !isRetailSystemCustomer && (
                             <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Καταστηματα / υποκαταστηματα</label>

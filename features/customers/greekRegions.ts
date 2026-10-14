@@ -572,9 +572,11 @@ export interface WorldCity {
   names: string[];
   country: string;
   center: LatLng;
+  /** US state (USPS code) — must agree with the state written in the address. */
+  state?: string;
 }
 
-const city = (names: string[], country: string, lat: number, lng: number): WorldCity => ({ names, country, center: [lat, lng] });
+const city = (names: string[], country: string, lat: number, lng: number, state?: string): WorldCity => ({ names, country, center: [lat, lng], state });
 
 /** Main cities for overseas customers (matched only inside the customer's country). */
 export const WORLD_CITIES: WorldCity[] = [
@@ -586,15 +588,15 @@ export const WORLD_CITIES: WorldCity[] = [
   city(['Αγία Νάπα', 'Ayia Napa', 'Agia Napa'], 'CY', 34.9823, 33.9999),
   city(['Παραλίμνι', 'Paralimni', 'Πρωταράς', 'Protaras'], 'CY', 35.0381, 33.9822),
   // ΗΠΑ / Καναδάς
-  city(['New York', 'Νέα Υόρκη', 'NYC', 'Manhattan', 'Brooklyn'], 'US', 40.7128, -74.0060),
-  city(['Astoria', 'Queens', 'Αστόρια'], 'US', 40.7644, -73.9235),
-  city(['Chicago', 'Σικάγο'], 'US', 41.8781, -87.6298),
-  city(['Los Angeles', 'Λος Άντζελες'], 'US', 34.0522, -118.2437),
-  city(['Boston', 'Βοστώνη'], 'US', 42.3601, -71.0589),
-  city(['Miami', 'Μαϊάμι'], 'US', 25.7617, -80.1918),
-  city(['San Francisco', 'Σαν Φρανσίσκο'], 'US', 37.7749, -122.4194),
-  city(['Las Vegas', 'Λας Βέγκας'], 'US', 36.1699, -115.1398),
-  city(['Washington', 'Ουάσιγκτον'], 'US', 38.9072, -77.0369),
+  city(['New York', 'Νέα Υόρκη', 'NYC', 'Manhattan', 'Brooklyn'], 'US', 40.7128, -74.0060, 'NY'),
+  city(['Astoria', 'Queens', 'Αστόρια'], 'US', 40.7644, -73.9235, 'NY'),
+  city(['Chicago', 'Σικάγο'], 'US', 41.8781, -87.6298, 'IL'),
+  city(['Los Angeles', 'Λος Άντζελες'], 'US', 34.0522, -118.2437, 'CA'),
+  city(['Boston', 'Βοστώνη'], 'US', 42.3601, -71.0589, 'MA'),
+  city(['Miami', 'Μαϊάμι'], 'US', 25.7617, -80.1918, 'FL'),
+  city(['San Francisco', 'Σαν Φρανσίσκο'], 'US', 37.7749, -122.4194, 'CA'),
+  city(['Las Vegas', 'Λας Βέγκας'], 'US', 36.1699, -115.1398, 'NV'),
+  city(['Washington', 'Ουάσιγκτον'], 'US', 38.9072, -77.0369, 'DC'),
   city(['Toronto', 'Τορόντο'], 'CA', 43.6532, -79.3832),
   city(['Montreal', 'Μόντρεαλ'], 'CA', 45.5017, -73.5673),
   city(['Vancouver', 'Βανκούβερ'], 'CA', 49.2827, -123.1207),
@@ -645,3 +647,31 @@ export const WORLD_CITIES: WorldCity[] = [
   city(['Sydney', 'Σίδνεϊ'], 'AU', -33.8688, 151.2093),
   city(['Melbourne', 'Μελβούρνη'], 'AU', -37.8136, 144.9631),
 ];
+
+/** Approximate centre per US state (USPS code) — area pins for US customers outside the big cities. */
+export const US_STATE_CENTERS: Record<string, LatLng> = {
+  AL: [32.8, -86.8], AK: [61.4, -152.3], AZ: [34.2, -111.7], AR: [34.9, -92.4], CA: [36.8, -119.4],
+  CO: [39.0, -105.5], CT: [41.6, -72.7], DE: [39.0, -75.5], DC: [38.9, -77.0], FL: [28.6, -82.4],
+  GA: [32.7, -83.4], HI: [20.8, -156.3], ID: [44.4, -114.6], IL: [40.0, -89.2], IN: [39.9, -86.3],
+  IA: [42.1, -93.5], KS: [38.5, -98.4], KY: [37.5, -85.3], LA: [31.1, -92.0], ME: [45.4, -69.2],
+  MD: [39.0, -76.8], MA: [42.3, -71.8], MI: [44.3, -85.4], MN: [46.3, -94.3], MS: [32.7, -89.7],
+  MO: [38.4, -92.5], MT: [47.0, -109.6], NE: [41.5, -99.8], NV: [39.3, -116.6], NH: [43.7, -71.6],
+  NJ: [40.1, -74.7], NM: [34.4, -106.1], NY: [42.9, -75.5], NC: [35.6, -79.4], ND: [47.5, -100.5],
+  OH: [40.3, -82.8], OK: [35.6, -97.5], OR: [43.9, -120.6], PA: [40.9, -77.8], RI: [41.7, -71.5],
+  SC: [33.9, -80.9], SD: [44.4, -100.2], TN: [35.9, -86.4], TX: [31.5, -99.3], UT: [39.3, -111.7],
+  VT: [44.1, -72.7], VA: [37.5, -78.8], WA: [47.4, -120.5], WV: [38.6, -80.6], WI: [44.6, -89.9],
+  WY: [43.0, -107.6],
+};
+
+/** Extra spellings people type for a country (besides the Greek/English names from Intl). */
+export const COUNTRY_ALIASES: Record<string, string[]> = {
+  US: ['ΗΠΑ', 'Η.Π.Α.', 'USA', 'U.S.A.', 'United States', 'United States of America', 'Αμερική', 'America'],
+  GB: ['UK', 'U.K.', 'United Kingdom', 'Great Britain', 'England', 'Αγγλία', 'Μεγάλη Βρετανία', 'Ηνωμένο Βασίλειο'],
+  CY: ['Cyprus', 'Κύπρος', 'Kibris'],
+  DE: ['Germany', 'Deutschland', 'Γερμανία'],
+  NL: ['Holland', 'Ολλανδία', 'Netherlands'],
+  AE: ['UAE', 'U.A.E.', 'Εμιράτα', 'Ηνωμένα Αραβικά Εμιράτα'],
+  CH: ['Switzerland', 'Schweiz', 'Suisse', 'Ελβετία'],
+  AU: ['Australia', 'Αυστραλία'],
+  CA: ['Canada', 'Καναδάς'],
+};

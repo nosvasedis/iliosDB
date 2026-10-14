@@ -3,6 +3,8 @@ import { OrderStatus } from '../../types';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import {
   ABROAD_PERIFERIA_ID,
+  COUNTRY_ALIASES,
+  COUNTRY_CENTERS,
   countryDisplayName,
   countryUnitId,
   GREEK_TOWNS,
@@ -12,6 +14,7 @@ import {
   PERIFERIA_BY_ID,
   PERIFERIA_FALLBACK_CENTER,
   REGIONAL_UNIT_BY_ID,
+  US_STATE_CENTERS,
   WORLD_CITIES,
   type WorldCity,
 } from './greekRegions';
@@ -30,6 +33,12 @@ export interface CustomerLocation {
   periferiaLabel: string | null;
   coords: LatLng | null;
   precision: LocationPrecision;
+  /**
+   * The record says Greece but the address clearly names another country
+   * (e.g. "…, NJ 07676, Ηνωμένες Πολιτείες"). Location uses the detected country;
+   * the UI should ask to fix the country field (it drives myDATA).
+   */
+  countryInferred?: boolean;
 }
 
 export type CustomerActivity = 'active' | 'quiet' | 'inactive' | 'none';
@@ -94,6 +103,42 @@ const CITY_INDEX: Map<string, WorldCity[]> = (() => {
   }
   return index;
 })();
+
+/** Country names (Greek, English, common aliases) → ISO code. */
+const COUNTRY_NAME_INDEX: Map<string, string> = (() => {
+  const index = new Map<string, string>();
+  const add = (name: string, code: string) => {
+    const key = placeKey(name);
+    if (key && !index.has(key)) index.set(key, code);
+  };
+  const codes = new Set(['GR', ...Object.keys(COUNTRY_CENTERS), ...Object.keys(COUNTRY_ALIASES)]);
+  codes.forEach((code) => {
+    for (const locale of ['el', 'en']) {
+      try {
+        const name = new Intl.DisplayNames([locale], { type: 'region' }).of(code);
+        if (name && name !== code) add(name, code);
+      } catch { /* Intl.DisplayNames unavailable */ }
+    }
+    (COUNTRY_ALIASES[code] ?? []).forEach(alias => add(alias, code));
+  });
+  ['Ελλάς', 'Hellas', 'Greece'].forEach(name => add(name, 'GR'));
+  return index;
+})();
+
+const addressParts = (address?: string | null) =>
+  String(address ?? '').split(/[,\n]/).map(p => p.trim()).filter(Boolean);
+
+/** Country named as a whole part of the address ("…, 07676, Ηνωμένες Πολιτείες" → US). */
+export function detectCountryInAddress(address?: string | null): string | null {
+  const parts = addressParts(address);
+  for (const part of parts.slice(-2).reverse()) {
+    const code = COUNTRY_NAME_INDEX.get(placeKey(part.replace(/\d+/g, ' ')));
+    if (code) return code;
+  }
+  return null;
+}
+
+const isCountryPart = (part: string) => COUNTRY_NAME_INDEX.has(placeKey(part.replace(/\d+/g, ' ')));
 
 /** Extracts the postal code (last 5-digit group, also "123 45") and the place text that follows it. */
 export function splitGreekAddress(address?: string | null): { postalCode: string | null; place: string | null } {
@@ -169,42 +214,66 @@ export interface PlaceInput {
   longitude?: number | null;
 }
 
-function resolveAbroadLocation(input: PlaceInput, countryCode: string): CustomerLocation {
+function resolveAbroadLocation(input: PlaceInput, countryCode: string, countryInferred = false): CustomerLocation {
   const unitInfo = REGIONAL_UNIT_BY_ID[countryUnitId(countryCode)];
-  const parts = String(input.address ?? '').split(/[,\n]/).map(p => p.trim()).filter(Boolean);
+  // Drop the country itself ("Ηνωμένες Πολιτείες", "USA") — it is not a place inside the country.
+  const parts = addressParts(input.address).filter(part => !isCountryPart(part));
+
+  // US: "Township of Washington, NJ 07676" / "… NJ" → state for an area pin, city before it.
+  let usState: string | null = null;
+  let usCity: string | null = null;
+  if (countryCode === 'US') {
+    for (let i = parts.length - 1; i >= 0 && !usState; i--) {
+      const withoutZip = parts[i].replace(/\b\d{5}(?:-\d{4})?\b/g, ' ').replace(/^[\s\-–]+|[\s\-–]+$/g, '').replace(/\s+/g, ' ').trim();
+      const m = withoutZip.match(/(?:^|\s)([A-Z]{2})$/);
+      if (m && US_STATE_CENTERS[m[1]]) {
+        usState = m[1];
+        const before = withoutZip.slice(0, withoutZip.length - 2).trim();
+        usCity = before || (i > 0 && !/^\d/.test(parts[i - 1]) ? parts[i - 1].replace(/^\d{5}\s*[-–]\s*/, '').trim() : null);
+      }
+    }
+  }
+
   let matched: WorldCity | null = null;
   let rawPlace: string | null = null;
   for (const part of [...parts].reverse()) {
-    const cleaned = part.replace(/\b[A-Z]{0,2}-?\d[\d\s-]*\b/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!cleaned) continue;
+    const cleaned = part.replace(/\b[A-Z]{0,2}-?\d[\d\s-]*\b/g, ' ').replace(/^[\s\-–]+/, '').replace(/\s+/g, ' ').trim();
+    if (!cleaned || (usState && cleaned === usState)) continue;
     rawPlace = rawPlace ?? cleaned;
     const key = placeKey(cleaned);
-    const hit = (CITY_INDEX.get(key) ?? []).find(c => c.country === countryCode)
-      ?? WORLD_CITIES.find(c => c.country === countryCode && c.names.some(n => key.includes(placeKey(n))));
+    // Exact names only: "Township of Washington, NJ" must not become Washington DC.
+    const hit = (CITY_INDEX.get(key) ?? []).find(c => c.country === countryCode && (!usState || !c.state || c.state === usState));
     if (hit) { matched = hit; break; }
   }
 
+  const townLabel = matched ? matched.names[0] : usCity ? `${usCity}, ${usState}` : rawPlace;
   const base: CustomerLocation = {
     countryCode,
     postalCode: null,
-    town: matched ? matched.names[0] : rawPlace,
+    town: townLabel,
     unitId: unitInfo?.id ?? countryUnitId(countryCode),
     unitLabel: unitInfo?.label ?? countryDisplayName(countryCode),
     periferiaId: ABROAD_PERIFERIA_ID,
     periferiaLabel: PERIFERIA_BY_ID[ABROAD_PERIFERIA_ID]?.label ?? 'Εξωτερικό',
     coords: null,
     precision: 'none',
+    countryInferred,
   };
   if (hasSavedCoordinates(input)) return { ...base, coords: [input.latitude as number, input.longitude as number], precision: 'exact' };
   if (matched) return { ...base, coords: spread(matched.center, input.id, 0.01), precision: 'town' };
+  if (usState) return { ...base, coords: spread(US_STATE_CENTERS[usState], input.id, 0.08), precision: 'area' };
   if (unitInfo) return { ...base, coords: spread(unitInfo.center, input.id, 0.05), precision: 'area' };
   return base;
 }
 
 /** Region + map position of any address (fiscal seat or shop). */
 export function resolvePlaceLocation(input: PlaceInput): CustomerLocation {
-  const countryCode = normalizeCountry(input.country);
-  if (countryCode !== 'GR') return resolveAbroadLocation(input, countryCode);
+  const explicit = normalizeCountry(input.country);
+  if (explicit !== 'GR') return resolveAbroadLocation(input, explicit);
+  // Country left at the default (Greece) but the address names another country.
+  const detected = detectCountryInAddress(input.address);
+  if (detected && detected !== 'GR') return resolveAbroadLocation(input, detected, true);
+  const countryCode = explicit;
 
   const { postalCode, place } = splitGreekAddress(input.address);
   const postal = postalCode ? lookupPostalArea(postalCode) : null;
@@ -543,4 +612,17 @@ export function sortCustomerDirectory(entries: CustomerDirectoryEntry[], key: Cu
     const cmp = typeof va === 'string' ? va.localeCompare(vb as string, 'el', { sensitivity: 'base' }) : (va as number) - (vb as number);
     return cmp !== 0 ? sign * cmp : byName(a, b);
   });
+}
+
+/**
+ * Splits a non-Greek address into shop fields:
+ * "280 Main St #1, Springfield, NJ 07676, USA" → street / city "Springfield, NJ" / postal "07676".
+ */
+export function splitForeignAddress(address?: string | null): { street: string; postal_code: string; city: string } {
+  const parts = addressParts(address).filter(part => !isCountryPart(part));
+  const street = parts[0] ?? '';
+  const rest = parts.slice(1).join(', ');
+  const zip = rest.match(/\b[A-Z]{0,2}-?\d{4,6}(?:-\d{4})?\b/);
+  const city = (zip ? rest.replace(zip[0], ' ') : rest).replace(/\s+,/g, ',').replace(/\s+/g, ' ').replace(/^[\s,\-–]+|[\s,\-–]+$/g, '');
+  return { street, postal_code: zip ? zip[0] : '', city };
 }

@@ -15,7 +15,7 @@ import {
 import { useUI } from './UIProvider';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
-import { CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion } from './customers/customerProfileFields';
+import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion, withCustomerCountry } from './customers/customerProfileFields';
 import { isDomesticCountry, normalizeCountry } from '../features/customers/customerLocation';
 
 export interface CreateCustomerModalProps {
@@ -244,6 +244,9 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                                 onChange={e => setForm({ ...form, address: e.target.value })}
                                             />
                                         </div>
+                                    <div className="mt-3 empty:hidden">
+                                        <CountryMismatchHint customer={form} onFix={code => setForm(withCustomerCountry(form, code))} />
+                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -260,11 +263,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                 </label>
                                 <CountrySelect
                                     value={form.country}
-                                    onChange={code => setForm({
-                                        ...form,
-                                        country: code,
-                                        vat_number: isDomesticCountry(code) ? (form.vat_number || '').replace(/\D/g, '').slice(0, 9) : form.vat_number,
-                                    })}
+                                    onChange={code => setForm(withCustomerCountry(form, code))}
                                 />
                                 {!isDomestic && (
                                     <div className="mt-5">
