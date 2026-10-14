@@ -538,6 +538,9 @@ export interface Customer {
   vat_exemption_category?: number | null;
   vat_exemption_legal_note?: string | null;
   notes?: string;
+  /** Manual map position; null means "derive from the address". */
+  latitude?: number | null;
+  longitude?: number | null;
   created_at: string;
 }
 

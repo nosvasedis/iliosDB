@@ -1,15 +1,14 @@
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, List, Map as MapIcon, SlidersHorizontal, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { normalizedIncludes } from '../../utils/greekSearch';
 import { getNextNamedayForName } from '../../utils/namedays';
 import { formatGreekDate } from '../../utils/deliveryLabels';
 import MobileSupplierDetails from './MobileSupplierDetails';
@@ -21,6 +20,19 @@ import { useSuppliers } from '../../hooks/api/useSuppliers';
 import MobileCustomerDetails from './MobileCustomerDetails';
 import { resolveCustomerAnalyticsCategory } from '../../features/customers/customerAnalytics';
 import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
+import { useCustomerDirectory } from '../customers/useCustomerDirectory';
+import CustomerRegionFilter from '../customers/CustomerRegionFilter';
+import { ActivityBadge, CustomerAvatar, RegionPill } from '../customers/customerUi';
+import {
+    matchesCustomerSearch,
+    matchesRegionFilter,
+    regionFilterLabel,
+    type CustomerDirectoryEntry,
+    type RegionFilterKey,
+} from '../../features/customers/customerLocation';
+import { GREEK_PERIFERIES } from '../../features/customers/greekRegions';
+
+const CustomersMap = React.lazy(() => import('../customers/CustomersMap'));
 
 interface Props {
     mode: 'customers' | 'suppliers';
@@ -48,6 +60,31 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
     const [showRetailStats, setShowRetailStats] = useState(false);
 
+    // Region filter + map (customers mode)
+    const { directory, regionCounts, saveLocation, canEditLocation } = useCustomerDirectory(customers, orders);
+    const [regionSelection, setRegionSelection] = useState<RegionFilterKey[]>([]);
+    const [customerView, setCustomerView] = useState<'list' | 'map'>('list');
+    const [showRegionSheet, setShowRegionSheet] = useState(false);
+    const directoryById = useMemo(() => new Map(directory.map(e => [e.customer.id, e])), [directory]);
+    const regionChips = useMemo(() => GREEK_PERIFERIES
+        .map(p => ({ key: `p:${p.id}`, label: p.short, count: regionCounts.periferia[p.id] ?? 0 }))
+        .filter(c => c.count > 0)
+        .sort((a, b) => b.count - a.count), [regionCounts]);
+    const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => directory
+        .filter(e => !e.isSystem && matchesRegionFilter(e.location, regionSelection) && matchesCustomerSearch(e, search)),
+    [directory, regionSelection, search]);
+    const toggleRegionChip = (key: RegionFilterKey) =>
+        setRegionSelection(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
+    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null) => {
+        try {
+            await saveLocation(customerId, coords);
+            showToast(coords ? 'Η θέση αποθηκεύτηκε.' : 'Επαναφορά στην αυτόματη θέση.', 'success');
+        } catch (e) {
+            showToast('Η αποθήκευση της θέσης απέτυχε.', 'error');
+            throw e;
+        }
+    };
+
     // Calculate customer stats (Total Spent Net, etc.)
     const customerStats = useMemo(() => {
         if (!orders) return {};
@@ -66,13 +103,11 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const filteredList = useMemo(() => {
         if (mode === 'customers') {
             if (!customers) return [];
-            return customers.filter(c =>
-                normalizedIncludes(c.full_name, search) ||
-                (c.phone && c.phone.includes(search)) ||
-                (c.customer_code && c.customer_code.includes(search)) ||
-                (c.vat_number && c.vat_number.includes(search)) ||
-                (c.profession && normalizedIncludes(c.profession, search))
-            ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
+            const system = regionSelection.length === 0
+                ? directory.filter(e => e.isSystem && matchesCustomerSearch(e, search)).map(e => e.customer)
+                : [];
+            return [...system, ...filteredEntries.map(e => e.customer)]
+                .sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
         } else {
             if (!suppliers) return [];
             return suppliers.filter(s =>
@@ -80,7 +115,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 s.contact_person?.toLowerCase().includes(search.toLowerCase())
             );
         }
-    }, [customers, suppliers, mode, search]);
+    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection]);
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
@@ -614,7 +649,93 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 />
             </div>
 
-            {/* Content List */}
+            {mode === 'customers' && (
+                <div className="mt-3 shrink-0 space-y-2">
+                    <div className="flex rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                        {([['list', 'Λίστα', List], ['map', 'Χάρτης', MapIcon]] as const).map(([id, label, Icon]) => (
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => setCustomerView(id)}
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${customerView === id ? 'bg-[#060b00] text-white shadow' : 'text-slate-500'}`}
+                            >
+                                <Icon size={15} /> {label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                        <button
+                            type="button"
+                            onClick={() => setRegionSelection([])}
+                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition ${regionSelection.length === 0 ? 'bg-[#060b00] text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}
+                        >
+                            Όλες
+                        </button>
+                        {regionChips.map(chip => {
+                            const on = regionSelection.includes(chip.key);
+                            return (
+                                <button
+                                    key={chip.key}
+                                    type="button"
+                                    onClick={() => toggleRegionChip(chip.key)}
+                                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition ${on ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}
+                                >
+                                    {chip.label}
+                                    <span className={`rounded-full px-1.5 text-[10px] ${on ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{chip.count}</span>
+                                </button>
+                            );
+                        })}
+                        <button
+                            type="button"
+                            onClick={() => setShowRegionSheet(true)}
+                            className="flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-sky-700 ring-1 ring-sky-200"
+                        >
+                            <SlidersHorizontal size={13} /> Περισσότερα
+                        </button>
+                    </div>
+                    {regionSelection.some(k => !regionChips.some(c => c.key === k)) && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {regionSelection.filter(k => !regionChips.some(c => c.key === k)).map(k => (
+                                <span key={k} className="flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-2.5 pr-1 text-[11px] font-bold text-sky-900">
+                                    {regionFilterLabel(k)}
+                                    <button type="button" onClick={() => toggleRegionChip(k)} className="rounded-full p-0.5" aria-label="Αφαίρεση"><X size={12} /></button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {mode === 'customers' && showRegionSheet && (
+                <div className="fixed inset-0 z-[1200] flex flex-col justify-end bg-slate-900/40" onClick={() => setShowRegionSheet(false)}>
+                    <div className="flex max-h-[80vh] flex-col rounded-t-3xl bg-white p-4 pb-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
+                        <CustomerRegionFilter counts={regionCounts} selection={regionSelection} onChange={setRegionSelection} className="min-h-0 flex-1" />
+                        <button
+                            type="button"
+                            onClick={() => setShowRegionSheet(false)}
+                            className="mt-3 rounded-xl bg-[#060b00] py-3 text-sm font-bold text-white"
+                        >
+                            Εμφάνιση {filteredEntries.length} πελατών
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {mode === 'customers' && customerView === 'map' ? (
+                <div className="mt-3 flex min-h-[420px] flex-1 flex-col">
+                    <Suspense fallback={<div className="flex flex-1 items-center justify-center text-sm font-bold text-slate-400"><Loader2 className="mr-2 animate-spin" size={18} /> Φόρτωση χάρτη…</div>}>
+                        <CustomersMap
+                            compact
+                            className="flex-1"
+                            entries={filteredEntries}
+                            onOpenCustomer={handleItemClick}
+                            onSaveLocation={handleSaveLocation}
+                            canEditLocation={canEditLocation}
+                        />
+                    </Suspense>
+                </div>
+            ) : (
             <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 custom-scrollbar auto-rows-min md:grid-cols-2 lg:grid-cols-3">
                 {filteredList.map((item: any) => (
                     <div
@@ -624,9 +745,13 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     >
                         <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${mode === 'customers' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
-                                    {mode === 'customers' ? <User size={24} /> : <Globe size={24} />}
-                                </div>
+                                {mode === 'customers' && item.id !== RETAIL_CUSTOMER_ID ? (
+                                    <CustomerAvatar name={item.full_name || '?'} seed={item.id} size={48} />
+                                ) : (
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${mode === 'customers' ? 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                                        {mode === 'customers' ? <User size={24} /> : <Globe size={24} />}
+                                    </div>
+                                )}
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
@@ -665,6 +790,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 </p>
                             ) : (
                                 <>
+                                    {mode === 'customers' && directoryById.get(item.id) && (
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <RegionPill location={directoryById.get(item.id)!.location} className="max-w-[75%]" />
+                                            <ActivityBadge activity={directoryById.get(item.id)!.activity} />
+                                        </div>
+                                    )}
                                     {item.phone && (
                                         <div className="flex items-center gap-2 text-xs text-slate-600">
                                             <Phone size={14} className="text-slate-400" /> {item.phone}
@@ -692,6 +823,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     </div>
                 )}
             </div>
+            )}
             </div>
         </div>
     );

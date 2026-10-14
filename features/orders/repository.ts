@@ -9,6 +9,9 @@ export const ordersRepository = {
   getCustomers: () => api.getCustomers(),
   saveCustomer: (customer: Customer) => api.saveCustomer(customer),
   updateCustomer: (customerId: string, customer: Customer) => api.updateCustomer(customerId, customer),
+  /** Manual map pin; `null` clears it so the pin is derived from the address again. */
+  updateCustomerLocation: (customerId: string, coords: readonly [number, number] | null) =>
+    api.updateCustomer(customerId, { latitude: coords ? coords[0] : null, longitude: coords ? coords[1] : null }),
   deleteCustomer: (customerId: string) => api.deleteCustomer(customerId),
   saveOrder: (order: Order) => api.saveOrder(order),
   updateOrder: (order: Order, isNewPart?: boolean) => api.updateOrder(order, isNewPart),

@@ -62,6 +62,8 @@ import RepairStageBadge from './customerService/RepairStageBadge';
 import CustomerServiceQuickForm from './customerService/CustomerServiceQuickForm';
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
+import { RegionPill } from './customers/customerUi';
+import { resolveCustomerLocation } from '../features/customers/customerLocation';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -70,6 +72,8 @@ export interface CustomerDetailsModalProps {
     onUpdate: (c: Customer) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     onPrintOrder?: (o: Order) => void;
+    /** Shown as a "Στον χάρτη" action next to the derived Περιοχή badge. */
+    onShowOnMap?: () => void;
 }
 
 const inputClass =
@@ -118,8 +122,10 @@ export default function CustomerDetailsModal({
     onUpdate,
     onDelete,
     onPrintOrder,
+    onShowOnMap,
 }: CustomerDetailsModalProps) {
     const isRetailSystemCustomer = customer.id === RETAIL_CUSTOMER_ID;
+    const customerLocation = useMemo(() => resolveCustomerLocation(customer), [customer]);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
@@ -511,6 +517,20 @@ export default function CustomerDetailsModal({
                                         >
                                             {stats.statusMarker}
                                         </span>
+                                    )}
+                                    {!isRetailSystemCustomer && !isEditing && (
+                                        onShowOnMap ? (
+                                            <button
+                                                type="button"
+                                                onClick={onShowOnMap}
+                                                className="rounded-full transition hover:brightness-95"
+                                                title="Εμφάνιση στον χάρτη"
+                                            >
+                                                <RegionPill location={customerLocation} />
+                                            </button>
+                                        ) : (
+                                            <RegionPill location={customerLocation} />
+                                        )
                                     )}
                                 </div>
                                 {!isRetailSystemCustomer && !isEditing && (

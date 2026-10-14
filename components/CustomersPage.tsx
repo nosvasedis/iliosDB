@@ -1,133 +1,207 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
-import { Users, Plus, Search, Phone, Mail, MapPin, Clock } from 'lucide-react';
+import {
+  Activity, ArrowDownWideNarrow, ArrowUpNarrowWide, LayoutGrid, List, Loader2, Map as MapIcon, MapPinOff,
+  Plus, Search, SlidersHorizontal, Sparkles, UserPlus, Users, X,
+} from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import CreateCustomerModal from './CreateCustomerModal';
-import { normalizedIncludes } from '../utils/greekSearch';
 import { ordersRepository } from '../features/orders';
 import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import DesktopPageHeader from './DesktopPageHeader';
+import {
+  ACTIVITY_META,
+  CUSTOMER_SORT_OPTIONS,
+  matchesCustomerSearch,
+  matchesRegionFilter,
+  NO_REGION_KEY,
+  regionFilterLabel,
+  sortCustomerDirectory,
+  type CustomerActivity,
+  type CustomerDirectoryEntry,
+  type CustomerSortKey,
+  type RegionFilterKey,
+  type SortDirection,
+} from '../features/customers/customerLocation';
+import { GREEK_PERIFERIES } from '../features/customers/greekRegions';
+import { useCustomerDirectory } from './customers/useCustomerDirectory';
+import CustomerCard, { SystemCustomerCard } from './customers/CustomerCard';
+import CustomerListView from './customers/CustomerListView';
+import CustomerRegionFilter from './customers/CustomerRegionFilter';
+
+const CustomersMap = React.lazy(() => import('./customers/CustomersMap'));
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
 }
 
-// --- CUSTOMER CARD COMPONENT ---
-interface CustomerCardProps {
-    customer: Customer;
-    onClick: () => void;
-    latestOrderDate?: string;
-    isSystem?: boolean;
+type ViewMode = 'cards' | 'list' | 'map';
+
+const STORAGE_KEY = 'ilios.customersPage.v2';
+
+interface StoredPrefs { view?: ViewMode; regions?: RegionFilterKey[]; sortKey?: CustomerSortKey; sortDir?: SortDirection }
+
+function readPrefs(): StoredPrefs {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) as StoredPrefs : {};
+    } catch {
+        return {};
+    }
 }
 
-const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOrderDate, isSystem }) => {
+function writePrefs(prefs: StoredPrefs) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable */ }
+}
+
+const VIEW_OPTIONS: Array<{ id: ViewMode; label: string; icon: typeof LayoutGrid }> = [
+    { id: 'cards', label: 'Κάρτες', icon: LayoutGrid },
+    { id: 'list', label: 'Λίστα', icon: List },
+    { id: 'map', label: 'Χάρτης', icon: MapIcon },
+];
+
+const ACTIVITY_FILTERS: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
+
+function KpiTile({ icon: Icon, label, value, hint, tone, active, onClick }: {
+    icon: typeof Users; label: string; value: React.ReactNode; hint?: string;
+    tone: string; active?: boolean; onClick?: () => void;
+}) {
     return (
-        <div
+        <button
+            type="button"
             onClick={onClick}
-            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer relative overflow-hidden flex flex-col h-full"
+            disabled={!onClick}
+            className={`flex min-w-0 items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${active
+                ? 'border-[#060b00] bg-[#060b00] text-white shadow-lg'
+                : 'border-slate-100 bg-slate-50/60 hover:border-slate-200 hover:bg-white disabled:hover:border-slate-100 disabled:hover:bg-slate-50/60'}`}
         >
-            <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">
-                    {customer.full_name.charAt(0).toUpperCase()}
-                </div>
-                {latestOrderDate && (
-                    <div className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full flex items-center gap-1">
-                        <Clock size={10} /> {new Date(latestOrderDate).toLocaleDateString('el-GR')}
-                    </div>
-                )}
-            </div>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/15 text-white' : tone}`}>
+                <Icon size={18} />
+            </span>
+            <span className="min-w-0">
+                <span className="block text-lg font-black leading-none tabular-nums">{value}</span>
+                <span className={`mt-1 block truncate text-[11px] font-bold ${active ? 'text-white/70' : 'text-slate-500'}`}>{label}</span>
+                {hint && <span className={`block truncate text-[10px] ${active ? 'text-white/50' : 'text-slate-400'}`}>{hint}</span>}
+            </span>
+        </button>
+    );
+}
 
-            <div className="mb-2">
-                <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={customer.full_name}>
-                        {customer.full_name}
-                    </h3>
-                    {isSystem && (
-                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
-                            Σύστημα
-                        </span>
-                    )}
-                </div>
-                {customer.customer_code && (
-                    <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">Κωδικός: {customer.customer_code}</div>
-                )}
-                {isSystem ? (
-                    <p className="text-[10px] text-slate-500 leading-snug mt-1">
-                        Πολλοί τελικοί πελάτες· χωρίς κοινό ΑΦΜ ή διεύθυνση εδώ.
-                    </p>
-                ) : (
-                    customer.vat_number && (
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
-                    )
-                )}
+function CardSkeleton() {
+    return (
+        <div className="h-[244px] animate-pulse rounded-3xl border border-slate-100 bg-white p-5">
+            <div className="flex gap-3">
+                <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+                <div className="flex-1 space-y-2 pt-1"><div className="h-3 w-3/4 rounded bg-slate-100" /><div className="h-2.5 w-1/2 rounded bg-slate-100" /></div>
             </div>
-
-            <div className="mt-auto pt-3 border-t border-slate-50 space-y-1.5">
-                {isSystem ? (
-                    <div className="text-[10px] text-slate-400 italic">Ανοίξτε για στατιστικά και ιστορικό παραγγελιών.</div>
-                ) : (
-                    <>
-                        {customer.phone ? (
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <Phone size={12} className="text-slate-400" /> {customer.phone}
-                            </div>
-                        ) : (
-                            <div className="h-4" />
-                        )}
-                        {customer.address ? (
-                            <div className="flex items-center gap-2 text-xs text-slate-600 truncate">
-                                <MapPin size={12} className="text-slate-400 shrink-0" /> {customer.address}
-                            </div>
-                        ) : (
-                            <div className="h-4" />
-                        )}
-                    </>
-                )}
-            </div>
+            <div className="mt-5 h-4 w-1/2 rounded-full bg-slate-100" />
+            <div className="mt-5 h-14 rounded-2xl bg-slate-50" />
         </div>
     );
-};
+}
 
 export default function CustomersPage({ onPrintOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: customers } = useCustomers();
     const { data: orders } = useOrdersWithItems();
+    const { directory, regionCounts, saveLocation, canEditLocation } = useCustomerDirectory(customers, orders);
 
-    // UI State
+    const initialPrefs = useMemo(readPrefs, []);
+    const [view, setViewState] = useState<ViewMode>(initialPrefs.view ?? 'cards');
+    const [regions, setRegionsState] = useState<RegionFilterKey[]>(initialPrefs.regions ?? []);
+    const [sortKey, setSortKey] = useState<CustomerSortKey>(initialPrefs.sortKey ?? 'name');
+    const [sortDir, setSortDir] = useState<SortDirection>(initialPrefs.sortDir ?? 'asc');
+    const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showRegionPanel, setShowRegionPanel] = useState(false);
+    const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number } | null>(null);
+
     const [isCreating, setIsCreating] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-    // Filter Logic
-    const filteredCustomers = useMemo(() => {
-        if (!customers) return [];
-        return customers.filter(c =>
-            normalizedIncludes(c.full_name, searchTerm) ||
-            (c.phone && c.phone.includes(searchTerm)) ||
-            (c.customer_code && c.customer_code.includes(searchTerm)) ||
-            (c.vat_number && c.vat_number.includes(searchTerm)) ||
-            (c.profession && normalizedIncludes(c.profession, searchTerm))
-        ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
-    }, [customers, searchTerm]);
+    const persist = useCallback((patch: StoredPrefs) => {
+        writePrefs({ view, regions, sortKey, sortDir, ...patch });
+    }, [view, regions, sortKey, sortDir]);
 
-    // Map latest order dates for quick view
-    const latestOrdersMap = useMemo(() => {
-        if (!orders) return {};
-        const map: Record<string, string> = {};
-        orders.forEach(o => {
-            const cid = o.customer_id;
-            if (cid) {
-                if (!map[cid] || new Date(o.created_at) > new Date(map[cid])) {
-                    map[cid] = o.created_at;
-                }
-            }
+    const setView = (next: ViewMode) => { setViewState(next); persist({ view: next }); };
+    const setRegions = (next: RegionFilterKey[]) => { setRegionsState(next); persist({ regions: next }); };
+    const applySort = (key: CustomerSortKey, dir?: SortDirection) => {
+        const nextDir = dir ?? (key === sortKey
+            ? (sortDir === 'asc' ? 'desc' : 'asc')
+            : CUSTOMER_SORT_OPTIONS.find(o => o.key === key)?.defaultDir ?? 'asc');
+        setSortKey(key);
+        setSortDir(nextDir);
+        persist({ sortKey: key, sortDir: nextDir });
+    };
+
+    // --- Derived data -------------------------------------------------------
+    const regular = useMemo(() => directory.filter(e => !e.isSystem), [directory]);
+    const systemEntry = useMemo(() => directory.find(e => e.isSystem) ?? null, [directory]);
+
+    const filtered = useMemo(() => regular.filter(e =>
+        matchesRegionFilter(e.location, regions)
+        && (!activityFilter || e.activity === activityFilter)
+        && matchesCustomerSearch(e, searchTerm)
+    ), [regular, regions, activityFilter, searchTerm]);
+
+    const sorted = useMemo(() => sortCustomerDirectory(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+
+    const showSystem = Boolean(systemEntry) && regions.length === 0 && !activityFilter
+        && (!searchTerm || matchesCustomerSearch(systemEntry as CustomerDirectoryEntry, searchTerm));
+
+    const groups = useMemo(() => {
+        if (sortKey !== 'region') return null;
+        const order = [...GREEK_PERIFERIES.map(p => p.id), '__none'];
+        const byRegion = new Map<string, CustomerDirectoryEntry[]>();
+        sorted.forEach(e => {
+            const id = e.location.periferiaId ?? '__none';
+            byRegion.set(id, [...(byRegion.get(id) ?? []), e]);
         });
-        return map;
-    }, [orders]);
+        const ids = [...byRegion.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        if (sortDir === 'desc') ids.reverse();
+        return ids.map(id => ({
+            id,
+            label: id === '__none' ? 'Χωρίς περιοχή' : GREEK_PERIFERIES.find(p => p.id === id)?.label ?? id,
+            entries: byRegion.get(id) ?? [],
+        }));
+    }, [sorted, sortKey, sortDir]);
+
+    const kpis = useMemo(() => ({
+        total: regular.length,
+        active: regular.filter(e => e.activity === 'active').length,
+        units: Object.keys(regionCounts.units).length,
+        periferies: Object.keys(regionCounts.periferia).length,
+        noRegion: regionCounts.none,
+    }), [regular, regionCounts]);
+
+    const hasFilters = regions.length > 0 || Boolean(activityFilter) || Boolean(searchTerm);
+    const clearFilters = () => { setRegions([]); setActivityFilter(null); setSearchTerm(''); };
+
+    // --- Actions ------------------------------------------------------------
+    const openCustomer = (c: Customer) => { setSelectedCustomer(c); setIsCreating(false); };
+    const showOnMap = (entry: CustomerDirectoryEntry) => {
+        setView('map');
+        setFocusRequest({ id: entry.customer.id, nonce: Date.now() });
+    };
+
+    const startCreate = () => {
+        setSelectedCustomer({
+            id: crypto.randomUUID(),
+            full_name: '',
+            phone: '',
+            email: '',
+            vat_number: '',
+            vat_rate: VatRegime.Standard,
+            address: '',
+            notes: '',
+            created_at: new Date().toISOString()
+        });
+        setIsCreating(true);
+    };
 
     const handleCreateCustomer = async (c: Customer) => {
         if (c.full_name.trim() === RETAIL_CUSTOMER_NAME) {
@@ -172,64 +246,263 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         }
     };
 
-    return (
-        <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
+    const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null) => {
+        try {
+            await saveLocation(customerId, coords);
+            showToast(coords ? 'Η θέση στον χάρτη αποθηκεύτηκε.' : 'Επαναφορά στην αυτόματη θέση.', 'success');
+        } catch (e) {
+            showToast('Η αποθήκευση της θέσης απέτυχε.', 'error');
+            throw e;
+        }
+    };
 
+    // --- Render ---------------------------------------------------------------
+    const regionFilterPanel = (
+        <CustomerRegionFilter counts={regionCounts} selection={regions} onChange={setRegions} className="h-full" />
+    );
+
+    const renderCards = (list: CustomerDirectoryEntry[]) => (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {list.map(entry => (
+                <CustomerCard
+                    key={entry.customer.id}
+                    entry={entry}
+                    onOpen={() => openCustomer(entry.customer)}
+                    onShowOnMap={() => showOnMap(entry)}
+                />
+            ))}
+        </div>
+    );
+
+    const isLoading = !customers;
+    const emptyState = !isLoading && sorted.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/60 py-20 text-center">
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                {regular.length === 0 ? <UserPlus size={26} /> : <Search size={24} />}
+            </div>
+            <div className="text-base font-black text-slate-700">
+                {regular.length === 0 ? 'Δεν υπάρχουν ακόμα πελάτες' : 'Κανένας πελάτης δεν ταιριάζει'}
+            </div>
+            <div className="mt-1 text-sm text-slate-400">
+                {regular.length === 0 ? 'Προσθέστε τον πρώτο σας πελάτη.' : 'Δοκιμάστε άλλη αναζήτηση ή αφαιρέστε φίλτρα.'}
+            </div>
+            {regular.length === 0 ? (
+                <button type="button" onClick={startCreate} className="mt-5 flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-black">
+                    <Plus size={16} /> Νέος πελάτης
+                </button>
+            ) : hasFilters && (
+                <button type="button" onClick={clearFilters} className="mt-5 flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200">
+                    <X size={16} /> Καθαρισμός φίλτρων
+                </button>
+            )}
+        </div>
+    );
+
+    return (
+        <div className="flex h-[calc(100vh-100px)] flex-col gap-4">
             <DesktopPageHeader
                 icon={Users}
                 title="Πελάτες"
-                subtitle="Διαχείριση πελατολογίου και ιστορικού."
+                subtitle={customers
+                    ? `${kpis.total} πελάτες σε ${kpis.periferies} περιφέρειες της Ελλάδας`
+                    : 'Διαχείριση πελατολογίου και ιστορικού.'}
                 tail={(
                     <>
-                        <div className="relative group min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
+                        <div className="relative min-w-[14rem] flex-1 md:max-w-sm md:flex-none">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
-                                placeholder="Αναζήτηση πελάτη..."
+                                placeholder="Όνομα, τηλέφωνο, ΑΦΜ, πόλη…"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                             />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            {searchTerm && (
+                                <button type="button" onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Καθαρισμός αναζήτησης">
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Προβολή">
+                            {VIEW_OPTIONS.map(opt => {
+                                const Icon = opt.icon;
+                                const active = view === opt.id;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={active}
+                                        onClick={() => setView(opt.id)}
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        <Icon size={15} /> {opt.label}
+                                    </button>
+                                );
+                            })}
                         </div>
                         <button
                             type="button"
-                            onClick={() => {
-                                setSelectedCustomer({
-                                    id: crypto.randomUUID(),
-                                    full_name: '',
-                                    phone: '',
-                                    email: '',
-                                    vat_number: '',
-                                    vat_rate: VatRegime.Standard,
-                                    address: '',
-                                    notes: '',
-                                    created_at: new Date().toISOString()
-                                });
-                                setIsCreating(true);
-                            }}
-                            className="rounded-xl bg-[#060b00] p-3.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
-                            title="Νέος Πελάτης"
+                            onClick={startCreate}
+                            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
                         >
-                            <Plus size={22} strokeWidth={3} />
+                            <Plus size={18} strokeWidth={3} /> Νέος πελάτης
                         </button>
                     </>
                 )}
+                below={(
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <KpiTile icon={Users} label="Πελάτες" value={kpis.total} hint="Χωρίς τη Λιανική" tone="bg-slate-900/5 text-slate-700"
+                            active={!hasFilters} onClick={hasFilters ? clearFilters : undefined} />
+                        <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint="Παραγγελία σε 90 ημέρες" tone="bg-emerald-50 text-emerald-600"
+                            active={activityFilter === 'active'} onClick={() => setActivityFilter(activityFilter === 'active' ? null : 'active')} />
+                        <KpiTile icon={MapIcon} label="Περιοχές" value={kpis.units} hint={`${kpis.periferies} περιφέρειες`} tone="bg-sky-50 text-sky-600"
+                            active={view === 'map'} onClick={() => setView('map')} />
+                        <KpiTile icon={MapPinOff} label="Χωρίς περιοχή" value={kpis.noRegion} hint="Ελλιπής διεύθυνση / ΤΚ" tone="bg-amber-50 text-amber-600"
+                            active={regions.length === 1 && regions[0] === NO_REGION_KEY}
+                            onClick={kpis.noRegion ? () => setRegions(regions.length === 1 && regions[0] === NO_REGION_KEY ? [] : [NO_REGION_KEY]) : undefined} />
+                    </div>
+                )}
             />
 
-            {/* Content Area */}
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredCustomers.map(c => (
-                        <CustomerCard
-                            key={c.id}
-                            customer={c}
-                            onClick={() => { setSelectedCustomer(c); setIsCreating(false); }}
-                            latestOrderDate={latestOrdersMap[c.id]}
-                            isSystem={c.id === RETAIL_CUSTOMER_ID}
-                        />
-                    ))}
-                    {filteredCustomers.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 italic">Δεν βρέθηκαν πελάτες.</div>}
-                </div>
+            <div className="flex min-h-0 flex-1 gap-4">
+                <aside className="hidden w-72 shrink-0 flex-col rounded-3xl border border-slate-100 bg-white p-4 shadow-sm lg:flex">
+                    {regionFilterPanel}
+                </aside>
+
+                <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+                    {/* Toolbar */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowRegionPanel(v => !v)}
+                            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition lg:hidden ${regions.length ? 'border-sky-200 bg-sky-50 text-sky-800' : 'border-slate-200 bg-white text-slate-600'}`}
+                        >
+                            <SlidersHorizontal size={14} /> Περιοχές{regions.length ? ` (${regions.length})` : ''}
+                        </button>
+
+                        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setActivityFilter(null)}
+                                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${!activityFilter ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                Όλοι
+                            </button>
+                            {ACTIVITY_FILTERS.map(a => (
+                                <button
+                                    key={a}
+                                    type="button"
+                                    title={ACTIVITY_META[a].hint}
+                                    onClick={() => setActivityFilter(activityFilter === a ? null : a)}
+                                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${activityFilter === a ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    <span className={`h-2 w-2 rounded-full ${ACTIVITY_META[a].dot}`} /> {ACTIVITY_META[a].label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {regions.map(key => (
+                            <span key={key} className="flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-3 pr-1 text-[11px] font-bold text-sky-900">
+                                {regionFilterLabel(key)}
+                                <button type="button" onClick={() => setRegions(regions.filter(k => k !== key))} className="rounded-full p-0.5 hover:bg-sky-200" aria-label="Αφαίρεση φίλτρου">
+                                    <X size={12} />
+                                </button>
+                            </span>
+                        ))}
+                        {hasFilters && (
+                            <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-[11px] font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                Καθαρισμός όλων
+                            </button>
+                        )}
+
+                        <span className="flex-1" />
+                        <span className="text-xs font-bold text-slate-400">
+                            {sorted.length} {sorted.length === 1 ? 'πελάτης' : 'πελάτες'}
+                        </span>
+                        {view !== 'map' && (
+                            <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                                <select
+                                    value={sortKey}
+                                    onChange={e => applySort(e.target.value as CustomerSortKey, CUSTOMER_SORT_OPTIONS.find(o => o.key === e.target.value)?.defaultDir)}
+                                    className="cursor-pointer rounded-lg bg-transparent py-1 pl-2 pr-1 text-[11px] font-bold text-slate-700 outline-none"
+                                    aria-label="Ταξινόμηση"
+                                >
+                                    {CUSTOMER_SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => applySort(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
+                                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                    title={sortDir === 'asc' ? 'Αύξουσα' : 'Φθίνουσα'}
+                                >
+                                    {sortDir === 'asc' ? <ArrowUpNarrowWide size={14} /> : <ArrowDownWideNarrow size={14} />}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {showRegionPanel && (
+                        <div className="max-h-[50vh] rounded-3xl border border-slate-100 bg-white p-4 shadow-lg lg:hidden">
+                            {regionFilterPanel}
+                        </div>
+                    )}
+
+                    {/* Content */}
+                    {view === 'map' ? (
+                        <Suspense fallback={(
+                            <div className="flex flex-1 items-center justify-center rounded-3xl border border-slate-100 bg-white text-sm font-bold text-slate-400">
+                                <Loader2 className="mr-2 animate-spin" size={18} /> Φόρτωση χάρτη…
+                            </div>
+                        )}>
+                            <CustomersMap
+                                className="flex-1"
+                                entries={sorted}
+                                focusRequest={focusRequest}
+                                onOpenCustomer={openCustomer}
+                                onSaveLocation={handleSaveLocation}
+                                canEditLocation={canEditLocation}
+                            />
+                        </Suspense>
+                    ) : (
+                        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pb-16 pr-1">
+                            {showSystem && systemEntry && (
+                                <div className="mb-4">
+                                    <SystemCustomerCard entry={systemEntry} onOpen={() => openCustomer(systemEntry.customer)} />
+                                </div>
+                            )}
+
+                            {isLoading ? (
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                    {Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
+                                </div>
+                            ) : emptyState || (view === 'list' ? (
+                                <CustomerListView
+                                    entries={sorted}
+                                    sortKey={sortKey}
+                                    sortDir={sortDir}
+                                    onSort={key => applySort(key)}
+                                    onOpen={entry => openCustomer(entry.customer)}
+                                    onShowOnMap={showOnMap}
+                                />
+                            ) : groups ? (
+                                <div className="space-y-6">
+                                    {groups.map(group => (
+                                        <section key={group.id}>
+                                            <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center gap-2 bg-gradient-to-b from-[#f8fafc] via-[#f8fafc]/95 to-transparent px-1 pb-2 pt-1">
+                                                <Sparkles size={14} className="text-sky-500" />
+                                                <h2 className="text-sm font-black text-slate-800">{group.label}</h2>
+                                                <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-black text-slate-600">{group.entries.length}</span>
+                                                <span className="h-px flex-1 bg-slate-200" />
+                                            </div>
+                                            {renderCards(group.entries)}
+                                        </section>
+                                    ))}
+                                </div>
+                            ) : renderCards(sorted))}
+                        </div>
+                    )}
+                </main>
             </div>
 
             {/* View/Edit Modal */}
@@ -241,6 +514,12 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     onUpdate={handleUpdateCustomer}
                     onDelete={handleDeleteCustomer}
                     onPrintOrder={onPrintOrder}
+                    onShowOnMap={() => {
+                        const entry = directory.find(e => e.customer.id === selectedCustomer.id);
+                        setSelectedCustomer(null);
+                        if (entry?.location.coords) showOnMap(entry);
+                        else setView('map');
+                    }}
                 />
             )}
 
