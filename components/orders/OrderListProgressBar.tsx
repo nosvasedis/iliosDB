@@ -27,6 +27,10 @@ type Props = {
   shippedQty?: number;
   /** Hide the compact numeric label when the parent renders a custom readiness badge. */
   showPercentLabel?: boolean;
+  /** Desktop only: stretch across the parent instead of capping the width. */
+  fullWidth?: boolean;
+  /** Desktop only: rendered after the bar on the same line (e.g. a custom percentage). */
+  trailing?: React.ReactNode;
 };
 
 type DesktopExpandedBreakdown =
@@ -246,7 +250,7 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
  * Παραγγελίες list: progress next to status.
  * Σε Παραγωγή / Μερική Παράδοση: συμπαγής μπάρα — σε desktop με ανάπτυγμα (ανά στάδιο, με σωστή σημασιολογία για μερική παράδοση).
  */
-export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty, showPercentLabel = true }: Props) {
+export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty, showPercentLabel = true, fullWidth = false, trailing }: Props) {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const expandedBreakdown = useDesktopExpandedBreakdown(order, batches, density, shippedQty);
 
@@ -262,6 +266,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
       : null;
 
   const outerMobile = 'flex items-center gap-2 w-full max-w-full min-w-0';
+  const outerDesktop = `flex min-w-0 w-full flex-col gap-1.5 ${fullWidth ? '' : 'max-w-[min(100%,22rem)]'}`;
 
   const chevronButton = (
     <button
@@ -313,12 +318,13 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
     }
 
     return (
-      <div className="flex min-w-0 w-full max-w-[min(100%,22rem)] flex-col gap-1.5" title={mainTitle}>
+      <div className={outerDesktop} title={mainTitle}>
         <div className="flex min-w-0 items-center gap-1">
           {chevronButton}
           <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${stagesExpanded ? 'max-w-none' : ''}`}>
             {bar}
             {showPercentLabel && pctLabel}
+            {trailing}
           </div>
         </div>
 
@@ -408,12 +414,13 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
     const stageBreakdown = expandedBreakdown?.mode === 'inProduction' ? expandedBreakdown.stageBreakdown : null;
 
     return (
-      <div className="flex min-w-0 w-full max-w-[min(100%,22rem)] flex-col gap-1.5" title={title}>
+      <div className={outerDesktop} title={title}>
         <div className="flex min-w-0 items-center gap-1">
           {chevronButton}
           <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${stagesExpanded ? 'max-w-none' : ''}`}>
             {bar}
             {showPercentLabel && pctLabel}
+            {trailing}
           </div>
         </div>
 

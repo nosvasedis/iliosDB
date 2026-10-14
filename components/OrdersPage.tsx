@@ -18,6 +18,7 @@ import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness, getOrderReadinessPercent, isOrderReady, isOrderReadyForShipment } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
+import { HoverTooltip } from './ui/HoverTooltip';
 import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
@@ -91,6 +92,8 @@ const ORDER_SORT_OPTIONS: Array<{ id: OrderSortMode; label: string; helper: stri
     { id: 'amount_high', label: 'Μεγαλύτερο ποσό', helper: 'Καθαρή αξία', icon: BarChart3 },
     { id: 'amount_low', label: 'Μικρότερο ποσό', helper: 'Καθαρή αξία', icon: BarChart3 },
 ];
+
+const ORDER_STATUS_BADGE_CLASS = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-sm transition-all';
 
 function getOrderPrimaryTag(order: Order): string {
     return (order.tags || []).map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'))[0] || '';
@@ -1883,7 +1886,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         className="absolute left-0 top-0 w-full pb-2"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
-                                        <div className={`group grid w-full grid-cols-[2.25rem_minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border text-sm shadow-sm transition-[border-color,box-shadow,ring-color] ${
+                                        <div className={`group grid w-full grid-cols-[2.25rem_minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(6.5rem,0.6fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border text-sm shadow-sm transition-[border-color,box-shadow,ring-color] ${
                                             isSelected
                                                 ? ORDER_BULK_SELECTED_ROW_CLASS
                                                 : 'border-slate-200/80 bg-white ring-1 ring-transparent hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100'
@@ -1986,70 +1989,49 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="mt-1 text-base font-black text-slate-900">{formatCurrency(netValue)}</div>
                                         </div>
                                         <div className="p-4 min-w-0">
-                                            <div className="mb-2 flex items-center gap-2">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
+                                            <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
+                                            <div className="flex items-center gap-1.5">
+                                                <HoverTooltip
+                                                    label={getOrderStatusLabel(order.status)}
+                                                    hint={canAccessOrderProductionManagement(order.status) ? 'Κλικ: Διαχείριση Παραγωγής' : undefined}
+                                                >
+                                                    {canAccessOrderProductionManagement(order.status) ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
+                                                            aria-label={`${getOrderStatusLabel(order.status)} — Διαχείριση Παραγωγής`}
+                                                            className={`${ORDER_STATUS_BADGE_CLASS} ${getOrderStatusClasses(order.status)} hover:-translate-y-px hover:shadow-md`}
+                                                        >
+                                                            {getOrderStatusIcon(order.status, 15)}
+                                                        </button>
+                                                    ) : (
+                                                        <span aria-label={getOrderStatusLabel(order.status)} className={`${ORDER_STATUS_BADGE_CLASS} ${getOrderStatusClasses(order.status)}`}>
+                                                            {getOrderStatusIcon(order.status, 15)}
+                                                        </span>
+                                                    )}
+                                                </HoverTooltip>
+                                                {ready && order.status !== OrderStatus.Delivered && (
+                                                    <HoverTooltip label="Έτοιμη 100% · Αποστολή" hint="Κλικ: δημιουργία αποστολής">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); void openShipmentModal(order, 'full'); }}
+                                                            aria-label="Αποστολή παραγγελίας"
+                                                            className={`${ORDER_STATUS_BADGE_CLASS} border-emerald-600 bg-emerald-600 text-white ring-2 ring-emerald-100 hover:-translate-y-px hover:bg-emerald-700 hover:shadow-md`}
+                                                        >
+                                                            <Truck size={15} />
+                                                        </button>
+                                                    </HoverTooltip>
+                                                )}
+                                                {!ready && orderMeta?.fullyShipped && order.status === OrderStatus.PartiallyDelivered && (
+                                                    <HoverTooltip label="Όλα τα τεμάχια απεστάλησαν" hint="Κλικ: ολοκλήρωση παραγγελίας">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); void handleMarkOrderDelivered(order); }}
+                                                            aria-label="Ολοκλήρωση παραγγελίας"
+                                                            className={`${ORDER_STATUS_BADGE_CLASS} border-slate-700 bg-slate-700 text-white ring-2 ring-slate-100 hover:-translate-y-px hover:bg-slate-800 hover:shadow-md`}
+                                                        >
+                                                            <PackageCheck size={15} />
+                                                        </button>
+                                                    </HoverTooltip>
+                                                )}
                                             </div>
-                                            {(() => {
-                                                const canShip = ready && order.status !== OrderStatus.Delivered;
-                                                const canClose = !ready && !!orderMeta?.fullyShipped && order.status === OrderStatus.PartiallyDelivered;
-                                                const showProgress = !ready
-                                                    && order.status !== OrderStatus.Delivered
-                                                    && order.status !== OrderStatus.Cancelled;
-                                                const pillBase = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black leading-none shadow-sm transition-all';
-                                                const actionBase = 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-black leading-none text-white shadow-sm transition-all hover:-translate-y-px hover:shadow-md';
-                                                const statusContent = (
-                                                    <>
-                                                        {getOrderStatusIcon(order.status, 13)}
-                                                        {getOrderStatusLabel(order.status)}
-                                                    </>
-                                                );
-                                                return (
-                                                    <div className="flex min-w-0 flex-col items-start gap-2">
-                                                        {canAccessOrderProductionManagement(order.status) ? (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
-                                                                title="Διαχείριση Παραγωγής"
-                                                                className={`${pillBase} ${getOrderStatusClasses(order.status)} hover:-translate-y-px hover:shadow-md`}
-                                                            >
-                                                                {statusContent}
-                                                            </button>
-                                                        ) : (
-                                                            <span className={`${pillBase} ${getOrderStatusClasses(order.status)}`}>{statusContent}</span>
-                                                        )}
-                                                        {showProgress && (
-                                                            <div className="flex w-full min-w-0 items-center gap-2">
-                                                                <div className="min-w-0 flex-1">
-                                                                    <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} showPercentLabel={false} />
-                                                                </div>
-                                                                <span className="shrink-0 self-start pt-0.5 text-[10px] font-black tabular-nums text-slate-500">
-                                                                    {formatNumber(Math.max(0, orderMeta?.readinessPercent ?? 0))}%
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        {canShip && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); void openShipmentModal(order, 'full'); }}
-                                                                className={`${actionBase} bg-emerald-600 hover:bg-emerald-700`}
-                                                                title="Έτοιμη 100% — δημιουργία αποστολής"
-                                                            >
-                                                                <Truck size={13} />
-                                                                Αποστολή
-                                                                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] tabular-nums leading-none">100%</span>
-                                                            </button>
-                                                        )}
-                                                        {canClose && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); void handleMarkOrderDelivered(order); }}
-                                                                className={`${actionBase} bg-slate-700 hover:bg-slate-800`}
-                                                                title="Όλα τα τεμάχια έχουν αποσταλεί — ενημέρωση κατάστασης"
-                                                            >
-                                                                <PackageCheck size={13} />
-                                                                Ολοκλήρωση
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()}
                                         </div>
                                         <div className="p-4 text-right">
                                             <div className="flex gap-1 justify-end opacity-70 transition-opacity group-hover:opacity-100">
@@ -2072,6 +2054,30 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 )}
                                             </div>
                                         </div>
+                                        {ready && order.status !== OrderStatus.Delivered ? (
+                                            <div className="col-span-full -mt-1 flex items-center gap-1 px-4 pb-3" title="Όλα τα τεμάχια είναι έτοιμα">
+                                                <span className="w-5 shrink-0" />
+                                                <div className="h-2 flex-1 rounded-full border border-emerald-500 bg-emerald-500" />
+                                                <span className="ml-0.5 min-w-[2.25rem] shrink-0 text-right text-[10px] font-black tabular-nums text-emerald-600">100%</span>
+                                            </div>
+                                        ) : !ready && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled ? (
+                                            <div className="col-span-full -mt-1 px-4 pb-3 empty:hidden">
+                                                <OrderListProgressBar
+                                                    order={order}
+                                                    batches={batches}
+                                                    ready={ready}
+                                                    density="desktop"
+                                                    shippedQty={shippedQtyByOrderId.get(order.id)}
+                                                    showPercentLabel={false}
+                                                    fullWidth
+                                                    trailing={
+                                                        <span className="min-w-[2.25rem] shrink-0 text-right text-[10px] font-black tabular-nums text-slate-500">
+                                                            {formatNumber(Math.max(0, orderMeta?.readinessPercent ?? 0))}%
+                                                        </span>
+                                                    }
+                                                />
+                                            </div>
+                                        ) : null}
                                         </div>
                                     </div>
                                 );
