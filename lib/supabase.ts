@@ -1129,6 +1129,9 @@ export { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '..
 const getRetailCustomerPayload = (): Partial<Customer> => ({
     id: RETAIL_CUSTOMER_ID,
     full_name: RETAIL_CUSTOMER_NAME,
+    vat_number: '',
+    profession: '',
+    tax_office: '',
     phone: '',
     vat_rate: VatRegime.Standard,
     notes: '',
@@ -2482,6 +2485,9 @@ export const api = {
     },
 
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => {
+        if (c.id === RETAIL_CUSTOMER_ID) {
+            throw new Error('Η γενική καρτέλα Λιανική δεν είναι φυσικό πρόσωπο και δεν μπορεί να τροποποιηθεί. Δημιουργήστε ξεχωριστή καρτέλα για τον πελάτη.');
+        }
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
         const payload = ['phone', 'mobile_phone', 'landline_phone', 'phone_unclassified'].some(key => key in c)
             ? withCustomerPhones({ ...c }) : { ...c };
@@ -2507,12 +2513,15 @@ export const api = {
         const customers = await fetchFullTable('customers', '*', (q) => q.eq('id', RETAIL_CUSTOMER_ID));
         const existing = (customers || [])[0] as Customer | undefined;
 
-        const needsUpsert = !existing || existing.full_name !== RETAIL_CUSTOMER_NAME;
+        const needsUpsert = !existing || existing.full_name !== RETAIL_CUSTOMER_NAME
+            || Boolean(existing.vat_number || existing.profession || existing.tax_office);
         if (needsUpsert) {
-            await api.saveCustomer({
-                ...(existing || {}),
-                ...retailDefaults
-            });
+            // Only this initializer may write the shared account; never copy a person's tax identity.
+            const payload = existing
+                ? { id: RETAIL_CUSTOMER_ID, full_name: RETAIL_CUSTOMER_NAME, vat_number: '', profession: '', tax_office: '' }
+                : retailDefaults;
+            if (isInspectionModeActive()) await api.callSbz('/inspection/customer', payload);
+            else await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' });
         }
 
         return {

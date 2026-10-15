@@ -135,6 +135,11 @@ function buildRecords(options: {
 }
 
 describe('legal archive intelligence', () => {
+  it('ignores a contaminated shared retail bucket when matching a real taxpayer', () => {
+    const real = customer();
+    const [record] = buildRecords({ customers: [real, customer({ id: '00000000-0000-0000-0000-000000000003', full_name: 'Λιανική' })] });
+    expect(record.customerMatch).toMatchObject({ state: 'matched', customer: real, candidates: [real] });
+  });
   it('keeps the archive strictly wholesale and excludes all retail or unrelated AADE types', () => {
     const fimXmlDocument = legalDocument({
       id: 'fim-xml',

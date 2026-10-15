@@ -17,6 +17,10 @@ const base: Customer = {
 };
 
 describe('customer counterpart on legal documents', () => {
+  it('never copies a stale retail bucket tax identity into a document', () => {
+    const party = buildCounterpartFromCustomer({ ...base, id: '00000000-0000-0000-0000-000000000003', full_name: 'Λιανική', customer_code: '0000', vat_number: '124471700' });
+    expect(party).toMatchObject({ vat_number: '', name: '', customer_code: null, address: null });
+  });
   it('keeps Greek customers as GR with a 9-digit ΑΦΜ and the fiscal seat address', () => {
     const party = buildCounterpartFromCustomer(base);
     expect(party.country).toBe('GR');

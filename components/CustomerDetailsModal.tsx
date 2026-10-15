@@ -673,7 +673,7 @@ export default function CustomerDetailsModal({
             </section>
             <section>
                 <SectionTitle icon={Receipt} title="Φορολογικά στοιχεία" />
-                <div className="space-y-0.5">
+                {isRetailSystemCustomer ? <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600">Γενική καρτέλα λιανικών πωλήσεων, χωρίς δικό της ΑΦΜ. Για τιμολόγιο χρησιμοποιήστε ξεχωριστή καρτέλα με τα πραγματικά στοιχεία του πελάτη.</p> : <div className="space-y-0.5">
                     <InfoRow icon={Hash} label={isDomestic ? 'ΑΦΜ' : 'VAT / Tax ID'} value={customer.vat_number} mono copyValue={customer.vat_number} onCopy={copyValue} />
                     {isDomestic
                         ? <InfoRow icon={Building2} label="ΔΟΥ" value={customer.tax_office} />
@@ -694,7 +694,7 @@ export default function CustomerDetailsModal({
                             {customer.vat_exemption_legal_note && <div className="mt-0.5 font-semibold">{customer.vat_exemption_legal_note}</div>}
                         </div>
                     )}
-                </div>
+                </div>}
             </section>
             <section>
                 <SectionTitle

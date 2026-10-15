@@ -1,3 +1,4 @@
+import { RETAIL_CUSTOMER_ID } from '../../utils/retailConstants';
 import {
   Customer,
   LegalArchiveDeliveryLink,
@@ -561,9 +562,10 @@ export function buildLegalArchiveRecords(params: {
   legalLinesByDocument.forEach((lines) => lines.sort((a, b) => a.line_number - b.line_number));
   proformaLinesByDocument.forEach((lines) => lines.sort((a, b) => a.line_number - b.line_number));
 
-  const customerById = new Map(params.customers.map((customer) => [customer.id, customer]));
+  const individualCustomers = params.customers.filter((customer) => customer.id !== RETAIL_CUSTOMER_ID);
+  const customerById = new Map(individualCustomers.map((customer) => [customer.id, customer]));
   const customersByVat = new Map<string, Customer[]>();
-  params.customers.forEach((customer) => {
+  individualCustomers.forEach((customer) => {
     const vat = normalizeVatNumber(customer.vat_number);
     if (!vat) return;
     customersByVat.set(vat, [...(customersByVat.get(vat) || []), customer]);
