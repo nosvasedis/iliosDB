@@ -1,5 +1,6 @@
 import { api } from '../../lib/supabase';
 import type { AadeVatRegistryResult, CustomerVatLookupResult } from '../../types';
+import { customerPhones, splitCustomerPhone, withCustomerPhones } from './customerPhones';
 
 function registryAddress(result: AadeVatRegistryResult): string | null {
   const street = [result.address.street, result.address.number].filter(Boolean).join(' ').trim();
@@ -64,11 +65,17 @@ export function applyCustomerVatLookup<T extends {
 }>(customer: T, result: CustomerVatLookupResult): T {
   // A slow response must not populate a different AFM entered while it was loading.
   if (result.vatNumber && customer.vat_number !== result.vatNumber) return customer;
+  const current = customerPhones(customer);
+  const incoming = splitCustomerPhone(result.phone);
+  const contact = result.phone ? withCustomerPhones(customer, {
+    mobile_phone: current.mobile_phone || incoming.mobile_phone,
+    landline_phone: current.landline_phone || incoming.landline_phone,
+    phone_unclassified: current.phone_unclassified || incoming.phone_unclassified,
+  }) : customer;
   return {
-    ...customer,
+    ...contact,
     full_name: result.name || customer.full_name,
     address: result.address || customer.address,
-    phone: customer.phone || result.phone || undefined,
     email: customer.email || result.email || undefined,
     profession: result.profession || customer.profession,
     tax_office: result.taxOffice || customer.tax_office,

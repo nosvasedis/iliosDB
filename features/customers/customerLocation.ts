@@ -617,7 +617,7 @@ export function matchesCustomerSearch(entry: CustomerDirectoryEntry, term: strin
   ].filter(Boolean).map(v => placeKey(String(v))).join(' | ');
   if (haystack.includes(q)) return true;
   const digits = term.replace(/\s+/g, '');
-  return Boolean(digits) && [c.phone, c.customer_code, c.vat_number, ...customerBranches(c).map(b => b.phone), ...locations.map(l => l.postalCode)]
+  return Boolean(digits) && [c.phone, c.mobile_phone, c.landline_phone, c.phone_unclassified, c.customer_code, c.vat_number, ...customerBranches(c).map(b => b.phone), ...locations.map(l => l.postalCode)]
     .some(v => v && String(v).replace(/\s+/g, '').includes(digits));
 }
 

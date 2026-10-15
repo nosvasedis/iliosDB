@@ -1,3 +1,4 @@
+import CustomerPhoneFields from './customers/CustomerPhoneFields';
 import type { CustomerVatLookupResult } from '../types';
 import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
 import OrderCustomerName from './orders/OrderCustomerName';
@@ -606,7 +607,9 @@ export default function CustomerDetailsModal({
             <section>
                 <SectionTitle icon={Phone} title="Επικοινωνία" />
                 <div className="space-y-0.5">
-                    <InfoRow icon={Phone} label="Τηλέφωνο" value={customer.phone} href={customer.phone ? `tel:${customer.phone}` : undefined} copyValue={customer.phone} onCopy={copyValue} />
+                    <InfoRow icon={Phone} label="Κινητό" value={customer.mobile_phone} copyValue={customer.mobile_phone} onCopy={copyValue} />
+<InfoRow icon={Phone} label="Σταθερό" value={customer.landline_phone} copyValue={customer.landline_phone} onCopy={copyValue} />
+{customer.phone_unclassified && <InfoRow icon={Phone} label="Τηλέφωνο προς έλεγχο" value={customer.phone_unclassified} />}
                     <InfoRow icon={Mail} label="Email" value={customer.email} href={customer.email ? `mailto:${customer.email}` : undefined} copyValue={customer.email} onCopy={copyValue} />
                     <InfoRow
                         icon={Landmark}
@@ -1139,9 +1142,7 @@ export default function CustomerDetailsModal({
             <section className={`${sectionCard} p-5`}>
                 <SectionTitle icon={Phone} title="Επικοινωνία & διεύθυνση" />
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField label="Τηλέφωνο">
-                        <input type="tel" className={inputClass} value={editForm.phone || ''} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="69…" />
-                    </FormField>
+                    <div className="sm:col-span-2"><CustomerPhoneFields customer={editForm} onChange={setEditForm} /></div>
                     <FormField label="Email">
                         <input type="email" className={inputClass} value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} placeholder="name@example.gr" />
                     </FormField>

@@ -1,3 +1,4 @@
+import CustomerPhoneFields from '../customers/CustomerPhoneFields';
 import type { CustomerVatLookupResult } from '../../types';
 import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
 import React, { useState } from 'react';
@@ -136,13 +137,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                             <Phone size={14} className="text-emerald-500" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Επικοινωνία</span>
                         </div>
-                        <input
-                            type="tel"
-                            className={inputClass}
-                            placeholder="Τηλέφωνο"
-                            value={form.phone || ''}
-                            onChange={e => setForm({ ...form, phone: e.target.value })}
-                        />
+                        <CustomerPhoneFields customer={form} onChange={setForm} />
                         <input
                             type="email"
                             className={inputClass}

@@ -22,7 +22,7 @@ export interface MigrationValidationReport {
 type Schema = Record<string, readonly string[]>;
 
 export const MIGRATION_SCHEMAS: Schema = {
-    customers: ['id', 'full_name', 'phone', 'email', 'address', 'vat_number', 'vat_rate', 'notes', 'created_at'],
+    customers: ['id', 'full_name', 'phone', 'mobile_phone', 'landline_phone', 'phone_unclassified', 'email', 'address', 'vat_number', 'vat_rate', 'notes', 'created_at'],
     suppliers: ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'notes'],
     products: ['sku', 'prefix', 'category', 'description', 'gender', 'weight_g', 'secondary_weight_g', 'invoice_total_weight_g', 'production_type', 'supplier_id', 'supplier_sku', 'supplier_cost', 'active_price', 'selling_price', 'stock_qty', 'sample_qty', 'is_component', 'created_at'],
     product_variants: ['product_sku', 'suffix', 'description', 'stock_qty', 'active_price', 'selling_price'],
@@ -173,7 +173,7 @@ export function buildPrismaCsvFiles(migration: CanonicalMigration): Record<strin
     const suppliers = migration.entities.suppliers ?? [];
     const products = migration.entities.products ?? [];
     const stock = migration.entities.product_stock ?? [];
-    const customerColumns = ['id', 'full_name', 'phone', 'email', 'address', 'vat_number', 'vat_rate', 'notes'] as const;
+    const customerColumns = ['id', 'full_name', 'phone', 'mobile_phone', 'landline_phone', 'phone_unclassified', 'email', 'address', 'vat_number', 'vat_rate', 'notes'] as const;
     const supplierColumns = ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'notes'] as const;
     const itemColumns = ['sku', 'description', 'category', 'supplier_sku', 'weight_g', 'production_type'] as const;
     const stockColumns = ['product_sku', 'warehouse_id', 'variant_suffix', 'quantity'] as const;

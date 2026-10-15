@@ -1,3 +1,4 @@
+import { withCustomerPhones } from '../features/customers/customerPhones';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../utils/retailConstants';
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
@@ -2254,7 +2255,7 @@ export const api = {
     getCustomers: async (): Promise<Customer[]> => {
         await api.ensureRetailCustomer();
         const list = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
-        return (list as Customer[]).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'el', { sensitivity: 'base' }));
+        return (list as Customer[]).map(c => withCustomerPhones(c)).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'el', { sensitivity: 'base' }));
     },
 
     getOrdersList: async (): Promise<Order[]> => {
@@ -2482,7 +2483,8 @@ export const api = {
 
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => {
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
-        const payload = { ...c };
+        const payload = ['phone', 'mobile_phone', 'landline_phone', 'phone_unclassified'].some(key => key in c)
+            ? withCustomerPhones({ ...c }) : { ...c };
         if ((payload.full_name || '').trim() === RETAIL_CUSTOMER_NAME && payload.id !== RETAIL_CUSTOMER_ID) {
             throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
         }

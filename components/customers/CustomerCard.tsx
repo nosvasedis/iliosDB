@@ -1,3 +1,4 @@
+import CustomerPhoneDisplay from './CustomerPhoneDisplay';
 import React from 'react';
 import { Briefcase, ChevronRight, Globe2, Mail, MapPinned, Phone, Store } from 'lucide-react';
 import { ACTIVITY_META, TIER_META, formatDaysAgo, isDomesticCountry, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
@@ -80,18 +81,7 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCar
       </div>
 
       <div className="mt-auto flex items-center gap-1.5 pt-4">
-        {customer.phone ? (
-          <a
-            href={`tel:${customer.phone}`}
-            onClick={e => e.stopPropagation()}
-            className="flex min-w-0 items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
-            title="Κλήση"
-          >
-            <Phone size={13} className="shrink-0" /> <span className="truncate">{customer.phone}</span>
-          </a>
-        ) : (
-          <span className="px-2 py-1.5 text-[11px] italic text-slate-300">Χωρίς τηλέφωνο</span>
-        )}
+        <CustomerPhoneDisplay customer={customer} />
         <span className="flex-1" />
         {customer.email && (
           <a

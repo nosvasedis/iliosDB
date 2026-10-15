@@ -37,8 +37,24 @@ describe('inspection snapshot database contracts', () => {
     `);
     await db.exec(readFileSync('supabase/migrations/20261013094725_inspection_evidence_snapshot.sql','utf8'));
     await db.exec(readFileSync('supabase/migrations/20261013095519_inspection_snapshot_capacity.sql','utf8'));
+    await db.exec("CREATE SCHEMA IF NOT EXISTS private; ALTER TABLE customers ADD COLUMN country text DEFAULT 'GR';");
+    await db.exec(readFileSync('supabase/migrations/20261015083228_customer_mobile_landline.sql','utf8'));
   }, 60000);
   afterAll(async () => { await db?.close(); });
+  it('preserves separate phones through server-only customer saves and support reads', async () => {
+    await db.exec('SET ROLE service_role');
+    const id = '40000000-0000-4000-8000-000000000099';
+    try {
+      const { rows } = await db.query<any>('SELECT save_inspection_customer($1) AS customer', [{
+        id, full_name: 'Phone roundtrip', mobile_phone: '+35799699023', landline_phone: '2101234567', phone_unclassified: '',
+      }]);
+      expect(rows[0].customer).toMatchObject({ mobile_phone: '+35799699023', landline_phone: '2101234567', phone: '+35799699023 / 2101234567' });
+      const support = await db.query<any>('SELECT get_inspection_support() AS support');
+      expect(support.rows[0].support.customers.find((c: any) => c.id === id).mobile_phone).toBe('+35799699023');
+      const legacy = await db.query<any>('SELECT save_inspection_customer($1) AS customer', [{ id, phone: '6912345678' }]);
+      expect(legacy.rows[0].customer).toMatchObject({ mobile_phone: '6912345678', landline_phone: '', phone: '6912345678' });
+    } finally { await db.exec('RESET ROLE'); }
+  });
   it('returns all matching documents and lines without a REST page limit, and preserves unknown environments', async () => {
     await db.exec('SET ROLE service_role');
     try {

@@ -1,3 +1,4 @@
+import CustomerPhoneDisplay from './CustomerPhoneDisplay';
 import React from 'react';
 import { ArrowDown, ArrowUp, MapPinned } from 'lucide-react';
 import {
@@ -76,7 +77,7 @@ export default function CustomerListView({ entries, sortKey, sortDir, onSort, on
                   </div>
                 </td>
                 <td className="hidden px-3 py-2.5 xl:table-cell"><RegionPill location={location} /></td>
-                <td className="hidden truncate px-3 py-2.5 text-xs font-semibold text-slate-600 xl:table-cell">{customer.phone || <span className="text-slate-300">—</span>}</td>
+                <td className="hidden truncate px-3 py-2.5 text-xs font-semibold text-slate-600 xl:table-cell"><CustomerPhoneDisplay customer={customer} /></td>
                 <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-700">{entry.orderCount || <span className="text-slate-300">0</span>}</td>
                 <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-700" title="Χωρίς ΦΠΑ, από 1 Ιανουαρίου έως σήμερα">{formatCurrency(entry.yearRevenue)}</td>
                 <td className="hidden px-3 py-2.5 text-right text-xs font-semibold text-slate-500 lg:table-cell" title={entry.lastOrderAt ? new Date(entry.lastOrderAt).toLocaleDateString('el-GR') : undefined}>

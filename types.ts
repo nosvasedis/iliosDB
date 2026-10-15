@@ -529,6 +529,10 @@ export interface Customer {
   customer_code?: string;
   full_name: string;
   phone?: string;
+  mobile_phone?: string | null;
+  landline_phone?: string | null;
+  /** Legacy numbers that cannot safely be classified automatically. */
+  phone_unclassified?: string | null;
   email?: string;
   address?: string;
   vat_number?: string;

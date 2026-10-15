@@ -1,3 +1,5 @@
+import CustomerPhoneDisplay from '../customers/CustomerPhoneDisplay';
+import CustomerPhoneFields from '../customers/CustomerPhoneFields';
 import type { CustomerVatLookupResult } from '../../types';
 import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
 import { isRetailCustomerOrder, getOrderCustomerName } from '../../utils/orderCustomer';
@@ -552,7 +554,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                             </div>
                         )}
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
+                            {editType === 'customer' ? <div className="col-span-2"><CustomerPhoneFields customer={editData} onChange={setEditData} disabled={isRetailSystemCustomer} /></div> : <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Τηλεφωνο</label>
                                 <input
                                     value={editData.phone || ''}
@@ -561,7 +563,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                                     type="tel"
                                 />
-                            </div>
+                            </div>}
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ηλ. ταχυδρομείο</label>
                                 <input
@@ -842,7 +844,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                             <span className="text-[10px] font-bold text-slate-500">{formatCurrency(directoryById.get(item.id)!.yearRevenue)} φέτος, χωρίς ΦΠΑ</span>
                                         </div>
                                     )}
-                                    {item.phone && (
+                                    {mode === 'customers' ? <CustomerPhoneDisplay customer={item} /> : item.phone && (
                                         <div className="flex items-center gap-2 text-xs text-slate-600">
                                             <Phone size={14} className="text-slate-400" /> {item.phone}
                                         </div>

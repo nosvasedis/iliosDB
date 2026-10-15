@@ -1,3 +1,4 @@
+import CustomerPhoneFields from './customers/CustomerPhoneFields';
 import type { CustomerVatLookupResult } from '../types';
 import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
 import React, { useState, useEffect } from 'react';
@@ -209,18 +210,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                         Επικοινωνία
                                     </div>
                                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                        <div>
-                                            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                                Τηλέφωνο
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                className={inputClass}
-                                                placeholder="Τηλέφωνο"
-                                                value={form.phone || ''}
-                                                onChange={e => setForm({ ...form, phone: e.target.value })}
-                                            />
-                                        </div>
+                                        <div className="sm:col-span-2"><CustomerPhoneFields customer={form} onChange={setForm} /></div>
                                         <div>
                                             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
                                                 Email
