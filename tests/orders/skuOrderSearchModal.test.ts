@@ -121,7 +121,7 @@ describe('sku order search modal view model', () => {
 
     expect(facets.customers).toEqual([
       expect.objectContaining({
-        label: `${RETAIL_CUSTOMER_NAME} · Eleni Nikolaou`,
+        label: 'Eleni Nikolaou',
       }),
     ]);
   });

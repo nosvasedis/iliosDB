@@ -1,16 +1,17 @@
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import OrderCustomerName from '../orders/OrderCustomerName';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { api } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash, ArrowRightLeft } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash, ArrowRightLeft } from 'lucide-react';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { retailEndClientPillClass, retailOrderBagIconClass } from '../../utils/retailPresentation';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import SpecialCreationNote from '../SpecialCreationNote';
@@ -171,7 +172,7 @@ const LegacyOrderPrintSheet: React.FC<{
                     <div>
                         <h3 className="text-lg font-black text-slate-900">Εκτύπωση Παραγγελίας</h3>
                         <p className="text-xs font-bold text-slate-500 uppercase mt-1">
-                            {order.customer_name} • #{order.id.slice(-6)}
+                            <OrderCustomerName order={order} /> • #{order.id.slice(-6)}
                         </p>
                     </div>
                     <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500">
@@ -376,7 +377,7 @@ const OrderPartSelectorSheet: React.FC<{
                     <div className="min-w-0">
                         <h3 className="text-lg font-black text-slate-900">Μερική Εκτύπωση Παραγγελίας</h3>
                         <p className="mt-1 text-xs font-bold uppercase text-slate-500">
-                            {order.customer_name} • #{order.id.slice(-6)}
+                            <OrderCustomerName order={order} /> • #{order.id.slice(-6)}
                         </p>
                     </div>
                     <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500">
@@ -549,7 +550,7 @@ const OrderPrintSheet: React.FC<{
                 showToast('Η παραγγελία δεν έχει είδη για εκτύπωση.', 'info');
                 return;
             }
-            onPrintAggregated?.(syntheticBatches, { orderId: order.id, customerName: order.customer_name });
+            onPrintAggregated?.(syntheticBatches, { orderId: order.id, customerName: getOrderCustomerName(order) });
             onClose();
             return;
         }
@@ -559,7 +560,7 @@ const OrderPrintSheet: React.FC<{
             return;
         }
 
-        if (type === 'aggregated') onPrintAggregated?.(orderBatches, { orderId: order.id, customerName: order.customer_name });
+        if (type === 'aggregated') onPrintAggregated?.(orderBatches, { orderId: order.id, customerName: getOrderCustomerName(order) });
         if (type === 'preparation') onPrintPreparation?.(orderBatches);
         if (type === 'technician') onPrintTechnician?.(orderBatches);
         onClose();
@@ -674,7 +675,7 @@ const OrderPrintSheet: React.FC<{
                     <div>
                         <h3 className="text-lg font-black text-slate-900">Επιλογές Εκτύπωσης</h3>
                         <p className="mt-1 text-xs font-bold uppercase text-slate-500">
-                            {order.customer_name} • #{order.id.slice(-6)}
+                            <OrderCustomerName order={order} /> • #{order.id.slice(-6)}
                         </p>
                     </div>
                     <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500">
@@ -924,8 +925,6 @@ const OrderCard: React.FC<{
     isSelected?: boolean;
     onToggleSelect?: () => void;
 }> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {}, shippedQty, isSelected, onToggleSelect }) => {
-    const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
-    const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
     const orderBatches = useMemo(() => batches ?? [], [batches]);
     const stageProgress = useMemo(() => buildOrderProductionStageSegments(order, orderBatches), [order, orderBatches]);
@@ -985,22 +984,9 @@ const OrderCard: React.FC<{
                             <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
                         <h3 className="font-bold text-slate-800 text-base truncate">
-                            {isRetailOrder ? (
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                    <ShoppingBag size={13} className={retailOrderBagIconClass} aria-hidden />
-                                    <span className="truncate">{order.customer_name}</span>
-                                </span>
-                            ) : (
-                                order.customer_name
-                            )}
+                            <OrderCustomerName order={order} />
                         </h3>
-                        {isRetailOrder && retailClientLabel && (
-                            <div className="mt-1">
-                                <span className={retailEndClientPillClass} title="Τελικός πελάτης (λιανική)">
-                                    {retailClientLabel}
-                                </span>
-                            </div>
-                        )}
+
                         {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}{order.seller_commission_percent != null ? ` (${order.seller_commission_percent}%)` : ''}</p>}
                         {((order.items || []).some(item => item.fulfillment_mode === 'consignment')) && (
                             <div className="mt-1">
@@ -1185,10 +1171,10 @@ const OrderCard: React.FC<{
                             </div>
                         );
                     })}
-                    {order.notes && (
+                    {extractRetailClientFromNotes(order.notes).cleanNotes && (
                         <div className="mt-3 p-3 bg-yellow-50 text-yellow-800 text-xs rounded-xl border border-yellow-100 flex gap-2">
                             <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                            <span className="leading-tight">{order.notes}</span>
+                            <span className="leading-tight">{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
                         </div>
                     )}
                 </div>
@@ -1656,7 +1642,7 @@ export default function MobileOrders({
                         <div className="flex justify-between items-start mb-6">
                             <div>
                                 <h3 className="text-xl font-black text-slate-900">Διαχείριση Παραγγελίας</h3>
-                                <p className="text-xs font-bold text-slate-500 uppercase mt-1">{managingOrder.customer_name} • #{managingOrder.id.slice(-6)}{managingOrder.seller_name ? ` · ${managingOrder.seller_name}` : ''}</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase mt-1"><OrderCustomerName order={managingOrder} /> • #{managingOrder.id.slice(-6)}{managingOrder.seller_name ? ` · ${managingOrder.seller_name}` : ''}</p>
                             </div>
                             <button onClick={() => setManagingOrder(null)} className="p-2 bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>
@@ -1759,7 +1745,7 @@ export default function MobileOrders({
                         <div className="flex justify-between items-start mb-5">
                             <div>
                                 <h3 className="text-lg font-black text-slate-900">Ανάθεση Πλασιέ</h3>
-                                <p className="text-xs font-bold text-slate-500 mt-1">{sellerAssignOrder.customer_name} • #{sellerAssignOrder.id.slice(-6)}</p>
+                                <p className="text-xs font-bold text-slate-500 mt-1"><OrderCustomerName order={sellerAssignOrder} /> • #{sellerAssignOrder.id.slice(-6)}</p>
                             </div>
                             <button onClick={() => setSellerAssignOrder(null)} className="p-2 bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>

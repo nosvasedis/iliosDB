@@ -1,3 +1,5 @@
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { ProductionBatch, Order, Product, Mold, OrderStatus, ProductionStage } from '../types';
@@ -140,7 +142,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                 o.status !== OrderStatus.Cancelled
             )
             .filter(o =>
-                o.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
                 o.id.includes(searchTerm)
             )
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -330,7 +332,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                                     : <div className="w-4 h-4 rounded-full border-2 border-slate-300" />}
                                             </div>
                                             <div className="min-w-0 flex-1">
-                                                <div className="font-bold text-slate-800 text-sm truncate leading-tight">{order.customer_name}</div>
+                                                <div className="font-bold text-slate-800 text-sm truncate leading-tight"><OrderCustomerName order={order} /></div>
                                                 <div className="text-[10px] font-mono text-slate-400 mt-0.5">#{order.id.slice(0, 8)}</div>
                                                 {stageEntries.length > 0 && (
                                                     <div className="flex flex-wrap gap-1 mt-2">

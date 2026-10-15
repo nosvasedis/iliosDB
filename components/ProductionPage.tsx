@@ -1,3 +1,5 @@
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import OrderCustomerName, { CustomerNameLabel } from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -209,7 +211,7 @@ const DesktopSettingStoneModal: React.FC<{
             return {
                 key,
                 orderId: key !== '__none__' ? key : null,
-                customerName: order?.customer_name || (bs[0] as any)?.customer_name || 'Χωρίς Πελάτη',
+                customerName: (order ? getOrderCustomerName(order) : '') || (bs[0] as any)?.customer_name || 'Χωρίς Πελάτη',
                 batchCount: bs.length,
             };
         }), [orderGroups, orders]);
@@ -971,7 +973,7 @@ const QuickProductionPickerModal = ({
         const term = searchTerm.trim().toLowerCase();
         if (!term) return entries;
         return entries.filter(entry =>
-            entry.order.customer_name.toLowerCase().includes(term) ||
+            (getOrderCustomerName(entry.order) + ' ' + entry.order.customer_name).toLowerCase().includes(term) ||
             entry.order.id.toLowerCase().includes(term)
         );
     }, [entries, searchTerm]);
@@ -1056,7 +1058,7 @@ const QuickProductionPickerModal = ({
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                         <div className="min-w-0">
-                                            <div className="text-sm font-black text-slate-900 break-words">{entry.order.customer_name}</div>
+                                            <div className="text-sm font-black text-slate-900 break-words"><OrderCustomerName order={entry.order} /></div>
                                             <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(entry.order.id)}</div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
@@ -1248,7 +1250,7 @@ const AssemblyOrderSelectorModal = ({
         const term = searchTerm.trim().toLowerCase();
         if (term) {
             result = result.filter(c =>
-                c.order.customer_name.toLowerCase().includes(term) ||
+                (getOrderCustomerName(c.order) + ' ' + c.order.customer_name).toLowerCase().includes(term) ||
                 c.order.id.toLowerCase().includes(term)
             );
         }
@@ -1461,7 +1463,7 @@ const AssemblyOrderSelectorModal = ({
                                     {/* Row 1: customer / order ID / checkbox */}
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-sm font-black text-slate-900 break-words leading-snug">{candidate.order.customer_name}</div>
+                                            <div className="text-sm font-black text-slate-900 break-words leading-snug"><OrderCustomerName order={candidate.order} /></div>
                                             <div className="text-[11px] text-slate-400 font-mono mt-0.5">#{formatOrderId(candidate.order.id)}</div>
                                         </div>
                                         <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
@@ -3810,7 +3812,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                             <div className="mt-1">
                                                                 <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="text-xs font-black" />
                                                             </div>
-                                                            <div className="mt-0.5 text-[10px] font-bold text-slate-500">{batch.customer_name || 'Χωρίς πελάτη'}</div>
+                                                            <div className="mt-0.5 text-[10px] font-bold text-slate-500"><CustomerNameLabel name={batch.customer_name || 'Χωρίς πελάτη'} retail={batch.customer_is_retail} /></div>
                                                         </div>
                                                     </div>
                                                     <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{formatNumber(batch.quantity)} τεμ.</span>

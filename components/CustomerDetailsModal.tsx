@@ -1,3 +1,6 @@
+import type { CustomerVatLookupResult } from '../types';
+import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Customer, Order, OrderShipmentItem, OrderStatus, VatRegime } from '../types';
@@ -50,7 +53,6 @@ import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } 
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { retailEndClientPillClass } from '../utils/retailPresentation';
 import { getNextNamedayForName } from '../utils/namedays';
 import { formatGreekDate } from '../utils/deliveryLabels';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
@@ -242,6 +244,7 @@ export default function CustomerDetailsModal({
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
     const [transferOrder, setTransferOrder] = useState<Order | null>(null);
     const { showToast } = useUI();
@@ -505,10 +508,12 @@ export default function CustomerDetailsModal({
             return;
         }
         setIsSearchingAfm(true);
+        setVatLookupEvidence(null);
         try {
             const result = await lookupCustomerVat(editForm.vat_number);
             if (result) {
                 setEditForm(prev => applyCustomerVatLookup(prev, result));
+                setVatLookupEvidence(result);
                 showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
@@ -714,7 +719,6 @@ export default function CustomerDetailsModal({
             {stats.history.length > 0 ? (
                 <div className="divide-y divide-slate-50">
                     {stats.history.slice(0, 5).map(o => {
-                        const retailLabel = isRetailSystemCustomer ? extractRetailClientFromNotes(o.notes).retailClientLabel : '';
                         return (
                             <div key={o.id} className="flex items-center gap-3 px-5 py-3 transition hover:bg-slate-50/70">
                                 <div className="min-w-0 flex-1">
@@ -723,9 +727,7 @@ export default function CustomerDetailsModal({
                                         <span>{formatDate(o.created_at)}</span>
                                         <span>·</span>
                                         <span>{formatNumber(o.items.length)} είδη</span>
-                                        {isRetailSystemCustomer && (retailLabel
-                                            ? <span className={retailEndClientPillClass}>{retailLabel}</span>
-                                            : <span className="italic">χωρίς τελικό πελάτη</span>)}
+                                        {isRetailSystemCustomer && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                 </div>
                                 <span className={`hidden shrink-0 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide sm:inline ${getOrderStatusClasses(o.status)}`}>
@@ -884,7 +886,6 @@ export default function CustomerDetailsModal({
             {filteredOrders.length > 0 && (
                 <div className={`${sectionCard} divide-y divide-slate-50 overflow-hidden`}>
                     {filteredOrders.map(o => {
-                        const retailLabel = isRetailSystemCustomer ? extractRetailClientFromNotes(o.notes).retailClientLabel : '';
                         return (
                             <div key={o.id} className="flex flex-col gap-3 px-4 py-3.5 transition hover:bg-slate-50/60 sm:flex-row sm:items-center sm:px-5">
                                 <div className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border sm:flex ${getOrderStatusClasses(o.status)}`}>
@@ -896,9 +897,7 @@ export default function CustomerDetailsModal({
                                         <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${getOrderStatusClasses(o.status)}`}>
                                             {getOrderStatusLabel(o.status)}
                                         </span>
-                                        {isRetailSystemCustomer && (retailLabel
-                                            ? <span className={retailEndClientPillClass}>{retailLabel}</span>
-                                            : <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-400">Χωρίς τελικό πελάτη</span>)}
+                                        {isRetailSystemCustomer && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
                                         <span className="flex items-center gap-1"><Calendar size={11} /> {formatDate(o.created_at)}</span>
@@ -1203,7 +1202,7 @@ export default function CustomerDetailsModal({
                     </div>
                 </FormField>
                 <div className="mt-3">
-                    <CustomerVatExemptionFields customer={editForm} onChange={setEditForm} />
+                    <CustomerVatProfileSuggestion customer={editForm} onChange={setEditForm} lookup={vatLookupEvidence} /><CustomerVatExemptionFields customer={editForm} onChange={setEditForm} />
                 </div>
             </section>
 

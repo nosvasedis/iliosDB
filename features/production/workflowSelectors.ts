@@ -4,8 +4,7 @@ import { compareFinderPolishingSubStage } from '../../utils/productionFinderStag
 import { PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getBatchStageChronologyTimestamp } from './selectors';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { isSpecialCreationSku, getSpecialCreationProductStub } from '../../utils/specialCreationSku';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
@@ -557,7 +556,7 @@ export function buildMobileSettingStoneOrderList(
     return {
       key,
       orderId: key !== '__none__' ? key : null,
-      customerName: order?.customer_name || batches[0]?.customer_name || 'Χωρίς Πελάτη',
+      customerName: (order ? getOrderCustomerName(order) : '') || batches[0]?.customer_name || 'Χωρίς Πελάτη',
       batchCount: batches.length,
     };
   });
@@ -635,14 +634,7 @@ export function buildAssemblyOrderCandidates(
       const notesByKey = new Map<string, Set<string>>();
       const orderItems = Array.isArray(order.items) ? order.items : [];
 
-      const isRetailOrder =
-        order.customer_id === RETAIL_CUSTOMER_ID ||
-        order.customer_name === RETAIL_CUSTOMER_NAME;
-      const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
-      const displayCustomerName =
-        isRetailOrder && retailClientLabel
-          ? `${RETAIL_CUSTOMER_NAME} - ${retailClientLabel}`
-          : order.customer_name;
+      const displayCustomerName = getOrderCustomerName(order);
 
       orderItems.forEach((item) => {
         if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;

@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
@@ -225,7 +226,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             {batch.customer_name && (
                                 <div className="flex items-center gap-1.5 text-blue-700 font-bold text-sm mt-0.5">
                                     <User size={14} className="fill-blue-100"/>
-                                    <span>{batch.customer_name}</span>
+                                    <span><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></span>
                                 </div>
                             )}
 

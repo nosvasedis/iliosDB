@@ -1,8 +1,8 @@
+import OrderCustomerName, { CustomerNameLabel } from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant, AssemblyPrintData, StageBatchPrintData } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Image as ImageIcon, Gem, Package, Truck, Layers } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
@@ -15,7 +15,7 @@ import { formatOrderId } from '../../utils/orderUtils';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
-import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { getOrderCustomerName, isRetailCustomerOrder } from '../../utils/orderCustomer';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
 import MobileBatchStageMoveSheet from './MobileBatchStageMoveSheet';
 import {
@@ -155,7 +155,7 @@ const MobileBatchCard: React.FC<{
                     <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialCreation ? 'text-violet-900' : 'text-slate-800'} />
                     <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
-                    {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
+                    {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></div>}
                 </div>
                 <div className="flex flex-col items-end gap-1">
                     <div className="text-xl font-black text-slate-900 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100 shadow-sm">
@@ -504,7 +504,7 @@ const AssemblyOrderSelectorSheet = ({
         const term = searchTerm.trim().toLowerCase();
         if (!term) return candidates;
         return candidates.filter((candidate) =>
-            candidate.order.customer_name.toLowerCase().includes(term) ||
+            (getOrderCustomerName(candidate.order) + ' ' + candidate.order.customer_name).toLowerCase().includes(term) ||
             candidate.order.id.toLowerCase().includes(term)
         );
     }, [candidates, searchTerm]);
@@ -591,7 +591,7 @@ const AssemblyOrderSelectorSheet = ({
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <div className="font-black text-slate-900">{candidate.order.customer_name}</div>
+                                        <div className="font-black text-slate-900"><OrderCustomerName order={candidate.order} /></div>
                                         <div className="mt-1 text-xs font-mono text-slate-500">#{formatOrderId(candidate.order.id)}</div>
                                         <div className="mt-2 flex gap-2 text-[10px] font-black uppercase">
                                             <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-slate-700">
@@ -1025,18 +1025,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 requires_assembly,
                 product_details: prod,
                 product_image: prod?.image_url ?? null,
-                customer_name: (() => {
-                    const isRetailOrder =
-                        order?.customer_id === RETAIL_CUSTOMER_ID ||
-                        order?.customer_name === RETAIL_CUSTOMER_NAME;
-
-                    const { retailClientLabel } = extractRetailClientFromNotes(order?.notes);
-                    if (isRetailOrder && retailClientLabel) {
-                        return `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`;
-                    }
-
-                    return order?.customer_name || '';
-                })(),
+                customer_name: order ? getOrderCustomerName(order) : '',
+                customer_is_retail: !!order && isRetailCustomerOrder(order),
                 diffHours: timingInfo.timeInStageHours,
                 isDelayed: timingInfo.isDelayed,
                 stageEnteredAt: timingInfo.stageEnteredAt,

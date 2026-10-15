@@ -1,8 +1,9 @@
+import OrderCustomerName from '../../orders/OrderCustomerName';
 import { formatNumber } from '../../../utils/numberFormat';
 import React from 'react';
 import { ArrowRightLeft, CalendarRange, CheckCircle2, Gift, PhoneCall } from 'lucide-react';
 import { EnrichedDeliveryItem } from '../../../types';
-import { DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName } from '../../../utils/deliveryLabels';
+import { DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, } from '../../../utils/deliveryLabels';
 import { getOrderTransferIndicators } from '../../../utils/transferIndicators';
 
 interface Props {
@@ -17,7 +18,7 @@ export default function MobileDeliveryCard({ item, onClick }: Props) {
     <button onClick={onClick} className="w-full text-left rounded-3xl border border-slate-100 bg-white shadow-sm p-4 active:scale-[0.99] transition-all">
       <div className="flex justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-black text-slate-900 truncate">{getOrderDisplayName(item.order)}</div>
+          <div className="font-black text-slate-900 truncate"><OrderCustomerName order={item.order} /></div>
           <div className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-1.5">
             <CalendarRange size={12} /> {formatDeliveryWindow(item.plan)}
           </div>

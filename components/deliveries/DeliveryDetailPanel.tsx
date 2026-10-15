@@ -1,3 +1,5 @@
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import {
@@ -38,7 +40,7 @@ import {
   formatDeliveryWindow,
   formatGreekDate,
   formatGreekDateTime,
-  getOrderDisplayName,
+
   getProductionStageLabel,
   getReminderStateLabel,
   ORDER_STATUS_LABELS,
@@ -153,7 +155,7 @@ function EmptyDetailState({ attentionPreview = [], onSelectItem, onNewPlan }: Em
               onClick={() => onSelectItem?.(item)}
               className="w-full text-left rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white px-3 py-2.5"
             >
-              <div className="text-sm font-bold text-slate-800 truncate">{getOrderDisplayName(item.order)}</div>
+              <div className="text-sm font-bold text-slate-800 truncate"><OrderCustomerName order={item.order} /></div>
               <div className="text-[11px] font-medium text-slate-500 mt-0.5">{formatDeliveryWindow(item.plan)}</div>
             </button>
           ))}
@@ -222,7 +224,7 @@ export default function DeliveryDetailPanel({
           <div className="text-xs font-black uppercase tracking-wider text-slate-400">
             Παραγγελία #{item.order.id.slice(-6)}
           </div>
-          <h3 className="text-2xl font-bold text-[#060b00] mt-1 truncate">{getOrderDisplayName(item.order)}</h3>
+          <h3 className="text-2xl font-bold text-[#060b00] mt-1 truncate"><OrderCustomerName order={item.order} /></h3>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
               {DELIVERY_URGENCY_LABELS[item.urgency]}
@@ -474,9 +476,9 @@ export default function DeliveryDetailPanel({
         </CollapsibleSection>
       )}
 
-      {(item.order.notes || item.customer?.notes) && (
+      {(extractRetailClientFromNotes(item.order.notes).cleanNotes || item.customer?.notes) && (
         <CollapsibleSection title="Σημειώσεις" icon={<ClipboardList size={14} />}>
-          {item.order.notes && <p className="text-sm font-medium text-slate-700">{item.order.notes}</p>}
+          {extractRetailClientFromNotes(item.order.notes).cleanNotes && <p className="text-sm font-medium text-slate-700">{extractRetailClientFromNotes(item.order.notes).cleanNotes}</p>}
           {item.customer?.notes && <p className="text-sm font-medium text-slate-700 mt-2">{item.customer.notes}</p>}
         </CollapsibleSection>
       )}

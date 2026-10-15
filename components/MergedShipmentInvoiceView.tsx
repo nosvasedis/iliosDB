@@ -1,3 +1,5 @@
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product } from '../types';
@@ -92,7 +94,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
     ].join(', ');
 
     const shipmentNotes = [
-        ...new Set(sortedPayloads.map((p) => p.shipment.notes).filter(Boolean)),
+        ...new Set(sortedPayloads.map((p) => extractRetailClientFromNotes(p.shipment.notes).cleanNotes).filter(Boolean)),
     ].join(' | ');
 
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -225,7 +227,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                 <div className="flex-1 flex flex-col justify-center">
                     <div className="flex items-baseline gap-2 mb-0.5">
                         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελάτης</span>
-                        <span className="font-black text-slate-900 text-sm leading-none">{order.customer_name}</span>
+                        <span className="font-black text-slate-900 text-sm leading-none">{getOrderCustomerName(order)}</span>
                     </div>
                     {order.customer_phone && (
                         <div className="flex items-center gap-3 text-[10px] text-slate-700">
@@ -306,7 +308,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                 <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
                     <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
                     <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">
-                        {shipmentNotes || order.notes || 'Δεν υπάρχουν σημειώσεις.'}
+                        {extractRetailClientFromNotes(shipmentNotes || order.notes).cleanNotes || 'Δεν υπάρχουν σημειώσεις.'}
                     </p>
                 </div>
                 <div className="w-48 text-[11px]">

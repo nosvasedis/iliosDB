@@ -25,6 +25,8 @@ export async function lookupCustomerVat(vatNumber: string): Promise<CustomerVatL
     }
     const result = await api.lookupAadeVatRegistry({ vatNumber, requestedByVat });
     return {
+      vatNumber,
+      normalVatRegime: result.normalVatRegime ?? null,
       source: 'aade_registry',
       name: result.businessName || result.tradeName || '',
       address: registryAddress(result),
@@ -42,6 +44,8 @@ export async function lookupCustomerVat(vatNumber: string): Promise<CustomerVatL
   if (!fallback) throw new Error(officialError || 'Δεν βρέθηκαν στοιχεία για το ΑΦΜ.');
   return {
     ...fallback,
+    vatNumber,
+    normalVatRegime: null,
     profession: null,
     taxOffice: null,
     active: null,
@@ -56,7 +60,10 @@ export function applyCustomerVatLookup<T extends {
   email?: string;
   profession?: string;
   tax_office?: string;
+  vat_number?: string;
 }>(customer: T, result: CustomerVatLookupResult): T {
+  // A slow response must not populate a different AFM entered while it was loading.
+  if (result.vatNumber && customer.vat_number !== result.vatNumber) return customer;
   return {
     ...customer,
     full_name: result.name || customer.full_name,
@@ -72,7 +79,9 @@ export function describeCustomerVatLookup(result: CustomerVatLookupResult): stri
   if (result.source === 'aade_registry') {
     const fields = ['επωνυμία', result.address && 'διεύθυνση', result.profession && 'επάγγελμα', result.taxOffice && 'ΔΟΥ']
       .filter(Boolean).join(', ');
-    return `Επίσημο Μητρώο ΑΑΔΕ: ${fields}${result.active === false ? ' · ΠΡΟΣΟΧΗ: ανενεργό ΑΦΜ' : ''}.`;
+    const regime = result.normalVatRegime === true ? 'κανονικό καθεστώς ΦΠΑ'
+      : result.normalVatRegime === false ? 'εκτός κανονικού καθεστώτος ΦΠΑ — δεν τεκμηριώνει απαλλαγή στις αγορές' : 'καθεστώς ΦΠΑ άγνωστο';
+    return `Επίσημο Μητρώο ΑΑΔΕ: ${fields}${result.active === false ? ' · ΠΡΟΣΟΧΗ: ανενεργό ΑΦΜ' : ''}. ${regime}. Ελέγξτε το Φορολογικό Προφίλ για τον συντελεστή πώλησης.`;
   }
-  return `Βρέθηκαν βασικά στοιχεία μέσω ${result.source === 'vies' ? 'VIES' : 'VATComply'}. Το επάγγελμα και η ΔΟΥ δεν επιβεβαιώθηκαν από την ΑΑΔΕ.`;
+  return `Βρέθηκαν βασικά στοιχεία μέσω ${result.source === 'vies' ? 'VIES' : 'VATComply'}. Το επάγγελμα και η ΔΟΥ δεν επιβεβαιώθηκαν από την ΑΑΔΕ. Ο συντελεστής ΦΠΑ δεν επιβεβαιώθηκε· ελέγξτε το Φορολογικό Προφίλ.`;
 }

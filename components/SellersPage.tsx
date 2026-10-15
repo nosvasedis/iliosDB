@@ -1,3 +1,4 @@
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { UserCheck, Plus, Search, X, Mail, Lock, Percent, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, TrendingUp, ShoppingCart, DollarSign, ArrowUpRight, ArrowDownRight, Minus, Package, Clock } from 'lucide-react';
@@ -393,7 +394,7 @@ export default function SellersPage() {
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={`h-2 w-2 rounded-full shrink-0 ${order.status === OrderStatus.Delivered ? 'bg-green-500' : order.status === OrderStatus.Cancelled ? 'bg-red-400' : 'bg-sky-500'}`} />
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-slate-700 truncate">{order.customer_name}</p>
+                              <p className="text-sm font-bold text-slate-700 truncate"><OrderCustomerName order={order} /></p>
                               <p className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</p>
                             </div>
                           </div>

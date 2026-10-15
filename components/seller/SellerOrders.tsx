@@ -1,3 +1,5 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState } from 'react';
@@ -43,7 +45,7 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
                 <div className="flex justify-between items-start mb-2">
                     <div>
                         <div className="text-[10px] font-mono text-slate-300 font-bold mb-0.5">#{order.id.slice(-8).toUpperCase()}</div>
-                        <div className="font-black text-slate-800 text-base leading-tight">{order.customer_name}</div>
+                        <div className="font-black text-slate-800 text-base leading-tight"><OrderCustomerName order={order} /></div>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase flex items-center gap-1 ${getOrderStatusClasses(order.status, 'seller')}`}>
                         {getOrderStatusIcon(order.status, 12)}
@@ -156,7 +158,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
 
     const filteredOrders = myOrders.filter(o => {
         const matchesStatus = activeFilter === 'all' || o.status === activeFilter;
-        const matchesSearch = o.customer_name.toLowerCase().includes(search.toLowerCase())
+        const matchesSearch = (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(search.toLowerCase())
             || o.id.toLowerCase().includes(search.toLowerCase());
         return matchesStatus && matchesSearch;
     });

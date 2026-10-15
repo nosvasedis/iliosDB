@@ -1,3 +1,4 @@
+import RetailClientField from '../orders/RetailClientField';
 import React from 'react';
 import { User, Tag, Plus, X, Percent, Check, Store } from 'lucide-react';
 import { VatRegime } from '../../types';
@@ -21,41 +22,46 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
             </h3>
 
             <div className="space-y-4">
-                {/* Customer Name with Autocomplete */}
-                <div className="relative">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
-                    <input
-                        className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 transition-all ${state.selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200'}`}
-                        placeholder="Αναζήτηση..."
-                        value={state.customerName}
-                        onChange={e => {
-                            setters.setCustomerName(e.target.value);
-                            setters.setCustomerSearch(e.target.value);
-                            setters.setShowCustomerResults(true);
-                            setters.setSelectedCustomerId(null);
-                        }}
-                        onFocus={() => setters.setShowCustomerResults(true)}
-                    />
-                    {state.selectedCustomerId && <Check size={16} className="absolute right-3 top-9 text-emerald-500" />}
+                {state.isRetailCustomer ? <RetailClientField
+                    value={state.retailClientLabel} onChange={setters.setRetailClientLabel}
+                    onChangeCustomer={() => { setters.setSelectedCustomerId(null); setters.setCustomerName(''); setters.setCustomerSearch(''); setters.setRetailClientLabel(''); setters.setCustomerPhone(''); }}
+                /> : <>
+                    {/* Customer Name with Autocomplete */}
+                    <div className="relative">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
+                        <input
+                            className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 transition-all ${state.selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200'}`}
+                            placeholder="Αναζήτηση..."
+                            value={state.customerName}
+                            onChange={e => {
+                                setters.setCustomerName(e.target.value);
+                                setters.setCustomerSearch(e.target.value);
+                                setters.setShowCustomerResults(true);
+                                setters.setSelectedCustomerId(null);
+                            }}
+                            onFocus={() => setters.setShowCustomerResults(true)}
+                        />
+                        {state.selectedCustomerId && <Check size={16} className="absolute right-3 top-9 text-emerald-500" />}
 
-                    {state.showCustomerResults && state.customerSearch && !state.selectedCustomerId && state.filteredCustomers.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                            {state.filteredCustomers.map(c => (
-                                <div key={c.id} onClick={() => actions.handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
-                                    {c.full_name}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                        {state.showCustomerResults && state.customerSearch && !state.selectedCustomerId && state.filteredCustomers.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                {state.filteredCustomers.map(c => (
+                                    <div key={c.id} onClick={() => actions.handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
+                                        {c.full_name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-                <button
-                    type="button"
-                    onClick={actions.handleUseRetailCustomer}
-                    className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
-                >
-                    <Store size={14} /> Χρήση Λιανικής
-                </button>
+                    <button
+                        type="button"
+                        onClick={actions.handleUseRetailCustomer}
+                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
+                    >
+                        <Store size={14} /> Χρήση Λιανικής
+                    </button>
+                </>}
 
                 {/* Phone */}
                 <div>
@@ -68,17 +74,6 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                     />
                 </div>
 
-                {state.isRetailCustomer && (
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
-                        <input
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium text-slate-800 focus:ring-2 focus:ring-fuchsia-500/20"
-                            placeholder="π.χ. Κατάστημα Νάξου"
-                            value={state.retailClientLabel}
-                            onChange={e => setters.setRetailClientLabel(e.target.value)}
-                        />
-                    </div>
-                )}
 
                 {/* Tags */}
                 <div>

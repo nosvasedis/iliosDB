@@ -1,3 +1,5 @@
+import { getOrderCustomerName, isRetailCustomerOrder } from '../utils/orderCustomer';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product, Customer } from '../types';
@@ -23,7 +25,8 @@ interface Props {
     customer?: Customer;
 }
 
-export default function ShipmentInvoiceView({ order, shipment, shipmentItems, products, customer }: Props) {
+export default function ShipmentInvoiceView({ order, shipment, shipmentItems, products, customer: suppliedCustomer }: Props) {
+    const customer = isRetailCustomerOrder(order) ? undefined : suppliedCustomer;
     const sortedShipmentItems = useMemo(
         () => sortBySkuKey(shipmentItems, (item) => buildSkuKey(item.sku, item.variant_suffix)),
         [shipmentItems]
@@ -163,7 +166,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-tight">
                         <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Πελάτης</span>
                         <span className="text-[11px] font-black leading-none text-slate-900">
-                            {customer?.full_name || order.customer_name}
+                            {getOrderCustomerName(order, customer?.full_name)}
                         </span>
                         {(customer?.phone || order.customer_phone) && (
                             <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-600">
@@ -206,7 +209,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     textClassName="text-[10px] leading-tight"
                     footer={
                         <CustomerPrintSummaryFooter
-                            notes={shipment.notes || order.notes}
+                            notes={extractRetailClientFromNotes(shipment.notes || order.notes).cleanNotes}
                             notesFallback="Δεν υπάρχουν σημειώσεις."
                             totalPieces={totalPieces}
                             subtotal={subtotal}

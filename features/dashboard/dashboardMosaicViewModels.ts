@@ -1,3 +1,4 @@
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { Offer, Order, OrderStatus, Product, ProductionBatch, ProductionStage } from '../../types';
 import {
   buildPartialDeliveryProgressSegments,
@@ -264,7 +265,7 @@ export function buildReadyOrdersSummary(
 
     entries.push({
       orderId: order.id,
-      customerName: order.customer_name,
+      customerName: getOrderCustomerName(order),
       kind,
       readyQty: partialProgress?.readyQty ?? itemsTotal,
       shippedQty: partialProgress?.shippedQty ?? shippedQty ?? 0,

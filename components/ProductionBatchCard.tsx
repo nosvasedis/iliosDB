@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
@@ -482,7 +483,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             <div className="text-[10px] font-mono font-medium text-slate-400">#{formatOrderId(batch.order_id)}</div>
                         )}
                         {batch.customer_name && (
-                            <div className="text-[10px] font-bold text-slate-600 truncate">{batch.customer_name}</div>
+                            <div className="text-[10px] font-bold text-slate-600 truncate"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></div>
                         )}
                     </div>
 
@@ -682,6 +683,7 @@ function batchCardPropsAreEqual(prev: BatchCardProps, next: BatchCardProps): boo
         a.cord_color === b.cord_color &&
         a.enamel_color === b.enamel_color &&
         a.customer_name === b.customer_name &&
+        a.customer_is_retail === b.customer_is_retail &&
         a.product_image === b.product_image &&
         a.product_details?.gender === b.product_details?.gender &&
         a.product_details?.production_type === b.product_details?.production_type &&

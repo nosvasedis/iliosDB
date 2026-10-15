@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import {
@@ -255,7 +256,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
                   className="flex h-10 items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-black text-slate-800">{entry.item.order.customer_name}</p>
+                    <p className="truncate text-xs font-black text-slate-800"><OrderCustomerName order={entry.item.order} /></p>
                     <p className="text-[10px] text-slate-500">#{entry.item.order.id.slice(0, 8)}</p>
                   </div>
                   <span

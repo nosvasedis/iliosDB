@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
@@ -216,7 +217,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                                             <ShoppingCart size={18} />
                                         </div>
                                         <div>
-                                            <div className="font-black text-slate-800 text-sm leading-tight">{order.customer_name}</div>
+                                            <div className="font-black text-slate-800 text-sm leading-tight"><OrderCustomerName order={order} /></div>
                                             <div className="text-[10px] text-slate-400 font-mono">#{order.id.slice(0, 8)}</div>
                                         </div>
                                     </div>

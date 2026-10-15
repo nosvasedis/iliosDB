@@ -1,3 +1,4 @@
+import { getOrderCustomerName } from '../utils/orderCustomer';
 import React, { useEffect, useRef } from 'react';
 import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, StageBatchPrintData, AssemblyPrintRow, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
@@ -167,14 +168,14 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 } else if (priceListPrintData) {
                     docTitle = priceListPrintData.title;
                 } else if (orderAnalyticsData) {
-                    const safeName = getSafeClientName(orderAnalyticsData.order.customer_name);
+                    const safeName = getSafeClientName(getOrderCustomerName(orderAnalyticsData.order));
                     docTitle = `Analytics_${safeName || 'Order'}_${orderAnalyticsData.order.id}`;
                 } else if (analyticsPrintData) {
                     docTitle = `Economics_${dateStr}`;
                 } else if (skuSalesPrintData) {
                     docTitle = skuSalesPrintData.title;
                 } else if (remainingOrderToPrint) {
-                    const safeName = getSafeClientName(remainingOrderToPrint.customer_name);
+                    const safeName = getSafeClientName(getOrderCustomerName(remainingOrderToPrint));
                     docTitle = `Remaining_Items_${safeName || 'Client'}_${remainingOrderToPrint.id}`;
                 } else if (shipmentsToPrint && shipmentsToPrint.length > 0) {
                     docTitle = 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ';
@@ -185,7 +186,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 } else if (orderToPrint) {
                     docTitle = 'ΠΡΟΣΦΟΡΑ ILIOS';
                 } else if (offerToPrint) {
-                    const safeName = getSafeClientName(offerToPrint.customer_name);
+                    const safeName = getSafeClientName(getOrderCustomerName(offerToPrint));
                     docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
                 } else if (supplierOrderToPrint) {
                     docTitle = `PO_${supplierOrderToPrint.supplier_name.replace(/[\s\W]+/g, '_')}_${supplierOrderToPrint.id.slice(0, 6)}`;
@@ -381,7 +382,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     <OrderFinancialReport
                         stats={orderAnalyticsData.stats}
                         orderId={orderAnalyticsData.order.id}
-                        customerName={orderAnalyticsData.order.customer_name}
+                        customerName={getOrderCustomerName(orderAnalyticsData.order)}
                         date={new Date().toLocaleDateString('el-GR')}
                         silverPrice={orderAnalyticsData.order.custom_silver_rate || settings.silver_price_gram}
                     />

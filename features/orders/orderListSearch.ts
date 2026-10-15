@@ -1,16 +1,18 @@
+import { normalizedIncludes } from '../../utils/greekSearch';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import type { Order } from '../../types';
 import { getOrderTransferIndicators } from '../../utils/transferIndicators';
 import { orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 
 /** Lowercase search corpus for an order (id, customer, tags). */
 export function buildOrderSearchHaystack(order: Order): string {
-    const parts = [order.id, order.customer_name, ...(order.tags ?? [])];
+    const parts = [order.id, order.customer_name, getOrderCustomerName(order), ...(order.tags ?? [])];
     return parts.join(' ').toLocaleLowerCase('el');
 }
 
 export function orderMatchesSearch(order: Order, normalizedTerm: string): boolean {
     if (!normalizedTerm) return true;
-    return buildOrderSearchHaystack(order).includes(normalizedTerm);
+    return normalizedIncludes(buildOrderSearchHaystack(order), normalizedTerm.trim());
 }
 
 /** Fixed-height estimate for desktop virtualized order rows (avoids dynamic measureElement). */

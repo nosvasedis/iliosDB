@@ -1,3 +1,5 @@
+import { getOrderCustomerPhone } from '../../utils/orderCustomer';
+import OrderCustomerName from '../orders/OrderCustomerName';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronDown, Lightbulb, Plus, Trash2, X } from 'lucide-react';
 import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
@@ -114,7 +116,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
   useEffect(() => {
     if (!order) return;
     if (!contactPhoneOverride) {
-      setContactPhoneOverride(customer?.phone || order.customer_phone || '');
+      setContactPhoneOverride(getOrderCustomerPhone(order, customer));
     }
   }, [contactPhoneOverride, customer?.phone, order]);
 
@@ -442,7 +444,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
 
                 {order && (
                   <div className="text-xs text-slate-500 font-medium pt-2 border-t border-slate-100">
-                    <span className="font-black text-slate-700">Πελάτης:</span> {getOrderDisplayName(order)} · {ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status}
+                    <span className="font-black text-slate-700">Πελάτης:</span> <OrderCustomerName order={order} /> · {ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status}
                   </div>
                 )}
               </div>

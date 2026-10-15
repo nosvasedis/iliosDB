@@ -1,3 +1,4 @@
+import { ordersHaveSameCustomer } from '../../utils/orderCustomer';
 /**
  * transferHelpers.ts
  *
@@ -104,15 +105,12 @@ export function canOfferRemainingTransfer(
 }
 
 export function getCandidateTransferTargetOrders(orderA: Order, allOrders: Order[]): Order[] {
-  const customerId = orderA.customer_id;
-  const customerName = orderA.customer_name;
 
   return allOrders
     .filter((order) => {
       if (order.id === orderA.id) return false;
       if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Cancelled) return false;
-      if (customerId) return order.customer_id === customerId;
-      return order.customer_name === customerName;
+      return ordersHaveSameCustomer(orderA, order);
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -202,7 +200,7 @@ export function buildTransferPlan(
   }
 
   const quantityIssues = validateReadyMatchesRemainingForTransfer(orderA, snapshotA.items, allBatches);
-  const isValid = blockedBatches.length === 0 && quantityIssues.length === 0 && remaining.length > 0;
+  const isValid = getCandidateTransferTargetOrders(orderA, [orderB]).length === 1 && blockedBatches.length === 0 && quantityIssues.length === 0 && remaining.length > 0;
 
   // 4. Build the transfer items from the remaining item list (pull notes from the original order item).
   const transferItems: TransferItem[] = remaining.map((r) => {

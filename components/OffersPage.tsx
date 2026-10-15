@@ -1,3 +1,7 @@
+import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../utils/orderCustomer';
+import RetailClientField from './orders/RetailClientField';
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -10,7 +14,7 @@ import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange, estimateVariantCost, getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
-import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import DesktopPageHeader from './DesktopPageHeader';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import IliosLoader from './ui/IliosLoader';
@@ -106,6 +110,7 @@ export default function OffersPage({ products, materials, settings, collections,
             const statusLabel = OFFER_STATUS_LABELS[offer.status];
             const dateLabel = new Date(offer.created_at).toLocaleDateString('el-GR');
             return (
+                normalizedIncludes(getOrderCustomerName(offer), term) ||
                 normalizedIncludes(offer.customer_name, term) ||
                 normalizedIncludes(offer.id, term) ||
                 normalizedIncludes(statusLabel, term) ||
@@ -149,7 +154,7 @@ export default function OffersPage({ products, materials, settings, collections,
         setDiscountPercent(offer.discount_percent);
         setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
         setOfferNotes(parsedNotes.cleanNotes || '');
-        setRetailClientLabel(parsedNotes.retailClientLabel);
+        setRetailClientLabel(isRetailCustomerOrder(offer) ? getRetailClientName(offer) : '');
         const syncedItems = (offer.items || []).map(item => {
             const product = products.find(p => p.sku === item.sku);
             return {
@@ -371,13 +376,9 @@ export default function OffersPage({ products, materials, settings, collections,
         if (items.length === 0) { showToast("Η προσφορά είναι κενή.", "error"); return; }
 
         setIsSaving(true);
-        const isRetailOffer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
-        const composedNotes = isRetailOffer ? composeNotesWithRetailClient(offerNotes, retailClientLabel) : offerNotes;
+        const customerFields = buildOrderCustomerFields({ customer_id: customerId, customer_name: customerName, customer_phone: customerPhone, notes: offerNotes }, retailClientLabel);
         const offerPayload: Offer = {
             id: editingOffer ? editingOffer.id : crypto.randomUUID(),
-            customer_id: isRetailOffer ? RETAIL_CUSTOMER_ID : (customerId || undefined),
-            customer_name: isRetailOffer ? RETAIL_CUSTOMER_NAME : customerName,
-            customer_phone: isRetailOffer ? '' : customerPhone,
             created_at: editingOffer ? editingOffer.created_at : new Date().toISOString(),
             status: editingOffer ? editingOffer.status : 'Pending',
             custom_silver_price: customSilverPrice,
@@ -388,7 +389,7 @@ export default function OffersPage({ products, materials, settings, collections,
             vat_rate: vatRate,
             items: items,
             total_price: grandTotal,
-            notes: composedNotes
+            ...customerFields
         };
 
         try {
@@ -447,14 +448,11 @@ export default function OffersPage({ products, materials, settings, collections,
             const newOrderId = generateOrderId();
             const orderPayload = {
                 id: newOrderId,
-                customer_id: offer.customer_id,
-                customer_name: offer.customer_name,
-                customer_phone: offer.customer_phone,
                 created_at: new Date().toISOString(),
                 status: 'Pending',
                 items: offer.items,
                 total_price: offer.total_price,
-                notes: offer.notes || '',
+                ...buildOrderCustomerFields(offer),
                 custom_silver_rate: offer.custom_silver_price,
                 vat_rate: offer.vat_rate !== undefined ? offer.vat_rate : 0.24,
                 discount_percent: offer.discount_percent
@@ -585,42 +583,36 @@ export default function OffersPage({ products, materials, settings, collections,
                         {/* Customer */}
                         <div className="space-y-3">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-wide flex items-center gap-2"><User size={14} /> Πελάτης</label>
-                            <div className="relative">
-                                <input
-                                    className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
-                                    placeholder="Αναζήτηση..."
-                                    value={customerName}
-                                    onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); setCustomerId(null); }}
-                                    onFocus={() => setShowCustomerResults(true)}
-                                />
-                                {showCustomerResults && customerName && !customerId && filteredCustomers.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                        {filteredCustomers.map(c => (
-                                            <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
-                                                {c.full_name}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleUseRetailCustomer}
-                                className="w-full p-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
-                            >
-                                Χρήση Λιανικής
-                            </button>
-                            {isRetailCustomer && (
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                            {isRetailCustomer ? <RetailClientField
+                                value={retailClientLabel} onChange={setRetailClientLabel}
+                                onChangeCustomer={() => { setCustomerId(null); setCustomerName(''); setRetailClientLabel(''); setCustomerPhone(''); }}
+                            /> : <>
+                                <div className="relative">
                                     <input
-                                        value={retailClientLabel}
-                                        onChange={e => setRetailClientLabel(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
-                                        placeholder="π.χ. Κατάστημα Νάξου"
+                                        className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
+                                        placeholder="Αναζήτηση..."
+                                        value={customerName}
+                                        onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); setCustomerId(null); }}
+                                        onFocus={() => setShowCustomerResults(true)}
                                     />
+                                    {showCustomerResults && customerName && !customerId && filteredCustomers.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                            {filteredCustomers.map(c => (
+                                                <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
+                                                    {c.full_name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                                <button
+                                    type="button"
+                                    onClick={handleUseRetailCustomer}
+                                    className="w-full p-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                                >
+                                    Χρήση Λιανικής
+                                </button>
+                            </>}
                             <div className="flex items-center gap-2 border-t border-slate-50 pt-2">
                                 <Phone size={14} className="text-slate-400" />
                                 <input className="flex-1 outline-none text-sm text-slate-600 font-medium placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
@@ -982,7 +974,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                         className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100 xl:flex-row xl:items-center"
                                     >
                                         <div className="min-w-0 flex-1">
-                                            <div className="truncate text-base font-black leading-tight text-slate-900">{offer.customer_name}</div>
+                                            <div className="truncate text-base font-black leading-tight text-slate-900"><OrderCustomerName order={offer} /></div>
                                             <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
                                                 <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
                                                     #{offer.id}

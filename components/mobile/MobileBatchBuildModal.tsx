@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -164,7 +165,7 @@ export default function MobileBatchBuildModal({
                             {batch.customer_name && (
                                 <div className="flex items-center gap-1 text-blue-700 font-bold text-xs mt-0.5 truncate">
                                     <User size={12} className="shrink-0" />
-                                    <span className="truncate">{batch.customer_name}</span>
+                                    <span className="truncate"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></span>
                                 </div>
                             )}
                         </div>

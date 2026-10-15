@@ -1,3 +1,5 @@
+import { getOrderCustomerPhone } from './orderCustomer';
+import { getOrderCustomerName } from './orderCustomer';
 import { Customer, DeliveryHolidayAnchor, DeliverySuggestion, NamedayMatch, Order } from '../types';
 import { formatGreekDate } from './deliveryLabels';
 import { getNamedayMatchesForName, getNextNamedayForName } from './namedays';
@@ -75,7 +77,7 @@ export function analyzeDeliveryContext(order: Order, customer?: Customer): {
   const suggestions: DeliverySuggestion[] = [];
   const matchedKeywords = new Set<string>();
   const callReasons = new Set<string>();
-  const namedaySourceName = customer?.full_name || order.customer_name;
+  const namedaySourceName = getOrderCustomerName(order, customer?.full_name);
   const namedayMatches = getNamedayMatchesForName(namedaySourceName);
   const nextNameday = getNextNamedayForName(namedaySourceName);
 
@@ -109,7 +111,7 @@ export function analyzeDeliveryContext(order: Order, customer?: Customer): {
 
   extractSuggestedDates(text).forEach((suggestion) => suggestions.push(suggestion));
 
-  if (!(customer?.phone || order.customer_phone)) {
+  if (!(getOrderCustomerPhone(order, customer))) {
     suggestions.push({
       id: 'warning-no-phone',
       category: 'warning',

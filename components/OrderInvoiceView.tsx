@@ -1,3 +1,5 @@
+import { getOrderCustomerName, isRetailCustomerOrder } from '../utils/orderCustomer';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -54,7 +56,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
     const { data: allProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
     const queryClient = useQueryClient();
     const allCustomers = queryClient.getQueryData<Customer[]>(['customers']);
-    const customer = order.customer_id
+    const customer = isRetailCustomerOrder(order) ? undefined : order.customer_id
         ? allCustomers?.find(c => c.id === order.customer_id)
         : allCustomers?.find(c => c.full_name === order.customer_name);
     const sortedItems = useMemo(
@@ -168,7 +170,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 <div className="flex-1 flex flex-col justify-center">
                     <div className="flex items-baseline gap-2 mb-0.5">
                         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελατης</span>
-                        <span className="font-black text-slate-900 text-sm leading-none">{customer?.full_name || order.customer_name}</span>
+                        <span className="font-black text-slate-900 text-sm leading-none">{getOrderCustomerName(order, customer?.full_name)}</span>
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-slate-700">
                         {(customer?.phone || order.customer_phone) && (
@@ -202,7 +204,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                     textClassName="text-[10px] leading-tight"
                     footer={
                         <CustomerPrintSummaryFooter
-                            notes={order.notes}
+                            notes={extractRetailClientFromNotes(order.notes).cleanNotes}
                             notesFallback="Δεν υπάρχουν σημειώσεις για αυτή την παραγγελία."
                             totalPieces={totalPieces}
                             subtotal={subtotal}

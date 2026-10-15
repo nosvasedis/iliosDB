@@ -1,3 +1,5 @@
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo } from 'react';
@@ -130,7 +132,7 @@ export default function OfferPrintView({ offer }: Props) {
             <section className="bg-slate-50 rounded-lg p-2 border border-slate-100 mb-4 flex justify-between items-center text-xs shrink-0 relative z-10">
                 <div>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Πελατης</span>
-                    <span className="font-black text-slate-900 text-sm block">{offer.customer_name}</span>
+                    <span className="font-black text-slate-900 text-sm block">{getOrderCustomerName(offer)}</span>
                     {offer.customer_phone && (
                         <span className="font-medium text-slate-600 flex items-center gap-1 text-[10px] mt-0.5"><Phone size={10}/> {offer.customer_phone}</span>
                     )}
@@ -152,7 +154,7 @@ export default function OfferPrintView({ offer }: Props) {
                     textClassName="text-[10px] leading-tight"
                     footer={
                         <CustomerPrintSummaryFooter
-                            notes={offer.notes}
+                            notes={extractRetailClientFromNotes(offer.notes).cleanNotes}
                             notesFallback="Δεν υπάρχουν σημειώσεις."
                             subtotalLabel="Υποσύνολο:"
                             subtotal={subtotal}

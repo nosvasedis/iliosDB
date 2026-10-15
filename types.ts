@@ -587,6 +587,8 @@ export interface ProductionBatch {
   order_id?: string;
   /** Present when batch is enriched from order / UI (e.g. production boards, stage PDF). */
   customer_name?: string;
+  /** UI-only retail classification resolved from the originating order. */
+  customer_is_retail?: boolean;
   sku: string;
   variant_suffix?: string;
   quantity: number;
@@ -1021,6 +1023,9 @@ export interface PublicVatLookupResult {
 }
 
 export interface CustomerVatLookupResult {
+  /** Lookup evidence only; never a sales VAT rate or an exemption certificate. */
+  vatNumber?: string;
+  normalVatRegime?: boolean | null;
   source: VatLookupSource;
   name: string;
   address: string | null;

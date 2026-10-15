@@ -1,3 +1,7 @@
+import type { CustomerVatLookupResult } from '../../types';
+import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
+import { isRetailCustomerOrder, getOrderCustomerName } from '../../utils/orderCustomer';
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { Suspense, useState, useMemo } from 'react';
@@ -13,7 +17,6 @@ import { getNextNamedayForName } from '../../utils/namedays';
 import { formatGreekDate } from '../../utils/deliveryLabels';
 import MobileSupplierDetails from './MobileSupplierDetails';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { retailEndClientPillClass } from '../../utils/retailPresentation';
 import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
@@ -60,6 +63,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [editType, setEditType] = useState<'customer' | 'supplier'>(mode === 'customers' ? 'customer' : 'supplier');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
 
     // Supplier Detail View
     const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
@@ -128,7 +132,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
-        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === RETAIL_CUSTOMER_ID)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && isRetailCustomerOrder(o)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate ?? 0.24)), 0);
         const orderCount = customerOrders.length;
@@ -156,7 +160,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
         const clientMap: Record<string, { name: string; orderCount: number; totalRevenue: number }> = {};
         customerOrders.forEach(o => {
-            const label = extractRetailClientFromNotes(o.notes).retailClientLabel || 'Χωρίς τελικό πελάτη';
+            const label = getOrderCustomerName(o);
             if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
             clientMap[label].orderCount += 1;
             clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate ?? 0.24));
@@ -264,10 +268,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             return;
         }
         setIsSearchingAfm(true);
+        setVatLookupEvidence(null);
         try {
             const result = await lookupCustomerVat(afm);
             if (result) {
                 setEditData((prev: Customer) => applyCustomerVatLookup(prev, result));
+                setVatLookupEvidence(result);
                 showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast("Δεν βρέθηκαν στοιχεία.", "info");
@@ -414,21 +420,16 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3"><ShoppingBag size={14} className="text-blue-500" /> Πρόσφατες Παραγγελίες</h3>
                         {retailStats.recentOrders.length > 0 ? (
                             <div className="space-y-2">
-                                {retailStats.recentOrders.map(({ order, retailClientLabel }) => {
+                                {retailStats.recentOrders.map(({ order }) => {
                                     const netValue = order.total_price / (1 + (order.vat_rate ?? 0.24));
-                                    const hasLabel = !!retailClientLabel;
                                     return (
                                         <div key={order.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
                                             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                                <span className="font-mono font-bold text-slate-700 text-[10px] leading-tight break-all">{order.id}</span>
+                                                <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={order} /></span>
+                                                <span className="font-mono text-slate-500 text-[10px]">{order.id}</span>
                                                 <span className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                                             </div>
-                                            <span
-                                                className={`max-w-[120px] truncate ${hasLabel ? retailEndClientPillClass : 'inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 tracking-tight'}`}
-                                                title={hasLabel ? 'Τελικός πελάτης (λιανική)' : undefined}
-                                            >
-                                                {hasLabel ? retailClientLabel : '-'}
-                                            </span>
+
                                             <span className="font-mono font-black text-xs text-slate-800 shrink-0">{formatCurrency(netValue)}</span>
                                         </div>
                                     );
@@ -624,7 +625,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
                                 </select>
                                 <div className="mt-3">
-                                    <CustomerVatExemptionFields customer={editData as Customer} onChange={setEditData} />
+                                    <CustomerVatProfileSuggestion customer={editData as Customer} onChange={setEditData} lookup={vatLookupEvidence} /><CustomerVatExemptionFields customer={editData as Customer} onChange={setEditData} />
                                 </div>
                             </div>
                         )}

@@ -1,8 +1,9 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { BellRing, CheckCircle2, Loader2, PauseCircle, Phone } from 'lucide-react';
 import { DeliveryAttentionEntry } from '../../utils/deliveryScheduling';
-import { DELIVERY_ACTION_LABELS, getOrderDisplayName } from '../../utils/deliveryLabels';
+import { DELIVERY_ACTION_LABELS, } from '../../utils/deliveryLabels';
 import { isCallReminderAction } from '../../utils/deliveryWorklist';
 import { OrderDeliveryReminder } from '../../types';
 
@@ -68,7 +69,7 @@ export default function DeliveryAlertRail({
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-slate-800 truncate">
-                      {getOrderDisplayName(item.order)}
+                      <OrderCustomerName order={item.order} />
                     </div>
                     <div className="text-[11px] font-medium text-slate-500 mt-0.5 truncate">
                       {DELIVERY_ACTION_LABELS[reminder.action_type]}

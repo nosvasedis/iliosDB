@@ -1,3 +1,4 @@
+import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../utils/orderCustomer';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord, PriceSyncPreview } from '../types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import { generateOrderId } from '../utils/orderUtils';
 import { getSizingInfo, ProductSizingInfo, SIZE_TYPE_LENGTH, SIZE_TYPE_NUMBER } from '../utils/sizing';
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
-import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
 import {
     cleanSpecialCreationNote,
@@ -82,14 +83,14 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const queryClient = useQueryClient();
     const isSeller = profile?.role === 'seller';
     const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
-    const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
+    const initialIsRetailCustomer = !!initialOrder && isRetailCustomerOrder(initialOrder);
 
     // --- Customer & Order Meta State ---
     const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
-    const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
+    const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
     const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
     const [orderNotes, setOrderNotes] = useState(initialRetailNotes.cleanNotes || '');
-    const [retailClientLabel, setRetailClientLabel] = useState(initialRetailNotes.retailClientLabel || '');
+    const [retailClientLabel, setRetailClientLabel] = useState(initialOrder && isRetailCustomerOrder(initialOrder) ? getRetailClientName(initialOrder) : '');
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
@@ -206,7 +207,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                         const parsedDraftNotes = extractRetailClientFromNotes(draft.orderNotes || '');
 
                         setCustomerName(isRetailDraft ? RETAIL_CUSTOMER_NAME : draftCustomerName);
-                        setCustomerPhone(isRetailDraft ? '' : (draft.customerPhone || ''));
+                        setCustomerPhone(draft.customerPhone || '');
                         setSelectedCustomerId(isRetailDraft ? RETAIL_CUSTOMER_ID : draftSelectedCustomerId);
                         setOrderNotes(parsedDraftNotes.cleanNotes || '');
                         setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
@@ -1141,11 +1142,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         if (selectedItems.length === 0) { showToast('Προσθέστε τουλάχιστον ένα προϊόν.', 'error'); return; }
         setIsSaving(true);
         try {
-            const isRetailOrder = selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
-            const effectiveCustomerId = isRetailOrder ? RETAIL_CUSTOMER_ID : (selectedCustomerId || undefined);
-            const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerName;
-            const effectiveCustomerPhone = isRetailOrder ? '' : customerPhone;
-            const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
+            const { customer_id: effectiveCustomerId, customer_name: effectiveCustomerName, customer_phone: effectiveCustomerPhone, notes: composedNotes } = buildOrderCustomerFields({ customer_id: selectedCustomerId, customer_name: customerName, customer_phone: customerPhone, notes: orderNotes }, retailClientLabel);
 
             if (initialOrder) {
                 let isNewPart: boolean | undefined = undefined;

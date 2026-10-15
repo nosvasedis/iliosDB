@@ -1,3 +1,5 @@
+import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
+import RetailClientField from '../orders/RetailClientField';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -23,7 +25,7 @@ import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
-import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import {
     cleanSpecialCreationNote,
@@ -216,18 +218,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [catalogStep, setCatalogStep] = useState<CatalogStep>('collections');
     const [catalogCollection, setCatalogCollection] = useState<Collection | null>(null);
     const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
-    const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
+    const initialIsRetailCustomer = !!initialOrder && isRetailCustomerOrder(initialOrder);
 
     // ── Order State ──────────────────────────────────────────────────────────
     const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
-    const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
+    const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
     const [items, setItems] = useState<OrderItem[]>(() => buildMobileOrderBuilderItems(initialOrder?.items || [], products));
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [orderNotes, setOrderNotes] = useState(initialRetailNotes.cleanNotes || '');
-    const [retailClientLabel, setRetailClientLabel] = useState(initialRetailNotes.retailClientLabel || '');
+    const [retailClientLabel, setRetailClientLabel] = useState(initialOrder && isRetailCustomerOrder(initialOrder) ? getRetailClientName(initialOrder) : '');
 
     // ── Seller / Πλασιέ State ──────────────────────────────────────────────
     const isAdmin = profile?.role === 'admin';
@@ -558,11 +560,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             showToast('Συμπληρώστε σημείωση σε κάθε ειδική δημιουργία (SP) πριν την αποθήκευση.', 'error');
             return;
         }
-        const isRetailOrder = customerIdVal === RETAIL_CUSTOMER_ID || customerNameVal.trim() === RETAIL_CUSTOMER_NAME;
-        const effectiveCustomerId = isRetailOrder ? RETAIL_CUSTOMER_ID : (customerIdVal || undefined);
-        const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerNameVal;
-        const effectiveCustomerPhone = isRetailOrder ? '' : customerPhoneVal;
-        const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
+        const { customer_id: effectiveCustomerId, customer_name: effectiveCustomerName, customer_phone: effectiveCustomerPhone, notes: composedNotes } = buildOrderCustomerFields({ customer_id: customerIdVal, customer_name: customerNameVal, customer_phone: customerPhoneVal, notes: orderNotes }, retailClientLabel);
         const itemsWithLineIds = assignMissingOrderLineIds(items.map((item) => isSpecialCreationSku(item.sku)
             ? { ...item, notes: cleanSpecialCreationNote(item.notes) }
             : item));
@@ -733,45 +731,45 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 {/* Customer Section */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
                     <div className="relative">
-                        <div className="flex items-center gap-2 mb-2">
-                            <User size={16} className="text-slate-400" />
-                            <input
-                                className="flex-1 outline-none font-bold text-slate-800 text-base"
-                                placeholder="Όνομα Πελάτη..."
-                                value={customerName}
-                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
-                                onFocus={() => setShowCustSuggestions(true)}
-                            />
-                            {customerId && <Check size={16} className="text-emerald-500" />}
-                        </div>
-                        {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
-                                {filteredCustomers.map(c => (
-                                    <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 border-b border-slate-50 font-medium text-sm flex justify-between hover:bg-slate-50 cursor-pointer">
-                                        <span>{c.full_name}</span>
-                                        <span className="text-slate-400 text-xs">{c.phone}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleUseRetailCustomer}
-                            className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
-                        >
-                            Χρήση Λιανικής
-                        </button>
-                        {isRetailCustomer && (
-                            <div className="mt-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                        {isRetailCustomer ? <RetailClientField
+                            value={retailClientLabel} onChange={setRetailClientLabel}
+                            onChangeCustomer={() => { setCustomerId(null); setCustomerName(''); setRetailClientLabel(''); setCustomerPhone(''); }}
+                        /> : <>
+                            <div className="flex items-center gap-2 mb-2">
+                                <User size={16} className="text-slate-400" />
                                 <input
-                                    value={retailClientLabel}
-                                    onChange={e => setRetailClientLabel(e.target.value)}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
-                                    placeholder="π.χ. Κατάστημα Νάξου"
+                                    className="flex-1 outline-none font-bold text-slate-800 text-base"
+                                    placeholder="Όνομα Πελάτη..."
+                                    value={customerName}
+                                    onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
+                                    onFocus={() => setShowCustSuggestions(true)}
                                 />
+                                {customerId && <Check size={16} className="text-emerald-500" />}
                             </div>
-                        )}
+                            {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-1 z-50 overflow-hidden">
+                                    {filteredCustomers.map(c => (
+                                        <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-3 border-b border-slate-50 font-medium text-sm flex justify-between hover:bg-slate-50 cursor-pointer">
+                                            <span>{c.full_name}</span>
+                                            <span className="text-slate-400 text-xs">{c.phone}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleUseRetailCustomer}
+                                className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                            >
+                                Χρήση Λιανικής
+                            </button>
+                        </>}
+                        <div className="my-3">
+                            <label htmlFor="mobile-order-phone" className="mb-1 block text-xs font-bold text-slate-500">Τηλέφωνο</label>
+                            <input id="mobile-order-phone" type="tel" autoComplete="tel" value={customerPhone}
+                                onChange={event => setCustomerPhone(event.target.value)} placeholder="Τηλέφωνο επικοινωνίας"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-fuchsia-300" />
+                        </div>
                         {/* VAT + Discount */}
                         <div className="flex items-center gap-4 border-t border-slate-50 pt-3">
                             <div className="flex-1">

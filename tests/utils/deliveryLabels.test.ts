@@ -8,13 +8,13 @@ describe('getOrderDisplayName', () => {
       customer_id: RETAIL_CUSTOMER_ID,
       customer_name: RETAIL_CUSTOMER_NAME,
       notes: `${RETAIL_NOTE_PREFIX} Maria Papadopoulou`,
-    })).toBe(`${RETAIL_CUSTOMER_NAME} · Maria Papadopoulou`);
+    })).toBe('Maria Papadopoulou');
   });
 
   it('shows the final retail client when legacy retail order data only has the retail customer name', () => {
     expect(getOrderDisplayName({
       customer_name: RETAIL_CUSTOMER_NAME,
       notes: `${RETAIL_NOTE_PREFIX} Eleni Nikolaou`,
-    })).toBe(`${RETAIL_CUSTOMER_NAME} · Eleni Nikolaou`);
+    })).toBe('Eleni Nikolaou');
   });
 });

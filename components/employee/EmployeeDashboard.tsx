@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useMemo } from 'react';
@@ -96,7 +97,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                                             #{order.id.slice(0,3)}
                                         </div>
                                         <div>
-                                            <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            <div className="font-bold text-slate-800"><OrderCustomerName order={order} /></div>
                                             <div className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                         </div>
                                     </div>

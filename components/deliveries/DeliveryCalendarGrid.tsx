@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
@@ -78,7 +79,7 @@ function DeliveryPill({
       className={`w-full rounded-lg px-1.5 py-1 text-[9px] truncate border text-left ${tone}`}
       title={getOrderDisplayName(item.order)}
     >
-      {getOrderDisplayName(item.order)}
+      <OrderCustomerName order={item.order} />
     </button>
   );
 }
@@ -241,7 +242,7 @@ export default function DeliveryCalendarGrid({
                         }`}
                       >
                         <div className="text-[9px] font-bold truncate leading-tight">
-                          {getOrderDisplayName(item.order)}
+                          <OrderCustomerName order={item.order} />
                         </div>
                         <div className={`text-[8px] mt-0.5 truncate ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
                           {formatDeliveryWindow(item.plan)}

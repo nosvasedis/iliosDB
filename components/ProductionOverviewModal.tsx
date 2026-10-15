@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
@@ -457,7 +458,7 @@ export default function ProductionOverviewModal({
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-0.5 min-w-0">
                                                             {batch.customer_name && (
-                                                                <span className="text-[11px] font-semibold text-slate-600 truncate">{batch.customer_name}</span>
+                                                                <span className="text-[11px] font-semibold text-slate-600 truncate"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></span>
                                                             )}
                                                             {batch.order_id && (
                                                                 <span className="text-[10px] font-mono text-slate-400 shrink-0">#{formatOrderId(batch.order_id)}</span>

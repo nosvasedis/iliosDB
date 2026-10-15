@@ -1,3 +1,7 @@
+import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
+import RetailClientField from '../orders/RetailClientField';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -16,7 +20,7 @@ import { formatCurrency, formatDecimal, calculateProductCost, calculateSuggested
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
 import BarcodeScanner from '../BarcodeScanner';
-import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import IliosLoader from '../ui/IliosLoader';
 import SpecialCreationNote from '../SpecialCreationNote';
 import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
@@ -96,7 +100,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setDiscountPercent(offer.discount_percent);
             setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
             setNotes(parsedNotes.cleanNotes || '');
-            setRetailClientLabel(parsedNotes.retailClientLabel);
+            setRetailClientLabel(isRetailCustomerOrder(offer) ? getRetailClientName(offer) : '');
             const syncedItems = (offer.items || []).map(item => {
                 const product = products?.find(p => p.sku === item.sku);
                 return {
@@ -128,7 +132,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const filteredOffers = useMemo(() => {
         if (!offers) return [];
         return offers.filter(o => {
-            const matchesSearch = o.customer_name.toLowerCase().includes(search.toLowerCase()) || o.id.includes(search);
+            const matchesSearch = (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(search.toLowerCase()) || o.id.includes(search);
             const matchesStatus = filterStatus === 'ALL' || o.status === filterStatus;
             return matchesSearch && matchesStatus;
         });
@@ -317,14 +321,10 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         if (items.length === 0) { showToast("Προσθέστε τουλάχιστον ένα είδος.", "error"); return; }
 
         setIsSaving(true);
-        const isRetailOffer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
-        const composedNotes = isRetailOffer ? composeNotesWithRetailClient(notes, retailClientLabel) : notes;
+        const customerFields = buildOrderCustomerFields({ customer_id: customerId, customer_name: customerName, customer_phone: customerPhone, notes: notes }, retailClientLabel);
 
         const payload: Offer = {
             id: editingId || crypto.randomUUID(),
-            customer_name: isRetailOffer ? RETAIL_CUSTOMER_NAME : customerName,
-            customer_phone: isRetailOffer ? '' : customerPhone,
-            customer_id: isRetailOffer ? RETAIL_CUSTOMER_ID : (customerId || undefined),
             items: items,
             custom_silver_price: customSilverPrice,
             discount_percent: discountPercent,
@@ -335,7 +335,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             hide_silver_price_in_pdf: hideSilverPriceInPdf,
             hide_offer_validity_in_pdf: hideOfferValidityInPdf,
             offer_validity_days: offerValidityDays,
-            notes: composedNotes
+            ...customerFields
         };
 
         try {
@@ -389,12 +389,8 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const performConvertToOrder = async (offer: Offer) => {
         try {
             const orderId = generateOrderId();
-            const isRetailOrder = offer.customer_id === RETAIL_CUSTOMER_ID || offer.customer_name === RETAIL_CUSTOMER_NAME;
             const orderPayload = {
                 id: orderId,
-                customer_id: isRetailOrder ? RETAIL_CUSTOMER_ID : offer.customer_id,
-                customer_name: isRetailOrder ? RETAIL_CUSTOMER_NAME : offer.customer_name,
-                customer_phone: isRetailOrder ? '' : offer.customer_phone,
                 created_at: new Date().toISOString(),
                 status: 'Pending',
                 items: offer.items,
@@ -402,7 +398,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 vat_rate: offer.vat_rate,
                 discount_percent: offer.discount_percent,
                 custom_silver_rate: offer.custom_silver_price,
-                notes: offer.notes || ''
+                ...buildOrderCustomerFields(offer)
             } as any;
             await api.convertOfferToOrder(offer, orderPayload);
             queryClient.invalidateQueries({ queryKey: ['offers'] });
@@ -454,42 +450,36 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                             <User size={16} className="text-purple-600" />
                             <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Πελάτης</span>
                         </div>
-                        <div className="relative z-20">
-                            <input
-                                value={customerName}
-                                onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
-                                placeholder="Αναζήτηση ή Όνομα..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-purple-400"
-                                onFocus={() => setShowCustSuggestions(true)}
-                            />
-                            {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
-                                <div className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 overflow-hidden z-30">
-                                    {filteredCustomers.map(c => (
-                                        <div key={c.id} onClick={() => { handleSelectCustomer(c); }} className="p-3 hover:bg-slate-50 border-b border-slate-50 font-medium text-sm cursor-pointer">
-                                            {c.full_name}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleUseRetailCustomer}
-                            className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
-                        >
-                            Χρήση Λιανικής
-                        </button>
-                        {isRetailCustomer && (
-                            <div className="mt-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
+                        {isRetailCustomer ? <RetailClientField
+                            value={retailClientLabel} onChange={setRetailClientLabel}
+                            onChangeCustomer={() => { setCustomerId(null); setCustomerName(''); setRetailClientLabel(''); setCustomerPhone(''); }}
+                        /> : <>
+                            <div className="relative z-20">
                                 <input
-                                    value={retailClientLabel}
-                                    onChange={e => setRetailClientLabel(e.target.value)}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
-                                    placeholder="π.χ. Κατάστημα Νάξου"
+                                    value={customerName}
+                                    onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
+                                    placeholder="Αναζήτηση ή Όνομα..."
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-purple-400"
+                                    onFocus={() => setShowCustSuggestions(true)}
                                 />
+                                {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 overflow-hidden z-30">
+                                        {filteredCustomers.map(c => (
+                                            <div key={c.id} onClick={() => { handleSelectCustomer(c); }} className="p-3 hover:bg-slate-50 border-b border-slate-50 font-medium text-sm cursor-pointer">
+                                                {c.full_name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                            <button
+                                type="button"
+                                onClick={handleUseRetailCustomer}
+                                className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                            >
+                                Χρήση Λιανικής
+                            </button>
+                        </>}
                         <div className="flex items-center gap-2 mt-2">
                             <Phone size={14} className="text-slate-400" />
                             <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Τηλέφωνο" className="flex-1 p-2 bg-transparent border-b border-slate-200 outline-none text-sm font-medium" />
@@ -734,7 +724,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                         <div onClick={() => initBuilder(offer)} className="cursor-pointer">
                             <div className="flex justify-between items-start mb-2">
                                 <div>
-                                    <div className="font-bold text-slate-800 text-base">{offer.customer_name}</div>
+                                    <div className="font-bold text-slate-800 text-base"><OrderCustomerName order={offer} /></div>
                                     <div className="text-[10px] text-slate-400 font-mono">#{offer.id.slice(0, 8)}</div>
                                 </div>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${STATUS_STYLES[offer.status]}`}>

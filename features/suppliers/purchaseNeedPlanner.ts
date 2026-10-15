@@ -1,3 +1,4 @@
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import {
   Order,
   OrderShipment,
@@ -240,7 +241,7 @@ export function buildSupplierPurchaseNeedPlan(input: SupplierPurchaseNeedPlanner
       sourceId: batch.id,
       orderId: batch.order_id || '',
       lineId: batch.line_id,
-      customer: order?.customer_name || (batch.order_id ? 'Άγνωστος' : 'Χωρίς σύνδεση παραγγελίας'),
+      customer: (order ? getOrderCustomerName(order) : '') || (batch.order_id ? 'Άγνωστος' : 'Χωρίς σύνδεση παραγγελίας'),
       quantity: batch.quantity,
       orderCreatedAt: order?.created_at || batch.created_at,
       orderNote: order?.notes,
@@ -295,7 +296,7 @@ export function buildSupplierPurchaseNeedPlan(input: SupplierPurchaseNeedPlanner
         sourceId,
         orderId: order.id,
         lineId: item.line_id,
-        customer: order.customer_name,
+        customer: getOrderCustomerName(order),
         quantity: remaining,
         orderCreatedAt: order.created_at,
         orderNote: order.notes,

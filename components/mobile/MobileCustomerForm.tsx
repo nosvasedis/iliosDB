@@ -1,3 +1,5 @@
+import type { CustomerVatLookupResult } from '../../types';
+import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
 import React, { useState } from 'react';
 import { Customer, VatRegime } from '../../types';
 import { X, Save, Loader2, Zap, Phone, Mail, MapPin, FileText, User, CreditCard, MessageSquare } from 'lucide-react';
@@ -16,6 +18,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
     const [form, setForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const { showToast } = useUI();
 
     const handleAfmLookup = async () => {
@@ -24,10 +27,12 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
             return;
         }
         setIsSearchingAfm(true);
+        setVatLookupEvidence(null);
         try {
             const result = await lookupCustomerVat(form.vat_number);
             if (result) {
                 setForm(prev => applyCustomerVatLookup(prev, result));
+                setVatLookupEvidence(result);
                 showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
@@ -41,6 +46,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSearchingAfm) return;
         if (!form.full_name.trim()) {
             showToast('Το ονοματεπώνυμο είναι υποχρεωτικό.', 'error');
             return;
@@ -214,7 +220,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                             <option value={VatRegime.Reduced}>17% — Μειωμένο</option>
                             <option value={VatRegime.Zero}>0% — Απαλλαγή</option>
                         </select>
-                        <CustomerVatExemptionFields customer={form} onChange={setForm} />
+                        <CustomerVatProfileSuggestion customer={form} onChange={setForm} lookup={vatLookupEvidence} /><CustomerVatExemptionFields customer={form} onChange={setForm} />
                     </div>
 
                     {/* Notes */}
@@ -242,7 +248,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                         </button>
                         <button
                             type="submit"
-                            disabled={isSaving || !form.full_name.trim()}
+                            disabled={isSaving || isSearchingAfm || !form.full_name.trim()}
                             className="flex-2 py-4 px-8 rounded-2xl font-black bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-xl shadow-slate-900/20 active:scale-[0.99] transition-all disabled:opacity-40 flex items-center justify-center gap-2 text-base"
                         >
                             {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}

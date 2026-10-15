@@ -1,3 +1,4 @@
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../utils/retailConstants';
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
 import { createClient } from '@supabase/supabase-js';
@@ -1122,9 +1123,7 @@ type BulkBatchStageUpdateSummary = {
     impactedOrderIds: string[];
 };
 
-export const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
-export const RETAIL_CUSTOMER_NAME = 'Λιανική';
-export const RETAIL_NOTE_PREFIX = '[ΛΙΑΝΙΚΗ_ΠΕΛΑΤΗΣ]:';
+export { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../utils/retailConstants';
 
 const getRetailCustomerPayload = (): Partial<Customer> => ({
     id: RETAIL_CUSTOMER_ID,

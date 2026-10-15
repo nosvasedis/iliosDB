@@ -1,3 +1,6 @@
+import { extractRetailClientFromNotes } from '../utils/retailNotes';
+import { getOrderCustomerName } from '../utils/orderCustomer';
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -1221,7 +1224,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 text-xs">#{formatOrderId(order.id)}</span>
                                 <span className="flex items-start gap-1 min-w-0 text-slate-600 text-xs">
                                     <User size={13} className="mt-0.5 shrink-0" />
-                                    <span className="break-words">{order.customer_name}</span>
+                                    <span className="break-words"><OrderCustomerName order={order} /></span>
                                 </span>
                                 {hasUnsavedPrices && (
                                     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 py-0.5 pl-2 pr-0.5 text-[10px] font-black text-amber-800">
@@ -1238,10 +1241,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     </span>
                                 )}
                             </div>
-                            {order.notes && (
+                            {extractRetailClientFromNotes(order.notes).cleanNotes && (
                                 <div className="lg:hidden mt-1.5 flex items-start gap-1.5 rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-1 text-[10px] font-bold leading-snug text-yellow-800">
                                     <AlertCircle size={12} className="shrink-0 mt-px" />
-                                    <span className="break-words line-clamp-2" title={order.notes}>{order.notes}</span>
+                                    <span className="break-words line-clamp-2" title={extractRetailClientFromNotes(order.notes).cleanNotes}>{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
                                 </div>
                             )}
 
@@ -1258,10 +1261,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     </div>
 
                     <div className="flex items-start gap-1.5 shrink-0">
-                        {order.notes && (
-                            <div className="hidden lg:flex items-start gap-2 bg-yellow-50 text-yellow-800 px-3 py-1.5 rounded-xl border border-yellow-100 mr-2 max-w-[500px]" title={order.notes}>
+                        {extractRetailClientFromNotes(order.notes).cleanNotes && (
+                            <div className="hidden lg:flex items-start gap-2 bg-yellow-50 text-yellow-800 px-3 py-1.5 rounded-xl border border-yellow-100 mr-2 max-w-[500px]" title={extractRetailClientFromNotes(order.notes).cleanNotes}>
                                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                <span className="text-[10px] font-bold break-words whitespace-normal leading-snug line-clamp-4">{order.notes}</span>
+                                <span className="text-[10px] font-bold break-words whitespace-normal leading-snug line-clamp-4">{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
                             </div>
                         )}
                         <button
@@ -1711,7 +1714,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             </div>
                                             {onPrintAggregated && (
                                                 <button
-                                                    onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: order.customer_name })}
+                                                    onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: getOrderCustomerName(order) })}
                                                     className="w-full py-1.5 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors"
                                                 >
                                                     <FileText size={12} /> Εκτύπωση Δελτίου
@@ -1938,7 +1941,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 : (stageConf?.label ?? activeStagePopup);
                                             onPrintStageBatches({
                                                 stageName, stageId: activeStagePopup,
-                                                customerName: order.customer_name, orderId: order.id,
+                                                customerName: getOrderCustomerName(order), orderId: order.id,
                                                 batches: visiblePopupBatches, generatedAt: new Date().toISOString(),
                                             });
                                         }}

@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, ShieldAlert, Truck, X } from 'lucide-react';
@@ -89,7 +90,7 @@ export default function ShipmentUndoConfirmationModal({
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Παραγγελία</div>
               <div className="mt-1 text-sm font-black text-slate-900">#{formatOrderId(order.id)}</div>
-              <div className="text-xs font-bold text-slate-600 break-words">{order.customer_name || 'Χωρίς πελάτη'}</div>
+              <div className="text-xs font-bold text-slate-600 break-words"><OrderCustomerName order={order} /></div>
             </div>
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Αποστολή</div>

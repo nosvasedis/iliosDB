@@ -9,18 +9,9 @@ import {
   OrderStatus,
   ProductionStage
 } from '../types';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
-import { extractRetailClientFromNotes } from './retailNotes';
 import { getProductionStageLabel as getCanonicalProductionStageLabel } from './productionStages';
 
-/** For delivery UI: show customer name, or for Λιανική show "Λιανική · {actual client id/label}" from notes. */
-export function getOrderDisplayName(order: { customer_id?: string; customer_name: string; notes?: string }): string {
-  if (order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME) {
-    const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
-    return retailClientLabel ? `Λιανική · ${retailClientLabel}` : order.customer_name;
-  }
-  return order.customer_name;
-}
+export { getOrderCustomerName as getOrderDisplayName } from './orderCustomer';
 
 export const DELIVERY_MODE_LABELS: Record<DeliveryPlanningMode, string> = {
   exact: 'Ακριβής ημερομηνία',

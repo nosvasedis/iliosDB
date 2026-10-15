@@ -1,3 +1,5 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
+import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState } from 'react';
@@ -21,7 +23,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
     const [search, setSearch] = useState('');
 
     const filteredOrders = orders?.filter(o => 
-        o.customer_name.toLowerCase().includes(search.toLowerCase()) || 
+        (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(search.toLowerCase()) ||
         o.id.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
@@ -61,7 +63,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                         onChange={e => setSearch(e.target.value)}
                     />
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white">
                     {/* MOBILE VIEW (CARDS) */}
                     <div className="md:hidden p-3 space-y-3">
@@ -80,7 +82,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                                                 #{order.id}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-800 text-sm">{order.customer_name}</div>
+                                                <div className="font-bold text-slate-800 text-sm"><OrderCustomerName order={order} /></div>
                                                 <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                             </div>
                                         </div>
@@ -123,7 +125,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                                     <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setEditingOrder(order)}>
                                         <td className="p-4 font-mono font-bold text-slate-600">#{order.id}</td>
                                         <td className="p-4">
-                                            <div className="font-bold text-slate-800">{order.customer_name}</div>
+                                            <div className="font-bold text-slate-800"><OrderCustomerName order={order} /></div>
                                             {order.seller_name && <div className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</div>}
                                         </td>
                                         <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>

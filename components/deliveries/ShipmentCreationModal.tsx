@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -269,7 +270,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
             <div className="mt-6 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
               <span className="truncate">{formatOrderId(order.id)}</span>
               <span className="text-slate-300">·</span>
-              <span className="truncate">{order.customer_name}</span>
+              <span className="truncate"><OrderCustomerName order={order} /></span>
             </div>
           </div>
         </div>
@@ -310,7 +311,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                 <p className="text-sm text-slate-600 mt-2 font-medium">
                   Παραγγελία <span className="font-black text-slate-900">{formatOrderId(order.id)}</span>
                   <span className="text-slate-300 mx-1.5">·</span>
-                  {order.customer_name}
+                  <OrderCustomerName order={order} />
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 text-[11px] font-black">

@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { memo } from 'react';
 import {
@@ -161,7 +162,7 @@ function ProductionFinderResultRow({
                             </div>
                             <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
                                 <span className="font-bold text-slate-700 text-xs">
-                                    {batch.customer_name || 'Άγνωστος πελάτης'}
+                                    <CustomerNameLabel name={batch.customer_name || 'Άγνωστος πελάτης'} retail={batch.customer_is_retail} />
                                 </span>
                                 {batch.on_hold ? (
                                     <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
@@ -236,6 +237,7 @@ function propsAreEqual(prev: Props, next: Props): boolean {
         pb.sku === nb.sku &&
         pb.variant_suffix === nb.variant_suffix &&
         pb.customer_name === nb.customer_name &&
+        pb.customer_is_retail === nb.customer_is_retail &&
         pb.notes === nb.notes &&
         pb.on_hold_reason === nb.on_hold_reason &&
         pb.size_info === nb.size_info &&

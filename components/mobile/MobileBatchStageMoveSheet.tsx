@@ -1,3 +1,4 @@
+import { CustomerNameLabel } from '../orders/OrderCustomerName';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -143,7 +144,7 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
                                 <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                             </div>
                             {batch.customer_name ? (
-                                <p className="mt-1 truncate text-xs font-bold text-slate-500">{batch.customer_name}</p>
+                                <p className="mt-1 truncate text-xs font-bold text-slate-500"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></p>
                             ) : null}
                         </div>
                         <button

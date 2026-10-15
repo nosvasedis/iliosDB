@@ -1,3 +1,4 @@
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { X, Truck, Calendar, Hash, CheckSquare, Square, Printer } from 'lucide-react';
@@ -89,7 +90,7 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
               <span className="inline-flex items-center gap-1"><Hash size={12} /> {formatOrderId(order.id)}</span>
               <span className="text-slate-300">•</span>
-              <span className="truncate max-w-[240px]">{order.customer_name}</span>
+              <span className="truncate max-w-[240px]"><OrderCustomerName order={order} /></span>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500" aria-label="Κλείσιμο">

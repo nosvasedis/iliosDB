@@ -1,3 +1,4 @@
+import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 /**
  * TransferRemainingItemsModal.tsx
@@ -225,7 +226,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
             <ArrowRightLeft size={20} className="text-violet-600" />
             <div>
               <h2 className="text-lg font-bold text-slate-800">Μεταφορά Υπολοίπου σε Άλλη Παραγγελία</h2>
-              <p className="text-xs text-slate-500 font-mono mt-0.5">Παρ. A: #{formatOrderId(orderA.id)} · {orderA.customer_name}</p>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">Παρ. A: #{formatOrderId(orderA.id)} · <OrderCustomerName order={orderA} /></p>
             </div>
           </div>
           {step !== 'executing' && (
@@ -296,7 +297,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                   <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                   <p>
                     Δεν βρέθηκαν άλλες ενεργές παραγγελίες για τον πελάτη{' '}
-                    <strong>{orderA.customer_name}</strong>.
+                    <strong><OrderCustomerName order={orderA} /></strong>.
                   </p>
                 </div>
               ) : (

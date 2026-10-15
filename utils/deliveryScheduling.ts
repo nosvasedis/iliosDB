@@ -1,3 +1,4 @@
+import { getOrderCustomerPhone } from './orderCustomer';
 import {
   Customer,
   DeliveryPlanStatus,
@@ -284,7 +285,7 @@ export function enrichDeliveryItems(
       reminders: planReminders,
       next_reminder: nextReminder,
       pending_reminders: pendingReminders,
-      phone: plan.contact_phone_override || customer?.phone || order.customer_phone || null,
+      phone: plan.contact_phone_override || getOrderCustomerPhone(order, customer) || null,
       is_ready: ready,
       needs_call: needsCall,
       call_reasons: Array.from(new Set(callReasons)),

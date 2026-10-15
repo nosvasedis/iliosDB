@@ -1,3 +1,4 @@
+import OrderCustomerName from '../orders/OrderCustomerName';
 import React from 'react';
 import { CheckCircle2, PhoneCall } from 'lucide-react';
 import { CalendarDayEvent, EnrichedDeliveryItem, OrderDeliveryReminder } from '../../types';
@@ -5,7 +6,7 @@ import {
   DELIVERY_ACTION_LABELS,
   DELIVERY_URGENCY_LABELS,
   formatDeliveryWindow,
-  getOrderDisplayName,
+
 } from '../../utils/deliveryLabels';
 import {
   buildDeliveryWorklistGroups,
@@ -160,7 +161,7 @@ export default function DeliveryAgendaList({
                     <div className="flex justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 truncate">
-                          {getOrderDisplayName(item.order)}
+                          <OrderCustomerName order={item.order} />
                         </div>
                         <div className="text-xs font-medium text-slate-500 mt-0.5">
                           {formatDeliveryWindow(item.plan)}

@@ -1,4 +1,3 @@
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import {
   AssemblyPrintRow,
@@ -13,7 +12,7 @@ import {
   ProductionBatch,
   ProductionStage,
 } from '../../types';
-import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { getOrderCustomerName, isRetailCustomerOrder } from '../../utils/orderCustomer';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getProductionTimingInfo } from '../../utils/productionTiming';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
@@ -50,11 +49,7 @@ export type ProductionAssemblyOrderCandidate = {
 
 function getDisplayCustomerName(order: Order | undefined): string {
   if (!order) return '';
-  const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
-  const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
-  return isRetailOrder && retailClientLabel
-    ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
-    : (order.customer_name || '');
+  return getOrderCustomerName(order);
 }
 
 function sameNullableValue(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -131,6 +126,7 @@ export function enrichProductionBatchesForBoard(
       requires_setting: hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(batch.sku),
       requires_assembly: isSpecialCreationSku(batch.sku) ? false : requiresAssemblyStage(batch.sku),
       customer_name: getDisplayCustomerName(order),
+      customer_is_retail: !!order && isRetailCustomerOrder(order),
       overridden_price:
         matchingOrderItem && (matchingOrderItem.price_override === true || isSpecialCreationSku(batch.sku))
           ? matchingOrderItem.price_at_order
@@ -219,7 +215,7 @@ export function buildActiveProductionNotes(
     )
     .map((order) => ({
       id: order.id,
-      customer: order.customer_name,
+      customer: getOrderCustomerName(order),
       note: order.notes || '',
     }));
 }

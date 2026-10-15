@@ -1,3 +1,5 @@
+import type { CustomerVatLookupResult } from '../types';
+import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
 import React, { useState, useEffect } from 'react';
 import { Customer, VatRegime } from '../types';
 import {
@@ -31,6 +33,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
     const [tab, setTab] = useState<CreateTab>('general');
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
+    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const { showToast } = useUI();
     const isDomestic = isDomesticCountry(form.country);
 
@@ -45,10 +48,13 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
             return;
         }
         setIsSearchingAfm(true);
+        setVatLookupEvidence(null);
         try {
             const result = await lookupCustomerVat(form.vat_number);
             if (result) {
                 setForm(prev => applyCustomerVatLookup(prev, result));
+                setVatLookupEvidence(result);
+                setTab('fiscal');
                 showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
@@ -62,6 +68,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSearchingAfm) return;
         if (!form.full_name.trim()) {
             showToast('Το ονοματεπώνυμο είναι υποχρεωτικό.', 'error');
             setTab('general');
@@ -349,7 +356,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     </select>
                                 </div>
                                 <div className="mt-5">
-                                    <CustomerVatExemptionFields customer={form} onChange={setForm} />
+                                    <CustomerVatProfileSuggestion customer={form} onChange={setForm} lookup={vatLookupEvidence} /><CustomerVatExemptionFields customer={form} onChange={setForm} />
                                 </div>
                             </div>
                         )}
@@ -386,7 +393,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                         </button>
                         <button
                             type="submit"
-                            disabled={isSaving || !form.full_name.trim()}
+                            disabled={isSaving || isSearchingAfm || !form.full_name.trim()}
                             className="flex items-center justify-center gap-2 rounded-xl bg-[#060b00] py-3.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-black disabled:opacity-40 sm:min-w-[200px]"
                         >
                             {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}

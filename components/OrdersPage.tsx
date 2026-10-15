@@ -1,3 +1,5 @@
+import OrderCustomerName from './orders/OrderCustomerName';
+import { getOrderCustomerName } from '../utils/orderCustomer';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -6,7 +8,6 @@ import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material,
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, HelpCircle } from 'lucide-react';
 import * as ReactQuery from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
-import { retailEndClientPillClass } from '../utils/retailPresentation';
 import { useSellers } from '../hooks/api/useSellers';
 import { withResolvedOrderSeller } from '../utils/orderSeller';
 import { useUI } from './UIProvider';
@@ -15,7 +16,6 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import ProductionSendModal from './ProductionSendModal';
-import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness, getOrderReadinessPercent, isOrderReady, isOrderReadyForShipment } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import { HoverTooltip } from './ui/HoverTooltip';
@@ -222,7 +222,7 @@ const OrderPartSelectorModal = ({
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Επιλογή Τμημάτων για Εκτύπωση</h2>
-                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id.slice(-8)} • {order.customer_name}{order.seller_name ? ` · ${order.seller_name}` : ''}</p>
+                        <p className="text-sm text-slate-500 font-mono font-bold">Παραγγελία #{order.id.slice(-8)} • <OrderCustomerName order={order} />{order.seller_name ? ` · ${order.seller_name}` : ''}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
                 </div>
@@ -507,7 +507,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             return;
         }
         if (printFn === onPrintAggregated) {
-            printFn(orderBatches, { orderId: order.id, customerName: order.customer_name });
+            printFn(orderBatches, { orderId: order.id, customerName: getOrderCustomerName(order) });
         } else {
             printFn(orderBatches);
         }
@@ -550,7 +550,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                         showToast("Η παραγγελία δεν έχει είδη για εκτύπωση.", "info");
                         return;
                     }
-                    onPrintAggregated(syntheticBatches, { orderId: order.id, customerName: order.customer_name });
+                    onPrintAggregated(syntheticBatches, { orderId: order.id, customerName: getOrderCustomerName(order) });
                     onClose();
                 } else {
                     handlePrintProductionSheet(onPrintAggregated);
@@ -1160,16 +1160,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     }, [ensureFullOrderItems, batchesByOrderId]);
 
     const orderMetaById = useMemo(() => {
-        const map = new Map<string, { isReady: boolean; fullyShipped: boolean; retailClientLabel: string; readinessPercent: number }>();
+        const map = new Map<string, { isReady: boolean; fullyShipped: boolean; readinessPercent: number }>();
         orders?.forEach(order => {
-            const retailClientLabel = extractRetailClientFromNotes(order.notes).retailClientLabel;
             const orderBatches = batchesByOrderId.get(order.id) || [];
             const shippedQty = shippedQtyByOrderId.get(order.id);
             const readinessPercent = getOrderReadinessPercent(order, orderBatches, shippedQty);
             map.set(order.id, {
                 isReady: isOrderReadyForShipment(order, orderBatches, shippedQty),
                 fullyShipped: isOrderFullyShipped(order, shippedQty),
-                retailClientLabel,
                 readinessPercent
             });
         });
@@ -1311,7 +1309,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 case 'readiness_less':
                     return readinessA - readinessB || fallback;
                 case 'customer_az':
-                    return a.customer_name.localeCompare(b.customer_name, 'el') || fallback;
+                    return getOrderCustomerName(a).localeCompare(getOrderCustomerName(b), 'el') || fallback;
                 case 'amount_high':
                     return netB - netA || fallback;
                 case 'amount_low':
@@ -1442,7 +1440,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             await invalidateOrdersAndBatches(queryClient);
             const totalQty = itemsToSend.reduce((s, i) => s + i.qty, 0);
             showToast(`Στάλθηκαν ${formatNumber(totalQty)} τεμάχια στην παραγωγή.`, "success");
-            dispatchLiveActivity({ type: 'order_sent_to_production', userName: profile?.full_name || 'Κάποιος', customerName: order.customer_name, itemCount: totalQty });
+            dispatchLiveActivity({ type: 'order_sent_to_production', userName: profile?.full_name || 'Κάποιος', customerName: getOrderCustomerName(order), itemCount: totalQty });
         } catch {
             showToast("Σφάλμα κατά την αποστολή στην παραγωγή.", "error");
         } finally {
@@ -1487,7 +1485,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 setManagingOrder(null);
                 showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
                 const revertedOrder = orders?.find(o => o.id === orderId);
-                dispatchLiveActivity({ type: 'order_reverted', userName: profile?.full_name || 'Κάποιος', customerName: revertedOrder?.customer_name });
+                dispatchLiveActivity({ type: 'order_reverted', userName: profile?.full_name || 'Κάποιος', customerName: revertedOrder ? getOrderCustomerName(revertedOrder) : undefined });
             } catch (err: any) {
                 showToast(`Σφάλμα: ${err.message}`, 'error');
             }
@@ -1875,7 +1873,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const orderMeta = orderMetaById.get(order.id);
                                 const ready = orderMeta?.isReady || false;
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
-                                const retailClientLabel = orderMeta?.retailClientLabel || '';
                                 const transferIndicators = getOrderTransferIndicators(order.notes);
                                 const isSelected = multiSelectIds.has(order.id);
                                 return (
@@ -1939,18 +1936,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                             onClick={(e) => { e.stopPropagation(); setViewingCustomer(cust); }}
                                                             className="text-left font-black text-slate-900 transition-colors hover:text-blue-600 hover:underline"
                                                         >
-                                                            {order.customer_name}
+                                                            <OrderCustomerName order={order} />
                                                         </button>
-                                                    ) : order.customer_name;
+                                                    ) : <OrderCustomerName order={order} />;
                                                 })()}
-                                                {isRetailOrder && retailClientLabel && (
-                                                    <span
-                                                        className={`ml-2 align-middle ${retailEndClientPillClass}`}
-                                                        title="Τελικός πελάτης (λιανική)"
-                                                    >
-                                                        {retailClientLabel}
-                                                    </span>
-                                                )}
+
                                             </div>
                                             {transferIndicators.length > 0 && (
                                                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -2094,15 +2084,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                             <div>
                                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-0.5">Διαχείριση Παραγγελίας</p>
                                 <h3 className="text-base font-bold text-slate-800 leading-tight">
-                                    #{managingOrder.id} &mdash; {managingOrder.customer_name}
-                                    {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && (orderMetaById.get(managingOrder.id)?.retailClientLabel || '') && (
-                                        <span
-                                            className={`ml-2 align-middle ${retailEndClientPillClass}`}
-                                            title="Τελικός πελάτης (λιανική)"
-                                        >
-                                            {orderMetaById.get(managingOrder.id)?.retailClientLabel}
-                                        </span>
-                                    )}
+                                    #{managingOrder.id} &mdash; <OrderCustomerName order={managingOrder} />
+
                                 </h3>
                                 {getOrderTransferIndicators(managingOrder.notes).map((indicator) => (
                                     <div key={indicator.detail} title={indicator.detail} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700">
