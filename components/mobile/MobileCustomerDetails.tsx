@@ -3,7 +3,7 @@ import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  BarChart3,
+  Gem,
   Building2,
   Calendar,
   Edit3,
@@ -25,9 +25,10 @@ import { countryDisplayName } from '../../features/customers/greekRegions';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getSpecialCreationDisplayNote } from '../../utils/specialCreationSku';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../../features/orders/statusPresentation';
-import CustomerAnalyticsPanel from '../customers/CustomerAnalyticsPanel';
+import CustomerAssortmentPanel from '../customers/CustomerAssortmentPanel';
+import { CustomerProfileSummary, CustomerSocialsPane } from '../customers/customerProfileUi';
 
-type DetailTab = 'overview' | 'analytics' | 'orders';
+type DetailTab = 'overview' | 'assortment' | 'orders';
 
 interface Props {
   customer: Customer;
@@ -38,7 +39,7 @@ interface Props {
 
 const tabs: Array<{ id: DetailTab; label: string; icon: typeof User }> = [
   { id: 'overview', label: 'Επισκόπηση', icon: User },
-  { id: 'analytics', label: 'Ανάλυση', icon: BarChart3 },
+  { id: 'assortment', label: 'Γκάμα & Περιοχή', icon: Gem },
   { id: 'orders', label: 'Παραγγελίες', icon: ShoppingBag },
 ];
 
@@ -122,11 +123,13 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
                 </div>
               </section>
             )}
+            <CustomerSocialsPane customer={customer} onEdit={onEdit} />
+            <CustomerProfileSummary customer={customer} />
             {customer.notes && <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><h2 className="flex items-center gap-2 text-xs font-black text-amber-950"><StickyNote size={15} /> Σημειώσεις</h2><p className="mt-2 whitespace-pre-wrap text-xs font-medium leading-relaxed text-amber-900">{customer.notes}</p></section>}
           </div>
         )}
 
-        {tab === 'analytics' && <CustomerAnalyticsPanel customer={customer} orders={orders} compact onOpenOrders={query => { setOrderQuery(query || ''); setTab('orders'); }} />}
+        {tab === 'assortment' && <CustomerAssortmentPanel customer={customer} compact onOpenOrders={query => { setOrderQuery(query || ''); setTab('orders'); }} />}
 
         {tab === 'orders' && (
           <div className="space-y-3">

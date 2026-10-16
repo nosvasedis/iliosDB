@@ -2491,6 +2491,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     customer={viewingCustomer}
                     orders={orders.filter(o => o.customer_id === viewingCustomer.id)}
                     onClose={() => setViewingCustomer(null)}
+                    onOpenCustomer={id => { const next = customers?.find(c => c.id === id); if (next) setViewingCustomer(next); }}
                     onUpdate={async (c) => {
                         await ordersRepository.updateCustomer(c.id, c);
                         queryClient.invalidateQueries({ queryKey: ['customers'] });

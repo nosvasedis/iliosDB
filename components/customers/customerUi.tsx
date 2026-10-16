@@ -1,5 +1,6 @@
-import React from 'react';
-import { MapPin } from 'lucide-react';
+import React, { useState } from 'react';
+import { Image as ImageIcon, MapPin, ShoppingBag } from 'lucide-react';
+import { SEVERITY_META, type OverlapSeverity } from '../../features/customers/customerAssortment';
 import {
   ACTIVITY_META,
   nextCategoryGap,
@@ -81,5 +82,37 @@ export function RegionPill({ location, className = '' }: { location: CustomerLoc
       <MapPin size={10} className="shrink-0 text-sky-500" />
       <span className="truncate">{text}</span>
     </span>
+  );
+}
+
+/** Lazy product photo with a neutral placeholder. */
+export function ProductThumb({ src, size = 36 }: { src: string | null; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-slate-300 ring-1 ring-slate-100" style={{ width: size, height: size }}>
+      {src && !failed
+        ? <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        : <ImageIcon size={Math.round(size * 0.45)} />}
+    </span>
+  );
+}
+
+/** Directory chips: pieces of the filtered items bought, and the worst territory overlap. */
+export function TerritoryInsightChips({ matchQty, matchLast, severity }: { matchQty?: number | null; matchLast?: number | null; severity?: OverlapSeverity | null }) {
+  if (!matchQty && !severity) return null;
+  return (
+    <>
+      {Boolean(matchQty) && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-100"
+          title={matchLast ? `Τελευταία αγορά ${new Date(matchLast).toLocaleDateString('el-GR')}` : undefined}>
+          <ShoppingBag size={10} /> {matchQty!.toLocaleString('el-GR')} τεμ.
+        </span>
+      )}
+      {severity && (
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${SEVERITY_META[severity].tone}`} title={SEVERITY_META[severity].hint}>
+          <span className={`h-1.5 w-1.5 rounded-full ${SEVERITY_META[severity].dot}`} /> {severity === 'critical' ? 'Αποκλειστικότητα' : 'Επικάλυψη'}
+        </span>
+      )}
+    </>
   );
 }

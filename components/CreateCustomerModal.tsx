@@ -20,16 +20,20 @@ import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } 
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion, withCustomerCountry } from './customers/customerProfileFields';
 import { isDomesticCountry, normalizeCountry } from '../features/customers/customerLocation';
+import { CustomerProfileEditor } from './customers/customerProfileUi';
+import { cleanCustomerProfile } from '../features/customers/customerProfile';
 
 export interface CreateCustomerModalProps {
     draft: Customer;
     onSave: (c: Customer) => Promise<void>;
     onCancel: () => void;
+    /** Existing customer tags, offered while typing. */
+    tagSuggestions?: string[];
 }
 
-type CreateTab = 'general' | 'fiscal' | 'branches' | 'notes';
+type CreateTab = 'general' | 'fiscal' | 'branches' | 'profile' | 'notes';
 
-export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateCustomerModalProps) {
+export default function CreateCustomerModal({ draft, onSave, onCancel, tagSuggestions = [] }: CreateCustomerModalProps) {
     const [form, setForm] = useState<Customer>(draft);
     const [tab, setTab] = useState<CreateTab>('general');
     const [isSaving, setIsSaving] = useState(false);
@@ -84,6 +88,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
             .filter(b => b.label?.trim() || b.street?.trim() || b.city?.trim())
             .map((b, index) => ({ ...b, label: b.label?.trim() || `Κατάστημα ${index + 1}` }));
         if (branches.length > 0 && !branches.some(b => b.is_primary)) branches[0] = { ...branches[0], is_primary: true };
+        const profile = form.profile ? cleanCustomerProfile(form.profile) : null;
         setIsSaving(true);
         try {
             await onSave({
@@ -91,6 +96,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                 country: normalizeCountry(form.country),
                 vat_number: isDomestic ? form.vat_number : (form.vat_number || '').toUpperCase().replace(/\s+/g, ''),
                 branches,
+                ...(profile && Object.keys(profile).length ? { profile } : {}),
             });
         } catch {
             // Parent shows error toast
@@ -116,6 +122,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
         { id: 'general', label: 'Γενικά', hint: 'Όνομα, επικοινωνία, διεύθυνση' },
         { id: 'fiscal', label: 'Φορολογικά', hint: 'Χώρα, ΑΦΜ, ΦΠΑ' },
         { id: 'branches', label: 'Καταστήματα', hint: 'Σημεία πώλησης' },
+        { id: 'profile', label: 'Προφίλ', hint: 'Social media, επαφές, όροι' },
         { id: 'notes', label: 'Σημειώσεις', hint: 'Εσωτερικές σημειώσεις' },
     ];
 
@@ -355,6 +362,16 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                             <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
                                 <CustomerBranchesEditor customer={form} onChange={next => setForm({ ...form, branches: next })} />
                             </div>
+                        )}
+
+                        {tab === 'profile' && (
+                            <CustomerProfileEditor
+                                value={form.profile ?? {}}
+                                onChange={profile => setForm(prev => ({ ...prev, profile }))}
+                                mobilePhone={form.mobile_phone || null}
+                                tagSuggestions={tagSuggestions}
+                                socialsOpen
+                            />
                         )}
 
                         {tab === 'notes' && (

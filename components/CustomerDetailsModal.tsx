@@ -30,7 +30,6 @@ import {
     LayoutDashboard,
     Receipt,
     StickyNote,
-    BarChart3,
     ArrowRightLeft,
     HandHeart,
     Wrench,
@@ -48,6 +47,9 @@ import {
     Globe2,
     Landmark,
     Star,
+    Gem,
+    Radar,
+    Sparkles,
 } from 'lucide-react';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
@@ -62,8 +64,12 @@ import { useAllShipmentItems, useAllShipments } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { isOrderReadyForShipment } from '../utils/orderReadiness';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
-import CustomerAnalyticsPanel from './customers/CustomerAnalyticsPanel';
-import { resolveCustomerAnalyticsCategory } from '../features/customers/customerAnalytics';
+import CustomerAssortmentPanel from './customers/CustomerAssortmentPanel';
+import { CustomerProfileEditor, CustomerProfileSummary, CustomerSocialsPane, SocialIconRow } from './customers/customerProfileUi';
+import { useAssortmentIndex, useTerritoryPrefs } from './customers/useCustomerTerritory';
+import { getCustomerAssortment, overlapsForCustomer, SEVERITY_META } from '../features/customers/customerAssortment';
+import { cleanCustomerProfile, collectCustomerTags, readCustomerProfile, savedSocials } from '../features/customers/customerProfile';
+import { useCustomers } from '../hooks/api/useOrders';
 import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
 import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, findLiveRepairBatch, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
 import ConsignmentBadge from './customerService/ConsignmentBadge';
@@ -104,6 +110,8 @@ export interface CustomerDetailsModalProps {
     onPrintOrder?: (o: Order) => void;
     /** Shown as a "Χάρτης" quick action and on the location card. */
     onShowOnMap?: () => void;
+    /** Opens another customer's card (neighbours in «Γκάμα & Περιοχή»). */
+    onOpenCustomer?: (customerId: string) => void;
 }
 
 const inputClass =
@@ -239,6 +247,7 @@ export default function CustomerDetailsModal({
     onDelete,
     onPrintOrder,
     onShowOnMap,
+    onOpenCustomer,
 }: CustomerDetailsModalProps) {
     const isRetailSystemCustomer = customer.id === RETAIL_CUSTOMER_ID;
     const [isEditing, setIsEditing] = useState(false);
@@ -253,6 +262,21 @@ export default function CustomerDetailsModal({
     const { data: allShipmentItems } = useAllShipmentItems();
     const { data: batches } = useProductionBatches();
     const { data: customerServiceData } = useCustomerServiceWorkspace();
+    const { data: allCustomers } = useCustomers();
+    const assortmentIndex = useAssortmentIndex();
+    const territoryPrefs = useTerritoryPrefs();
+    const tagSuggestions = useMemo(() => collectCustomerTags(allCustomers), [allCustomers]);
+    /** All-time assortment: «τι αγοράζει» on the overview. */
+    const assortment = useMemo(
+        () => (assortmentIndex ? getCustomerAssortment(assortmentIndex, customer.id, 'all') : null),
+        [assortmentIndex, customer.id],
+    );
+    const territoryOverlaps = useMemo(
+        () => (assortmentIndex && !isRetailSystemCustomer
+            ? overlapsForCustomer(assortmentIndex, customer.id, { radiusKm: territoryPrefs.radiusKm, window: territoryPrefs.window, ignored: territoryPrefs.ignoredSet })
+            : []),
+        [assortmentIndex, isRetailSystemCustomer, customer.id, territoryPrefs.radiusKm, territoryPrefs.window, territoryPrefs.ignoredSet],
+    );
     const customerLocation = useMemo(() => resolveCustomerLocation(customer), [customer]);
     const draftLocation = useMemo(() => resolveCustomerLocation(editForm), [editForm]);
     const branches = useMemo(() => customerBranches(customer), [customer]);
@@ -311,9 +335,13 @@ export default function CustomerDetailsModal({
         return map;
     }, [batches]);
 
-    type NormalTab = 'overview' | 'details' | 'orders' | 'analytics' | 'consignments' | 'repairs';
+    type NormalTab = 'overview' | 'details' | 'orders' | 'assortment' | 'consignments' | 'repairs';
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
     const [activeTab, setActiveTab] = useState<NormalTab | RetailTab>('overview');
+    const [assortmentSection, setAssortmentSection] = useState<'range' | 'territory' | 'ideas'>('range');
+    const openAssortment = (section: 'range' | 'territory' | 'ideas') => { setAssortmentSection(section); setActiveTab('assortment'); };
+    /** Open the social pane of the editor directly. */
+    const [editFocus, setEditFocus] = useState<'socials' | null>(null);
     const [serviceForm, setServiceForm] = useState<'consignment' | 'repair' | null>(null);
     const [orderQuery, setOrderQuery] = useState('');
 
@@ -321,12 +349,19 @@ export default function CustomerDetailsModal({
         setEditForm(customer);
         setIsEditing(false);
         setActiveTab('overview');
+        setAssortmentSection('range');
         setOrderQuery('');
     }, [customer.id]);
 
     useEffect(() => {
         if (!isEditing) setEditForm(customer);
     }, [customer, isEditing]);
+
+    useEffect(() => {
+        if (!isEditing || editFocus !== 'socials') return;
+        const id = window.setTimeout(() => document.getElementById('customer-edit-profile')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+        return () => window.clearTimeout(id);
+    }, [isEditing, editFocus]);
 
     // Esc closes the card (but never discards an edit in progress).
     useEffect(() => {
@@ -354,28 +389,7 @@ export default function CustomerDetailsModal({
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
 
-        const catStats: Record<string, { count: number; value: number }> = {};
-        let totalItems = 0;
-        customerOrders.forEach(o => {
-            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            o.items.forEach(item => {
-                const cat = resolveCustomerAnalyticsCategory(item.sku, item.product_details);
-                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
-                catStats[cat].count += item.quantity;
-                catStats[cat].value += item.price_at_order * item.quantity * discountFactor;
-                totalItems += item.quantity;
-            });
-        });
-
-        const prefData = Object.entries(catStats)
-            .map(([name, s]) => ({
-                name,
-                count: s.count,
-                value: s.value,
-                percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0,
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
+        const totalItems = customerOrders.reduce((acc, o) => acc + o.items.reduce((sum, item) => sum + (item.quantity || 0), 0), 0);
 
         const latestOrder = customerOrders[0];
         const oldestOrder = customerOrders[customerOrders.length - 1];
@@ -400,7 +414,6 @@ export default function CustomerDetailsModal({
             orderCount,
             avgOrderValue,
             history: customerOrders,
-            prefData,
             totalItems,
             latestOrder,
             firstOrder: oldestOrder,
@@ -491,7 +504,10 @@ export default function CustomerDetailsModal({
                 ? editForm.vat_number
                 : (editForm.vat_number || '').toUpperCase().replace(/\s+/g, ''),
             branches: cleanBranches,
+            profile: cleanCustomerProfile(editForm.profile ?? {}),
         };
+        // Customers that never had a profile don't send an empty one.
+        if (customer.profile === undefined && Object.keys(payload.profile ?? {}).length === 0) delete payload.profile;
         setIsSaving(true);
         try {
             await onUpdate(payload);
@@ -549,8 +565,9 @@ export default function CustomerDetailsModal({
         }
     }, [showToast]);
 
-    const startEditing = () => {
-        setEditForm(customer);
+    const startEditing = (focus: 'socials' | null = null) => {
+        setEditForm({ ...customer, profile: readCustomerProfile(customer) });
+        setEditFocus(focus);
         setIsEditing(true);
     };
     const cancelEditing = () => {
@@ -561,14 +578,14 @@ export default function CustomerDetailsModal({
     const retailTabList: { id: RetailTab; label: string; Icon: typeof LayoutDashboard; count?: number }[] = [
         { id: 'overview', label: 'Επισκόπηση', Icon: LayoutDashboard },
         { id: 'end_clients', label: 'Τελικοί πελάτες', Icon: UsersIcon },
-        { id: 'categories', label: 'Κατηγορίες', Icon: PieChart },
+        { id: 'categories', label: 'Είδη', Icon: PieChart },
         { id: 'orders', label: 'Παραγγελίες', Icon: ShoppingBag, count: stats.orderCount },
     ];
     const normalTabList: { id: NormalTab; label: string; Icon: typeof LayoutDashboard; count?: number; narrowOnly?: boolean }[] = [
         { id: 'overview', label: 'Επισκόπηση', Icon: LayoutDashboard },
         { id: 'details', label: 'Στοιχεία', Icon: IdCard, narrowOnly: true },
         { id: 'orders', label: 'Παραγγελίες', Icon: ShoppingBag, count: stats.orderCount },
-        { id: 'analytics', label: 'Ανάλυση', Icon: BarChart3 },
+        { id: 'assortment', label: 'Γκάμα & Περιοχή', Icon: Gem, count: territoryOverlaps.length || undefined },
         { id: 'consignments', label: 'Παρακαταθήκες', Icon: HandHeart, count: customerConsignments.length },
         { id: 'repairs', label: 'Επισκευές', Icon: Wrench, count: customerRepairs.length },
     ];
@@ -599,6 +616,13 @@ export default function CustomerDetailsModal({
         }
     };
 
+    const savedProfile = readCustomerProfile(customer);
+    const hasProfileSummary = Boolean(
+        savedProfile.contacts?.length || savedProfile.shop_type || savedProfile.positioning || savedProfile.clientele
+        || savedProfile.season || savedProfile.opening_hours || savedProfile.payment_method || savedProfile.credit_days
+        || savedProfile.credit_limit || savedProfile.tags?.length || savedProfile.exclusivity,
+    );
+
     const detailsSections = (
         <div className="space-y-5">
             {!isRetailSystemCustomer && addressCountryMismatch(customer) && !inspectionLocked && (
@@ -626,11 +650,24 @@ export default function CustomerDetailsModal({
                     />
                 </div>
             </section>
+            {!isRetailSystemCustomer && (
+                <CustomerSocialsPane customer={customer} onEdit={inspectionLocked ? undefined : () => startEditing('socials')} />
+            )}
+            {!isRetailSystemCustomer && hasProfileSummary && (
+                <section>
+                    <SectionTitle
+                        icon={UsersIcon}
+                        title="Προφίλ & εμπορικοί όροι"
+                        action={<button type="button" onClick={() => startEditing()} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">Επεξεργασία</button>}
+                    />
+                    <CustomerProfileSummary customer={customer} collectionNames={assortmentIndex?.collections} />
+                </section>
+            )}
             <section>
                 <SectionTitle
                     icon={Store}
                     title={`Καταστήματα${branches.length ? ` (${branches.length})` : ''}`}
-                    action={<button type="button" onClick={startEditing} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">{branches.length ? 'Διαχείριση' : 'Προσθήκη'}</button>}
+                    action={<button type="button" onClick={() => startEditing()} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">{branches.length ? 'Διαχείριση' : 'Προσθήκη'}</button>}
                 />
                 {branches.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-[12px] text-slate-400">
@@ -700,7 +737,7 @@ export default function CustomerDetailsModal({
                 <SectionTitle
                     icon={StickyNote}
                     title="Σημειώσεις"
-                    action={<button type="button" onClick={startEditing} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">Επεξεργασία</button>}
+                    action={<button type="button" onClick={() => startEditing()} className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-sky-700 hover:bg-sky-50">Επεξεργασία</button>}
                 />
                 <p className={`whitespace-pre-wrap rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-[13px] leading-relaxed ${customer.notes ? 'text-slate-700' : 'italic text-slate-300'}`}>
                     {customer.notes || 'Καμία σημείωση.'}
@@ -747,27 +784,64 @@ export default function CustomerDetailsModal({
         </div>
     );
 
+    /** Jewellery kinds bought (all time), from the shared assortment index. */
     const categoriesBars = (limit: number) => (
-        stats.prefData.length > 0 ? (
+        !assortment ? (
+            <div className="space-y-3">{[0, 1, 2].map(i => <div key={i} className="h-7 animate-pulse rounded-lg bg-slate-100" />)}</div>
+        ) : assortment.kinds.length > 0 ? (
             <div className="space-y-3">
-                {stats.prefData.slice(0, limit).map((item, index) => (
-                    <div key={item.name}>
+                {assortment.kinds.slice(0, limit).map((item, index) => (
+                    <div key={item.key}>
                         <div className="mb-1 flex items-baseline justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-1.5 truncate text-xs font-bold text-slate-700">
                                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[10px] font-black ${index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{index + 1}</span>
-                                <span className="truncate">{item.name}</span>
+                                <span className="truncate">{item.label}</span>
                             </span>
-                            <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatNumber(item.count)} τεμ. · {formatCurrency(item.value)}</span>
+                            <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatNumber(item.qty)} τεμ. · {formatNumber(item.skuCount)} κωδ.</span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-700" style={{ width: `${Math.max(4, item.percentage)}%` }} />
+                            <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-700" style={{ width: `${Math.max(4, item.share)}%` }} />
                         </div>
                     </div>
                 ))}
+                {assortment.collections.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                        {assortment.collections.slice(0, 4).map(c => (
+                            <span key={c.key} className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-100">{c.label} · {formatNumber(c.qty)}</span>
+                        ))}
+                    </div>
+                )}
             </div>
         ) : (
             <p className="py-6 text-center text-xs text-slate-400">Δεν υπάρχουν δεδομένα αγορών.</p>
         )
+    );
+
+    const worstOverlap = territoryOverlaps[0] ?? null;
+    const sharedSkuCount = new Set(territoryOverlaps.flatMap(o => o.sharedSkus.map(x => x.sku))).size;
+    const territoryCard = (
+        <div className={`${sectionCard} p-5`}>
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-slate-800"><Radar size={16} className="text-orange-500" /> Περιοχή</h3>
+            {!assortmentIndex ? (
+                <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            ) : !worstOverlap ? (
+                <p className="text-xs leading-relaxed text-slate-500">Κανένας γειτονικός πελάτης σε {territoryPrefs.radiusKm.toLocaleString('el-GR')} km δεν έχει ίδιους κωδικούς ή συλλογές.</p>
+            ) : (
+                <div className="space-y-1.5">
+                    <div className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${SEVERITY_META[worstOverlap.severity].tone}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${SEVERITY_META[worstOverlap.severity].dot}`} /> {SEVERITY_META[worstOverlap.severity].label}
+                    </div>
+                    <p className="text-xs text-slate-600">
+                        <b>{formatNumber(territoryOverlaps.length)}</b> {territoryOverlaps.length === 1 ? 'γειτονικός πελάτης' : 'γειτονικοί πελάτες'} με κοινή γκάμα
+                        {sharedSkuCount ? ` · ${formatNumber(sharedSkuCount)} κοινοί κωδικοί` : ''}.
+                    </p>
+                </div>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => openAssortment('territory')} className="flex items-center justify-center gap-1 rounded-xl bg-slate-50 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100"><Radar size={12} /> Επικαλύψεις</button>
+                <button type="button" onClick={() => openAssortment('ideas')} className="flex items-center justify-center gap-1 rounded-xl bg-slate-50 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100"><Sparkles size={12} /> Προτάσεις</button>
+            </div>
+        </div>
     );
 
     const normalOverview = (
@@ -791,14 +865,16 @@ export default function CustomerDetailsModal({
 
                 <div className="space-y-5">
                     <div className={`${sectionCard} p-5`}>
-                        <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-slate-800"><PieChart size={16} className="text-indigo-500" /> Τι αγοράζει</h3>
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-slate-800"><Gem size={16} className="text-indigo-500" /> Τι αγοράζει</h3>
                         {categoriesBars(4)}
-                        {stats.prefData.length > 0 && (
-                            <button type="button" onClick={() => setActiveTab('analytics')} className="mt-4 flex w-full items-center justify-center gap-1 rounded-xl bg-slate-50 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">
-                                Πλήρης ανάλυση <ArrowRight size={12} />
+                        {Boolean(assortment?.kinds.length) && (
+                            <button type="button" onClick={() => openAssortment('range')} className="mt-4 flex w-full items-center justify-center gap-1 rounded-xl bg-slate-50 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">
+                                Γκάμα: κωδικοί & συλλογές <ArrowRight size={12} />
                             </button>
                         )}
                     </div>
+
+                    {territoryCard}
 
                     <div className={`${sectionCard} p-5`}>
                         <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800"><HandHeart size={16} className="text-indigo-500" /> Εξυπηρέτηση</h3>
@@ -859,7 +935,7 @@ export default function CustomerDetailsModal({
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                 {recentOrdersCard}
                 <div className={`${sectionCard} p-5`}>
-                    <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-slate-800"><PieChart size={16} className="text-indigo-500" /> Κορυφαίες κατηγορίες</h3>
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-slate-800"><PieChart size={16} className="text-indigo-500" /> Κορυφαία είδη</h3>
                     {categoriesBars(5)}
                 </div>
             </div>
@@ -1071,8 +1147,8 @@ export default function CustomerDetailsModal({
 
     const categoriesTab = (
         <div className={`${sectionCard} p-6`}>
-            <h3 className="mb-1 flex items-center gap-2 text-sm font-black text-slate-800"><Trophy size={16} className="text-amber-500" /> Κορυφαίες κατηγορίες</h3>
-            <p className="mb-5 text-xs text-slate-500">Κατανομή τεμαχίων και αξίας ανά κατηγορία προϊόντος.</p>
+            <h3 className="mb-1 flex items-center gap-2 text-sm font-black text-slate-800"><Trophy size={16} className="text-amber-500" /> Κορυφαία είδη</h3>
+            <p className="mb-5 text-xs text-slate-500">Κατανομή τεμαχίων ανά είδος κοσμήματος, από όλο το ιστορικό.</p>
             {categoriesBars(5)}
         </div>
     );
@@ -1208,6 +1284,18 @@ export default function CustomerDetailsModal({
             </section>
 
             <section className={`${sectionCard} p-5`}>
+                <div id="customer-edit-profile" className="scroll-mt-4" />
+                <SectionTitle icon={UsersIcon} title="Προφίλ, social media & όροι" />
+                <CustomerProfileEditor
+                    value={editForm.profile ?? {}}
+                    onChange={profile => setEditForm(prev => ({ ...prev, profile }))}
+                    mobilePhone={editForm.mobile_phone || null}
+                    tagSuggestions={tagSuggestions}
+                    socialsOpen={editFocus === 'socials' ? true : undefined}
+                />
+            </section>
+
+            <section className={`${sectionCard} p-5`}>
                 <SectionTitle icon={StickyNote} title="Σημειώσεις" />
                 <textarea
                     className={`${inputClass} min-h-[120px] resize-y font-medium`}
@@ -1225,10 +1313,12 @@ export default function CustomerDetailsModal({
             case 'overview': return isRetailSystemCustomer ? retailOverview : normalOverview;
             case 'details': return <div className="mx-auto max-w-xl rounded-2xl bg-slate-50 p-3">{detailsSections}</div>;
             case 'orders': return ordersTab;
-            case 'analytics': return (
-                <CustomerAnalyticsPanel
+            case 'assortment': return (
+                <CustomerAssortmentPanel
+                    key={assortmentSection}
                     customer={customer}
-                    orders={orders}
+                    initialSection={assortmentSection}
+                    onOpenCustomer={onOpenCustomer}
                     onOpenOrders={query => { setOrderQuery(query || ''); setActiveTab('orders'); }}
                 />
             );
@@ -1321,12 +1411,16 @@ export default function CustomerDetailsModal({
                                 )}
                             </div>
 
+                            {!isRetailSystemCustomer && savedSocials(savedProfile).length > 0 && (
+                                <div className="relative mt-3"><SocialIconRow customer={customer} size="md" /></div>
+                            )}
+
                             {!isRetailSystemCustomer && (
                                 <div className="relative mt-4 grid grid-cols-4 gap-2">
                                     <QuickAction icon={Phone} label="Κλήση" href={customer.phone ? `tel:${customer.phone}` : undefined} disabled={!customer.phone} />
                                     <QuickAction icon={Mail} label="Email" href={customer.email ? `mailto:${customer.email}` : undefined} disabled={!customer.email} />
                                     <QuickAction icon={Navigation} label="Χάρτης" onClick={onShowOnMap} disabled={!onShowOnMap || !mainLocation.coords} title={mainLocation.coords ? 'Προβολή στον χάρτη' : 'Χωρίς τοποθεσία'} />
-                                    <QuickAction icon={Pencil} label="Αλλαγή" onClick={startEditing} disabled={isEditing} title="Επεξεργασία στοιχείων" />
+                                    <QuickAction icon={Pencil} label="Αλλαγή" onClick={() => startEditing()} disabled={isEditing} title="Επεξεργασία στοιχείων" />
                                 </div>
                             )}
                         </div>
@@ -1415,7 +1509,7 @@ export default function CustomerDetailsModal({
                                     {!isRetailSystemCustomer && (
                                         <button
                                             type="button"
-                                            onClick={startEditing}
+                                            onClick={() => startEditing()}
                                             className="hidden items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:flex"
                                         >
                                             <Pencil size={14} /> Επεξεργασία

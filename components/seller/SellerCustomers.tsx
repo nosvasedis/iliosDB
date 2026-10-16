@@ -213,6 +213,7 @@ export default function SellerCustomers() {
                     customer={selectedCustomer}
                     orders={orders}
                     onClose={() => { setSelectedCustomer(null); }}
+                    onOpenCustomer={id => { const next = customers?.find(c => c.id === id); if (next) setSelectedCustomer(next); }}
                     onUpdate={handleUpdateCustomer}
                     onDelete={handleDeleteCustomer}
                     onPrintOrder={undefined}

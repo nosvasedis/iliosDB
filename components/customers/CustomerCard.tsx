@@ -4,11 +4,14 @@ import { Briefcase, ChevronRight, Globe2, Mail, MapPinned, Phone, Store } from '
 import { ACTIVITY_META, TIER_META, formatDaysAgo, isDomesticCountry, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
 import { formatCurrency } from '../../utils/numberFormat';
 import { ActivityBadge, CustomerAvatar, RegionPill } from './customerUi';
+import { SocialIconRow } from './customerProfileUi';
 
 interface CustomerCardProps {
   entry: CustomerDirectoryEntry;
   onOpen: () => void;
   onShowOnMap?: () => void;
+  /** Extra chips (purchase-filter match, territory overlap). */
+  insight?: React.ReactNode;
 }
 
 const stop = (fn?: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn?.(); };
@@ -22,7 +25,7 @@ function Stat({ label, value, title }: { label: string; value: React.ReactNode; 
   );
 }
 
-export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCardProps) {
+export default function CustomerCard({ entry, onOpen, onShowOnMap, insight }: CustomerCardProps) {
   const { customer, location } = entry;
   const accent = entry.tier ? TIER_META[entry.tier].color : ACTIVITY_META[entry.activity].color;
   const shopCount = entry.places.filter(p => p.kind === 'branch').length;
@@ -62,6 +65,7 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCar
       <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5">
         <RegionPill location={location} className="max-w-[70%]" />
         <ActivityBadge activity={entry.activity} tier={entry.tier} />
+        {insight}
         {shopCount > 1 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-100" title={entry.places.map(p => p.label).join(' · ')}>
             <Store size={10} /> {shopCount} καταστήματα
@@ -83,6 +87,7 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap }: CustomerCar
       <div className="mt-auto flex items-center gap-1.5 pt-4">
         <CustomerPhoneDisplay customer={customer} />
         <span className="flex-1" />
+        <SocialIconRow customer={customer} max={3} />
         {customer.email && (
           <a
             href={`mailto:${customer.email}`}

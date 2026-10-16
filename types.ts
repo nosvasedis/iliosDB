@@ -549,7 +549,59 @@ export interface Customer {
   country?: string | null;
   /** Real shop locations (υποκαταστήματα). `address` remains the fiscal seat (φορολογική έδρα). */
   branches?: CustomerBranch[] | null;
+  /** Commercial profile (social media, contacts, shop profile, terms, exclusivity). Stored as JSON. */
+  profile?: CustomerProfile | null;
   created_at: string;
+}
+
+export type CustomerSocialKey = 'instagram' | 'facebook' | 'tiktok' | 'website' | 'eshop' | 'google_maps' | 'pinterest' | 'youtube';
+
+export interface CustomerContact {
+  id: string;
+  name: string;
+  /** e.g. Ιδιοκτήτης, Υπεύθυνος αγορών */
+  role?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+}
+
+/** Scope of an exclusivity agreement: a collection id, a jewellery kind or a single product SKU. */
+export interface CustomerExclusivityScope {
+  kind: 'collection' | 'jewelry_kind' | 'sku';
+  key: string;
+}
+
+export interface CustomerExclusivity {
+  enabled: boolean;
+  /** Protected radius around each of the customer's shops. */
+  radius_km: number;
+  /** Empty scope list = everything the customer buys is protected. */
+  scopes: CustomerExclusivityScope[];
+  /** ISO date; the agreement stops counting after it. */
+  until?: string | null;
+  notes?: string | null;
+}
+
+export interface CustomerProfile {
+  /** Social links, stored as full URLs. */
+  socials?: Partial<Record<CustomerSocialKey, string>>;
+  viber?: string | null;
+  whatsapp?: string | null;
+  contacts?: CustomerContact[];
+  /** e.g. Κοσμηματοπωλείο, Concept store, Τουριστικό */
+  shop_type?: string | null;
+  positioning?: 'economy' | 'mid' | 'premium' | null;
+  clientele?: 'tourists' | 'locals' | 'mixed' | null;
+  /** Seasonal shops: 1-12 months open, inclusive (may wrap around the new year). */
+  season?: { mode: 'year_round' | 'seasonal'; open_month?: number | null; close_month?: number | null } | null;
+  opening_hours?: string | null;
+  payment_method?: string | null;
+  credit_days?: number | null;
+  credit_limit?: number | null;
+  /** Free-form labels used for search and grouping. */
+  tags?: string[];
+  exclusivity?: CustomerExclusivity | null;
 }
 
 /** A customer's shop / υποκατάστημα. Stored as JSON on the customer row. */

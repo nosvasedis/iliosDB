@@ -6,6 +6,7 @@ import { useOrderState } from '../../hooks/useOrderState';
 import { getTagColor } from '../../features/orders/tagColors';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { SellerPicker } from './SellerPicker';
+import OrderTerritoryAlert from '../customers/OrderTerritoryAlert';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -62,6 +63,10 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         <Store size={14} /> Χρήση Λιανικής
                     </button>
                 </>}
+
+                {!state.isRetailCustomer && (
+                    <OrderTerritoryAlert customerId={state.selectedCustomerId} skus={state.selectedItems.map(item => item.sku)} />
+                )}
 
                 {/* Phone */}
                 <div>

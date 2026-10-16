@@ -17,6 +17,8 @@ interface Props {
   onSort: (key: CustomerSortKey) => void;
   onOpen: (entry: CustomerDirectoryEntry) => void;
   onShowOnMap: (entry: CustomerDirectoryEntry) => void;
+  /** Extra chips under the name (purchase-filter match, territory overlap). */
+  renderInsight?: (entry: CustomerDirectoryEntry) => React.ReactNode;
 }
 
 function SortHeader({ label, k, sortKey, sortDir, onSort, align = 'left', className = '' }: {
@@ -38,7 +40,7 @@ function SortHeader({ label, k, sortKey, sortDir, onSort, align = 'left', classN
   );
 }
 
-export default function CustomerListView({ entries, sortKey, sortDir, onSort, onOpen, onShowOnMap }: Props) {
+export default function CustomerListView({ entries, sortKey, sortDir, onSort, onOpen, onShowOnMap, renderInsight }: Props) {
   const headerProps = { sortKey, sortDir, onSort };
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
@@ -71,6 +73,7 @@ export default function CustomerListView({ entries, sortKey, sortDir, onSort, on
                       <div className="flex min-w-0 items-center gap-2 text-[10px] text-slate-400">
                         {customer.customer_code && <span className="font-mono font-bold">#{customer.customer_code}</span>}
                         <ActivityBadge activity={entry.activity} tier={entry.tier} />
+                        {renderInsight?.(entry)}
                         <RegionPill location={location} className="min-w-0 xl:hidden" />
                       </div>
                     </div>

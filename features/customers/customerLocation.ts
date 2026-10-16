@@ -610,14 +610,21 @@ export function matchesCustomerSearch(entry: CustomerDirectoryEntry, term: strin
   if (!q) return true;
   const { customer: c } = entry;
   const locations = [entry.fiscalLocation, ...entry.places.map(p => p.location)];
+  // Profile is read raw here (customerProfile imports this module).
+  const profile = (c.profile && typeof c.profile === 'object' ? c.profile : {}) as NonNullable<Customer['profile']>;
   const haystack = [
     c.full_name, c.profession, c.address, c.email, c.tax_office,
     ...entry.places.flatMap(p => [p.label, p.address]),
     ...locations.flatMap(l => [l.town, l.unitLabel, l.periferiaLabel]),
+    ...(Array.isArray(profile.tags) ? profile.tags : []),
+    profile.shop_type,
+    ...(Array.isArray(profile.contacts) ? profile.contacts.flatMap(contact => [contact?.name, contact?.email]) : []),
+    ...Object.values(profile.socials && typeof profile.socials === 'object' ? profile.socials : {}),
   ].filter(Boolean).map(v => placeKey(String(v))).join(' | ');
   if (haystack.includes(q)) return true;
   const digits = term.replace(/\s+/g, '');
-  return Boolean(digits) && [c.phone, c.mobile_phone, c.landline_phone, c.phone_unclassified, c.customer_code, c.vat_number, ...customerBranches(c).map(b => b.phone), ...locations.map(l => l.postalCode)]
+  return Boolean(digits) && [c.phone, c.mobile_phone, c.landline_phone, c.phone_unclassified, c.customer_code, c.vat_number, ...customerBranches(c).map(b => b.phone), ...locations.map(l => l.postalCode),
+    ...(Array.isArray(profile.contacts) ? profile.contacts.map(contact => contact?.phone) : []), profile.viber, profile.whatsapp]
     .some(v => v && String(v).replace(/\s+/g, '').includes(digits));
 }
 

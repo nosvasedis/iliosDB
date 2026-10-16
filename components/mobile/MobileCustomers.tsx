@@ -23,7 +23,11 @@ import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
 import MobileCustomerDetails from './MobileCustomerDetails';
-import { resolveCustomerAnalyticsCategory } from '../../features/customers/customerAnalytics';
+import CustomerPurchaseFilter from '../customers/CustomerPurchaseFilter';
+import { CustomerProfileEditor } from '../customers/customerProfileUi';
+import { useAssortmentIndex } from '../customers/useCustomerTerritory';
+import { EMPTY_PURCHASE_FILTER, evaluatePurchaseFilter, getCustomerAssortment, type PurchaseFilter } from '../../features/customers/customerAssortment';
+import { cleanCustomerProfile, collectCustomerTags, readCustomerProfile } from '../../features/customers/customerProfile';
 import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
 import { useCustomerDirectory } from '../customers/useCustomerDirectory';
 import CustomerRegionFilter from '../customers/CustomerRegionFilter';
@@ -80,14 +84,22 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
     const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
     const directoryById = useMemo(() => new Map(directory.map(e => [e.customer.id, e])), [directory]);
+    const assortmentIndex = useAssortmentIndex({ enabled: mode === 'customers' });
+    const [purchaseFilter, setPurchaseFilter] = useState<PurchaseFilter>(EMPTY_PURCHASE_FILTER);
+    const purchaseMatches = useMemo(
+        () => (assortmentIndex && purchaseFilter.items.length ? evaluatePurchaseFilter(assortmentIndex, purchaseFilter) : null),
+        [assortmentIndex, purchaseFilter],
+    );
+    const tagSuggestions = useMemo(() => collectCustomerTags(customers), [customers]);
     const regionChips = useMemo(() => GREEK_PERIFERIES
         .map(p => ({ key: `p:${p.id}`, label: p.short, count: regionCounts.periferia[p.id] ?? 0 }))
         .filter(c => c.count > 0)
         .sort((a, b) => b.count - a.count), [regionCounts]);
     const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => directory
         .filter(e => !e.isSystem && matchesEntryRegion(e, regionSelection) && matchesCustomerSearch(e, search)
-            && (!activityFilter || e.activity === activityFilter) && (!tierFilter || e.tier === tierFilter)),
-    [directory, regionSelection, search, activityFilter, tierFilter]);
+            && (!activityFilter || e.activity === activityFilter) && (!tierFilter || e.tier === tierFilter)
+            && (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)),
+    [directory, regionSelection, search, activityFilter, tierFilter, purchaseMatches]);
     const toggleRegionChip = (key: RegionFilterKey) =>
         setRegionSelection(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
     const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null, branchId?: string | null) => {
@@ -118,7 +130,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const filteredList = useMemo(() => {
         if (mode === 'customers') {
             if (!customers) return [];
-            const system = regionSelection.length === 0 && !activityFilter
+            const system = regionSelection.length === 0 && !activityFilter && !purchaseMatches
                 ? directory.filter(e => e.isSystem && matchesCustomerSearch(e, search)).map(e => e.customer)
                 : [];
             return [...system, ...filteredEntries.map(e => e.customer)]
@@ -130,7 +142,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 s.contact_person?.toLowerCase().includes(search.toLowerCase())
             );
         }
-    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, activityFilter]);
+    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, activityFilter, purchaseMatches]);
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
@@ -139,19 +151,11 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate ?? 0.24)), 0);
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
-        let totalItems = 0;
-        const catStats: Record<string, { count: number; value: number }> = {};
-        customerOrders.forEach(o => {
-            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            o.items.forEach(item => {
-                const cat = resolveCustomerAnalyticsCategory(item.sku, item.product_details);
-                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
-                catStats[cat].count += item.quantity;
-                catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
-                totalItems += item.quantity;
-            });
-        });
-        const prefData = Object.entries(catStats).map(([name, s]) => ({ name, count: s.count, value: s.value, percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0 })).sort((a, b) => b.count - a.count).slice(0, 5);
+        const totalItems = customerOrders.reduce((sum, o) => sum + o.items.reduce((acc, item) => acc + (item.quantity || 0), 0), 0);
+        // Jewellery kinds from the shared assortment index (same as the desktop card).
+        const prefData = (assortmentIndex ? getCustomerAssortment(assortmentIndex, RETAIL_CUSTOMER_ID, 'all').kinds : [])
+            .slice(0, 5)
+            .map(kind => ({ name: kind.label, count: kind.qty, value: kind.net, percentage: kind.share }));
 
         const latestOrder = customerOrders[0];
         const oldestOrder = customerOrders[customerOrders.length - 1];
@@ -175,7 +179,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         }));
 
         return { totalSpent, orderCount, avgOrderValue, totalItems, latestOrder, activeMonths, prefData, topClients, recentOrders };
-    }, [orders, editData]);
+    }, [orders, editData, assortmentIndex]);
 
     const handleCreate = () => {
         setEditType(mode === 'customers' ? 'customer' : 'supplier');
@@ -233,8 +237,14 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
                     return;
                 }
-                if (isExisting) await ordersRepository.updateCustomer(editData.id, editData);
-                else await ordersRepository.saveCustomer(editData);
+                const payload = { ...editData } as Customer;
+                if (payload.profile !== undefined) {
+                    payload.profile = cleanCustomerProfile(payload.profile ?? {});
+                    const original = customers?.find(c => c.id === payload.id);
+                    if ((!original || original.profile === undefined) && Object.keys(payload.profile).length === 0) delete payload.profile;
+                }
+                if (isExisting) await ordersRepository.updateCustomer(payload.id, payload);
+                else await ordersRepository.saveCustomer(payload);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
             } else {
                 await api.saveSupplier(editData);
@@ -313,7 +323,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 onClose={() => setViewCustomer(null)}
                 onEdit={() => {
                     setEditType('customer');
-                    setEditData({ ...viewCustomer });
+                    setEditData({ ...viewCustomer, profile: readCustomerProfile(viewCustomer) });
                     setViewCustomer(null);
                     setIsEditing(true);
                 }}
@@ -366,7 +376,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
                     {/* Top Categories */}
                     <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><Trophy size={14} className="text-amber-500" /> Κορυφαίες Κατηγορίες</h3>
+                        <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><Trophy size={14} className="text-amber-500" /> Κορυφαία είδη</h3>
                         {retailStats.prefData.length > 0 ? (
                             <div className="space-y-3">
                                 {retailStats.prefData.map((item, i) => (
@@ -631,6 +641,17 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 </div>
                             </div>
                         )}
+                        {editType === 'customer' && !isRetailSystemCustomer && (
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Προφίλ, social media & όροι</label>
+                                <CustomerProfileEditor
+                                    value={editData.profile ?? {}}
+                                    onChange={profile => setEditData((prev: Customer) => ({ ...prev, profile }))}
+                                    mobilePhone={editData.mobile_phone || null}
+                                    tagSuggestions={tagSuggestions}
+                                />
+                            </div>
+                        )}
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειωσεις</label>
                             <textarea
@@ -741,6 +762,17 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 </span>
                             ))}
                         </div>
+                    )}
+                </div>
+            )}
+
+            {mode === 'customers' && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <CustomerPurchaseFilter index={assortmentIndex} value={purchaseFilter} onChange={setPurchaseFilter} matchCount={purchaseMatches ? filteredEntries.length : undefined} />
+                    {purchaseFilter.items.length > 0 && (
+                        <button type="button" onClick={() => setPurchaseFilter({ ...EMPTY_PURCHASE_FILTER, window: purchaseFilter.window })} className="flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-900">
+                            {filteredEntries.length} πελάτες <X size={12} />
+                        </button>
                     )}
                 </div>
             )}

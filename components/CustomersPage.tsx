@@ -2,7 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { Customer, Order, VatRegime } from '../types';
 import {
   Activity, ArrowDownWideNarrow, ArrowUpNarrowWide, LayoutGrid, List, Loader2, Map as MapIcon, MapPinOff,
-  PanelLeftClose, PanelLeftOpen, Plus, Search, Sparkles, UserPlus, Users, X,
+  PanelLeftClose, PanelLeftOpen, Plus, Radar, Search, ShoppingBag, Sparkles, UserPlus, Users, X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_NAME } from '../lib/supabase';
@@ -34,6 +34,19 @@ import CustomerCard, { SystemCustomerCard } from './customers/CustomerCard';
 import CustomerListView from './customers/CustomerListView';
 import CustomerRegionFilter from './customers/CustomerRegionFilter';
 import CustomerCategoryFilter from './customers/CustomerCategoryFilter';
+import CustomerPurchaseFilter, { purchaseFilterSummary } from './customers/CustomerPurchaseFilter';
+import CustomerOverlapsPanel from './customers/CustomerOverlapsPanel';
+import { TerritoryInsightChips } from './customers/customerUi';
+import { useAssortmentIndex, useTerritoryPrefs } from './customers/useCustomerTerritory';
+import { collectCustomerTags } from '../features/customers/customerProfile';
+import {
+  EMPTY_PURCHASE_FILTER,
+  evaluatePurchaseFilter,
+  findAllOverlaps,
+  formatRadius,
+  overlapSeverityByCustomer,
+  type PurchaseFilter,
+} from '../features/customers/customerAssortment';
 
 const CustomersMap = React.lazy(() => import('./customers/CustomersMap'));
 
@@ -45,7 +58,10 @@ type ViewMode = 'cards' | 'list' | 'map';
 
 const STORAGE_KEY = 'ilios.customersPage.v2';
 
-interface StoredPrefs { view?: ViewMode; regions?: RegionFilterKey[]; sortKey?: CustomerSortKey; sortDir?: SortDirection; panel?: boolean }
+/** 'match' sorts by pieces of the «Αγορές» filter items. */
+type PageSortKey = CustomerSortKey | 'match';
+
+interface StoredPrefs { view?: ViewMode; regions?: RegionFilterKey[]; sortKey?: PageSortKey; sortDir?: SortDirection; panel?: boolean; purchase?: PurchaseFilter }
 
 function readPrefs(): StoredPrefs {
     try {
@@ -132,7 +148,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const initialPrefs = useMemo(readPrefs, []);
     const [view, setViewState] = useState<ViewMode>(initialPrefs.view ?? 'cards');
     const [regions, setRegionsState] = useState<RegionFilterKey[]>(initialPrefs.regions ?? []);
-    const [sortKey, setSortKey] = useState<CustomerSortKey>(initialPrefs.sortKey ?? 'name');
+    const [sortKey, setSortKey] = useState<PageSortKey>(initialPrefs.sortKey ?? 'name');
     const [sortDir, setSortDir] = useState<SortDirection>(initialPrefs.sortDir ?? 'asc');
     const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
     const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
@@ -141,6 +157,16 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         setTierFilter(activity === 'active' ? tier : null);
     };
     const [searchTerm, setSearchTerm] = useState('');
+    const [purchaseFilter, setPurchaseFilterState] = useState<PurchaseFilter>(() => {
+        const stored = initialPrefs.purchase;
+        return stored && Array.isArray(stored.items) ? { ...EMPTY_PURCHASE_FILTER, ...stored } : EMPTY_PURCHASE_FILTER;
+    });
+    /** Directory narrowed to specific customers (from the overlaps panel). */
+    const [idFilter, setIdFilter] = useState<string[] | null>(null);
+    const [overlapsOpen, setOverlapsOpen] = useState(false);
+    const assortmentIndex = useAssortmentIndex();
+    const territoryPrefs = useTerritoryPrefs();
+    const tagSuggestions = useMemo(() => collectCustomerTags(customers), [customers]);
     const isWide = useMediaQuery(DOCKED_PANEL_QUERY);
     const [panelDocked, setPanelDocked] = useState<boolean>(initialPrefs.panel ?? true);
     const [panelDrawerOpen, setPanelDrawerOpen] = useState(false);
@@ -150,8 +176,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
     const persist = useCallback((patch: StoredPrefs) => {
-        writePrefs({ view, regions, sortKey, sortDir, panel: panelDocked, ...patch });
-    }, [view, regions, sortKey, sortDir, panelDocked]);
+        writePrefs({ view, regions, sortKey, sortDir, panel: panelDocked, purchase: purchaseFilter, ...patch });
+    }, [view, regions, sortKey, sortDir, panelDocked, purchaseFilter]);
 
     const showDockedPanel = isWide && panelDocked;
     const toggleRegionPanel = () => {
@@ -166,10 +192,16 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
     const setView = (next: ViewMode) => { setViewState(next); persist({ view: next }); };
     const setRegions = (next: RegionFilterKey[]) => { setRegionsState(next); persist({ regions: next }); };
-    const applySort = (key: CustomerSortKey, dir?: SortDirection) => {
+    const setPurchaseFilter = (next: PurchaseFilter) => {
+        setPurchaseFilterState(next);
+        const leavingMatch = sortKey === 'match' && (next.items.length === 0 || next.mode !== 'bought');
+        if (leavingMatch) { setSortKey('name'); setSortDir('asc'); }
+        persist({ purchase: next, ...(leavingMatch ? { sortKey: 'name' as const, sortDir: 'asc' as const } : {}) });
+    };
+    const applySort = (key: PageSortKey, dir?: SortDirection) => {
         const nextDir = dir ?? (key === sortKey
             ? (sortDir === 'asc' ? 'desc' : 'asc')
-            : CUSTOMER_SORT_OPTIONS.find(o => o.key === key)?.defaultDir ?? 'asc');
+            : key === 'match' ? 'desc' : CUSTOMER_SORT_OPTIONS.find(o => o.key === key)?.defaultDir ?? 'asc');
         setSortKey(key);
         setSortDir(nextDir);
         persist({ sortKey: key, sortDir: nextDir });
@@ -179,16 +211,50 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const regular = useMemo(() => directory.filter(e => !e.isSystem), [directory]);
     const systemEntry = useMemo(() => directory.find(e => e.isSystem) ?? null, [directory]);
 
+    const purchaseActive = purchaseFilter.items.length > 0;
+    const purchaseMatches = useMemo(
+        () => (assortmentIndex && purchaseActive ? evaluatePurchaseFilter(assortmentIndex, purchaseFilter) : null),
+        [assortmentIndex, purchaseActive, purchaseFilter],
+    );
+    const overlaps = useMemo(
+        () => (assortmentIndex ? findAllOverlaps(assortmentIndex, { radiusKm: territoryPrefs.radiusKm, window: territoryPrefs.window, ignored: territoryPrefs.ignoredSet }) : []),
+        [assortmentIndex, territoryPrefs.radiusKm, territoryPrefs.window, territoryPrefs.ignoredSet],
+    );
+    const overlapSeverity = useMemo(() => overlapSeverityByCustomer(overlaps), [overlaps]);
+    const criticalOverlaps = useMemo(() => overlaps.filter(o => o.severity === 'critical').length, [overlaps]);
+    const idSet = useMemo(() => (idFilter ? new Set(idFilter) : null), [idFilter]);
+
     const filtered = useMemo(() => regular.filter(e =>
         matchesEntryRegion(e, regions)
         && (!activityFilter || e.activity === activityFilter)
         && (!tierFilter || e.tier === tierFilter)
+        && (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)
+        && (!idSet || idSet.has(e.customer.id))
         && matchesCustomerSearch(e, searchTerm)
-    ), [regular, regions, activityFilter, tierFilter, searchTerm]);
+    ), [regular, regions, activityFilter, tierFilter, purchaseMatches, idSet, searchTerm]);
 
-    const sorted = useMemo(() => sortCustomerDirectory(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+    const matchSortActive = sortKey === 'match' && purchaseActive && purchaseFilter.mode === 'bought';
+    const sorted = useMemo(() => {
+        if (!matchSortActive || !purchaseMatches) return sortCustomerDirectory(filtered, sortKey === 'match' ? 'name' : sortKey, sortKey === 'match' ? 'asc' : sortDir);
+        const sign = sortDir === 'asc' ? 1 : -1;
+        return [...filtered].sort((a, b) => sign * ((purchaseMatches.get(a.customer.id)?.qty ?? 0) - (purchaseMatches.get(b.customer.id)?.qty ?? 0))
+            || a.customer.full_name.localeCompare(b.customer.full_name, 'el', { sensitivity: 'base' }));
+    }, [filtered, sortKey, sortDir, matchSortActive, purchaseMatches]);
+    const sortOptions = useMemo(() => (purchaseActive && purchaseFilter.mode === 'bought'
+        ? [...CUSTOMER_SORT_OPTIONS, { key: 'match' as const, label: 'Τεμάχια επιλογής', defaultDir: 'desc' as const }]
+        : CUSTOMER_SORT_OPTIONS), [purchaseActive, purchaseFilter.mode]);
+    const insightFor = (entry: CustomerDirectoryEntry) => {
+        const match = purchaseMatches?.get(entry.customer.id);
+        return (
+            <TerritoryInsightChips
+                matchQty={purchaseFilter.mode === 'bought' ? match?.qty : null}
+                matchLast={match?.last}
+                severity={overlapSeverity.get(entry.customer.id) ?? null}
+            />
+        );
+    };
 
-    const showSystem = Boolean(systemEntry) && regions.length === 0 && !activityFilter
+    const showSystem = Boolean(systemEntry) && regions.length === 0 && !activityFilter && !purchaseActive && !idFilter
         && (!searchTerm || matchesCustomerSearch(systemEntry as CustomerDirectoryEntry, searchTerm));
 
     const groups = useMemo(() => {
@@ -216,11 +282,24 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         noRegion: regionCounts.none,
     }), [regular, regionCounts]);
 
-    const hasFilters = regions.length > 0 || Boolean(activityFilter) || Boolean(searchTerm);
-    const clearFilters = () => { setRegions([]); setCategoryFilter(null); setSearchTerm(''); };
+    const hasFilters = regions.length > 0 || Boolean(activityFilter) || Boolean(searchTerm) || purchaseActive || Boolean(idFilter);
+    const clearFilters = () => {
+        setRegionsState([]);
+        setCategoryFilter(null);
+        setSearchTerm('');
+        setIdFilter(null);
+        setPurchaseFilterState(EMPTY_PURCHASE_FILTER);
+        const resetSort = sortKey === 'match';
+        if (resetSort) { setSortKey('name'); setSortDir('asc'); }
+        persist({ regions: [], purchase: EMPTY_PURCHASE_FILTER, ...(resetSort ? { sortKey: 'name' as const, sortDir: 'asc' as const } : {}) });
+    };
 
     // --- Actions ------------------------------------------------------------
     const openCustomer = (c: Customer) => { setSelectedCustomer(c); setIsCreating(false); };
+    const openCustomerById = (id: string) => {
+        const next = customers?.find(c => c.id === id);
+        if (next) openCustomer(next);
+    };
     const showOnMap = (entry: CustomerDirectoryEntry) => {
         setView('map');
         setFocusRequest({ id: entry.customer.id, nonce: Date.now() });
@@ -305,6 +384,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 <CustomerCard
                     key={entry.customer.id}
                     entry={entry}
+                    insight={insightFor(entry)}
                     onOpen={() => openCustomer(entry.customer)}
                     onShowOnMap={() => showOnMap(entry)}
                 />
@@ -391,7 +471,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     </>
                 )}
                 below={(
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:gap-3">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-5 xl:gap-3">
                         <KpiTile icon={Users} label="Πελάτες" value={kpis.total} hint="Χωρίς τη Λιανική" tone="bg-slate-900/5 text-slate-700"
                             active={!hasFilters} onClick={hasFilters ? clearFilters : undefined} />
                         <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint={ACTIVITY_META.active.hint} tone="bg-emerald-50 text-emerald-600"
@@ -401,6 +481,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         <KpiTile icon={MapPinOff} label="Χωρίς περιοχή" value={kpis.noRegion} hint="Ελλιπής διεύθυνση / ΤΚ" tone="bg-amber-50 text-amber-600"
                             active={regions.length === 1 && regions[0] === NO_REGION_KEY}
                             onClick={kpis.noRegion ? () => setRegions(regions.length === 1 && regions[0] === NO_REGION_KEY ? [] : [NO_REGION_KEY]) : undefined} />
+                        <KpiTile icon={Radar} label="Επικαλύψεις" value={assortmentIndex ? overlaps.length : '…'}
+                            hint={criticalOverlaps ? `${criticalOverlaps} αποκλειστικότητες!` : `Γείτονες σε ${formatRadius(territoryPrefs.radiusKm)}, ίδια γκάμα`}
+                            tone={criticalOverlaps ? 'bg-rose-50 text-rose-600' : 'bg-orange-50 text-orange-600'}
+                            active={overlapsOpen || Boolean(idFilter)} onClick={assortmentIndex ? () => setOverlapsOpen(true) : undefined} />
                     </div>
                 )}
             />
@@ -449,6 +533,13 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             {regions.length > 0 && <span className="rounded-full bg-sky-600 px-1.5 text-[10px] text-white">{regions.length}</span>}
                         </button>
 
+                        <CustomerPurchaseFilter
+                            index={assortmentIndex}
+                            value={purchaseFilter}
+                            onChange={setPurchaseFilter}
+                            matchCount={purchaseActive ? sorted.length : undefined}
+                        />
+
                         <CustomerCategoryFilter entries={regular} activity={activityFilter} tier={tierFilter} onChange={setCategoryFilter} />
 
                         <span className="flex-1" />
@@ -458,12 +549,12 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         {view !== 'map' && (
                             <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
                                 <select
-                                    value={sortKey}
-                                    onChange={e => applySort(e.target.value as CustomerSortKey, CUSTOMER_SORT_OPTIONS.find(o => o.key === e.target.value)?.defaultDir)}
+                                    value={matchSortActive || sortKey !== 'match' ? sortKey : 'name'}
+                                    onChange={e => applySort(e.target.value as PageSortKey, sortOptions.find(o => o.key === e.target.value)?.defaultDir)}
                                     className="cursor-pointer rounded-lg bg-transparent py-1 pl-2 pr-1 text-[11px] font-bold text-slate-700 outline-none"
                                     aria-label="Ταξινόμηση"
                                 >
-                                    {CUSTOMER_SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                                    {sortOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
                                 </select>
                                 <button
                                     type="button"
@@ -479,6 +570,23 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
                     {(regions.length > 0 || hasFilters) && (
                         <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+                            {purchaseActive && (
+                                <span className="flex items-center gap-1 rounded-full bg-violet-100 py-1 pl-3 pr-1 text-[11px] font-bold text-violet-900">
+                                    <ShoppingBag size={11} /> {purchaseFilterSummary(assortmentIndex, purchaseFilter) || 'Φίλτρο αγορών'}
+                                    {!assortmentIndex && <Loader2 size={11} className="animate-spin" />}
+                                    <button type="button" onClick={() => setPurchaseFilter({ ...EMPTY_PURCHASE_FILTER, window: purchaseFilter.window })} className="rounded-full p-0.5 hover:bg-violet-200" aria-label="Αφαίρεση φίλτρου">
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            )}
+                            {idFilter && (
+                                <span className="flex items-center gap-1 rounded-full bg-orange-100 py-1 pl-3 pr-1 text-[11px] font-bold text-orange-900">
+                                    <Radar size={11} /> Πελάτες με επικάλυψη ({idFilter.length})
+                                    <button type="button" onClick={() => setIdFilter(null)} className="rounded-full p-0.5 hover:bg-orange-200" aria-label="Αφαίρεση φίλτρου">
+                                        <X size={12} />
+                                    </button>
+                                </span>
+                            )}
                             {regions.map(key => (
                                 <span key={key} className="flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-3 pr-1 text-[11px] font-bold text-sky-900">
                                     {regionFilterLabel(key)}
@@ -533,7 +641,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             ) : emptyState || (view === 'list' ? (
                                 <CustomerListView
                                     entries={sorted}
-                                    sortKey={sortKey}
+                                    renderInsight={insightFor}
+                                    sortKey={sortKey === 'match' ? 'name' : sortKey}
                                     sortDir={sortDir}
                                     onSort={key => applySort(key)}
                                     onOpen={entry => openCustomer(entry.customer)}
@@ -559,6 +668,16 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 </main>
             </div>
 
+            {overlapsOpen && assortmentIndex && (
+                <CustomerOverlapsPanel
+                    index={assortmentIndex}
+                    onClose={() => setOverlapsOpen(false)}
+                    onOpenCustomer={openCustomerById}
+                    onFilterCustomers={ids => setIdFilter(ids)}
+                    paused={Boolean(selectedCustomer)}
+                />
+            )}
+
             {/* View/Edit Modal */}
             {selectedCustomer && !isCreating && orders && (
                 <CustomerDetailsModal
@@ -568,6 +687,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     onUpdate={handleUpdateCustomer}
                     onDelete={handleDeleteCustomer}
                     onPrintOrder={onPrintOrder}
+                    onOpenCustomer={openCustomerById}
                     onShowOnMap={() => {
                         const entry = directory.find(e => e.customer.id === selectedCustomer.id);
                         setSelectedCustomer(null);
@@ -580,6 +700,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             {isCreating && selectedCustomer && (
                 <CreateCustomerModal
                     draft={selectedCustomer}
+                    tagSuggestions={tagSuggestions}
                     onSave={handleCreateCustomer}
                     onCancel={() => { setIsCreating(false); setSelectedCustomer(null); }}
                 />
