@@ -140,6 +140,35 @@ export interface InventoryCountSessionStartResult {
   idempotent: boolean;
 }
 
+/** Server-side record of a count session, independent of any device draft. */
+export interface InventoryCountSessionRecord {
+  id: string;
+  sessionCode: string;
+  name: string;
+  reason: string;
+  status: 'active' | 'completed' | 'abandoned';
+  warehouseIds: string[];
+  totalTargetCount: number;
+  countedTargetCount: number;
+  countedLineCount: number;
+  postedBatchCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A line already posted to the ledger as part of a count session. */
+export interface InventoryCountSessionPostedEntry extends InventoryIdentity {
+  countedQuantity: number;
+  onHandBefore: number;
+  countedAt: string;
+}
+
+export interface InventoryCountSessionAbandonInput {
+  sessionId: string;
+  reason: string;
+  idempotencyKey: string;
+}
+
 export interface InventoryCountSessionBatchInput {
   sessionId: string;
   lines: InventoryPostingLine[];
@@ -237,6 +266,8 @@ export type InventoryMutationName =
   | 'count-session-start'
   | 'count-session-batch'
   | 'count-session-complete'
+  | 'count-session-read'
+  | 'count-session-abandon'
   | 'save-order'
   | 'release-order'
   | 'set-order-status'

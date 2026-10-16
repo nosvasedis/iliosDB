@@ -9,6 +9,7 @@ import {
   Package,
   PencilLine,
   ClipboardPlus,
+  LockKeyhole,
   Settings2,
 } from 'lucide-react';
 import type { Product } from '../../types';
@@ -35,6 +36,10 @@ interface InventoryStockExplorerProps {
   isAdmin: boolean;
   canOperate: boolean;
   searchTerm: string;
+  /** Changes whenever search/filter/sort change; resets paging only then. */
+  resetKey: string;
+  /** Workflow-owned locations: visible, but never manually mutated. */
+  protectedWarehouseIds?: ReadonlySet<string>;
   focusRequest?: { productSku: string; variantSuffix: string; nonce: number } | null;
   onOperation: (kind: InventoryQuickOperation, row: InventoryAvailability) => void;
   onPost: (row: InventoryAvailability) => void;
@@ -88,10 +93,12 @@ function StockActionButtons({
   row,
   isAdmin,
   canOperate,
+  isProtected,
   onOperation,
   onPost,
 }: {
   row: InventoryAvailability;
+  isProtected: boolean;
   isAdmin: boolean;
   canOperate: boolean;
   onOperation: InventoryStockExplorerProps['onOperation'];
@@ -99,6 +106,13 @@ function StockActionButtons({
 }) {
   if (!isAdmin && !canOperate) {
     return <span className="text-xs font-semibold text-slate-400">Μόνο προβολή</span>;
+  }
+  if (isProtected) {
+    return (
+      <span className="inline-flex items-center justify-end gap-1.5 text-[11px] font-bold text-blue-700" title="Η θέση ενημερώνεται μόνο από τη ροή Παρακαταθηκών.">
+        <LockKeyhole size={13} aria-hidden="true" /> Ροή Παρακαταθηκών
+      </span>
+    );
   }
 
   return (
@@ -198,6 +212,7 @@ function VariantBreakdown({
   onOperation,
   onPost,
   focusedVariantSuffix,
+  protectedWarehouseIds,
 }: {
   group: InventorySkuGroup;
   product?: Product;
@@ -206,6 +221,7 @@ function VariantBreakdown({
   onOperation: InventoryStockExplorerProps['onOperation'];
   onPost: InventoryStockExplorerProps['onPost'];
   focusedVariantSuffix?: string | null;
+  protectedWarehouseIds?: ReadonlySet<string>;
 }) {
   return (
     <div className="space-y-3">
@@ -266,7 +282,7 @@ function VariantBreakdown({
                     <strong className="tabular-nums text-slate-800">{formatInventoryInteger(row.projectedAvailable)}</strong>
                   </div>
                 </div>
-                <StockActionButtons row={row} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} />
+                <StockActionButtons row={row} isProtected={Boolean(protectedWarehouseIds?.has(row.warehouseId))} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} />
               </div>
             ))}
           </div>
@@ -287,7 +303,9 @@ function DesktopSkuRow({
   onPost,
   onProductSelect,
   focusedVariantSuffix,
+  protectedWarehouseIds,
 }: {
+  protectedWarehouseIds?: ReadonlySet<string>;
   group: InventorySkuGroup;
   product?: Product;
   expanded: boolean;
@@ -367,7 +385,7 @@ function DesktopSkuRow({
       {expanded && (
         <tr>
           <td colSpan={8} className="border-y border-emerald-100 bg-slate-50/70 p-4">
-            <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} />
+            <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} protectedWarehouseIds={protectedWarehouseIds} />
           </td>
         </tr>
       )}
@@ -386,7 +404,9 @@ function CompactSkuCard({
   onPost,
   onProductSelect,
   focusedVariantSuffix,
+  protectedWarehouseIds,
 }: {
+  protectedWarehouseIds?: ReadonlySet<string>;
   group: InventorySkuGroup;
   product?: Product;
   expanded: boolean;
@@ -455,7 +475,7 @@ function CompactSkuCard({
       </div>
       {expanded && (
         <div className="border-t border-emerald-100 bg-slate-50 p-3">
-          <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} />
+          <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} protectedWarehouseIds={protectedWarehouseIds} />
         </div>
       )}
     </article>
@@ -532,6 +552,8 @@ export default function InventoryStockExplorer({
   isAdmin,
   canOperate,
   searchTerm,
+  resetKey,
+  protectedWarehouseIds,
   focusRequest,
   onOperation,
   onPost,
@@ -545,7 +567,7 @@ export default function InventoryStockExplorer({
 
   useEffect(() => {
     setPage(1);
-  }, [groups, pageSize]);
+  }, [resetKey, pageSize]);
 
   useEffect(() => {
     if (!searchTerm.trim() || groups.length !== 1) return;
@@ -558,8 +580,11 @@ export default function InventoryStockExplorer({
     });
   }, [groups, searchTerm]);
 
+  const groupsRef = React.useRef(groups);
+  groupsRef.current = groups;
   useEffect(() => {
     if (!focusRequest) return;
+    const groups = groupsRef.current;
     const groupIndex = groups.findIndex((group) => group.productSku === focusRequest.productSku);
     if (groupIndex < 0) return;
     setPage(Math.floor(groupIndex / pageSize) + 1);
@@ -576,7 +601,8 @@ export default function InventoryStockExplorer({
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [focusRequest, groups, pageSize]);
+    // Re-run when the focused SKU first becomes visible after filtering.
+  }, [focusRequest, pageSize, groups.length]);
 
   const visibleGroups = useMemo(() => {
     const start = (safePage - 1) * pageSize;
@@ -671,6 +697,7 @@ export default function InventoryStockExplorer({
                   onPost={onPost}
                   onProductSelect={onProductSelect}
                   focusedVariantSuffix={focusRequest?.productSku === group.productSku ? focusRequest.variantSuffix : null}
+                  protectedWarehouseIds={protectedWarehouseIds}
                 />
               ))}
             </tbody>

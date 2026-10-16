@@ -58,9 +58,14 @@ function warehouseStorageKey(profileId?: string): string {
 }
 
 function getPreferredWarehouseId(warehouses: Warehouse[], profileId?: string): string {
-  const saved = typeof window !== 'undefined'
-    ? window.localStorage.getItem(warehouseStorageKey(profileId))
-    : null;
+  let saved: string | null = null;
+  try {
+    saved = typeof window !== 'undefined'
+      ? window.localStorage.getItem(warehouseStorageKey(profileId))
+      : null;
+  } catch {
+    saved = null;
+  }
   if (saved && warehouses.some((warehouse) => warehouse.id === saved)) return saved;
   return warehouses.find((warehouse) => warehouse.type === 'Central')?.id || warehouses[0]?.id || '';
 }
@@ -151,10 +156,30 @@ export default function InventoryPostingDialog({
   );
   const selectedProduct = selection?.product;
   const sizing = selectedProduct ? getSizingInfo(selectedProduct) : null;
-  const sizeOptions = useMemo(
-    () => sizing ? [...sizing.sizes, ...customSizes] : [''],
-    [customSizes, sizing],
-  );
+  // Existing balances must always be visible: an exact count that omits an
+  // existing size/location (e.g. a legacy or special size) is rejected by the
+  // server, and silently leaving it would keep phantom stock available.
+  const existingSizes = useMemo(() => {
+    if (!selection) return [] as string[];
+    const variantSuffix = selection.variant_suffix || '';
+    return Array.from(new Set(
+      availability
+        .filter((row) => (
+          row.productSku === selection.sku
+          && row.variantSuffix === variantSuffix
+          && (row.onHand !== 0 || row.reserved !== 0)
+        ))
+        .map((row) => normalizeInventorySizeInfo(row.sizeInfo)),
+    ));
+  }, [availability, selection]);
+  const sizeOptions = useMemo(() => {
+    const base = sizing ? sizing.sizes.map(normalizeInventorySizeInfo) : [''];
+    const ordered = [...base];
+    [...existingSizes, ...customSizes].forEach((size) => {
+      if (!ordered.includes(size)) ordered.push(size);
+    });
+    return ordered;
+  }, [customSizes, existingSizes, sizing]);
 
   const currentFor = (warehouseId: string, sizeInfo: string) => availability.find((row) => (
     row.productSku === selection?.sku
@@ -221,6 +246,15 @@ export default function InventoryPostingDialog({
     setCustomSize('');
   };
 
+  const rememberWarehouse = (warehouseId: string | undefined) => {
+    if (!warehouseId || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(warehouseStorageKey(profileId), warehouseId);
+    } catch {
+      // Preference only; posting already succeeded.
+    }
+  };
+
   const submit = async (continueWithNext: boolean) => {
     if (!selection) {
       showToast('Επιλέξτε συγκεκριμένο SKU και παραλλαγή πριν από την καταχώριση.', 'error');
@@ -237,6 +271,23 @@ export default function InventoryPostingDialog({
       return;
     }
 
+    if (countSession) {
+      const missing = warehouseIds.flatMap((warehouseId) => existingSizes
+        .filter((sizeInfo) => {
+          const current = currentFor(warehouseId, sizeInfo);
+          return current && (current.onHand !== 0 || current.reserved !== 0)
+            && String(values[quantityInputKey(warehouseId, sizeInfo)] ?? '').trim() === '';
+        })
+        .map((sizeInfo) => sizeInfo || 'χωρίς μέγεθος'));
+      if (missing.length > 0) {
+        showToast(
+          `Η απογραφή πρέπει να καλύπτει κάθε υφιστάμενο υπόλοιπο. Συμπληρώστε τη μετρημένη ποσότητα ή ρητά 0 για: ${missing.join(', ')}. Δεν πραγματοποιήθηκε καμία μεταβολή.`,
+          'error',
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     let mutationCommitted = false;
     try {
@@ -246,9 +297,7 @@ export default function InventoryPostingDialog({
           `${formatInventoryInteger(preview.lines.length)} ${preview.lines.length === 1 ? 'γραμμή προστέθηκε' : 'γραμμές προστέθηκαν'} στη Συνεδρία Απογραφής. Δεν έχει μεταβληθεί ακόμη το απόθεμα.`,
           'success',
         );
-        if (typeof window !== 'undefined' && warehouseIds[0]) {
-          window.localStorage.setItem(warehouseStorageKey(profileId), warehouseIds[0]);
-        }
+        rememberWarehouse(warehouseIds[0]);
         if (continueWithNext) {
           setSelection(null);
           setSkuQuery('');
@@ -292,9 +341,7 @@ export default function InventoryPostingDialog({
         `Η καταχώριση ολοκληρώθηκε για ${formatInventoryInteger(result.postedCount)} ${result.postedCount === 1 ? 'γραμμή' : 'γραμμές'} αποθέματος.${zeroMessage}`,
         'success',
       );
-      if (typeof window !== 'undefined' && warehouseIds[0]) {
-        window.localStorage.setItem(warehouseStorageKey(profileId), warehouseIds[0]);
-      }
+      rememberWarehouse(warehouseIds[0]);
       if (continueWithNext) {
         setSelection(null);
         setSkuQuery('');
@@ -496,6 +543,9 @@ export default function InventoryPostingDialog({
                                 <td className="px-4 py-2.5 font-bold text-slate-800">
                                   {sizeInfo || 'Χωρίς διάκριση μεγέθους'}
                                   {customSizes.includes(sizeInfo) && <span className="ml-2 rounded-md bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700">Ειδικό μέγεθος</span>}
+                                  {!customSizes.includes(sizeInfo) && existingSizes.includes(sizeInfo) && sizing && !sizing.sizes.map(normalizeInventorySizeInfo).includes(sizeInfo) && (
+                                    <span className="ml-2 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">Υφιστάμενο υπόλοιπο</span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-bold tabular-nums text-slate-700">{formatInventoryInteger(current?.onHand || 0)}</td>
                                 <td className="px-4 py-2.5 text-right font-bold tabular-nums text-indigo-700">{formatInventoryInteger(current?.reserved || 0)}</td>

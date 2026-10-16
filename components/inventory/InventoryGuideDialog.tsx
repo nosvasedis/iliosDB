@@ -159,6 +159,21 @@ export default function InventoryGuideDialog({ isAdmin, canOperate, onClose }: I
               </ol>
             </section>
           )}
+          {isAdmin && (
+            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4" aria-labelledby="guide-count-session-title">
+              <div className="flex items-center gap-2 text-blue-900">
+                <CheckCircle2 size={18} aria-hidden="true" />
+                <h3 id="guide-count-session-title" className="font-black">Μαζική απογραφή με Συνεδρία Απογραφής</h3>
+              </div>
+              <ol className="mt-3 space-y-2 text-sm leading-6 text-blue-900/85">
+                <li>1. Από «Απογραφή» ξεκινήστε συνεδρία για μία αποθήκη. Μία αποθήκη δέχεται μία ενεργή συνεδρία κάθε φορά.</li>
+                <li>2. Καταμετρήστε κάθε SKU: συμπληρώστε κάθε μέγεθος με υφιστάμενο υπόλοιπο, έστω και με ρητό 0.</li>
+                <li>3. Υποβάλετε σε παρτίδες. Η συνεδρία συνεχίζεται από οποιαδήποτε συσκευή μέσω «Ενεργές συνεδρίες στο ERP».</li>
+                <li>4. «Ολοκλήρωση»: αν δεν καταμετρήθηκαν όλοι οι κωδικοί, επιλέξτε «Μερική ολοκλήρωση». Οι μη καταμετρημένοι διατηρούν το υπόλοιπό τους.</li>
+                <li>5. «Εγκατάλειψη» κλείνει τη συνεδρία χωρίς να αναιρεί όσα ήδη καταχωρίστηκαν.</li>
+              </ol>
+            </section>
+          )}
           {!isAdmin && (
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Δικαιώματα χειριστή">
               <h3 className="font-black text-slate-900">Δικαιώματα του ρόλου σας</h3>

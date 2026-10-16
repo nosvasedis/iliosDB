@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock3,
+  History,
   Image as ImageIcon,
   Loader2,
   PackageCheck,
@@ -21,6 +22,7 @@ import {
   Send,
   Trash2,
   X,
+  XCircle,
 } from 'lucide-react';
 import type { Product, Warehouse } from '../../types';
 import type {
@@ -28,6 +30,8 @@ import type {
   InventoryCountBatch,
   InventoryCountSessionDraft,
   InventoryCountSessionEntry,
+  InventoryCountSessionPostedEntry,
+  InventoryCountSessionRecord,
   InventoryPostingBalance,
   InventoryPostingLine,
   InventoryPostingResult,
@@ -37,6 +41,7 @@ import {
   buildInventoryCountBatches,
   calculateInventoryCountProgress,
   createInventoryCountSessionDraft,
+  createInventoryCountSessionDraftFromServer,
   finalizeInventoryCountSession,
   formatInventoryDateTime,
   formatInventoryInteger,
@@ -44,6 +49,7 @@ import {
   markInventoryCountBatchFailed,
   markInventoryCountBatchSubmitting,
   mergeInventoryCountDraftEntries,
+  mergeServerPostedCountEntries,
   normalizeInventorySizeInfo,
   parseInventoryCountSessionDraft,
   removeInventoryCountDraftEntry,
@@ -80,7 +86,11 @@ export interface InventoryCountSessionDialogProps {
     batch: InventoryCountBatch,
   ) => Promise<InventoryPostingResult>;
   onApplyBalances: (balances: InventoryPostingBalance[]) => Promise<void> | void;
-  onComplete: (session: InventoryCountSessionDraft) => Promise<void> | void;
+  onComplete: (session: InventoryCountSessionDraft, allowPartial: boolean) => Promise<void> | void;
+  /** Active sessions recorded in the ERP, independent of this device. */
+  onListActiveSessions: () => Promise<InventoryCountSessionRecord[]>;
+  onLoadPostedEntries: (sessionId: string) => Promise<InventoryCountSessionPostedEntry[]>;
+  onAbandon: (sessionId: string, reason: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -92,11 +102,16 @@ interface SessionEntryView {
 interface SubmissionOutcome {
   session: InventoryCountSessionDraft;
   succeeded: boolean;
+  failureMessage?: string | null;
   postedLines: number;
   displayRefreshFailed: boolean;
 }
 
 const BATCH_SIZE = 200;
+
+function errorMessage(error: unknown): string | null {
+  return error instanceof Error && error.message ? error.message : null;
+}
 const VISIBLE_ENTRY_LIMIT = 100;
 
 function sessionStorageKey(profileId?: string): string {
@@ -202,6 +217,9 @@ export default function InventoryCountSessionDialog({
   onPostBatch,
   onApplyBalances,
   onComplete,
+  onListActiveSessions,
+  onLoadPostedEntries,
+  onAbandon,
   onClose,
 }: InventoryCountSessionDialogProps) {
   const { confirm, showToast } = useUI();
@@ -225,10 +243,20 @@ export default function InventoryCountSessionDialog({
   const [submissionKind, setSubmissionKind] = useState<SubmissionKind>(null);
   const [submissionLabel, setSubmissionLabel] = useState('');
   const [starting, setStarting] = useState(false);
+  const [serverSessions, setServerSessions] = useState<InventoryCountSessionRecord[]>([]);
+  const [serverNotice, setServerNotice] = useState<string | null>(null);
+  const [resumingSessionId, setResumingSessionId] = useState<string | null>(null);
+  const [abandonTarget, setAbandonTarget] = useState<{ id: string; name: string } | null>(null);
+  const [abandonReason, setAbandonReason] = useState('');
+  const [abandoning, setAbandoning] = useState(false);
   const autoOpenedInitialRef = useRef(false);
+  // Latest values for the one-time initialization, so a refetch of warehouses
+  // or products never resets an open session mid-count.
+  const initInputsRef = useRef({ warehouses, expectedIdentityCount, onListActiveSessions, onLoadPostedEntries });
+  initInputsRef.current = { warehouses, expectedIdentityCount, onListActiveSessions, onLoadPostedEntries };
 
   const submitting = submissionKind !== null;
-  useEscapeToClose(onClose, submitting || entryOpen);
+  useEscapeToClose(onClose, submitting || entryOpen || abandonTarget !== null);
 
   const persistSession = useCallback((nextSession: InventoryCountSessionDraft) => {
     sessionRef.current = nextSession;
@@ -248,54 +276,105 @@ export default function InventoryCountSessionDialog({
   }, [storageKey]);
 
   useEffect(() => {
+    let cancelled = false;
     setInitialized(false);
     setLoadError(null);
     setStorageError(null);
+    setServerNotice(null);
     sessionRef.current = null;
     setSession(null);
+    const inputs = initInputsRef.current;
 
-    if (typeof window === 'undefined') {
-      setInitialized(true);
-      return;
-    }
+    const initialize = async () => {
+      let local: InventoryCountSessionDraft | null = null;
+      if (typeof window !== 'undefined') {
+        let stored: string | null = null;
+        try {
+          stored = window.localStorage.getItem(storageKey);
+        } catch {
+          setLoadError(
+            'Η τοπική αποθήκευση της συσκευής δεν είναι διαθέσιμη. Οι νέες καταμετρήσεις δεν θα διατηρηθούν αν κλείσει η εφαρμογή. Ενεργοποιήστε την τοπική αποθήκευση για ασφαλή εργασία.',
+          );
+        }
+        if (stored) {
+          try {
+            const parsed = parseInventoryCountSessionDraft(stored);
+            local = {
+              ...parsed,
+              expectedIdentityCount: Math.max(
+                parsed.expectedIdentityCount,
+                Math.max(0, Math.trunc(inputs.expectedIdentityCount)),
+              ),
+            };
+          } catch {
+            setLoadError(
+              'Η προηγούμενη τοπική συνεδρία δεν ήταν δυνατό να ανακτηθεί με ασφάλεια. Οι ήδη καταχωρισμένες παρτίδες παραμένουν στο ERP και μπορείτε να συνεχίσετε τη συνεδρία από τη λίστα ενεργών συνεδριών.',
+            );
+          }
+        }
+      }
 
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(storageKey);
-    } catch {
-      setLoadError(
-        'Η τοπική αποθήκευση της συσκευής δεν είναι διαθέσιμη. Η συνεδρία δεν μπορεί να ανακτηθεί με ασφάλεια. Ενεργοποιήστε την τοπική αποθήκευση και ανοίξτε ξανά τη λειτουργία.',
-      );
-      setInitialized(true);
-      return;
-    }
-    if (stored) {
+      let active: InventoryCountSessionRecord[] | null = null;
       try {
-        const parsed = parseInventoryCountSessionDraft(stored);
-        const resumed = {
-          ...parsed,
-          expectedIdentityCount: Math.max(
-            parsed.expectedIdentityCount,
-            Math.max(0, Math.trunc(expectedIdentityCount)),
-          ),
-        };
-        sessionRef.current = resumed;
-        setSession(resumed);
-        setSetupTitle(resumed.title);
-        setSetupReason(resumed.reason);
-        setSetupWarehouseId(
-          resumed.activeWarehouseId || getDefaultWarehouseId(warehouses, profileId),
-        );
+        active = await inputs.onListActiveSessions();
       } catch {
-        setLoadError(
-          'Η προηγούμενη τοπική συνεδρία δεν ήταν δυνατό να ανακτηθεί με ασφάλεια. Η δημιουργία νέας συνεδρίας θα αντικαταστήσει μόνο το μη έγκυρο τοπικό πρόχειρο· δεν θα μεταβάλει κανένα απόθεμα.',
+        active = null;
+      }
+      if (cancelled) return;
+
+      if (local && active) {
+        const serverRecord = active.find((record) => record.id === local!.sessionId);
+        if (!serverRecord) {
+          // Closed on another device or by another administrator.
+          try { window.localStorage.removeItem(storageKey); } catch { /* ignored */ }
+          setServerNotice(
+            local.status === 'completed'
+              ? 'Η προηγούμενη Συνεδρία Απογραφής έχει ήδη ολοκληρωθεί στο ERP. Το τοπικό πρόχειρο αρχειοθετήθηκε.'
+              : 'Η προηγούμενη Συνεδρία Απογραφής αυτής της συσκευής δεν είναι πλέον ενεργή στο ERP (ολοκληρώθηκε ή εγκαταλείφθηκε). Τα επιβεβαιωμένα υπόλοιπα παραμένουν· οι μη υποβληθείσες γραμμές του προχείρου δεν εφαρμόστηκαν.',
+          );
+          local = null;
+        } else if (serverRecord.postedBatchCount > 0) {
+          try {
+            const posted = await inputs.onLoadPostedEntries(local.sessionId);
+            if (cancelled) return;
+            local = mergeServerPostedCountEntries(local, posted);
+          } catch {
+            // Keep the local draft; idempotent batch keys keep retries safe.
+          }
+        }
+      }
+
+      if (cancelled) return;
+      setServerSessions(active || []);
+      if (local) {
+        sessionRef.current = local;
+        setSession(local);
+        setSetupTitle(local.title);
+        setSetupReason(local.reason);
+        setSetupWarehouseId(local.activeWarehouseId || getDefaultWarehouseId(inputs.warehouses, profileId));
+        try {
+          window.localStorage.setItem(storageKey, serializeInventoryCountSessionDraft(local));
+        } catch { /* reported on next persist */ }
+      } else {
+        const busy = new Set((active || []).flatMap((record) => record.warehouseIds));
+        const preferred = getDefaultWarehouseId(inputs.warehouses, profileId);
+        setSetupWarehouseId(
+          !busy.has(preferred)
+            ? preferred
+            : inputs.warehouses.find((warehouse) => !busy.has(warehouse.id))?.id || preferred,
         );
       }
-    } else {
-      setSetupWarehouseId(getDefaultWarehouseId(warehouses, profileId));
-    }
-    setInitialized(true);
-  }, [expectedIdentityCount, profileId, storageKey, warehouses]);
+      if (active === null) {
+        setServerNotice((current) => current || 'Δεν ήταν δυνατός ο έλεγχος ενεργών συνεδριών στο ERP. Ελέγξτε τη σύνδεση· το τοπικό πρόχειρο παραμένει διαθέσιμο.');
+      }
+      setInitialized(true);
+    };
+
+    void initialize();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, storageKey]);
 
   useEffect(() => {
     if (!scannedSelection) return;
@@ -376,6 +455,10 @@ export default function InventoryCountSessionDialog({
   }, [entryFilter, entryQuery, session, warehouseById]);
 
   const visibleEntries = matchingEntryViews.slice(0, VISIBLE_ENTRY_LIMIT);
+  const busyWarehouseIds = useMemo(
+    () => new Set(serverSessions.flatMap((record) => record.warehouseIds)),
+    [serverSessions],
+  );
 
   const seedPreferredWarehouse = useCallback((warehouseId: string | null) => {
     if (!warehouseId || typeof window === 'undefined') return;
@@ -449,6 +532,67 @@ export default function InventoryCountSessionDialog({
     }
   };
 
+  const resumeServerSession = async (record: InventoryCountSessionRecord) => {
+    setResumingSessionId(record.id);
+    try {
+      const posted = record.postedBatchCount > 0 ? await onLoadPostedEntries(record.id) : [];
+      const resumed = createInventoryCountSessionDraftFromServer({
+        sessionId: record.id,
+        title: record.name,
+        reason: record.reason,
+        activeWarehouseId: record.warehouseIds[0] || null,
+        expectedIdentityCount: Math.max(record.totalTargetCount, expectedIdentityCount),
+        createdAt: record.createdAt,
+      }, posted);
+      seedPreferredWarehouse(resumed.activeWarehouseId);
+      persistSession(resumed);
+      setServerNotice(null);
+      showToast(
+        `Η συνεδρία «${record.name}» ανακτήθηκε από το ERP με ${formatInventoryInteger(posted.length)} ήδη καταχωρισμένες γραμμές.`,
+        'success',
+      );
+    } catch (error) {
+      showToast(
+        errorMessage(error) || 'Η συνεδρία δεν ανακτήθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.',
+        'error',
+      );
+    } finally {
+      setResumingSessionId(null);
+    }
+  };
+
+  const confirmAbandon = async () => {
+    if (!abandonTarget) return;
+    const reason = abandonReason.trim();
+    if (!reason) {
+      showToast('Η αιτιολογία εγκατάλειψης είναι υποχρεωτική.', 'error');
+      return;
+    }
+    setAbandoning(true);
+    try {
+      await onAbandon(abandonTarget.id, reason);
+      setServerSessions((current) => current.filter((record) => record.id !== abandonTarget.id));
+      if (sessionRef.current?.sessionId === abandonTarget.id) {
+        sessionRef.current = null;
+        setSession(null);
+        try { window.localStorage.removeItem(storageKey); } catch { /* ignored */ }
+      }
+      showToast(
+        'Η Συνεδρία Απογραφής εγκαταλείφθηκε. Οι ήδη καταχωρισμένες παρτίδες παραμένουν στο απόθεμα· οι μη υποβληθείσες γραμμές δεν εφαρμόστηκαν.',
+        'success',
+      );
+      setAbandonTarget(null);
+      setAbandonReason('');
+    } catch (error) {
+      showToast(
+        errorMessage(error) || 'Η Συνεδρία Απογραφής δεν εγκαταλείφθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.',
+        'error',
+      );
+    } finally {
+      setAbandoning(false);
+    }
+  };
+
   const collectLines = useCallback(async (lines: InventoryPostingLine[]) => {
     const current = sessionRef.current;
     if (!current || current.status !== 'open') {
@@ -487,12 +631,13 @@ export default function InventoryCountSessionDialog({
     let result: InventoryPostingResult;
     try {
       result = await onPostBatch(baseSession.sessionId, batch);
-    } catch {
-      const failedSession = markInventoryCountBatchFailed(submittingSession, batch);
+    } catch (error) {
+      const failedSession = markInventoryCountBatchFailed(submittingSession, batch, undefined, errorMessage(error));
       persistSession(failedSession);
       return {
         session: failedSession,
         succeeded: false,
+        failureMessage: errorMessage(error),
         postedLines: 0,
         displayRefreshFailed: false,
       };
@@ -501,12 +646,13 @@ export default function InventoryCountSessionDialog({
     let postedSession: InventoryCountSessionDraft;
     try {
       postedSession = applyInventoryCountBatchResult(submittingSession, batch, result);
-    } catch {
-      const failedSession = markInventoryCountBatchFailed(submittingSession, batch);
+    } catch (error) {
+      const failedSession = markInventoryCountBatchFailed(submittingSession, batch, undefined, errorMessage(error));
       persistSession(failedSession);
       return {
         session: failedSession,
         succeeded: false,
+        failureMessage: errorMessage(error),
         postedLines: 0,
         displayRefreshFailed: false,
       };
@@ -548,6 +694,7 @@ export default function InventoryCountSessionDialog({
         return {
           session: working,
           succeeded: false,
+          failureMessage: outcome.failureMessage,
           postedLines,
           displayRefreshFailed,
         };
@@ -568,7 +715,9 @@ export default function InventoryCountSessionDialog({
   ) => {
     if (!outcome.succeeded) {
       showToast(
-        'Η παρτίδα δεν επιβεβαιώθηκε. Οι γραμμές παραμένουν στη συνεδρία και μπορούν να υποβληθούν ξανά με το ίδιο ασφαλές αναγνωριστικό. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.',
+        outcome.failureMessage
+          ? `${outcome.failureMessage} Οι γραμμές παραμένουν στη συνεδρία (φίλτρο «Έλεγχος»).`
+          : 'Η παρτίδα δεν επιβεβαιώθηκε. Οι γραμμές παραμένουν στη συνεδρία και μπορούν να υποβληθούν ξανά με το ίδιο ασφαλές αναγνωριστικό. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.',
         'error',
       );
       return;
@@ -623,6 +772,7 @@ export default function InventoryCountSessionDialog({
   const completeSession = async () => {
     let working = sessionRef.current;
     if (!working) return;
+    let allowPartial = false;
     setSubmissionKind('complete');
     try {
       if (working.status === 'open') {
@@ -650,23 +800,33 @@ export default function InventoryCountSessionDialog({
           );
           return;
         }
-        if (currentProgress.notCounted > 0) {
+        if (currentProgress.counted === 0) {
           showToast(
-            `Η συνεδρία δεν ολοκληρώθηκε. Απομένουν ${formatInventoryInteger(currentProgress.notCounted)} μη καταμετρημένοι στόχοι SKU ή παραλλαγής. Η συνεδρία αποθηκεύτηκε και μπορείτε να συνεχίσετε αργότερα.`,
+            'Η συνεδρία δεν ολοκληρώθηκε επειδή δεν έχει καταχωριστεί καμία καταμέτρηση. Καταμετρήστε τουλάχιστον ένα SKU ή εγκαταλείψτε τη συνεδρία.',
             'error',
           );
           return;
         }
-        working = finalizeInventoryCountSession(working);
+        if (currentProgress.notCounted > 0) {
+          const acceptedPartial = await confirm({
+            title: 'Μερική ολοκλήρωση απογραφής',
+            message: `Έχουν καταμετρηθεί ${formatInventoryInteger(currentProgress.counted)} από ${formatInventoryInteger(currentProgress.total)} SKU ή παραλλαγές. Τα υπόλοιπα ${formatInventoryInteger(currentProgress.notCounted)} διατηρούν το τρέχον Φυσικό Απόθεμα χωρίς μεταβολή. Να ολοκληρωθεί η συνεδρία ως μερική απογραφή;`,
+            confirmText: 'Μερική ολοκλήρωση',
+            cancelText: 'Συνέχεια καταμέτρησης',
+          });
+          if (!acceptedPartial) return;
+          allowPartial = true;
+        }
+        working = finalizeInventoryCountSession(working, undefined, allowPartial);
         persistSession(working);
       }
 
       setSubmissionLabel('Τελική συμφωνία και ανανέωση υπολοίπων…');
       try {
-        await onComplete(working);
-      } catch {
+        await onComplete(working, allowPartial || calculateInventoryCountProgress(working).notCounted > 0);
+      } catch (error) {
         showToast(
-          'Όλες οι παρτίδες έχουν καταχωριστεί, αλλά δεν ολοκληρώθηκε η τελική ανανέωση υπολοίπων. Δεν χάθηκε καμία καταμέτρηση. Πατήστε ξανά «Ολοκλήρωση» όταν αποκατασταθεί η σύνδεση.',
+          errorMessage(error) || 'Όλες οι παρτίδες έχουν καταχωριστεί, αλλά δεν ολοκληρώθηκε η τελική ανανέωση υπολοίπων. Δεν χάθηκε καμία καταμέτρηση. Πατήστε ξανά «Ολοκλήρωση» όταν αποκατασταθεί η σύνδεση.',
           'error',
         );
         return;
@@ -822,11 +982,65 @@ export default function InventoryCountSessionDialog({
                   </div>
                 </div>
 
-                {(loadError || storageError) && (
+                {(loadError || storageError || serverNotice) && (
                   <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900" role="alert">
                     <AlertTriangle size={19} className="mt-0.5 shrink-0" aria-hidden="true" />
-                    <p>{loadError || storageError}</p>
+                    <p>{loadError || storageError || serverNotice}</p>
                   </div>
+                )}
+
+                {serverSessions.length > 0 && (
+                  <section className="mt-5 overflow-hidden rounded-2xl border border-blue-200 bg-blue-50/50" aria-labelledby="active-count-sessions-title">
+                    <header className="flex items-start gap-3 border-b border-blue-100 px-4 py-3">
+                      <History size={18} className="mt-0.5 shrink-0 text-blue-700" aria-hidden="true" />
+                      <div>
+                        <h4 id="active-count-sessions-title" className="text-sm font-black text-blue-950">Ενεργές συνεδρίες στο ERP</h4>
+                        <p className="mt-0.5 text-xs leading-5 text-blue-900/80">
+                          Μία αποθήκη δέχεται μόνο μία ενεργή συνεδρία. Συνεχίστε την από αυτή τη συσκευή ή εγκαταλείψτε την για να ξεκινήσετε νέα.
+                        </p>
+                      </div>
+                    </header>
+                    <ul className="divide-y divide-blue-100">
+                      {serverSessions.map((record) => {
+                        const names = record.warehouseIds.map((id) => warehouseById.get(id)?.name || 'Αποθήκη').join(', ');
+                        const percent = record.totalTargetCount > 0
+                          ? Math.round((record.countedTargetCount / record.totalTargetCount) * 1000) / 10
+                          : 0;
+                        return (
+                          <li key={record.id} className="flex flex-col gap-3 bg-white/70 px-4 py-3 sm:flex-row sm:items-center">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black text-slate-900">{record.name}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                <span className="font-mono">{record.sessionCode}</span> · {names} · από {formatInventoryDateTime(record.createdAt)}
+                              </p>
+                              <p className="mt-1 text-xs font-bold text-slate-600">
+                                {formatInventoryInteger(record.countedTargetCount)} / {formatInventoryInteger(record.totalTargetCount)} SKU ({percent.toLocaleString('el-GR')}%) · {formatInventoryInteger(record.postedBatchCount)} παρτίδες
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setAbandonTarget({ id: record.id, name: record.name }); setAbandonReason(''); }}
+                                disabled={resumingSessionId !== null}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-45"
+                              >
+                                <XCircle size={15} aria-hidden="true" /> Εγκατάλειψη
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => resumeServerSession(record)}
+                                disabled={resumingSessionId !== null}
+                                className={`${BTN_PRIMARY} px-3 py-2 text-xs disabled:opacity-45`}
+                              >
+                                {resumingSessionId === record.id ? <Loader2 size={15} className="animate-spin" /> : <ClipboardCheck size={15} aria-hidden="true" />}
+                                Συνέχεια
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
                 )}
 
                 <div className="mt-6 grid gap-5">
@@ -860,9 +1074,14 @@ export default function InventoryCountSessionDialog({
                       aria-label="Επιλογή προεπιλεγμένης αποθήκης για τη Συνεδρία Απογραφής"
                     >
                       <option value="">Επιλέξτε αποθήκη</option>
-                      {warehouses.map((warehouse) => (
-                        <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                      ))}
+                      {warehouses.map((warehouse) => {
+                        const busy = busyWarehouseIds.has(warehouse.id);
+                        return (
+                          <option key={warehouse.id} value={warehouse.id} disabled={busy}>
+                            {warehouse.name}{busy ? ' — ενεργή συνεδρία' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                     <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">
                       Η συνεδρία αφορά απευθείας την επιλεγμένη αποθήκη. Για άλλη αποθήκη ξεκινήστε ξεχωριστή συνεδρία· δεν απαιτείται ενδιάμεση καταχώριση στην Κεντρική Αποθήκη.
@@ -877,7 +1096,7 @@ export default function InventoryCountSessionDialog({
                   <button
                     type="button"
                     onClick={createSession}
-                    disabled={starting || !setupReason.trim() || !setupWarehouseId}
+                    disabled={starting || !setupReason.trim() || !setupWarehouseId || busyWarehouseIds.has(setupWarehouseId)}
                     className={`${BTN_PRIMARY} justify-center disabled:cursor-not-allowed disabled:opacity-45`}
                   >
                     {starting ? <Loader2 size={17} className="animate-spin" /> : <ClipboardCheck size={17} aria-hidden="true" />}
@@ -1088,6 +1307,9 @@ export default function InventoryCountSessionDialog({
                                 {' · '}
                                 {warehouse?.name || 'Μη κατονομασμένη αποθήκη'}
                               </p>
+                              {entry.state === 'failed' && entry.errorMessage && (
+                                <p className="mt-1 text-xs font-semibold leading-5 text-rose-700">{entry.errorMessage}</p>
+                              )}
                             </div>
                             <div className="flex items-center justify-between gap-3 sm:justify-end">
                               <div className="text-right">
@@ -1162,7 +1384,7 @@ export default function InventoryCountSessionDialog({
                     {submissionLabel || 'Επεξεργασία Συνεδρίας Απογραφής…'}
                   </div>
                 )}
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[auto_auto_1fr_auto]">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[auto_auto_auto_1fr_auto]">
                   <button
                     type="button"
                     onClick={onClose}
@@ -1172,6 +1394,17 @@ export default function InventoryCountSessionDialog({
                     <Pause size={16} aria-hidden="true" />
                     Παύση
                   </button>
+                  {!statusCompleted && (
+                    <button
+                      type="button"
+                      onClick={() => { setAbandonTarget({ id: session.sessionId, name: session.title }); setAbandonReason(''); }}
+                      disabled={submitting}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-45"
+                    >
+                      <XCircle size={16} aria-hidden="true" />
+                      Εγκατάλειψη
+                    </button>
+                  )}
                   {!statusCompleted && (
                     <button
                       type="button"
@@ -1234,6 +1467,59 @@ export default function InventoryCountSessionDialog({
             setEntrySelection(null);
           }}
         />
+      )}
+
+      {abandonTarget && (
+        <div
+          className="fixed inset-0 z-[520] flex items-center justify-center bg-slate-950/60 p-4"
+          role="presentation"
+          onMouseDown={() => { if (!abandoning) setAbandonTarget(null); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="abandon-count-session-title"
+            className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="border-b border-slate-100 p-5">
+              <h2 id="abandon-count-session-title" className="text-lg font-black text-slate-900">Εγκατάλειψη Συνεδρίας Απογραφής</h2>
+              <p className="mt-1 text-sm text-slate-500">{abandonTarget.name}</p>
+            </header>
+            <div className="space-y-4 p-5">
+              <div className="flex gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                <AlertTriangle size={19} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <p>Οι ήδη καταχωρισμένες παρτίδες παραμένουν στο απόθεμα και στο Ιστορικό Κινήσεων. Οι μη υποβληθείσες γραμμές του προχείρου δεν εφαρμόζονται. Η αποθήκη απελευθερώνεται για νέα συνεδρία.</p>
+              </div>
+              <label className="block text-sm font-bold text-slate-700">
+                Αιτιολογία εγκατάλειψης
+                <textarea
+                  autoFocus
+                  value={abandonReason}
+                  onChange={(event) => setAbandonReason(event.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="π.χ. Η απογραφή θα επαναληφθεί με νέα οργάνωση"
+                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-rose-500"
+                />
+              </label>
+            </div>
+            <footer className="flex gap-3 border-t border-slate-100 p-5">
+              <button type="button" onClick={() => setAbandonTarget(null)} disabled={abandoning} className={`${BTN_SECONDARY} flex-1 justify-center disabled:opacity-50`}>
+                Διατήρηση
+              </button>
+              <button
+                type="button"
+                onClick={confirmAbandon}
+                disabled={abandoning || !abandonReason.trim()}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {abandoning ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                Εγκατάλειψη συνεδρίας
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
     </>
   );

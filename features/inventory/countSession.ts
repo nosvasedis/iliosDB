@@ -4,6 +4,7 @@ import {
 } from './posting';
 import type {
   InventoryAvailability,
+  InventoryCountSessionPostedEntry,
   InventoryIdentity,
   InventoryPostingBalance,
   InventoryPostingInput,
@@ -563,9 +564,11 @@ export function markInventoryCountBatchFailed(
   session: InventoryCountSessionDraft,
   batch: InventoryCountBatch,
   now?: string,
+  message?: string | null,
 ): InventoryCountSessionDraft {
   const timestamp = nowIso(now);
-  const safeMessage = 'Η παρτίδα απογραφής δεν καταχωρίστηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.';
+  const safeMessage = message?.trim()
+    || 'Η παρτίδα απογραφής δεν καταχωρίστηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.';
   return updateBatchEntries(session, batch, (entry) => ({
     ...entry,
     state: 'failed',
@@ -574,12 +577,97 @@ export function markInventoryCountBatchFailed(
   }), timestamp);
 }
 
+const ALREADY_FINALIZED_MESSAGE = 'Το SKU ή η παραλλαγή έχει ήδη οριστικοποιηθεί στη συνεδρία με διαφορετικές γραμμές. Η γραμμή δεν μπορεί να υποβληθεί ξανά· αφαιρέστε την ή ξεκινήστε νέα συνεδρία επανακαταμέτρησης.';
+
+/**
+ * Aligns a device draft with the lines the server has already posted for the
+ * same session. This closes the gap where a batch committed but its response
+ * was lost: those lines become «posted» instead of being retried, and any
+ * other local line for an already-finalized SKU/variant is flagged.
+ */
+export function mergeServerPostedCountEntries(
+  session: InventoryCountSessionDraft,
+  postedEntries: InventoryCountSessionPostedEntry[],
+  now?: string,
+): InventoryCountSessionDraft {
+  if (postedEntries.length === 0) return session;
+  const timestamp = nowIso(now);
+  const entryOrder = [...session.entryOrder];
+  const entriesByIdentity = { ...session.entriesByIdentity };
+  const postedKeys = new Set<string>();
+  const finalizedTargets = new Set<string>();
+
+  postedEntries.forEach((posted) => {
+    const identity = normalizeIdentity(posted);
+    const identityKey = inventoryPostingIdentityKey(identity);
+    postedKeys.add(identityKey);
+    finalizedTargets.add(`${identity.productSku}\u001f${identity.variantSuffix}`);
+    const current = entriesByIdentity[identityKey];
+    entriesByIdentity[identityKey] = {
+      ...identity,
+      quantityText: String(posted.countedQuantity),
+      baselineOnHand: current?.baselineOnHand ?? posted.onHandBefore,
+      state: 'posted',
+      postedQuantity: posted.countedQuantity,
+      errorMessage: null,
+      updatedAt: posted.countedAt || timestamp,
+    };
+    if (!current) entryOrder.push(identityKey);
+  });
+
+  entryOrder.forEach((identityKey) => {
+    const entry = entriesByIdentity[identityKey];
+    if (!entry || postedKeys.has(identityKey) || entry.state === 'posted') return;
+    if (!finalizedTargets.has(`${entry.productSku}\u001f${entry.variantSuffix}`)) return;
+    entriesByIdentity[identityKey] = {
+      ...entry,
+      state: 'failed',
+      errorMessage: ALREADY_FINALIZED_MESSAGE,
+      updatedAt: timestamp,
+    };
+  });
+
+  return {
+    ...session,
+    updatedAt: timestamp,
+    entryOrder,
+    entriesByIdentity,
+  };
+}
+
+/**
+ * Rebuilds a resumable draft for a session that exists on the server but not
+ * on this device (another device, cleared storage).
+ */
+export function createInventoryCountSessionDraftFromServer(
+  input: {
+    sessionId: string;
+    title: string;
+    reason: string;
+    activeWarehouseId: string | null;
+    expectedIdentityCount: number;
+    createdAt?: string;
+  },
+  postedEntries: InventoryCountSessionPostedEntry[],
+): InventoryCountSessionDraft {
+  const draft = createInventoryCountSessionDraft({
+    sessionId: input.sessionId,
+    title: input.title,
+    reason: input.reason,
+    activeWarehouseId: input.activeWarehouseId,
+    expectedIdentityCount: input.expectedIdentityCount,
+    now: input.createdAt,
+  });
+  return mergeServerPostedCountEntries(draft, postedEntries);
+}
+
 export function finalizeInventoryCountSession(
   session: InventoryCountSessionDraft,
   now?: string,
+  allowPartial = false,
 ): InventoryCountSessionDraft {
   const progress = calculateInventoryCountProgress(session);
-  if (progress.notCounted > 0) {
+  if (progress.notCounted > 0 && !allowPartial) {
     throw new Error(
       `Η συνεδρία δεν μπορεί να ολοκληρωθεί. Απομένουν ${progress.notCounted.toLocaleString('el-GR')} μη καταμετρημένοι στόχοι SKU ή παραλλαγής.`,
     );

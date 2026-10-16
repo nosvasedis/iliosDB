@@ -1,12 +1,15 @@
 import type { Offer, Order, SupplierOrder, Warehouse } from '../../types';
 import { SYSTEM_IDS, isLocalMode, supabase } from '../../lib/supabase';
-import { toInventoryOperationError } from './greek';
+import { repairGreekMojibake, toInventoryOperationError } from './greek';
 import type {
   ConvertOfferInventoryInput,
   InventoryAdjustmentInput,
   InventoryAvailability,
   InventoryCountSessionBatchInput,
+  InventoryCountSessionAbandonInput,
   InventoryCountSessionCompleteInput,
+  InventoryCountSessionPostedEntry,
+  InventoryCountSessionRecord,
   InventoryCountSessionStartInput,
   InventoryCountSessionStartResult,
   InventoryEvent,
@@ -164,8 +167,9 @@ export const inventoryRepository = {
       .from('inventory_events')
       .select('*')
       .order('created_at', { ascending: false })
+      .order('sequence_no', { ascending: false })
       .limit(limit);
-    if (error) throw toInventoryOperationError('adjustment', error);
+    if (error) throw toInventoryOperationError('availability-read', error);
     return (data || []).map((row: any) => ({
       id: row.id,
       sequenceNo: Number(row.sequence_no || 0),
@@ -184,8 +188,8 @@ export const inventoryRepository = {
       transferGroupId: row.transfer_group_id,
       reversalOf: row.reversal_of,
       actorUserId: row.actor_user_id,
-      actorName: row.actor_name,
-      reason: row.reason,
+      actorName: row.actor_name ? repairGreekMojibake(row.actor_name) : null,
+      reason: repairGreekMojibake(row.reason),
       createdAt: row.created_at,
     }));
   },
@@ -397,6 +401,66 @@ export const inventoryRepository = {
       p_allow_partial: Boolean(input.allowPartial),
     });
     if (error) throw toInventoryOperationError('count-session-complete', error);
+  },
+
+  async listCountSessions(status: InventoryCountSessionRecord['status'] = 'active'): Promise<InventoryCountSessionRecord[]> {
+    const { data, error } = await supabase
+      .from('inventory_count_sessions')
+      .select('id, session_code, name, reason, status, warehouse_ids, total_target_count, counted_target_count, counted_line_count, posted_batch_count, created_at, updated_at')
+      .eq('status', status)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw toInventoryOperationError('count-session-read', error);
+    return (data || []).map((row: any) => ({
+      id: String(row.id),
+      sessionCode: String(row.session_code || ''),
+      name: String(row.name || ''),
+      reason: String(row.reason || ''),
+      status: row.status,
+      warehouseIds: Array.isArray(row.warehouse_ids) ? row.warehouse_ids.map(String) : [],
+      totalTargetCount: Number(row.total_target_count || 0),
+      countedTargetCount: Number(row.counted_target_count || 0),
+      countedLineCount: Number(row.counted_line_count || 0),
+      postedBatchCount: Number(row.posted_batch_count || 0),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  },
+
+  async getCountSessionPostedEntries(sessionId: string): Promise<InventoryCountSessionPostedEntry[]> {
+    const pageSize = 1000;
+    const entries: InventoryCountSessionPostedEntry[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('inventory_count_entries')
+        .select('id, product_sku, variant_suffix, size_info, warehouse_id, counted_quantity, on_hand_before, counted_at')
+        .eq('session_id', sessionId)
+        .order('id')
+        .range(from, from + pageSize - 1);
+      if (error) throw toInventoryOperationError('count-session-read', error);
+      const rows = data || [];
+      rows.forEach((row: any) => entries.push({
+        productSku: String(row.product_sku),
+        variantSuffix: String(row.variant_suffix || ''),
+        sizeInfo: normalizeInventorySizeInfo(row.size_info),
+        warehouseId: String(row.warehouse_id),
+        countedQuantity: Number(row.counted_quantity || 0),
+        onHandBefore: Number(row.on_hand_before || 0),
+        countedAt: row.counted_at,
+      }));
+      if (rows.length < pageSize) break;
+    }
+    return entries;
+  },
+
+  async abandonInventoryCountSession(input: InventoryCountSessionAbandonInput): Promise<void> {
+    assertOnline();
+    const { error } = await supabase.rpc('abandon_inventory_count_session_v1', {
+      p_session_id: input.sessionId,
+      p_reason: input.reason.trim(),
+      p_idempotency_key: input.idempotencyKey,
+    });
+    if (error) throw toInventoryOperationError('count-session-abandon', error);
   },
 
   async batchAdjustStock(

@@ -14,6 +14,8 @@ export const inventoryKeys = {
   all: ['inventory'] as const,
   availability: () => ['inventory', 'availability'] as const,
   events: () => ['inventory', 'events'] as const,
+  eventsPage: (limit: number) => ['inventory', 'events', limit] as const,
+  countSessions: () => ['inventory', 'count-sessions'] as const,
   reconciliation: () => ['inventory', 'reconciliation'] as const,
   reconciliationIssues: () => ['inventory', 'reconciliation', 'issues'] as const,
   reservations: (orderId: string) => ['inventory', 'reservations', orderId] as const,
@@ -97,23 +99,36 @@ export async function refreshInventoryAvailability(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: inventoryKeys.events() }),
     queryClient.invalidateQueries({ queryKey: inventoryKeys.reconciliation() }),
     queryClient.invalidateQueries({ queryKey: inventoryKeys.reconciliationIssues() }),
+    queryClient.invalidateQueries({ queryKey: inventoryKeys.countSessions() }),
   ]);
   return availability;
 }
 
 export async function refreshInventoryAuditQueries(queryClient: QueryClient): Promise<void> {
   await Promise.all([
+    queryClient.invalidateQueries({ queryKey: inventoryKeys.countSessions() }),
     queryClient.invalidateQueries({ queryKey: inventoryKeys.events() }),
     queryClient.invalidateQueries({ queryKey: inventoryKeys.reconciliation() }),
     queryClient.invalidateQueries({ queryKey: inventoryKeys.reconciliationIssues() }),
   ]);
 }
 
-export function useInventoryEvents(enabled = true) {
+export function useInventoryEvents(enabled = true, limit = 250) {
   return useQuery({
-    queryKey: inventoryKeys.events(),
-    queryFn: () => inventoryRepository.getMovementHistory(),
+    queryKey: inventoryKeys.eventsPage(limit),
+    queryFn: () => inventoryRepository.getMovementHistory(limit),
     enabled,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** Count sessions open in the ERP, regardless of which device started them. */
+export function useActiveInventoryCountSessions(enabled = true) {
+  return useQuery({
+    queryKey: inventoryKeys.countSessions(),
+    queryFn: () => inventoryRepository.listCountSessions('active'),
+    enabled,
+    staleTime: 30_000,
   });
 }
 
