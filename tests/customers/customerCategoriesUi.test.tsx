@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { OrderStatus, type Customer, type Order } from '../../types';
-import { buildCustomerDirectory } from '../../features/customers/customerLocation';
+import { buildCustomerDirectory, categorySelectionLabel, matchesCategory } from '../../features/customers/customerLocation';
 import CustomerCard from '../../components/customers/CustomerCard';
 import CustomerListView from '../../components/customers/CustomerListView';
 import CustomerCategoryFilter from '../../components/customers/CustomerCategoryFilter';
@@ -52,28 +52,43 @@ describe('customer category presentation', () => {
     expect(html).toContain('ακυρωμένες εξαιρούνται');
   });
 
-  it('filters active tiers and clears the tier when changing activity', () => {
+  it('multi-selects activities and narrows active tiers', () => {
     const onChange = vi.fn();
     let renderer: ReturnType<typeof create>;
-    act(() => { renderer = create(<CustomerCategoryFilter entries={entries} activity="active" tier="key" onChange={onChange} />); });
-    const select = renderer!.root.findByProps({ 'aria-label': 'Υποκατηγορία ενεργών πελατών' });
-    expect(select.props.value).toBe('key');
-    expect(select.findAllByType('option').map(option => option.props.value)).toEqual(['', 'top', 'key', 'steady', 'regular']);
-    act(() => select.props.onChange({ target: { value: 'steady' } }));
-    expect(onChange).toHaveBeenLastCalledWith('active', 'steady');
+    act(() => { renderer = create(<CustomerCategoryFilter entries={entries} value={{ activities: ['active'], tiers: ['key'] }} onChange={onChange} />); });
     const quietButton = renderer!.root.findAllByType('button').find(button => button.props.title?.includes('κάτω από 500'))!;
     act(() => quietButton.props.onClick());
-    expect(onChange).toHaveBeenLastCalledWith('quiet', null);
-    act(() => renderer!.update(<CustomerCategoryFilter entries={entries} activity="quiet" tier={null} onChange={onChange} />));
-    expect(renderer!.root.findAllByType('select')).toHaveLength(0);
+    expect(onChange).toHaveBeenLastCalledWith({ activities: ['active', 'quiet'], tiers: ['key'] });
+    const tierGroup = renderer!.root.findByProps({ 'aria-label': 'Υποκατηγορίες ενεργών πελατών' });
+    const steady = tierGroup.findAllByType('button').find(button => button.props.title?.startsWith('2.000'))!;
+    act(() => steady.props.onClick());
+    expect(onChange).toHaveBeenLastCalledWith({ activities: ['active'], tiers: ['key', 'steady'] });
+    const activeButton = renderer!.root.findAllByType('button').find(button => button.props.title === 'Αγορές από 500 € φέτος, χωρίς ΦΠΑ')!;
+    act(() => activeButton.props.onClick());
+    expect(onChange).toHaveBeenLastCalledWith({ activities: [], tiers: [] });
+    act(() => renderer!.update(<CustomerCategoryFilter entries={entries} value={{ activities: ['quiet'], tiers: [] }} onChange={onChange} />));
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Υποκατηγορίες ενεργών πελατών' })).toHaveLength(0);
     act(() => renderer!.root.findAllByType('button')[0].props.onClick());
-    expect(onChange).toHaveBeenLastCalledWith(null, null);
+    expect(onChange).toHaveBeenLastCalledWith({ activities: [], tiers: [] });
     act(() => renderer!.unmount());
   });
 
+  it('matches several categories and keeps tiers to active customers only', () => {
+    const quiet = { activity: 'quiet' as const, tier: null };
+    const key = { activity: 'active' as const, tier: 'key' as const };
+    const top = { activity: 'active' as const, tier: 'top' as const };
+    const sel = { activities: ['active' as const, 'quiet' as const], tiers: ['key' as const] };
+    expect(matchesCategory(quiet, sel)).toBe(true);
+    expect(matchesCategory(key, sel)).toBe(true);
+    expect(matchesCategory(top, sel)).toBe(false);
+    expect(matchesCategory({ activity: 'none', tier: null }, sel)).toBe(false);
+    expect(matchesCategory({ activity: 'none', tier: null }, { activities: [], tiers: [] })).toBe(true);
+    expect(categorySelectionLabel(sel)).toBe('Ενεργοί (Βασικοί) + Σε ύφεση');
+  });
+
   it('excludes the system customer from category counts', () => {
-    const html = renderToStaticMarkup(<CustomerCategoryFilter entries={entries} activity="active" tier={null} onChange={vi.fn()} />);
-    expect(html).toContain('Όλοι οι ενεργοί (4)');
+    const html = renderToStaticMarkup(<CustomerCategoryFilter entries={entries} value={{ activities: ['active'], tiers: [] }} onChange={vi.fn()} />);
+    expect(html).toMatch(/Ενεργοί <span[^>]*>4<\/span>/);
     expect(html).toMatch(/Χωρίς παραγγελίες <span[^>]*>1<\/span>/);
   });
 });

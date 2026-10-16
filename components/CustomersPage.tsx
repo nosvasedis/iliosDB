@@ -15,15 +15,19 @@ import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import DesktopPageHeader from './DesktopPageHeader';
 import {
   ACTIVITY_META,
-  TIER_META,
   CUSTOMER_SORT_OPTIONS,
+  categorySelectionLabel,
+  countRegions,
+  EMPTY_CATEGORY_SELECTION,
+  hasCategorySelection,
+  matchesCategory,
   matchesCustomerSearch,
   matchesEntryRegion,
   NO_REGION_KEY,
   regionFilterLabel,
   sortCustomerDirectory,
+  type CategorySelection,
   type CustomerActivity,
-  type CustomerTier,
   type CustomerDirectoryEntry,
   type CustomerSortKey,
   type RegionFilterKey,
@@ -151,12 +155,13 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const [regions, setRegionsState] = useState<RegionFilterKey[]>(initialPrefs.regions ?? []);
     const [sortKey, setSortKey] = useState<PageSortKey>(initialPrefs.sortKey ?? 'name');
     const [sortDir, setSortDir] = useState<SortDirection>(initialPrefs.sortDir ?? 'asc');
-    const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
-    const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
-    const setCategoryFilter = (activity: CustomerActivity | null, tier: CustomerTier | null = null) => {
-        setActivityFilter(activity);
-        setTierFilter(activity === 'active' ? tier : null);
-    };
+    const [categories, setCategories] = useState<CategorySelection>(EMPTY_CATEGORY_SELECTION);
+    const categoryActive = hasCategorySelection(categories);
+    const toggleActivity = (activity: CustomerActivity) => setCategories(prev => {
+        const on = prev.activities.includes(activity);
+        const activities = on ? prev.activities.filter(a => a !== activity) : [...prev.activities, activity];
+        return { activities, tiers: activities.includes('active') ? prev.tiers : [] };
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [purchaseFilter, setPurchaseFilterState] = useState<PurchaseFilter>(() => {
         const stored = initialPrefs.purchase;
@@ -227,14 +232,17 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const criticalOverlaps = useMemo(() => overlaps.filter(o => o.severity === 'critical').length, [overlaps]);
     const idSet = useMemo(() => (idFilter ? new Set(idFilter) : null), [idFilter]);
 
-    const filtered = useMemo(() => regular.filter(e =>
-        matchesEntryRegion(e, regions)
-        && (!activityFilter || e.activity === activityFilter)
-        && (!tierFilter || e.tier === tierFilter)
-        && (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)
+    // Filters other than region/category; each of those two panels counts within the other.
+    const baseScoped = useMemo(() => regular.filter(e =>
+        (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)
         && (!idSet || idSet.has(e.customer.id))
         && matchesCustomerSearch(e, searchTerm)
-    ), [regular, regions, activityFilter, tierFilter, purchaseMatches, idSet, searchTerm]);
+    ), [regular, purchaseMatches, idSet, searchTerm]);
+    const regionScoped = useMemo(() => baseScoped.filter(e => matchesEntryRegion(e, regions)), [baseScoped, regions]);
+    const categoryScoped = useMemo(() => baseScoped.filter(e => matchesCategory(e, categories)), [baseScoped, categories]);
+    /** Περιοχές follow the selected categories (and search / Αγορές). */
+    const scopedRegionCounts = useMemo(() => countRegions(categoryScoped), [categoryScoped]);
+    const filtered = useMemo(() => regionScoped.filter(e => matchesCategory(e, categories)), [regionScoped, categories]);
 
     const matchSortActive = sortKey === 'match' && purchaseActive && purchaseFilter.mode === 'bought';
     const sorted = useMemo(() => {
@@ -257,7 +265,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         );
     };
 
-    const visibleSystemEntries = regions.length === 0 && !activityFilter && !purchaseActive && !idFilter
+    const visibleSystemEntries = regions.length === 0 && !categoryActive && !purchaseActive && !idFilter
         ? systemEntries.filter(e => !searchTerm || matchesCustomerSearch(e, searchTerm))
         : [];
 
@@ -286,10 +294,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         noRegion: regionCounts.none,
     }), [regular, regionCounts]);
 
-    const hasFilters = regions.length > 0 || Boolean(activityFilter) || Boolean(searchTerm) || purchaseActive || Boolean(idFilter);
+    const hasFilters = regions.length > 0 || categoryActive || Boolean(searchTerm) || purchaseActive || Boolean(idFilter);
     const clearFilters = () => {
         setRegionsState([]);
-        setCategoryFilter(null);
+        setCategories(EMPTY_CATEGORY_SELECTION);
         setSearchTerm('');
         setIdFilter(null);
         setPurchaseFilterState(EMPTY_PURCHASE_FILTER);
@@ -379,7 +387,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
     // --- Render ---------------------------------------------------------------
     const regionFilterPanel = (
-        <CustomerRegionFilter counts={regionCounts} selection={regions} onChange={setRegions} className="h-full" />
+        <CustomerRegionFilter counts={scopedRegionCounts} selection={regions} onChange={setRegions} className="h-full" />
     );
 
     const renderCards = (list: CustomerDirectoryEntry[]) => (
@@ -479,7 +487,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         <KpiTile icon={Users} label="Πελάτες" value={kpis.total} hint="Χωρίς τη Λιανική" tone="bg-slate-900/5 text-slate-700"
                             active={!hasFilters} onClick={hasFilters ? clearFilters : undefined} />
                         <KpiTile icon={Activity} label="Ενεργοί" value={kpis.active} hint={ACTIVITY_META.active.hint} tone="bg-emerald-50 text-emerald-600"
-                            active={activityFilter === 'active'} onClick={() => setCategoryFilter(activityFilter === 'active' ? null : 'active')} />
+                            active={categories.activities.includes('active')} onClick={() => toggleActivity('active')} />
                         <KpiTile icon={MapIcon} label="Περιοχές" value={kpis.units} hint={`${kpis.periferies} περιφέρειες`} tone="bg-sky-50 text-sky-600"
                             active={view === 'map'} onClick={() => setView('map')} />
                         <KpiTile icon={MapPinOff} label="Χωρίς περιοχή" value={kpis.noRegion} hint="Ελλιπής διεύθυνση / ΤΚ" tone="bg-amber-50 text-amber-600"
@@ -544,7 +552,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             matchCount={purchaseActive ? sorted.length : undefined}
                         />
 
-                        <CustomerCategoryFilter entries={regular} activity={activityFilter} tier={tierFilter} onChange={setCategoryFilter} />
+                        <CustomerCategoryFilter entries={regionScoped} value={categories} onChange={setCategories} />
 
                         <span className="flex-1" />
                         <span className="hidden shrink-0 whitespace-nowrap text-xs font-bold text-slate-400 md:inline">
@@ -599,10 +607,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     </button>
                                 </span>
                             ))}
-                            {activityFilter && (
+                            {categoryActive && (
                                 <span className="flex items-center gap-1 rounded-full bg-slate-200/70 py-1 pl-3 pr-1 text-[11px] font-bold text-slate-700">
-                                    {ACTIVITY_META[activityFilter].plural}{tierFilter ? ` · ${TIER_META[tierFilter].plural}` : ''}
-                                    <button type="button" onClick={() => setCategoryFilter(null)} className="rounded-full p-0.5 hover:bg-slate-300" aria-label="Αφαίρεση φίλτρου">
+                                    {categorySelectionLabel(categories)}
+                                    <button type="button" onClick={() => setCategories(EMPTY_CATEGORY_SELECTION)} className="rounded-full p-0.5 hover:bg-slate-300" aria-label="Αφαίρεση φίλτρου">
                                         <X size={12} />
                                     </button>
                                 </span>

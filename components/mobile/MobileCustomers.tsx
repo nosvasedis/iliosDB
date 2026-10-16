@@ -36,6 +36,11 @@ import CustomerCategoryFilter from '../customers/CustomerCategoryFilter';
 import { ActivityBadge, CustomerAvatar, RegionPill } from '../customers/customerUi';
 import {
     matchesCustomerSearch,
+    matchesCategory,
+    countRegions,
+    hasCategorySelection,
+    EMPTY_CATEGORY_SELECTION,
+    type CategorySelection,
     matchesEntryRegion,
     regionFilterLabel,
     type CustomerDirectoryEntry,
@@ -78,12 +83,11 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [showRetailStats, setShowRetailStats] = useState(false);
 
     // Region filter + map (customers mode)
-    const { directory, regionCounts, saveLocation, canEditLocation } = useCustomerDirectory(customers, orders);
+    const { directory, saveLocation, canEditLocation } = useCustomerDirectory(customers, orders);
     const [regionSelection, setRegionSelection] = useState<RegionFilterKey[]>([]);
     const [customerView, setCustomerView] = useState<'list' | 'map'>('list');
     const [showRegionSheet, setShowRegionSheet] = useState(false);
-    const [activityFilter, setActivityFilter] = useState<CustomerActivity | null>(null);
-    const [tierFilter, setTierFilter] = useState<CustomerTier | null>(null);
+    const [categories, setCategories] = useState<CategorySelection>(EMPTY_CATEGORY_SELECTION);
     const directoryById = useMemo(() => new Map(directory.map(e => [e.customer.id, e])), [directory]);
     const assortmentIndex = useAssortmentIndex({ enabled: mode === 'customers' });
     const [purchaseFilter, setPurchaseFilter] = useState<PurchaseFilter>(EMPTY_PURCHASE_FILTER);
@@ -92,15 +96,16 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         [assortmentIndex, purchaseFilter],
     );
     const tagSuggestions = useMemo(() => collectCustomerTags(customers), [customers]);
+    // Region and category panels each count within the other's selection (plus search / Αγορές).
+    const baseScoped = useMemo(() => directory.filter(e => !e.isSystem && matchesCustomerSearch(e, search)
+        && (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)), [directory, search, purchaseMatches]);
+    const regionScoped = useMemo(() => baseScoped.filter(e => matchesEntryRegion(e, regionSelection)), [baseScoped, regionSelection]);
+    const regionCounts = useMemo(() => countRegions(baseScoped.filter(e => matchesCategory(e, categories))), [baseScoped, categories]);
     const regionChips = useMemo(() => GREEK_PERIFERIES
         .map(p => ({ key: `p:${p.id}`, label: p.short, count: regionCounts.periferia[p.id] ?? 0 }))
         .filter(c => c.count > 0)
         .sort((a, b) => b.count - a.count), [regionCounts]);
-    const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => directory
-        .filter(e => !e.isSystem && matchesEntryRegion(e, regionSelection) && matchesCustomerSearch(e, search)
-            && (!activityFilter || e.activity === activityFilter) && (!tierFilter || e.tier === tierFilter)
-            && (!purchaseMatches || purchaseMatches.get(e.customer.id)?.matched)),
-    [directory, regionSelection, search, activityFilter, tierFilter, purchaseMatches]);
+    const filteredEntries = useMemo<CustomerDirectoryEntry[]>(() => regionScoped.filter(e => matchesCategory(e, categories)), [regionScoped, categories]);
     const toggleRegionChip = (key: RegionFilterKey) =>
         setRegionSelection(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
     const handleSaveLocation = async (customerId: string, coords: readonly [number, number] | null, branchId?: string | null) => {
@@ -131,7 +136,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const filteredList = useMemo(() => {
         if (mode === 'customers') {
             if (!customers) return [];
-            const system = regionSelection.length === 0 && !activityFilter && !purchaseMatches
+            const system = regionSelection.length === 0 && !hasCategorySelection(categories) && !purchaseMatches
                 ? directory.filter(e => e.isSystem && matchesCustomerSearch(e, search)).map(e => e.customer)
                 : [];
             return [...system, ...filteredEntries.map(e => e.customer)]
@@ -143,7 +148,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 s.contact_person?.toLowerCase().includes(search.toLowerCase())
             );
         }
-    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, activityFilter, purchaseMatches]);
+    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, categories, purchaseMatches]);
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
@@ -761,10 +766,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             )}
 
             {mode === 'customers' && (
-                <CustomerCategoryFilter entries={directory} activity={activityFilter} tier={tierFilter} onChange={(activity, tier) => {
-                    setActivityFilter(activity);
-                    setTierFilter(activity === 'active' ? tier : null);
-                }} />
+                <CustomerCategoryFilter entries={regionScoped} value={categories} onChange={setCategories} />
             )}
 
             {mode === 'customers' && showRegionSheet && (

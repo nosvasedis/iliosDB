@@ -697,3 +697,34 @@ export function splitForeignAddress(address?: string | null): { street: string; 
   const city = (zip ? rest.replace(zip[0], ' ') : rest).replace(/\s+,/g, ',').replace(/\s+/g, ' ').replace(/^[\s,\-–]+|[\s,\-–]+$/g, '');
   return { street, postal_code: zip ? zip[0] : '', city };
 }
+
+// ---------------------------------------------------------------------------
+// Category filter (multi-select activity + tiers of the active ones)
+// ---------------------------------------------------------------------------
+
+export interface CategorySelection {
+  /** Empty = all activities. */
+  activities: CustomerActivity[];
+  /** Only applies to active customers; empty = every tier. */
+  tiers: CustomerTier[];
+}
+
+export const EMPTY_CATEGORY_SELECTION: CategorySelection = { activities: [], tiers: [] };
+
+export function hasCategorySelection(selection: CategorySelection): boolean {
+  return selection.activities.length > 0 || selection.tiers.length > 0;
+}
+
+/** Tiers narrow only the active customers; other selected activities pass untouched. */
+export function matchesCategory(entry: Pick<CustomerDirectoryEntry, 'activity' | 'tier'>, selection: CategorySelection): boolean {
+  if (selection.activities.length > 0 && !selection.activities.includes(entry.activity)) return false;
+  if (entry.activity === 'active' && selection.tiers.length > 0) return Boolean(entry.tier && selection.tiers.includes(entry.tier));
+  return true;
+}
+
+/** «Ενεργοί (Κορυφαίοι, Βασικοί) + Σε ύφεση». */
+export function categorySelectionLabel(selection: CategorySelection): string {
+  return selection.activities.map(activity => (activity === 'active' && selection.tiers.length
+    ? `${ACTIVITY_META.active.plural} (${selection.tiers.map(t => TIER_META[t].plural).join(', ')})`
+    : ACTIVITY_META[activity].plural)).join(' + ');
+}
