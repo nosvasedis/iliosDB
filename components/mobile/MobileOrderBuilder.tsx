@@ -46,6 +46,7 @@ import {
     PRODUCTION_EDIT_NEW_PART_HINT,
 } from '../../features/production/orderProductionEdit';
 import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
+import OrderTerritoryAlert from '../customers/OrderTerritoryAlert';
 import {
     buildMobileOrderBuilderCustomerSuggestions,
     buildMobileOrderBuilderEditFinishOptions,
@@ -285,6 +286,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const typedSkuColor = useMemo(() => resolveTypedSkuColorParts(input, products), [input, products]);
 
     const editingItem = editingIndex !== null ? items[editingIndex] : null;
+    const territorySkus = useMemo(() => items.map(item => item.sku), [items]);
     const editingProduct = useMemo(() => buildMobileOrderBuilderEditingProduct(editingItem, products), [editingItem, products]);
 
     const editingVariants = editingProduct?.variants || [];
@@ -764,6 +766,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 Χρήση Λιανικής
                             </button>
                         </>}
+                        {!isRetailCustomer && customerId && (
+                            <div className="mt-2">
+                                <OrderTerritoryAlert customerId={customerId} skus={territorySkus} compact />
+                            </div>
+                        )}
                         <div className="my-3">
                             <label htmlFor="mobile-order-phone" className="mb-1 block text-xs font-bold text-slate-500">Τηλέφωνο</label>
                             <input id="mobile-order-phone" type="tel" autoComplete="tel" value={customerPhone}
