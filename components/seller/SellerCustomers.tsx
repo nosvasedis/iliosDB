@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { api, INTERNAL_CUSTOMER_ID, RETAIL_CUSTOMER_ID } from '../../lib/supabase';
+import { isReservedCustomerName } from '../../utils/retailConstants';
 import { Customer, VatRegime } from '../../types';
 import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -27,7 +28,8 @@ export default function SellerCustomers() {
 
     const filteredList = useMemo(() => {
         if (!customers) return [];
-        return customers.filter(c =>
+        // Internal orders are an admin concept; sellers never pick that account.
+        return customers.filter(c => c.id !== INTERNAL_CUSTOMER_ID).filter(c =>
             normalizedIncludes(c.full_name, search) ||
             (c.phone && c.phone.includes(search)) ||
             (c.customer_code && c.customer_code.includes(search)) ||
@@ -48,8 +50,8 @@ export default function SellerCustomers() {
     }, [orders]);
 
     const handleCreateCustomer = async (c: Customer) => {
-        if (c.full_name.trim() === RETAIL_CUSTOMER_NAME) {
-            showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", 'error');
+        if (isReservedCustomerName(c.full_name)) {
+            showToast(`Το όνομα '${c.full_name.trim()}' είναι δεσμευμένο από το σύστημα.`, 'error');
             return;
         }
         // Duplicate detection

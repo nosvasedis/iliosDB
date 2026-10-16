@@ -1,3 +1,4 @@
+import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
 import RetailClientField from '../orders/RetailClientField';
 import { getOrderCustomerName } from '../../utils/orderCustomer';
@@ -140,7 +141,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
+        return customers.filter(c => c.id !== INTERNAL_CUSTOMER_ID && (normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName)))).slice(0, 5);
     }, [customers, customerName]);
 
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;

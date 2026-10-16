@@ -791,3 +791,19 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.events.realized).toHaveLength(2);
   });
 });
+
+describe('internal orders («Εσωτερική παραγγελία»)', () => {
+  it('never produce realized or backlog sales, by id or by name', () => {
+    const input = {
+      orders: [
+        order({ id: 'internal-by-id', customer_id: '00000000-0000-0000-0000-000000000004', customer_name: 'Εσωτερική παραγγελία', status: OrderStatus.Delivered, items: [{ sku: 'SKU1', quantity: 3, price_at_order: 100 }] }),
+        order({ id: 'internal-by-name', customer_id: undefined, customer_name: 'Εσωτερική παραγγελία', status: OrderStatus.InProduction, items: [{ sku: 'SKU1', quantity: 2, price_at_order: 100 }] }),
+        order({ id: 'real', status: OrderStatus.InProduction, items: [{ sku: 'SKU1', quantity: 1, price_at_order: 100 }] }),
+      ],
+      shipments: [], shipmentItems: [], products: [product({ sku: 'SKU1' })], materials, settings, collections: [], sellers: [],
+    };
+    const bundle = buildFinanceLineEvents(input);
+    expect(bundle.realized).toHaveLength(0);
+    expect(bundle.backlog.map(e => e.orderId)).toEqual(['real']);
+  });
+});

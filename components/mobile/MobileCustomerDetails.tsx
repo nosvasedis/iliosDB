@@ -26,6 +26,7 @@ import { formatCurrency } from '../../utils/pricingEngine';
 import { getSpecialCreationDisplayNote } from '../../utils/specialCreationSku';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import CustomerAssortmentPanel from '../customers/CustomerAssortmentPanel';
+import { INTERNAL_CUSTOMER_ID, isSystemCustomerId } from '../../utils/retailConstants';
 import { CustomerProfileSummary, CustomerSocialsPane } from '../customers/customerProfileUi';
 
 type DetailTab = 'overview' | 'assortment' | 'orders';
@@ -46,6 +47,7 @@ const tabs: Array<{ id: DetailTab; label: string; icon: typeof User }> = [
 const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 export default function MobileCustomerDetails({ customer, orders, onClose, onEdit }: Props) {
+  const isSystemAccount = isSystemCustomerId(customer.id);
   const [tab, setTab] = useState<DetailTab>('overview');
   const [orderQuery, setOrderQuery] = useState('');
   const summary = useMemo(() => summarizeCustomerOrders(orders.filter(order => order.customer_id === customer.id)), [orders, customer.id]);
@@ -77,7 +79,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
             {customer.customer_code && <p className="mt-0.5 font-mono text-[10px] font-black text-cyan-700">Κωδικός {customer.customer_code}</p>}
             <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{formatNumber(customerOrders.length)} παραγγελίες · {formatCurrency(totalNet)} καθαρή αξία παραγγελιών</p>
           </div>
-          <button type="button" onClick={onEdit} className="rounded-xl bg-slate-900 p-2.5 text-white shadow-sm active:scale-95" aria-label="Επεξεργασία πελάτη"><Edit3 size={18} /></button>
+          {!isSystemAccount && <button type="button" onClick={onEdit} className="rounded-xl bg-slate-900 p-2.5 text-white shadow-sm active:scale-95" aria-label="Επεξεργασία πελάτη"><Edit3 size={18} /></button>}
         </div>
         <div className="mt-4 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 custom-scrollbar" role="tablist" aria-label="Καρτέλα πελάτη">
           {tabs.map(item => {
@@ -123,7 +125,12 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
                 </div>
               </section>
             )}
-            <CustomerSocialsPane customer={customer} onEdit={onEdit} />
+            {customer.id === INTERNAL_CUSTOMER_ID && (
+              <section className="rounded-2xl border border-teal-100 bg-teal-50 p-4 text-xs leading-relaxed text-teal-950">
+                <b>Εσωτερικές παραγγελίες.</b> Για δικό μας απόθεμα· δεν μετράνε σε πωλήσεις, στατιστικά, προμήθειες, χάρτη ή παραστατικά.
+              </section>
+            )}
+            {!isSystemAccount && <CustomerSocialsPane customer={customer} onEdit={onEdit} />}
             <CustomerProfileSummary customer={customer} />
             {customer.notes && <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><h2 className="flex items-center gap-2 text-xs font-black text-amber-950"><StickyNote size={15} /> Σημειώσεις</h2><p className="mt-2 whitespace-pre-wrap text-xs font-medium leading-relaxed text-amber-900">{customer.notes}</p></section>}
           </div>

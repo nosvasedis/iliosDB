@@ -1,10 +1,15 @@
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from './retailConstants';
+import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from './retailConstants';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from './retailNotes';
 
 export type OrderCustomerIdentity = { customer_id?: string | null; customer_name: string; notes?: string | null };
 
 export function isRetailCustomerOrder(order: OrderCustomerIdentity): boolean {
     return order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name.trim() === RETAIL_CUSTOMER_NAME;
+}
+
+/** Order placed for ourselves (stock / showroom): not a sale, never in stats or invoices. */
+export function isInternalOrder(order: { customer_id?: string | null; customer_name?: string | null }): boolean {
+    return order.customer_id === INTERNAL_CUSTOMER_ID || (order.customer_name || '').trim() === INTERNAL_CUSTOMER_NAME;
 }
 
 /** Resolve the person behind the retail account without changing stored account identity. */
@@ -40,9 +45,10 @@ export function getOrderCustomerPhone(order: OrderCustomerIdentity & { customer_
 /** Canonical fields shared by order/offer saves and conversion; contact details stay on the order. */
 export function buildOrderCustomerFields(order: OrderCustomerIdentity & { customer_phone?: string | null }, retailClientLabel?: string) {
     const retail = isRetailCustomerOrder(order);
+    const internal = !retail && isInternalOrder(order);
     return {
-        customer_id: retail ? RETAIL_CUSTOMER_ID : order.customer_id || undefined,
-        customer_name: retail ? RETAIL_CUSTOMER_NAME : order.customer_name,
+        customer_id: retail ? RETAIL_CUSTOMER_ID : internal ? INTERNAL_CUSTOMER_ID : order.customer_id || undefined,
+        customer_name: retail ? RETAIL_CUSTOMER_NAME : internal ? INTERNAL_CUSTOMER_NAME : order.customer_name,
         customer_phone: order.customer_phone || '',
         notes: retail
             ? composeNotesWithRetailClient(order.notes || '', retailClientLabel ?? getRetailClientName(order))

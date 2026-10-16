@@ -8,7 +8,7 @@
  */
 import { OrderStatus, type Collection, type Customer, type CustomerExclusivityScope, type Order, type Product } from '../../types';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../utils/retailConstants';
+import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, isSystemCustomerId, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../utils/retailConstants';
 import { buildCustomerPlaces, placeKey, type LocationPrecision } from './customerLocation';
 import { classifyJewelryKind, jewelryKindLabel, SPECIAL_KIND, UNMATCHED_KIND } from './jewelryKinds';
 import { isExclusivityActive, readCustomerProfile } from './customerProfile';
@@ -108,8 +108,9 @@ export interface BuildAssortmentInput {
   now?: number;
 }
 
+/** Real shops only: Λιανική and «Εσωτερική παραγγελία» never take part in territory or peer stats. */
 export function isTerritoryCustomer(id: string): boolean {
-  return id !== RETAIL_CUSTOMER_ID;
+  return !isSystemCustomerId(id);
 }
 
 function productInfo(product: Product): ProductInfo {
@@ -171,7 +172,9 @@ export function buildAssortmentIndex(input: BuildAssortmentInput): AssortmentInd
   for (const order of input.orders) {
     if (order.status === OrderStatus.Cancelled || !Array.isArray(order.items)) continue;
     const customerId = order.customer_id
-      || (order.customer_name === RETAIL_CUSTOMER_NAME ? RETAIL_CUSTOMER_ID : idByName.get(order.customer_name));
+      || (order.customer_name === RETAIL_CUSTOMER_NAME ? RETAIL_CUSTOMER_ID
+        : order.customer_name === INTERNAL_CUSTOMER_NAME ? INTERNAL_CUSTOMER_ID
+          : idByName.get(order.customer_name));
     if (!customerId || !customers.has(customerId)) continue;
     const t = new Date(order.created_at).getTime();
     if (!Number.isFinite(t)) continue;

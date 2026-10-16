@@ -506,7 +506,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function buildCustomerDirectory(
   customers: Customer[],
   orders: Order[] | undefined,
-  options: { systemCustomerId?: string; now?: number } = {},
+  options: { systemCustomerId?: string; systemCustomerIds?: ReadonlySet<string>; now?: number } = {},
 ): CustomerDirectoryEntry[] {
   const now = options.now ?? Date.now();
   const ordersByCustomer = new Map<string, Order[]>();
@@ -518,7 +518,7 @@ export function buildCustomerDirectory(
   }
 
   return customers.map((customer) => {
-    const isSystem = customer.id === options.systemCustomerId;
+    const isSystem = customer.id === options.systemCustomerId || Boolean(options.systemCustomerIds?.has(customer.id));
     const summary = summarizeCustomerOrders(ordersByCustomer.get(customer.id), now);
 
     const fiscalLocation = isSystem ? { ...EMPTY_LOCATION } : resolveCustomerLocation(customer);

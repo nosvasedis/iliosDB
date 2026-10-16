@@ -1,3 +1,4 @@
+import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ export default function EmployeeCustomers() {
     const filteredList = useMemo(() => {
         if (tab === 'customers') {
             if (!customers) return [];
-            return customers.filter(c =>
+            return customers.filter(c => c.id !== INTERNAL_CUSTOMER_ID).filter(c =>
                 normalizedIncludes(c.full_name, search) ||
                 (c.phone && c.phone.includes(search))
             );

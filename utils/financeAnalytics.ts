@@ -18,6 +18,8 @@ import { productRankingKey, resolveFinanceLineSku, variantRankingKey, normalizeV
 import { resolveOrderSeller } from './orderSeller';
 import { buildItemIdentityKey } from './itemIdentity';
 
+import { isInternalOrder } from './orderCustomer';
+
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
 
@@ -587,7 +589,8 @@ export function buildFinanceLineEvents(
   const backlogEvents: FinanceLineEvent[] = [];
 
   orders
-    .filter((order) => order.status !== OrderStatus.Cancelled)
+    // Internal orders (for our own stock) are not sales: no revenue, profit, backlog or commission.
+    .filter((order) => order.status !== OrderStatus.Cancelled && !isInternalOrder(order))
     .forEach((order) => {
       const orderShipments = shipmentsByOrderId.get(order.id) || [];
       const orderShipmentItems = itemsByOrderId.get(order.id) || [];

@@ -3,6 +3,7 @@ import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { computeShipmentValue, getRemainingOrderItems } from './shipmentUtils';
 import { formatOrderId } from './orderUtils';
+import { isInternalOrder } from './orderCustomer';
 
 export function isRetailOrder(order: Pick<Order, 'customer_id' | 'customer_name'>): boolean {
   return order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
@@ -76,7 +77,8 @@ export interface LegalOrderPickerRow {
 }
 
 export function buildLegalOrderPickerRows(orders: Order[]): LegalOrderPickerRow[] {
-  const rows = orders.filter((order) => !isRetailOrder(order)).map((order) => {
+  // Internal orders are never invoiced (we are not our own customer).
+  const rows = orders.filter((order) => !isRetailOrder(order) && !isInternalOrder(order)).map((order) => {
     const transferOutShortId = parseTransferOutShortId(order.notes);
     const transferInShortId = parseTransferInShortId(order.notes);
     const qtyTotal = getOrderItemQuantityTotal(order);

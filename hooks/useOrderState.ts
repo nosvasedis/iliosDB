@@ -2,7 +2,7 @@ import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord, PriceSyncPreview } from '../types';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { api, INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
@@ -250,11 +250,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     // --- Computed Values ---
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c =>
+        return customers.filter(c => !(isSeller && c.id === INTERNAL_CUSTOMER_ID)).filter(c =>
             normalizedIncludes(c.full_name, customerName) ||
             (c.phone && c.phone.includes(customerName))
         ).slice(0, 5);
-    }, [customers, customerName]);
+    }, [customers, customerName, isSeller]);
 
     const displayItems = useMemo(() => {
         // Always sync with latest product details from registry to avoid broken images/stale data
@@ -314,6 +314,16 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         } else {
             setVatRate(VatRegime.Standard);
         }
+        setCustomerSearch('');
+        setShowCustomerResults(false);
+    };
+
+    /** Order for our own stock: not a sale (excluded from stats, commissions and invoices). */
+    const handleUseInternalCustomer = () => {
+        setSelectedCustomerId(INTERNAL_CUSTOMER_ID);
+        setCustomerName(INTERNAL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setRetailClientLabel('');
         setCustomerSearch('');
         setShowCustomerResults(false);
     };
@@ -1248,6 +1258,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             orderNotes, retailClientLabel, vatRate, discountPercent, tags, tagInput,
             customerSearch, showCustomerResults, isSaving,
             isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
+            isInternalCustomer: selectedCustomerId === INTERNAL_CUSTOMER_ID || customerName.trim() === INTERNAL_CUSTOMER_NAME,
             // Seller / Πλασιέ
             selectedSellerId, selectedSellerName, sellerCommissionPercent,
             isSeller,
@@ -1286,7 +1297,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setSortOrder, setItemSearchTerm,
         },
         actions: {
-            handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
+            handleSelectCustomer, handleUseRetailCustomer, handleUseInternalCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, confirmOrderRangeAdd, handleScanInOrder,
             updateQuantity, updateItemNotes, updateItemFulfillmentMode, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,

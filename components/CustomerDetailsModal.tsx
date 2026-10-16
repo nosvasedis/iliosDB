@@ -51,8 +51,9 @@ import {
     Gem,
     Radar,
     Sparkles,
+    Warehouse,
 } from 'lucide-react';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { INTERNAL_CUSTOMER_ID, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
@@ -249,7 +250,12 @@ export default function CustomerDetailsModal({
     onShowOnMap,
     onOpenCustomer,
 }: CustomerDetailsModalProps) {
-    const isRetailSystemCustomer = customer.id === RETAIL_CUSTOMER_ID;
+    /** Λιανική specifically (end clients from order notes). */
+    const isRetailAccount = customer.id === RETAIL_CUSTOMER_ID;
+    /** «Εσωτερική παραγγελία»: our own orders, not sales. */
+    const isInternalAccount = customer.id === INTERNAL_CUSTOMER_ID;
+    /** Any system account: read-only, no identity, no territory. */
+    const isRetailSystemCustomer = isRetailAccount || isInternalAccount;
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
@@ -455,21 +461,21 @@ export default function CustomerDetailsModal({
                     .replace(/[\u0300-\u036f]/g, '');
                 return haystack.includes(q);
             })) return true;
-            if (isRetailSystemCustomer) {
+            if (isRetailAccount) {
                 const raw = extractRetailClientFromNotes(o.notes).retailClientLabel || '';
                 const label = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                 if (label.includes(q)) return true;
             }
             return false;
         });
-    }, [stats.history, orderQuery, isRetailSystemCustomer]);
+    }, [stats.history, orderQuery, isRetailAccount]);
 
-    const retailOrdersWithLabels = useMemo(() => (isRetailSystemCustomer
+    const retailOrdersWithLabels = useMemo(() => (isRetailAccount
         ? stats.history.map(o => ({ order: o, retailClientLabel: extractRetailClientFromNotes(o.notes).retailClientLabel }))
-        : []), [isRetailSystemCustomer, stats.history]);
+        : []), [isRetailAccount, stats.history]);
 
     const retailClientStats = useMemo(() => {
-        if (!isRetailSystemCustomer) return [];
+        if (!isRetailAccount) return [];
         const clientMap: Record<string, { name: string; orderCount: number; totalRevenue: number }> = {};
         retailOrdersWithLabels.forEach(({ order, retailClientLabel }) => {
             const label = retailClientLabel || 'Χωρίς τελικό πελάτη';
@@ -478,7 +484,7 @@ export default function CustomerDetailsModal({
             clientMap[label].totalRevenue += netOf(order);
         });
         return Object.values(clientMap).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10);
-    }, [retailOrdersWithLabels, isRetailSystemCustomer]);
+    }, [retailOrdersWithLabels, isRetailAccount]);
 
     const handleSave = async () => {
         if (isRetailSystemCustomer) {
@@ -571,7 +577,7 @@ export default function CustomerDetailsModal({
         { id: 'consignments', label: 'Παρακαταθήκες', Icon: HandHeart, count: customerConsignments.length },
         { id: 'repairs', label: 'Επισκευές', Icon: Wrench, count: customerRepairs.length },
     ];
-    const tabList = isRetailSystemCustomer ? retailTabList : normalTabList;
+    const tabList = isRetailAccount ? retailTabList : isInternalAccount ? retailTabList.filter(t => t.id !== 'end_clients') : normalTabList;
 
     /** Λιανική is a bucket for many real clients — no single identity, nameday, or "VIP" person. */
     const nextNameday =
@@ -692,7 +698,9 @@ export default function CustomerDetailsModal({
             </section>
             <section>
                 <SectionTitle icon={Receipt} title="Φορολογικά στοιχεία" />
-                {isRetailSystemCustomer ? <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600">Γενική καρτέλα λιανικών πωλήσεων, χωρίς δικό της ΑΦΜ. Για τιμολόγιο χρησιμοποιήστε ξεχωριστή καρτέλα με τα πραγματικά στοιχεία του πελάτη.</p> : <div className="space-y-0.5">
+                {isRetailSystemCustomer ? <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600">{isInternalAccount
+                    ? 'Καρτέλα του συστήματος για παραγγελίες προς δικό μας απόθεμα. Δεν έχει ΑΦΜ και δεν εκδίδονται παραστατικά.'
+                    : 'Γενική καρτέλα λιανικών πωλήσεων, χωρίς δικό της ΑΦΜ. Για τιμολόγιο χρησιμοποιήστε ξεχωριστή καρτέλα με τα πραγματικά στοιχεία του πελάτη.'}</p> : <div className="space-y-0.5">
                     <InfoRow icon={Hash} label={isDomestic ? 'ΑΦΜ' : 'VAT / Tax ID'} value={customer.vat_number} mono copyValue={customer.vat_number} onCopy={copyValue} />
                     {isDomestic
                         ? <InfoRow icon={Building2} label="ΔΟΥ" value={customer.tax_office} />
@@ -749,7 +757,7 @@ export default function CustomerDetailsModal({
                                         <span>{formatDate(o.created_at)}</span>
                                         <span>·</span>
                                         <span>{formatNumber(o.items.length)} είδη</span>
-                                        {isRetailSystemCustomer && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
+                                        {isRetailAccount && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                 </div>
                                 <span className={`hidden shrink-0 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide sm:inline ${getOrderStatusClasses(o.status)}`}>
@@ -904,12 +912,20 @@ export default function CustomerDetailsModal({
 
     const retailOverview = (
         <div className="space-y-5">
-            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/60 px-4 py-3 text-xs leading-relaxed text-fuchsia-950">
-                <span className="font-bold">Συλλογικός λογαριασμός λιανικής.</span> Δεν αντιστοιχεί σε ένα νομικό πρόσωπο — οι τελικοί πελάτες
-                αναδεικνύονται από τις σημειώσεις των παραγγελιών.
-            </div>
+            {isInternalAccount ? (
+                <div className="rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-3 text-xs leading-relaxed text-teal-950">
+                    <span className="font-bold">Εσωτερικές παραγγελίες.</span> Παραγγελίες που κάνουμε για δικό μας απόθεμα (π.χ. έκθεση, δειγματολόγιο).
+                    Περνούν κανονικά από την παραγωγή, αλλά <b>δεν μετράνε</b> σε πωλήσεις, στατιστικά, προμήθειες πλασιέ, χάρτη πελατών και παραστατικά.
+                    Οι αξίες παρακάτω είναι ενδεικτικές τιμές καταλόγου.
+                </div>
+            ) : (
+                <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/60 px-4 py-3 text-xs leading-relaxed text-fuchsia-950">
+                    <span className="font-bold">Συλλογικός λογαριασμός λιανικής.</span> Δεν αντιστοιχεί σε ένα νομικό πρόσωπο — οι τελικοί πελάτες
+                    αναδεικνύονται από τις σημειώσεις των παραγγελιών.
+                </div>
+            )}
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <KpiCard icon={Wallet} label="Καθαρός τζίρος" value={formatCurrency(stats.totalSpent)} sub={`${formatCurrency(stats.last12mSpent)} σε 12 μήνες`} tone="bg-emerald-50 text-emerald-600" />
+                <KpiCard icon={Wallet} label={isInternalAccount ? 'Αξία καταλόγου' : 'Καθαρός τζίρος'} value={formatCurrency(stats.totalSpent)} sub={`${formatCurrency(stats.last12mSpent)} σε 12 μήνες`} tone="bg-emerald-50 text-emerald-600" />
                 <KpiCard icon={ShoppingBag} label="Παραγγελίες" value={formatNumber(stats.orderCount)} sub={`Μ.Ο. ${formatCurrency(stats.avgOrderValue)}`} tone="bg-sky-50 text-sky-600" />
                 <KpiCard icon={Package} label="Τεμάχια" value={formatNumber(stats.totalItems)} sub={`${formatNumber(stats.activeMonths)} ενεργοί μήνες`} tone="bg-violet-50 text-violet-600" />
                 <KpiCard icon={Calendar} label="Τελευταία" value={stats.latestOrder ? formatDaysAgo(stats.daysSinceLast) : '—'} sub={stats.latestOrder ? formatDate(stats.latestOrder.created_at) : undefined} tone="bg-amber-50 text-amber-600" />
@@ -933,7 +949,7 @@ export default function CustomerDetailsModal({
                         type="search"
                         value={orderQuery}
                         onChange={e => setOrderQuery(e.target.value)}
-                        placeholder={isRetailSystemCustomer ? 'Κωδικός, ημερομηνία, τελικός πελάτης…' : 'Κωδικός, ημερομηνία, SKU ή κατηγορία…'}
+                        placeholder={isRetailAccount ? 'Κωδικός, ημερομηνία, τελικός πελάτης…' : 'Κωδικός, ημερομηνία, SKU ή κατηγορία…'}
                         className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                     />
                 </div>
@@ -958,7 +974,7 @@ export default function CustomerDetailsModal({
                                         <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${getOrderStatusClasses(o.status)}`}>
                                             {getOrderStatusLabel(o.status)}
                                         </span>
-                                        {isRetailSystemCustomer && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
+                                        {isRetailAccount && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
                                         <span className="flex items-center gap-1"><Calendar size={11} /> {formatDate(o.created_at)}</span>
@@ -1337,7 +1353,7 @@ export default function CustomerDetailsModal({
                         <div className="relative px-5 pb-4 pt-5 lg:px-6 lg:pt-7">
                             <div
                                 className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-[0.12]"
-                                style={{ background: isRetailSystemCustomer ? 'linear-gradient(135deg,#d946ef,#7c3aed)' : 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}
+                                style={{ background: isInternalAccount ? 'linear-gradient(135deg,#14b8a6,#059669)' : isRetailSystemCustomer ? 'linear-gradient(135deg,#d946ef,#7c3aed)' : 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}
                                 aria-hidden
                             />
                             <button
@@ -1351,8 +1367,8 @@ export default function CustomerDetailsModal({
 
                             <div className="relative flex items-center gap-4 lg:flex-col lg:items-start">
                                 {isRetailSystemCustomer ? (
-                                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white shadow-lg ring-4 ring-white lg:h-20 lg:w-20">
-                                        <Store size={30} />
+                                    <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg ring-4 ring-white lg:h-20 lg:w-20 ${isInternalAccount ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
+                                        {isInternalAccount ? <Warehouse size={30} /> : <Store size={30} />}
                                     </div>
                                 ) : (
                                     <CustomerAvatar name={customer.full_name || '?'} seed={customer.id} size={72} className="rounded-3xl shadow-lg ring-4" />
@@ -1372,7 +1388,7 @@ export default function CustomerDetailsModal({
                                     <span className="rounded-lg bg-white px-2 py-0.5 font-mono text-[10px] font-black text-slate-600 ring-1 ring-slate-200">#{customer.customer_code}</span>
                                 )}
                                 {isRetailSystemCustomer ? (
-                                    <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-fuchsia-800">Συστημικός · μόνο ανάγνωση</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${isInternalAccount ? 'bg-teal-100 text-teal-800' : 'bg-fuchsia-100 text-fuchsia-800'}`}>Συστημικός · μόνο ανάγνωση</span>
                                 ) : (
                                     <ActivityBadge activity={stats.summary.activity} tier={stats.summary.tier} />
                                 )}
@@ -1416,7 +1432,9 @@ export default function CustomerDetailsModal({
                         )}
                         {isRetailSystemCustomer && (
                             <div className="hidden border-t border-slate-200/70 px-6 py-5 text-xs leading-relaxed text-slate-500 lg:block">
-                                Οι παραγγελίες λιανικής καταχωρούνται εδώ· οι τελικοί πελάτες προκύπτουν από τις σημειώσεις κάθε παραγγελίας.
+                                {isInternalAccount
+                                    ? 'Νέα εσωτερική παραγγελία: στη Νέα παραγγελία πατήστε «Εσωτερική παραγγελία». Δεν μετράει στις πωλήσεις.'
+                                    : 'Οι παραγγελίες λιανικής καταχωρούνται εδώ· οι τελικοί πελάτες προκύπτουν από τις σημειώσεις κάθε παραγγελίας.'}
                             </div>
                         )}
                     </div>

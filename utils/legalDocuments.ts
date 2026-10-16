@@ -1,4 +1,4 @@
-import { RETAIL_CUSTOMER_ID } from './retailConstants';
+import { isSystemCustomerId } from './retailConstants';
 import {
   AadeDocumentType,
   AadeIssuableDocumentType,
@@ -864,7 +864,7 @@ function buildEmptyCounterpart(): LegalParty {
 }
 
 export function buildCounterpartFromCustomer(customer?: Customer | null): LegalParty {
-  if (!customer || customer.id === RETAIL_CUSTOMER_ID) return buildEmptyCounterpart();
+  if (!customer || isSystemCustomerId(customer.id)) return buildEmptyCounterpart();
   return {
     customer_code: customer.customer_code || null,
     vat_number: normalizeCounterpartVatNumber(customer.vat_number, customer.country),

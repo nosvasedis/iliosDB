@@ -2,9 +2,9 @@ import type { VatRegistryStatus, VatRegistryStatusKind } from '../../types';
 import { GREEK_REGIONAL_UNITS, GREEK_TOWNS } from './greekRegions';
 
 // The AADE registry (and VIES) return uppercase, unaccented text with irregular
-// spacing. Greek capitals without accents are correct Greek, lowercase without
-// accents is not: a field is converted to normal casing only when every word
-// can be accented with confidence, otherwise it stays (cleaned) in capitals.
+// spacing. Every field is rewritten in normal casing with accents: from the
+// vocabulary below, gazetteer town names and surname endings, and for unknown
+// words from the Greek stress rules (see guessAccent).
 
 const ACCENT_BASE: Record<string, string> = {
   ά: 'α', έ: 'ε', ή: 'η', ί: 'ι', ό: 'ο', ύ: 'υ', ώ: 'ω', ϊ: 'ι', ϋ: 'υ', ΐ: 'ι', ΰ: 'υ', ς: 'σ',
@@ -39,7 +39,7 @@ export const LEGAL_FORM_ABBREVIATIONS = [
 const LEGAL_FORMS = new Set<string>(LEGAL_FORM_ABBREVIATIONS);
 const KEEP_UPPER = new Set<string>([
   ...LEGAL_FORM_ABBREVIATIONS,
-  'ΑΦΜ', 'ΔΟΥ', 'ΓΕΜΗ', 'ΚΑΔ', 'ΦΠΑ', 'ΑΑΔΕ', 'ΕΦΚΑ', 'ΙΚΑ', 'ΟΤΑ', 'ΔΕΗ', 'ΟΤΕ', 'ΕΛΤΑ', 'ΚΤΕΛ', 'ΚΕΦΟΔΕ', 'ΦΑΕ', 'ΗΠΑ', 'ΕΕ',
+  'ΑΦΜ', 'ΔΟΥ', 'ΓΕΜΗ', 'ΚΤΕΟ', 'ΕΚΟ', 'ΒΙΠΕ', 'ΕΒΕ', 'ΕΣΥ', 'ΤΕΕ', 'ΕΛΠΕ', 'ΜΚΟ', 'ΙΚΕ', 'ΚΑΔ', 'ΦΠΑ', 'ΑΑΔΕ', 'ΕΦΚΑ', 'ΙΚΑ', 'ΟΤΑ', 'ΔΕΗ', 'ΟΤΕ', 'ΕΛΤΑ', 'ΚΤΕΛ', 'ΚΕΦΟΔΕ', 'ΦΑΕ', 'ΗΠΑ', 'ΕΕ',
 ]);
 const LATIN_KEEP_UPPER = new Set(['SA', 'LTD', 'LLC', 'GMBH', 'SRL', 'SAS', 'BV', 'NV', 'PLC', 'INC', 'AG', 'KG', 'OHG', 'SPA', 'EOOD', 'OOD', 'EU', 'USA', 'UK', 'VAT']);
 const CONNECTORS = new Set(['ΚΑΙ', 'ΤΟΥ', 'ΤΗΣ', 'ΤΩΝ', 'ΤΟΝ', 'ΤΗΝ', 'ΤΟ', 'ΤΑ', 'Η', 'Ο', 'ΟΙ', 'ΣΕ', 'ΣΤΟ', 'ΣΤΗ', 'ΣΤΗΝ', 'ΣΤΟΝ', 'ΣΤΑ', 'ΣΤΙΣ', 'ΣΤΟΥΣ', 'ΓΙΑ', 'ΜΕ', 'ΑΠΟ', 'ΕΚ', 'ΕΝ', 'ΩΣ', 'ΚΑΤΑ', 'ΠΛΗΝ', 'ΑΝΕΥ']);
@@ -94,7 +94,15 @@ const WORDS = `
 Σάμου Νάξου Σύρου Ερμούπολης Θήρας Μυκόνου Ρεθύμνου Νικολάου Ιεράπετρας Σητείας Ιωνίας Αμπελοκήπων Καλαμαριάς Νεάπολης Τούμπας
 Ευόσμου Ναυπλίου Άργους Σπάρτης Αιγίου Μεγάρων Ελευσίνας Αχαρνών Παλλήνης Κορωπίου Αγίου Κω
 μεγάλων μεσαίων συμμόρφωσης φορολογίας φορολογικής φορολογικού ελέγχου
+Οικονόμου Αναγνώστου Χριστοδούλου Αλεξίου Παπανικολάου Παπαγεωργίου Παπαδημητρίου Παπαϊωάννου Καραγιάννης Βλάχος Ζερβός
+Σπανός Μακρής Παππάς Μεταξάς Κουτσός Ξανθός Κοντός Ψαράς Χαλκιάς Μπαλτάς Χατζής Πολίτης Μαργαρίτης Ζαφειρίου Λαζαρίδης Τζαννής
+Μπέης Μαυρίδης Ρούσσος Γεωργίου Παπάς Καλός Φιλίππου Μαυρογιάννης Σταυρίδης Μελάς Ραπτής Καρράς Κουκουλάς Λιάπης Τσιρίγος
+Μανωλάς Σκούρας Ζαχαρίου Κυριακίδης Βαρδάκης Δούκας Ράλλης Καραμάνος Αλεξανδρής Μπιτσάκος Πασχάλης Ρήγας Σαρρής Καλαμαράς
+ελιά ελιές ελαιόλαδο κρασί κρασιά οινοποιείο αρτοποιείο ζαχαροπλαστείο κουρείο κομμωτήριο ιατρείο οδοντιατρείο φαρμακείο
+ανταλλακτικά αυτοκινήτων οχημάτων μοτοσικλετών ηλεκτρικών συσκευών κινητών τηλεφώνων υπολογιστών λογισμικού δικτύων
+μαρμάρων μάρμαρα οικοδομικών οικοδομικά τεχνικά τεχνικών ακινήτων ξενοδοχείων ταξιδιωτικό πρακτορείο γραφείων συνεδρίων
 `;
+
 
 const SUFFIX_RULES: Array<[string, string]> = ([
   ['ΟΠΟΥΛΟΣ', 'όπουλος'], ['ΟΠΟΥΛΟΥ', 'οπούλου'], ['ΟΠΟΥΛΩΝ', 'οπούλων'],
@@ -161,6 +169,36 @@ function syllableCount(folded: string): number {
 const lowerGreek = (value: string) => value.toLowerCase().replace(/σ$/, 'ς');
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
+const TONOS: Record<string, string> = { α: 'ά', ε: 'έ', η: 'ή', ι: 'ί', ο: 'ό', υ: 'ύ', ω: 'ώ' };
+
+/** Index of the letter that carries the accent in each syllable (second letter of a diphthong). */
+function syllableNuclei(folded: string): number[] {
+  const nuclei: number[] = [];
+  for (let i = 0; i < folded.length; i++) {
+    const ch = folded[i];
+    if (!VOWELS.has(ch)) continue;
+    const pair = ch + (folded[i + 1] ?? '');
+    if (ch === 'Ι' && i === 1 && folded[0] === 'Γ' && VOWELS.has(folded[2] ?? '')) continue; // «Γιάννης», «Γιώργος»
+    if (DIPHTHONGS.has(pair)) { nuclei.push(i + 1); i++; continue; }
+    nuclei.push(i);
+  }
+  return nuclei;
+}
+
+/**
+ * Accent for a word that is not in the vocabulary: Greek stress falls most often
+ * on the penultimate syllable; words in -μα(τα) / -ση / -σεων / -ιος / -ιο take the antepenultimate.
+ */
+export function guessAccent(folded: string): string {
+  const lower = lowerGreek(folded);
+  const nuclei = syllableNuclei(folded);
+  if (nuclei.length <= 1) return lower;
+  const antepenultimate = nuclei.length >= 3
+    && /(?:ΜΑ|ΜΑΤΑ|ΣΗ|ΞΗ|ΨΗ|ΣΕΩΝ|ΞΕΩΝ|ΨΕΩΝ|[^ΑΕΟΥ]Ι(?:ΟΣ|Ο|ΟΙ))$/.test(folded); // «Διονύσιος», «συνέδριο»
+  const at = nuclei[nuclei.length - (antepenultimate ? 3 : 2)];
+  return lower.slice(0, at) + (TONOS[lower[at]] ?? lower[at]) + lower.slice(at + 1);
+}
+
 function accentedLower(folded: string): string | null {
   const known = ACCENT_DICT.get(folded);
   if (known) return known;
@@ -179,8 +217,12 @@ export function isShouting(text: string): boolean {
 
 export type CaseMode = 'title' | 'sentence';
 
-/** Normal casing for registry capitals, or null when some word cannot be accented with confidence. */
-export function smartCase(text: string, mode: CaseMode = 'title'): string | null {
+/**
+ * Normal casing for registry capitals: vocabulary and surname endings first,
+ * then the Greek stress rules for unknown words. Never leaves a word in capitals
+ * except legal forms, acronyms, initials and ordinals.
+ */
+export function smartCase(text: string, mode: CaseMode = 'title'): string {
   if (!isShouting(text)) return text;
   const parts = text.split(/(\p{L}+)/u);
   let wordIndex = 0;
@@ -204,12 +246,9 @@ export function smartCase(text: string, mode: CaseMode = 'title'): string | null
       continue;
     }
     if (next.startsWith("'") && folded.length <= 3) { parts[i] = folded; continue; } // «ΙΒ'»
-    let word = accentedLower(folded);
-    if (!word && next.startsWith('.')) word = lowerGreek(folded); // «ΛΕΩΦ.» — abbreviations drop the accent
-    if (!word) {
-      if (!/[ΑΕΗΙΟΥΩ]/.test(folded)) { parts[i] = folded; continue; } // acronym without vowels
-      return null;
-    }
+    if (!/[ΑΕΗΙΟΥΩ]/.test(folded)) { parts[i] = folded; continue; } // acronym without vowels
+    const word = accentedLower(folded)
+      ?? (next.startsWith('.') ? lowerGreek(folded) : guessAccent(folded)); // «ΛΕΩΦ.»: abbreviations drop the accent
     const proper = word.charAt(0) !== word.charAt(0).toLowerCase();
     const upper = mode === 'title' ? first || proper || !CONNECTORS.has(folded) : first || proper;
     parts[i] = upper ? capitalize(word) : word;
@@ -309,20 +348,20 @@ export function stripStatusWords(text: string): { text: string; hits: StatusHit[
 export function formatRegistryName(raw?: string | null): { name: string; statusHits: StatusHit[] } {
   const { text, hits } = stripStatusWords(String(raw ?? ''));
   const normalized = cleanRegistryText(normalizeLegalForms(text));
-  return { name: smartCase(normalized, 'title') ?? normalized, statusHits: hits };
+  return { name: smartCase(normalized, 'title'), statusHits: hits };
 }
 
 export function formatProfession(raw?: string | null): string | null {
   const cleaned = cleanRegistryText(raw);
   if (!cleaned) return null;
-  return smartCase(cleaned, 'sentence') ?? cleaned;
+  return smartCase(cleaned, 'sentence');
 }
 
-/** «Α  'ΑΘΗΝΩΝ» → «Α' Αθηνών»; unknown names stay in (cleaned) capitals. */
+/** «Α  'ΑΘΗΝΩΝ» → «Α' Αθηνών». */
 export function formatTaxOffice(raw?: string | null): string | null {
   const cleaned = cleanRegistryText(normalizeLegalForms(cleanRegistryText(raw)));
   if (!cleaned) return null;
-  return smartCase(cleaned, 'title') ?? foldGreek(cleaned);
+  return smartCase(cleaned, 'title');
 }
 
 export function formatPlaceName(raw?: string | null): string {
@@ -330,13 +369,13 @@ export function formatPlaceName(raw?: string | null): string {
   if (!cleaned) return '';
   const known = PLACE_DICT.get(placeLookupKey(cleaned));
   if (known) return known;
-  return smartCase(cleaned, 'title') ?? cleaned;
+  return smartCase(cleaned, 'title');
 }
 
 function formatStreet(raw?: string | null): string {
   const cleaned = cleanRegistryText(raw).replace(/\.(?=\p{L})/gu, '. ');
   if (!cleaned) return '';
-  return smartCase(cleaned, 'title') ?? cleaned;
+  return smartCase(cleaned, 'title');
 }
 
 const NO_NUMBER = /^(?:0+|-+|ΧΩΡΙΣ(?: ΑΡΙΘΜΟ)?|ΑΝΕΥ(?: ΑΡΙΘΜΟΥ)?|ΑΡ\.?)$/;
@@ -367,7 +406,7 @@ export function formatFreeAddress(raw?: string | null): string | null {
   if (!cleaned) return null;
   const matches = [...cleaned.matchAll(/(?<!\d)(\d{3}) ?(\d{2})(?!\d)/g)];
   const last = matches[matches.length - 1];
-  if (!last) return smartCase(cleaned, 'title') ?? cleaned;
+  if (!last) return smartCase(cleaned, 'title');
   const start = last.index ?? 0;
   const before = cleaned.slice(0, start).replace(/[\s,\-–—]+$/, '');
   const after = cleaned.slice(start + last[0].length).replace(/^[\s,\-–—.]+/, '');

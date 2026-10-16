@@ -5,7 +5,8 @@ import {
   PanelLeftClose, PanelLeftOpen, Plus, Radar, Search, ShoppingBag, Sparkles, UserPlus, Users, X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { INTERNAL_CUSTOMER_ID } from '../lib/supabase';
+import { isReservedCustomerName } from '../utils/retailConstants';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import CreateCustomerModal from './CreateCustomerModal';
@@ -209,7 +210,9 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
     // --- Derived data -------------------------------------------------------
     const regular = useMemo(() => directory.filter(e => !e.isSystem), [directory]);
-    const systemEntry = useMemo(() => directory.find(e => e.isSystem) ?? null, [directory]);
+    /** Λιανική first, then «Εσωτερική παραγγελία». */
+    const systemEntries = useMemo(() => directory.filter(e => e.isSystem)
+        .sort((a, b) => Number(a.customer.id === INTERNAL_CUSTOMER_ID) - Number(b.customer.id === INTERNAL_CUSTOMER_ID)), [directory]);
 
     const purchaseActive = purchaseFilter.items.length > 0;
     const purchaseMatches = useMemo(
@@ -254,8 +257,9 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         );
     };
 
-    const showSystem = Boolean(systemEntry) && regions.length === 0 && !activityFilter && !purchaseActive && !idFilter
-        && (!searchTerm || matchesCustomerSearch(systemEntry as CustomerDirectoryEntry, searchTerm));
+    const visibleSystemEntries = regions.length === 0 && !activityFilter && !purchaseActive && !idFilter
+        ? systemEntries.filter(e => !searchTerm || matchesCustomerSearch(e, searchTerm))
+        : [];
 
     const groups = useMemo(() => {
         if (sortKey !== 'region') return null;
@@ -321,8 +325,8 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     };
 
     const handleCreateCustomer = async (c: Customer) => {
-        if (c.full_name.trim() === RETAIL_CUSTOMER_NAME) {
-            showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", "error");
+        if (isReservedCustomerName(c.full_name)) {
+            showToast(`Το όνομα '${c.full_name.trim()}' είναι δεσμευμένο από το σύστημα.`, "error");
             return;
         }
         try {
@@ -628,9 +632,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                         </Suspense>
                     ) : (
                         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pb-16 pr-1">
-                            {showSystem && systemEntry && (
-                                <div className="mb-4">
-                                    <SystemCustomerCard entry={systemEntry} onOpen={() => openCustomer(systemEntry.customer)} />
+                            {visibleSystemEntries.length > 0 && (
+                                <div className="mb-4 grid gap-3 xl:grid-cols-2">
+                                    {visibleSystemEntries.map(entry => (
+                                        <SystemCustomerCard key={entry.customer.id} entry={entry} onOpen={() => openCustomer(entry.customer)} />
+                                    ))}
                                 </div>
                             )}
 

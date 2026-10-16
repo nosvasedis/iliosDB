@@ -1,6 +1,7 @@
 import CustomerPhoneDisplay from './CustomerPhoneDisplay';
 import React from 'react';
-import { Briefcase, ChevronRight, Globe2, Mail, MapPinned, Phone, Store } from 'lucide-react';
+import { Briefcase, ChevronRight, Globe2, Mail, MapPinned, Phone, Store, Warehouse } from 'lucide-react';
+import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 import { ACTIVITY_META, TIER_META, formatDaysAgo, isDomesticCountry, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
 import { formatCurrency } from '../../utils/numberFormat';
 import { ActivityBadge, CustomerAvatar, RegionPill } from './customerUi';
@@ -116,28 +117,35 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap, insight }: Cu
 }
 
 export function SystemCustomerCard({ entry, onOpen }: { entry: CustomerDirectoryEntry; onOpen: () => void }) {
+  const internal = entry.customer.id === INTERNAL_CUSTOMER_ID;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="group relative flex w-full items-center gap-4 overflow-hidden rounded-3xl border border-fuchsia-100 bg-gradient-to-r from-fuchsia-50 via-white to-white p-4 text-left shadow-sm transition hover:border-fuchsia-200 hover:shadow-md"
+      className={`group relative flex w-full items-center gap-4 overflow-hidden rounded-3xl border bg-gradient-to-r via-white to-white p-4 text-left shadow-sm transition hover:shadow-md ${internal ? 'border-teal-100 from-teal-50 hover:border-teal-200' : 'border-fuchsia-100 from-fuchsia-50 hover:border-fuchsia-200'}`}
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white shadow">
-        <Store size={22} />
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ${internal ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
+        {internal ? <Warehouse size={22} /> : <Store size={22} />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-[15px] font-black text-slate-900">{entry.customer.full_name}</span>
-          <span className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase text-fuchsia-700">Σύστημα</span>
+          <span className={`rounded-full border bg-white px-2 py-0.5 text-[9px] font-black uppercase ${internal ? 'border-teal-200 text-teal-700' : 'border-fuchsia-200 text-fuchsia-700'}`}>Σύστημα</span>
         </div>
-        <div className="text-[11px] font-medium text-slate-500">Συλλογικός πελάτης για πωλήσεις λιανικής. Δεν εμφανίζεται στον χάρτη.</div>
+        <div className="text-[11px] font-medium text-slate-500">
+          {internal
+            ? 'Παραγγελίες για δικό μας απόθεμα. Δεν μετράνε σε πωλήσεις, στατιστικά, προμήθειες ή χάρτη.'
+            : 'Συλλογικός πελάτης για πωλήσεις λιανικής. Δεν εμφανίζεται στον χάρτη.'}
+        </div>
       </div>
       <div className="hidden items-center gap-6 pr-2 sm:flex">
         <Stat label="Παραγγ." value={entry.orderCount} />
-        <Stat label="Τζίρος φέτος" value={formatCurrency(entry.yearRevenue)} title="Χωρίς ΦΠΑ, από 1 Ιανουαρίου έως σήμερα" />
+        {internal
+          ? <Stat label="Αξία φέτος" value={formatCurrency(entry.yearRevenue)} title="Ενδεικτική αξία καταλόγου, όχι πωλήσεις" />
+          : <Stat label="Τζίρος φέτος" value={formatCurrency(entry.yearRevenue)} title="Χωρίς ΦΠΑ, από 1 Ιανουαρίου έως σήμερα" />}
         <Stat label="Τελευταία" value={formatDaysAgo(entry.daysSinceLastOrder)} />
       </div>
-      <ChevronRight size={18} className="text-fuchsia-300 transition group-hover:translate-x-0.5 group-hover:text-fuchsia-600" />
+      <ChevronRight size={18} className={`transition group-hover:translate-x-0.5 ${internal ? 'text-teal-300 group-hover:text-teal-600' : 'text-fuchsia-300 group-hover:text-fuchsia-600'}`} />
     </button>
   );
 }

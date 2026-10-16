@@ -10,7 +10,8 @@ import {
     BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart, Pencil
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import InternalOrderNotice from '../orders/InternalOrderNotice';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
@@ -375,6 +376,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         }
     }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, initialOrder]);
 
+    const handleUseInternalCustomer = () => {
+        setCustomerId(INTERNAL_CUSTOMER_ID);
+        setCustomerName(INTERNAL_CUSTOMER_NAME);
+        setCustomerPhone('');
+        setRetailClientLabel('');
+        setShowCustSuggestions(false);
+    };
+    const isInternalCustomer = customerId === INTERNAL_CUSTOMER_ID || customerName.trim() === INTERNAL_CUSTOMER_NAME;
+
     const handleUseRetailCustomer = () => {
         setCustomerId(RETAIL_CUSTOMER_ID);
         setCustomerName(RETAIL_CUSTOMER_NAME);
@@ -668,7 +678,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         // if null/undefined (dialog dismissed) — stay
     };
 
-    const filteredCustomers = useMemo(() => buildMobileOrderBuilderCustomerSuggestions(customers, customerName), [customers, customerName]);
+    const filteredCustomers = useMemo(() => buildMobileOrderBuilderCustomerSuggestions(isSeller ? customers?.filter(c => c.id !== INTERNAL_CUSTOMER_ID) : customers, customerName), [customers, customerName, isSeller]);
 
     const emptyCustomer: Customer = { id: '', full_name: '', created_at: '' };
 
@@ -758,13 +768,26 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     ))}
                                 </div>
                             )}
-                            <button
-                                type="button"
-                                onClick={handleUseRetailCustomer}
-                                className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
-                            >
-                                Χρήση Λιανικής
-                            </button>
+                            {isInternalCustomer ? (
+                                <div className="mt-2"><InternalOrderNotice /></div>
+                            ) : (
+                                <div className={`mt-2 grid gap-2 ${isSeller ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                    <button
+                                        type="button"
+                                        onClick={handleUseRetailCustomer}
+                                        className="py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
+                                    >
+                                        Χρήση Λιανικής
+                                    </button>
+                                    {!isSeller && <button
+                                        type="button"
+                                        onClick={handleUseInternalCustomer}
+                                        className="py-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-black"
+                                    >
+                                        Εσωτερική
+                                    </button>}
+                                </div>
+                            )}
                         </>}
                         {!isRetailCustomer && customerId && (
                             <div className="mt-2">

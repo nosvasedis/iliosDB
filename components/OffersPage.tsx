@@ -1,3 +1,4 @@
+import { INTERNAL_CUSTOMER_ID } from '../utils/retailConstants';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../utils/orderCustomer';
 import RetailClientField from './orders/RetailClientField';
 import { getOrderCustomerName } from '../utils/orderCustomer';
@@ -99,7 +100,8 @@ export default function OffersPage({ products, materials, settings, collections,
     // Filtered Customers for Search
     const filteredCustomers = useMemo(() => {
         if (!customers || !customerName) return [];
-        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
+        // Offers go to real customers, never to the internal-orders account.
+        return customers.filter(c => c.id !== INTERNAL_CUSTOMER_ID && (normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName)))).slice(0, 5);
     }, [customers, customerName]);
 
     const filteredOffers = useMemo(() => {

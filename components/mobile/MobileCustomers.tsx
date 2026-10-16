@@ -9,7 +9,8 @@ import { formatNumber } from '../../utils/numberFormat';
 
 import React, { Suspense, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { api, INTERNAL_CUSTOMER_ID, RETAIL_CUSTOMER_ID } from '../../lib/supabase';
+import { isReservedCustomerName, isSystemCustomerId } from '../../utils/retailConstants';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, List, Map as MapIcon, SlidersHorizontal, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
@@ -229,12 +230,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             if (editType === 'customer') {
                 // Determine if this is an update by checking the list
                 const isExisting = customers?.some(c => c.id === editData.id);
-                if (!isExisting && editData.full_name.trim() === RETAIL_CUSTOMER_NAME) {
-                    showToast("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.", "error");
+                if (!isExisting && isReservedCustomerName(editData.full_name)) {
+                    showToast(`Το όνομα '${editData.full_name.trim()}' είναι δεσμευμένο από το σύστημα.`, "error");
                     return;
                 }
-                if (isExisting && editData.id === RETAIL_CUSTOMER_ID) {
-                    showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
+                if (isExisting && isSystemCustomerId(editData.id)) {
+                    showToast("Οι καρτέλες του συστήματος είναι μόνο για ανάγνωση.", "error");
                     return;
                 }
                 if (!(await vatLookup.confirmSave(editData.vat_number))) return;
@@ -806,7 +807,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     >
                         <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
-                                {mode === 'customers' && item.id !== RETAIL_CUSTOMER_ID ? (
+                                {mode === 'customers' && !isSystemCustomerId(item.id) ? (
                                     <CustomerAvatar name={item.full_name || '?'} seed={item.id} size={48} />
                                 ) : (
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold border ${mode === 'customers' ? 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
@@ -816,7 +817,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <div className="font-bold text-slate-800 text-base">{item.full_name || item.name}</div>
-                                        {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID && (
+                                        {mode === 'customers' && isSystemCustomerId(item.id) && (
                                             <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
                                                 Σύστημα
                                             </span>
@@ -829,7 +830,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 type="button"
                                 onClick={event => {
                                     event.stopPropagation();
-                                    if (mode === 'customers' && item.id !== RETAIL_CUSTOMER_ID) {
+                                    if (mode === 'customers' && !isSystemCustomerId(item.id)) {
                                         setEditType('customer');
                                         setEditData({ ...item });
                                         setIsEditing(true);
@@ -845,9 +846,11 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </div>
 
                         <div className="space-y-2 pt-2 border-t border-slate-50">
-                            {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID ? (
+                            {mode === 'customers' && isSystemCustomerId(item.id) ? (
                                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                                    Συλλογικός λογαριασμός για πολλούς τελικούς πελάτες· δεν εμφανίζονται κοινό ΑΦΜ, τηλέφωνο ή διεύθυνση εδώ.
+                                    {item.id === INTERNAL_CUSTOMER_ID
+                                        ? 'Παραγγελίες για δικό μας απόθεμα· δεν μετράνε σε πωλήσεις, στατιστικά ή χάρτη.'
+                                        : 'Συλλογικός λογαριασμός για πολλούς τελικούς πελάτες· δεν εμφανίζονται κοινό ΑΦΜ, τηλέφωνο ή διεύθυνση εδώ.'}
                                 </p>
                             ) : (
                                 <>

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Customer, Order } from '../../types';
-import { RETAIL_CUSTOMER_ID } from '../../lib/supabase';
+import { SYSTEM_CUSTOMER_IDS } from '../../utils/retailConstants';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
 import { ordersRepository } from '../../features/orders';
 import { buildCustomerDirectory, countRegions, customerBranches, type CustomerDirectoryEntry } from '../../features/customers/customerLocation';
@@ -12,7 +12,7 @@ export function useCustomerDirectory(customers: Customer[] | undefined, orders: 
   const queryClient = useQueryClient();
 
   const directory = useMemo<CustomerDirectoryEntry[]>(
-    () => buildCustomerDirectory(customers ?? [], orders, { systemCustomerId: RETAIL_CUSTOMER_ID }),
+    () => buildCustomerDirectory(customers ?? [], orders, { systemCustomerIds: SYSTEM_CUSTOMER_IDS }),
     [customers, orders],
   );
   const regionCounts = useMemo(() => countRegions(directory), [directory]);

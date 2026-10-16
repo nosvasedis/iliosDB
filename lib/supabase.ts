@@ -1,5 +1,5 @@
 import { withCustomerPhones } from '../features/customers/customerPhones';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../utils/retailConstants';
+import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, isReservedCustomerName, isSystemCustomerId, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../utils/retailConstants';
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
 import { createClient } from '@supabase/supabase-js';
@@ -1124,7 +1124,7 @@ type BulkBatchStageUpdateSummary = {
     impactedOrderIds: string[];
 };
 
-export { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../utils/retailConstants';
+export { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../utils/retailConstants';
 
 const getRetailCustomerPayload = (): Partial<Customer> => ({
     id: RETAIL_CUSTOMER_ID,
@@ -2257,6 +2257,7 @@ export const api = {
 
     getCustomers: async (): Promise<Customer[]> => {
         await api.ensureRetailCustomer();
+        await api.ensureInternalCustomer();
         const list = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
         return (list as Customer[]).map(c => withCustomerPhones(c)).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'el', { sensitivity: 'base' }));
     },
@@ -2488,11 +2489,14 @@ export const api = {
         if (c.id === RETAIL_CUSTOMER_ID) {
             throw new Error('Η γενική καρτέλα Λιανική δεν είναι φυσικό πρόσωπο και δεν μπορεί να τροποποιηθεί. Δημιουργήστε ξεχωριστή καρτέλα για τον πελάτη.');
         }
+        if (c.id === INTERNAL_CUSTOMER_ID) {
+            throw new Error('Η καρτέλα «Εσωτερική παραγγελία» είναι του συστήματος και δεν τροποποιείται.');
+        }
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
         const payload = ['phone', 'mobile_phone', 'landline_phone', 'phone_unclassified'].some(key => key in c)
             ? withCustomerPhones({ ...c }) : { ...c };
-        if ((payload.full_name || '').trim() === RETAIL_CUSTOMER_NAME && payload.id !== RETAIL_CUSTOMER_ID) {
-            throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
+        if (isReservedCustomerName(payload.full_name) && !isSystemCustomerId(payload.id)) {
+            throw new Error(`Το όνομα '${(payload.full_name || '').trim()}' είναι δεσμευμένο από το σύστημα.`);
         }
         if (payload.vat_rate === 0 && !payload.vat_exemption_category) {
             throw new Error('Ο πελάτης με 0% ΦΠΑ χρειάζεται συγκεκριμένη αιτία απαλλαγής myDATA.');
@@ -2530,12 +2534,27 @@ export const api = {
         } as Customer;
     },
 
+    /** The internal-orders account: created by migration; recreated here if it is ever missing. */
+    ensureInternalCustomer: async (): Promise<void> => {
+        if (isInspectionModeActive()) return;
+        const existing = await fetchFullTable('customers', 'id,full_name', (q) => q.eq('id', INTERNAL_CUSTOMER_ID));
+        const row = (existing || [])[0] as Pick<Customer, 'id' | 'full_name'> | undefined;
+        if (row && row.full_name === INTERNAL_CUSTOMER_NAME) return;
+        await safeMutate('customers', 'UPSERT', {
+            id: INTERNAL_CUSTOMER_ID, full_name: INTERNAL_CUSTOMER_NAME, vat_number: '', profession: '', tax_office: '',
+            phone: '', notes: '', vat_rate: VatRegime.Standard,
+        }, { onConflict: 'id' });
+    },
+
     updateCustomer: async (id: string, updates: Partial<Customer>): Promise<void> => {
         if (id === RETAIL_CUSTOMER_ID) {
             throw new Error('Ο πελάτης Λιανική είναι προστατευμένος και δεν μπορεί να τροποποιηθεί.');
         }
-        if ((updates.full_name || '').trim() === RETAIL_CUSTOMER_NAME) {
-            throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
+        if (id === INTERNAL_CUSTOMER_ID) {
+            throw new Error('Η καρτέλα «Εσωτερική παραγγελία» είναι του συστήματος και δεν τροποποιείται.');
+        }
+        if (isReservedCustomerName(updates.full_name)) {
+            throw new Error(`Το όνομα '${(updates.full_name || '').trim()}' είναι δεσμευμένο από το σύστημα.`);
         }
         if (updates.vat_rate === 0 && !updates.vat_exemption_category) {
             throw new Error('Ο πελάτης με 0% ΦΠΑ χρειάζεται συγκεκριμένη αιτία απαλλαγής myDATA.');
@@ -2550,6 +2569,9 @@ export const api = {
     deleteCustomer: async (id: string): Promise<void> => {
         if (id === RETAIL_CUSTOMER_ID) {
             throw new Error('Ο πελάτης Λιανική είναι προστατευμένος και δεν μπορεί να διαγραφεί.');
+        }
+        if (id === INTERNAL_CUSTOMER_ID) {
+            throw new Error('Η καρτέλα «Εσωτερική παραγγελία» είναι του συστήματος και δεν μπορεί να διαγραφεί.');
         }
         await safeMutate('customers', 'DELETE', null, { match: { id } });
     },

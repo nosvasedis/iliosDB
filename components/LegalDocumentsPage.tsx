@@ -1,3 +1,4 @@
+import { INTERNAL_CUSTOMER_ID } from '../utils/retailConstants';
 import { formatNumber } from '../utils/numberFormat';
 import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
 import SbzSettings, { useSbzStatus } from './legal/SbzSettings';
@@ -848,6 +849,8 @@ export default function LegalDocumentsPage({
 
   const { data: orders = [], isLoading: loadingOrders } = useOrdersWithItems();
   const { data: customers = [] } = useCustomers();
+  /** We never issue documents to ourselves: the internal-orders account is not a counterpart. */
+  const invoiceableCustomers = useMemo(() => customers.filter(customer => customer.id !== INTERNAL_CUSTOMER_ID), [customers]);
   const { data: sellers = [], isLoading: loadingSellers } = useSellers();
   const { data: shipments = [] } = useAllShipments();
   const { data: shipmentItems = [] } = useAllShipmentItems();
@@ -2104,7 +2107,7 @@ export default function LegalDocumentsPage({
           <fieldset disabled={!editable} className={`mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 ${!editable ? 'opacity-60' : ''}`}>
             <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
               <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+              {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
             </SelectInput>
             <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
             <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
@@ -2695,7 +2698,7 @@ export default function LegalDocumentsPage({
           <div className="mt-5 grid gap-4 md:grid-cols-5">
             <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'proforma')} help="Γεμίζει αυτόματα τα στοιχεία πελάτη από το ERP, αλλά όλα μένουν χειροκίνητα επεξεργάσιμα.">
               <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+              {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
             </SelectInput>
             <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, issue_date: value }, lines, settingsDraft))} />
             <TextInput label="Ισχύει έως" type="date" value={document.valid_until || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, valid_until: value || null }, lines, settingsDraft))} />
@@ -3529,7 +3532,7 @@ export default function LegalDocumentsPage({
       readOnlyMaintenance={isInspectionPresentation}
       initialRecordId={initialDocumentId}
       records={archiveRecords}
-      customers={customers}
+      customers={invoiceableCustomers}
       products={products}
       sellers={sellers}
       registryLookupReady={registryConnectionStatus.verified}

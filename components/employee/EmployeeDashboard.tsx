@@ -1,3 +1,4 @@
+import { isInternalOrder } from '../../utils/orderCustomer';
 import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
@@ -38,7 +39,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
         
         // Calculate NET Sales for Today
         const todaySales = orders
-            .filter(o => o.created_at.startsWith(today))
+            .filter(o => o.created_at.startsWith(today) && !isInternalOrder(o))
             .reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate ?? 0.24))), 0);
 
         return { pending, todaySales, ready };

@@ -1,6 +1,7 @@
 import RetailClientField from '../orders/RetailClientField';
 import React from 'react';
-import { User, Tag, Plus, X, Percent, Check, Store } from 'lucide-react';
+import { User, Tag, Plus, X, Percent, Check, Store, Warehouse } from 'lucide-react';
+import InternalOrderNotice from '../orders/InternalOrderNotice';
 import { VatRegime } from '../../types';
 import { useOrderState } from '../../hooks/useOrderState';
 import { getTagColor } from '../../features/orders/tagColors';
@@ -55,13 +56,29 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         )}
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={actions.handleUseRetailCustomer}
-                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
-                    >
-                        <Store size={14} /> Χρήση Λιανικής
-                    </button>
+                    {state.isInternalCustomer ? (
+                        <InternalOrderNotice />
+                    ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={actions.handleUseRetailCustomer}
+                                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
+                            >
+                                <Store size={14} /> Χρήση Λιανικής
+                            </button>
+                            {!state.isSeller && (
+                                <button
+                                    type="button"
+                                    onClick={actions.handleUseInternalCustomer}
+                                    title="Παραγγελία για δικό μας απόθεμα — δεν μετράει στις πωλήσεις"
+                                    className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-black hover:bg-teal-100 transition-colors"
+                                >
+                                    <Warehouse size={14} /> Εσωτερική
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </>}
 
                 {!state.isRetailCustomer && (

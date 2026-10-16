@@ -1,3 +1,4 @@
+import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { normalizedIncludes } from '../../utils/greekSearch';
@@ -23,7 +24,7 @@ export default function CustomerSearchSelect({
   const [open, setOpen] = useState(false);
   const selected = customers.find((customer) => customer.id === value);
   const matches = useMemo(
-    () => customers.filter((customer) => normalizedIncludes(customer.full_name, query)).slice(0, 12),
+    () => customers.filter((customer) => customer.id !== INTERNAL_CUSTOMER_ID && normalizedIncludes(customer.full_name, query)).slice(0, 12),
     [customers, query],
   );
 

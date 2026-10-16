@@ -28,8 +28,23 @@ describe('registry name formatting', () => {
     expect(formatRegistryName('ΗΛΙΟΣ Α.Ε.Β.Ε.').name).toBe('Ήλιος ΑΕΒΕ');
   });
 
-  it('keeps capitals (never unaccented lowercase) when a word cannot be accented with confidence', () => {
-    expect(formatRegistryName('ΖΕΡΒΑΣ  ΚΑΙ ΣΙΑ  Ο.Ε.').name).toBe('ΖΕΡΒΑΣ ΚΑΙ ΣΙΑ ΟΕ');
+  it.each([
+    ['ΖΕΡΒΑΣ  ΚΑΙ ΣΙΑ  Ο.Ε.', 'Ζέρβας και Σια ΟΕ'],
+    ['ΓΙΑΝΝΑΡΟΣ ΜΙΧΑΗΛ', 'Γιαννάρος Μιχαήλ'],
+    ['ΤΣΑΚΙΡΗΣ ΧΡΗΣΤΟΣ ΤΟΥ ΑΘΑΝΑΣΙΟΥ', 'Τσακίρης Χρήστος του Αθανασίου'],
+    ['ΣΑΡΑΝΤΙΔΟΥ ΕΛΕΝΗ', 'Σαραντίδου Ελένη'],
+    ['ΧΑΤΖΗΓΕΩΡΓΙΟΥ ΑΝΝΑ', 'Χατζηγεωργίου Άννα'],
+    ['ΓΕΩΡΓΑΚΟΠΟΥΛΟΣ ΔΙΟΝΥΣΙΟΣ', 'Γεωργακόπουλος Διονύσιος'],
+    ['ΜΠΟΥΡΑΣ ΑΝΤΩΝΙΟΣ', 'Μπούρας Αντώνιος'],
+    ['ΑΡΓΥΡΟΤΕΧΝΙΚΗ ΜΑΚΕΔΟΝΙΑΣ ΑΕ', 'Αργυροτεχνική Μακεδονίας ΑΕ'],
+    ['ΑΛΚΥΟΝΗ ΧΡΥΣΟΧΟΪΑ ΜΟΝΟΠΡΟΣΩΠΗ ΙΚΕ', 'Αλκυόνη Χρυσοχοΐα Μονοπρόσωπη ΙΚΕ'],
+    ['BLUE SEA JEWELRY ΜΟΝΟΠΡΟΣΩΠΗ Ε.Π.Ε.', 'Blue Sea Jewelry Μονοπρόσωπη ΕΠΕ'],
+  ])('never leaves names in capitals: %s → %s', (raw, expected) => {
+    expect(formatRegistryName(raw).name).toBe(expected);
+  });
+
+  it('keeps acronyms, initials and ordinals in capitals', () => {
+    expect(formatRegistryName('ΚΤΕΟ ΗΛΙΟΣ Γ. ΖΕΡΒΑΣ ΑΕ').name).toBe('ΚΤΕΟ Ήλιος Γ. Ζέρβας ΑΕ');
   });
 
   it('leaves already well-written names untouched apart from spacing', () => {
@@ -76,9 +91,11 @@ describe('registry address formatting', () => {
       .toBe('25ης Μαρτίου 12Α, 83100 - Σάμος');
   });
 
-  it('keeps unknown street names in capitals but cleans spacing', () => {
+  it('writes unknown street and place names in normal casing too', () => {
     expect(formatRegistryAddress({ street: 'ΞΥΖΩΡΟΥ', number: '3', postalCode: '54622', city: 'ΘΕΣΣΑΛΟΝΙΚΗ' }))
-      .toBe('ΞΥΖΩΡΟΥ 3, 54622 - Θεσσαλονίκη');
+      .toBe('Ξυζώρου 3, 54622 - Θεσσαλονίκη');
+    expect(formatRegistryAddress({ street: 'ΑΓ. ΔΗΜΗΤΡΙΟΥ', number: '45', postalCode: '54630', city: 'ΠΥΛΑΙΑ' }))
+      .toBe('Αγ. Δημητρίου 45, 54630 - Πυλαία');
   });
 
   it('formats free-text VIES addresses in the same shape', () => {
@@ -93,12 +110,14 @@ describe('profession and tax office formatting', () => {
     expect(formatProfession('ΧΟΝΔΡΙΚΟ  ΕΜΠΟΡΙΟ ΚΟΣΜΗΜΑΤΩΝ')).toBe('Χονδρικό εμπόριο κοσμημάτων');
     expect(formatProfession('ΛΙΑΝΙΚΟ ΕΜΠΟΡΙΟ ΡΟΛΟΓΙΩΝ ΚΑΙ ΚΟΣΜΗΜΑΤΩΝ ΣΕ ΕΞΕΙΔΙΚΕΥΜΕΝΑ ΚΑΤΑΣΤΗΜΑΤΑ'))
       .toBe('Λιανικό εμπόριο ρολογιών και κοσμημάτων σε εξειδικευμένα καταστήματα');
+    expect(formatProfession('ΕΠΕΞΕΡΓΑΣΙΑ ΚΑΙ ΔΙΑΘΕΣΗ ΠΟΛΥΤΙΜΩΝ ΛΙΘΩΝ')).toBe('Επεξεργασία και διάθεση πολύτιμων λίθων');
   });
 
   it('writes tax offices like «Α\' Αθηνών»', () => {
     expect(formatTaxOffice("Α  'ΑΘΗΝΩΝ")).toBe("Α' Αθηνών");
     expect(formatTaxOffice('Δ.Ο.Υ. ΚΑΛΛΙΘΕΑΣ')).toBe('ΔΟΥ Καλλιθέας');
     expect(formatTaxOffice('ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ')).toBe('ΚΕΦΟΔΕ Αττικής');
+    expect(formatTaxOffice("ΙΒ' ΑΘΗΝΩΝ")).toBe("ΙΒ' Αθηνών");
   });
 
   it('cleans irregular whitespace', () => {
