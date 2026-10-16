@@ -1,5 +1,6 @@
 import CustomerPhoneFields from './customers/CustomerPhoneFields';
-import type { CustomerVatLookupResult } from '../types';
+import CustomerVatStatusAlert from './customers/CustomerVatStatusAlert';
+import { useCustomerVatLookup } from './customers/useCustomerVatLookup';
 import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
 import React, { useState, useEffect } from 'react';
 import { Customer, VatRegime } from '../types';
@@ -16,7 +17,6 @@ import {
     Users,
 } from 'lucide-react';
 import { useUI } from './UIProvider';
-import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion, withCustomerCountry } from './customers/customerProfileFields';
 import { isDomesticCountry, normalizeCountry } from '../features/customers/customerLocation';
@@ -37,9 +37,9 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
     const [form, setForm] = useState<Customer>(draft);
     const [tab, setTab] = useState<CreateTab>('general');
     const [isSaving, setIsSaving] = useState(false);
-    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
-    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const { showToast } = useUI();
+    const vatLookup = useCustomerVatLookup(setForm, { onApplied: () => setTab('fiscal') });
+    const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;
     const isDomestic = isDomesticCountry(form.country);
 
     useEffect(() => {
@@ -48,27 +48,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
     }, [draft.id]);
 
     const handleAfmLookup = async () => {
-        if (!form.vat_number || form.vat_number.length < 9) {
-            showToast('Μη έγκυρο ΑΦΜ.', 'error');
-            return;
-        }
-        setIsSearchingAfm(true);
-        setVatLookupEvidence(null);
-        try {
-            const result = await lookupCustomerVat(form.vat_number);
-            if (result) {
-                setForm(prev => applyCustomerVatLookup(prev, result));
-                setVatLookupEvidence(result);
-                setTab('fiscal');
-                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
-            } else {
-                showToast('Δεν βρέθηκαν στοιχεία.', 'info');
-            }
-        } catch (e: unknown) {
-            showToast((e as Error)?.message || 'Σφάλμα αναζήτησης.', 'error');
-        } finally {
-            setIsSearchingAfm(false);
-        }
+        await vatLookup.lookup(form.vat_number);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -89,6 +69,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
             .map((b, index) => ({ ...b, label: b.label?.trim() || `Κατάστημα ${index + 1}` }));
         if (branches.length > 0 && !branches.some(b => b.is_primary)) branches[0] = { ...branches[0], is_primary: true };
         const profile = form.profile ? cleanCustomerProfile(form.profile) : null;
+        if (!(await vatLookup.confirmSave(form.vat_number))) return;
         setIsSaving(true);
         try {
             await onSave({
@@ -306,6 +287,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                                         <span className="hidden sm:inline">Αναζήτηση</span>
                                     </button>
                                 </div>
+                                <CustomerVatStatusAlert lookup={vatLookupEvidence} vatNumber={form.vat_number} applied={vatLookup.applied} onApply={vatLookup.applyEvidence} />
                                 <p className="mt-2 text-xs leading-relaxed text-slate-500">
                                     Συμπληρώνει όπου είναι διαθέσιμα επωνυμία, διεύθυνση, τηλέφωνο και email. Μπορείτε να επιστρέψετε
                                     στα «Γενικά» για διόρθωση.

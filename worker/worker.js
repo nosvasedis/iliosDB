@@ -764,12 +764,13 @@ export function parseAadeRegistryResponse(xml) {
   const activeFlag = findXmlValue(basic, 'deactivation_flag');
   const activeDescription = findXmlValue(basic, 'deactivation_flag_descr');
   const normalizedActiveDescription = String(activeDescription || '').toLocaleUpperCase('el-GR');
-  const active = activeFlag === '1'
-    || (normalizedActiveDescription.includes('ΕΝΕΡΓ') && !normalizedActiveDescription.includes('ΑΠΕΝΕΡΓ'))
+  // «ΑΝΕΝΕΡΓΟΣ»/«ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟΣ» also contain «ΕΝΕΡΓ».
+  const inactiveDescription = /ΑΠΕΝΕΡΓ|ΑΝΕΝΕΡΓ/.test(normalizedActiveDescription);
+  const active = activeFlag === '2' || inactiveDescription
+    ? false
+    : activeFlag === '1' || normalizedActiveDescription.includes('ΕΝΕΡΓ')
       ? true
-      : activeFlag === '2' || normalizedActiveDescription.includes('ΑΠΕΝΕΡΓ')
-        ? false
-        : null;
+      : null;
   const normalVatFlag = String(findXmlValue(basic, 'normal_vat_system_flag') || '').toUpperCase();
   const activities = findXmlBlocks(activityTable, 'item').map((item) => ({
     code: findXmlValue(item, 'firm_act_code') || '',

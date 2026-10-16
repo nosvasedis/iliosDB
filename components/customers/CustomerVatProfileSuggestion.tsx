@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Customer, CustomerVatLookupResult } from '../../types';
 import { applyGeographicVat, REDUCED_VAT_SOURCE, suggestGeographicVat } from '../../features/customers/vatProfile';
+import { vatLookupStatus } from '../../features/customers/vatLookup';
 import { MOUNT_ATHOS_VAT_EXEMPTION_CATEGORY, MOUNT_ATHOS_VAT_EXEMPTION_NOTE } from '../../utils/legalDocuments';
 
 export default function CustomerVatProfileSuggestion({ customer, onChange, lookup }: {
@@ -9,6 +10,7 @@ export default function CustomerVatProfileSuggestion({ customer, onChange, looku
   lookup?: CustomerVatLookupResult | null;
 }) {
   const evidence = lookup?.vatNumber === customer.vat_number ? lookup : null;
+  const status = evidence ? vatLookupStatus(evidence) : null;
   const suggestion = suggestGeographicVat(customer);
   const applied = suggestion && customer.vat_rate === suggestion.rate
     && (suggestion.rate !== 0 || (customer.vat_exemption_category === MOUNT_ATHOS_VAT_EXEMPTION_CATEGORY
@@ -23,7 +25,7 @@ export default function CustomerVatProfileSuggestion({ customer, onChange, looku
           : evidence.normalVatRegime === false
             ? 'ΑΑΔΕ: εκτός κανονικού καθεστώτος ΦΠΑ. Αυτό δεν σημαίνει ότι ο πελάτης αγοράζει χωρίς ΦΠΑ.'
             : 'ΑΑΔΕ: δεν επιστράφηκε ένδειξη καθεστώτος ΦΠΑ.'}</p>}
-      {evidence?.active === false && <p className="font-bold text-red-700">Προσοχή: ανενεργό ΑΦΜ. Απαιτείται έλεγχος πριν από συναλλαγή.</p>}
+      {status?.blocking && <p className="font-bold text-red-700">Προσοχή: {status.label}{status.stopDate ? ` (από ${status.stopDate})` : ''}. Απαιτείται έλεγχος πριν από συναλλαγή.</p>}
       {suggestion ? <>
         <p><b>Πρόταση από τη διεύθυνση έδρας: {suggestion.area} · {suggestion.rate === 0 ? '0%' : '17%'}.</b>{' '}
           {suggestion.rate === 0
@@ -32,7 +34,7 @@ export default function CustomerVatProfileSuggestion({ customer, onChange, looku
         {suggestion.rate === 0.17 && <a href={REDUCED_VAT_SOURCE} target="_blank" rel="noreferrer" className="underline">ΑΑΔΕ Ε.2113/2025 · κανόνες από 1/1/2026</a>}
         {applied ? <div className="font-bold">Εφαρμόζεται στο προφίλ ✓</div> : <button
           type="button"
-          disabled={evidence?.active === false}
+          disabled={!!status?.blocking}
           onClick={() => onChange(applyGeographicVat(customer, suggestion))}
           className="block rounded-lg bg-sky-700 px-3 py-2 font-bold text-white disabled:opacity-50"
         >Επιβεβαίωση προϋποθέσεων & εφαρμογή {suggestion.rate === 0 ? '0%' : '17%'}</button>}

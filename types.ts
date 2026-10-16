@@ -1090,7 +1090,22 @@ export interface CustomerVatLookupResult {
   profession: string | null;
   taxOffice: string | null;
   active: boolean | null;
+  /** Business status derived from the registry fields and status words in the name. */
+  status?: VatRegistryStatus;
   fallbackReason?: string | null;
+}
+
+export type VatRegistryStatusKind = 'active' | 'liquidation' | 'bankruptcy' | 'closed' | 'inactive' | 'non_business' | 'unknown';
+
+export interface VatRegistryStatus {
+  kind: VatRegistryStatusKind;
+  label: string;
+  /** Liquidation, bankruptcy, cessation or deactivated AFM: confirm before applying or saving. */
+  blocking: boolean;
+  /** dd/mm/yyyy of the cessation (AADE stop_date), when known. */
+  stopDate: string | null;
+  /** Registry texts that led to the status, e.g. «ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟΣ ΑΦΜ». */
+  evidence: string[];
 }
 
 export interface AadeVatRegistryResult {

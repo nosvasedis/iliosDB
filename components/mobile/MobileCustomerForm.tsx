@@ -1,11 +1,11 @@
 import CustomerPhoneFields from '../customers/CustomerPhoneFields';
-import type { CustomerVatLookupResult } from '../../types';
+import CustomerVatStatusAlert from '../customers/CustomerVatStatusAlert';
+import { useCustomerVatLookup } from '../customers/useCustomerVatLookup';
 import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
 import React, { useState } from 'react';
 import { Customer, VatRegime } from '../../types';
 import { X, Save, Loader2, Zap, Phone, Mail, MapPin, FileText, User, CreditCard, MessageSquare } from 'lucide-react';
 import { useUI } from '../UIProvider';
-import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
 import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
 
 export interface MobileCustomerFormProps {
@@ -18,31 +18,12 @@ export interface MobileCustomerFormProps {
 export default function MobileCustomerForm({ customer, onSave, onCancel }: MobileCustomerFormProps) {
     const [form, setForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
-    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
-    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const { showToast } = useUI();
+    const vatLookup = useCustomerVatLookup(setForm);
+    const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;
 
     const handleAfmLookup = async () => {
-        if (!form.vat_number || form.vat_number.length < 9) {
-            showToast('Μη έγκυρο ΑΦΜ.', 'error');
-            return;
-        }
-        setIsSearchingAfm(true);
-        setVatLookupEvidence(null);
-        try {
-            const result = await lookupCustomerVat(form.vat_number);
-            if (result) {
-                setForm(prev => applyCustomerVatLookup(prev, result));
-                setVatLookupEvidence(result);
-                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
-            } else {
-                showToast('Δεν βρέθηκαν στοιχεία.', 'info');
-            }
-        } catch (e: unknown) {
-            showToast((e as Error)?.message || 'Σφάλμα αναζήτησης.', 'error');
-        } finally {
-            setIsSearchingAfm(false);
-        }
+        await vatLookup.lookup(form.vat_number);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +37,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
             showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error');
             return;
         }
+        if (!(await vatLookup.confirmSave(form.vat_number))) return;
         setIsSaving(true);
         try {
             await onSave(form);
@@ -186,6 +168,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                                 <span className="hidden sm:block">Αυτόματο</span>
                             </button>
                         </div>
+                        <CustomerVatStatusAlert lookup={vatLookupEvidence} vatNumber={form.vat_number} applied={vatLookup.applied} onApply={vatLookup.applyEvidence} />
 
                         <input
                             type="text"

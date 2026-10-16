@@ -1,6 +1,7 @@
 import CustomerPhoneDisplay from '../customers/CustomerPhoneDisplay';
 import CustomerPhoneFields from '../customers/CustomerPhoneFields';
-import type { CustomerVatLookupResult } from '../../types';
+import CustomerVatStatusAlert from '../customers/CustomerVatStatusAlert';
+import { useCustomerVatLookup } from '../customers/useCustomerVatLookup';
 import CustomerVatProfileSuggestion from '../customers/CustomerVatProfileSuggestion';
 import { isRetailCustomerOrder, getOrderCustomerName } from '../../utils/orderCustomer';
 import OrderCustomerName from '../orders/OrderCustomerName';
@@ -9,7 +10,6 @@ import { formatNumber } from '../../utils/numberFormat';
 import React, { Suspense, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, List, Map as MapIcon, SlidersHorizontal, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
@@ -68,8 +68,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const [isEditing, setIsEditing] = useState(false);
     const [editType, setEditType] = useState<'customer' | 'supplier'>(mode === 'customers' ? 'customer' : 'supplier');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
-    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
-    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
+    const vatLookup = useCustomerVatLookup<Customer>(setEditData);
+    const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;
 
     // Supplier Detail View
     const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
@@ -237,6 +237,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
                     return;
                 }
+                if (!(await vatLookup.confirmSave(editData.vat_number))) return;
                 const payload = { ...editData } as Customer;
                 if (payload.profile !== undefined) {
                     payload.profile = cleanCustomerProfile(payload.profile ?? {});
@@ -274,27 +275,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     };
 
     const handleAfmLookup = async () => {
-        const afm = editData.vat_number;
-        if (!afm || afm.length < 9) {
-            showToast("Μη έγκυρο ΑΦΜ.", "error");
-            return;
-        }
-        setIsSearchingAfm(true);
-        setVatLookupEvidence(null);
-        try {
-            const result = await lookupCustomerVat(afm);
-            if (result) {
-                setEditData((prev: Customer) => applyCustomerVatLookup(prev, result));
-                setVatLookupEvidence(result);
-                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
-            } else {
-                showToast("Δεν βρέθηκαν στοιχεία.", "info");
-            }
-        } catch (e: any) {
-            showToast(e.message || "Σφάλμα αναζήτησης.", "error");
-        } finally {
-            setIsSearchingAfm(false);
-        }
+        await vatLookup.lookup(editData.vat_number);
     };
 
 
@@ -531,6 +512,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                         </button>
                                     )}
                                 </div>
+                                <CustomerVatStatusAlert lookup={vatLookupEvidence} vatNumber={editData.vat_number} applied={vatLookup.applied} onApply={vatLookup.applyEvidence} />
                             </div>
                         )}
                         {editType === 'customer' && editData.customer_code && (

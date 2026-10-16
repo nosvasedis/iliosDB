@@ -22,6 +22,7 @@ import {
 import type { LatLng } from '../../features/customers/greekRegions';
 import { formatCurrency } from '../../utils/numberFormat';
 import { normalizedIncludes } from '../../utils/greekSearch';
+import { geocodeAddress, type GeocodeResult } from '../../features/customers/addressGeocoding';
 import { ActivityBadge, CustomerAvatar, locationText } from './customerUi';
 
 export interface CustomersMapProps {
@@ -167,6 +168,8 @@ export default function CustomersMap({
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markersRef = useRef(new Map<string, L.Marker>());
   const mapClickRef = useRef<((latlng: L.LatLng) => void) | null>(null);
+  /** The draggable pin while placing, so an address search can move it. */
+  const editMarkerRef = useRef<L.Marker | null>(null);
   const fitKeyRef = useRef<string | null>(null);
   const handledFocusRef = useRef<number | null>(null);
 
@@ -396,6 +399,7 @@ export default function CustomersMap({
       zIndexOffset: 2000,
       icon: pinIcon(point, { editing: true, selected: true }),
     }).addTo(map);
+    editMarkerRef.current = marker;
     marker.on('dragend', () => {
       const p = marker.getLatLng().wrap();
       setEditing(prev => (prev ? { ...prev, coords: [p.lat, p.lng] } : prev));
@@ -410,11 +414,23 @@ export default function CustomersMap({
     }
     return () => {
       mapClickRef.current = null;
+      editMarkerRef.current = null;
       marker.remove();
     };
     // The editing marker is created once per edit session; coords updates come from it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
+
+  /** Moves the placing pin to a searched address (the user still confirms with «Αποθήκευση θέσης»). */
+  const locateEditing = useCallback((coords: LatLng, precise: boolean) => {
+    const map = mapRef.current;
+    const marker = editMarkerRef.current;
+    if (!map || !marker) return;
+    marker.setLatLng(tuple(coords));
+    setEditing(prev => (prev ? { ...prev, coords } : prev));
+    setError(null);
+    map.setView(tuple(coords), precise ? 18 : 15, { animate: true });
+  }, []);
 
   const startEditing = (point: MapPoint) => {
     const map = mapRef.current;
@@ -479,13 +495,15 @@ export default function CustomersMap({
       onOpen={() => onOpenCustomer(selectedPoint.entry.customer)}
       onStartEditing={() => startEditing(selectedPoint)}
       onCancelEditing={() => { setEditing(null); setError(null); }}
+      onLocate={locateEditing}
       onSave={saveEditing}
       onReset={() => resetToAutomatic(selectedPoint)}
     />
   ) : null;
 
   return (
-    <div className={`cm-root flex min-h-0 gap-4 ${editing ? 'cm-placing' : ''} ${className}`}>
+    // `isolate`: keep the map's overlays (z-500+) and Leaflet panes below page modals.
+    <div className={`cm-root isolate flex min-h-0 gap-4 ${editing ? 'cm-placing' : ''} ${className}`}>
       <style>{MAP_CSS}</style>
 
       <div className={`relative min-h-0 flex-1 overflow-hidden bg-slate-100 ${compact ? 'rounded-2xl' : 'rounded-3xl border border-slate-200 shadow-sm'}`}>
@@ -550,7 +568,7 @@ export default function CustomersMap({
         {editing && (
           <div className="pointer-events-none absolute left-1/2 top-3 z-[600] -translate-x-1/2">
             <div className="flex items-center gap-2 rounded-full bg-[#060b00] px-4 py-2 text-xs font-bold text-white shadow-xl">
-              <Move size={14} /> Σύρετε την πινέζα ή κάντε κλικ στον χάρτη
+              <Move size={14} /> Γράψτε διεύθυνση, σύρετε την πινέζα ή κάντε κλικ στον χάρτη
             </div>
           </div>
         )}
@@ -574,8 +592,8 @@ export default function CustomersMap({
 
         {card && (
           <div className={compact
-            ? 'absolute inset-x-2 bottom-2 z-[700]'
-            : 'absolute left-3 top-3 z-[700] w-[340px] max-w-[calc(100%-1.5rem)]'}
+            ? 'custom-scrollbar absolute inset-x-2 bottom-2 z-[700] max-h-[75%] overflow-y-auto rounded-3xl'
+            : 'custom-scrollbar absolute left-3 top-3 z-[700] max-h-[calc(100%-1.5rem)] w-[340px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl'}
           >
             {card}
           </div>
@@ -666,10 +684,89 @@ interface SelectedCardProps {
   onCancelEditing: () => void;
   onSave: () => void;
   onReset: () => void;
+  onLocate: (coords: LatLng, precise: boolean) => void;
+}
+
+/** Address search while placing a pin: the first result is applied automatically. */
+function AddressLocator({ initialQuery, country, onLocate }: { initialQuery: string; country: string; onLocate: (coords: LatLng, precise: boolean) => void }) {
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<GeocodeResult[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle');
+  const [touched, setTouched] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const run = useCallback(async (text: string) => {
+    const q = text.trim();
+    if (q.length < 3) { setResults([]); setStatus('idle'); return; }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setStatus('loading');
+    try {
+      const found = await geocodeAddress(q, country, controller.signal);
+      if (controller.signal.aborted) return;
+      setResults(found);
+      setStatus(found.length ? 'idle' : 'empty');
+      if (found[0]) { setActiveId(found[0].id); onLocate(found[0].coords, found[0].precise); }
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return;
+      setStatus('error');
+    }
+  }, [country, onLocate]);
+
+  // Debounced search while typing (Nominatim allows ~1 request/second).
+  useEffect(() => {
+    if (!touched) return;
+    const id = window.setTimeout(() => run(query), 900);
+    return () => window.clearTimeout(id);
+  }, [query, touched, run]);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  return (
+    <div className="mx-4 mt-3 rounded-2xl bg-sky-50/70 p-2.5 ring-1 ring-sky-100">
+      <form onSubmit={e => { e.preventDefault(); setTouched(false); run(query); }} className="flex gap-1.5">
+        <div className="relative min-w-0 flex-1">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sky-500" />
+          <input
+            autoFocus
+            value={query}
+            onChange={e => { setQuery(e.target.value); setTouched(true); }}
+            placeholder="Διεύθυνση, π.χ. Ματογιάννη 12, Μύκονος"
+            className="w-full rounded-xl border border-sky-200 bg-white py-2 pl-8 pr-2 text-xs font-semibold text-slate-800 outline-none focus:border-sky-400"
+            aria-label="Αναζήτηση διεύθυνσης για την πινέζα"
+          />
+        </div>
+        <button type="submit" disabled={status === 'loading' || query.trim().length < 3}
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-sky-600 px-2.5 text-[11px] font-bold text-white hover:bg-sky-700 disabled:opacity-50">
+          {status === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <MapPin size={13} />} Εύρεση
+        </button>
+      </form>
+      {status === 'empty' && <p className="mt-1.5 text-[11px] font-semibold text-amber-700">Δεν βρέθηκε. Δοκιμάστε μόνο οδό και πόλη, ή σύρετε την πινέζα.</p>}
+      {status === 'error' && <p className="mt-1.5 text-[11px] font-semibold text-rose-700">Η αναζήτηση δεν είναι διαθέσιμη (σύνδεση;). Σύρετε την πινέζα χειροκίνητα.</p>}
+      {results.length > 0 && (
+        <ul className="mt-1.5 max-h-36 space-y-0.5 overflow-y-auto custom-scrollbar">
+          {results.map(r => (
+            <li key={r.id}>
+              <button type="button" onClick={() => { setActiveId(r.id); onLocate(r.coords, r.precise); }}
+                className={`flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition ${activeId === r.id ? 'bg-white shadow-sm ring-1 ring-sky-200' : 'hover:bg-white/70'}`}>
+                {activeId === r.id ? <Check size={12} className="mt-0.5 shrink-0 text-sky-600" /> : <MapPin size={12} className="mt-0.5 shrink-0 text-slate-400" />}
+                <span className="min-w-0">
+                  <span className="block truncate text-[11px] font-bold text-slate-800">{r.label}</span>
+                  <span className="block truncate text-[10px] text-slate-500">{r.detail}{r.precise ? '' : ' · κατά προσέγγιση'}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-1.5 text-[10px] text-slate-400">Η πινέζα μετακινείται αυτόματα· διορθώστε τη σύροντάς την και πατήστε «Αποθήκευση θέσης».</p>
+    </div>
+  );
 }
 
 function SelectedCustomerCard({
-  point, compact, editing, saving, error, canEditLocation, onClose, onOpen, onStartEditing, onCancelEditing, onSave, onReset,
+  point, compact, editing, saving, error, canEditLocation, onClose, onOpen, onStartEditing, onCancelEditing, onSave, onReset, onLocate,
 }: SelectedCardProps) {
   const { entry, place } = point;
   const { customer } = entry;
@@ -728,6 +825,15 @@ function SelectedCustomerCard({
         <div title="Χωρίς ΦΠΑ, από 1 Ιανουαρίου έως σήμερα"><div className="truncate px-1 text-sm font-black text-slate-800">{formatCurrency(entry.yearRevenue)}</div><div className="text-[9px] font-bold uppercase text-slate-400">Τζίρος φέτος</div></div>
         <div><div className="text-sm font-black text-slate-800">{formatDaysAgo(entry.daysSinceLastOrder)}</div><div className="text-[9px] font-bold uppercase text-slate-400">Τελευταία</div></div>
       </div>
+
+      {editing && (
+        <AddressLocator
+          key={point.id}
+          initialQuery={place.address ?? ''}
+          country={location.countryCode}
+          onLocate={onLocate}
+        />
+      )}
 
       {error && (
         <div className="mx-4 mt-3 flex items-start gap-2 rounded-xl bg-rose-50 p-2 text-[11px] font-semibold text-rose-700">

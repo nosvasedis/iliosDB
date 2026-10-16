@@ -67,7 +67,7 @@ export const GREEK_PERIFERIES: GreekPeriferia[] = [
   { id: 'ionia', label: 'Ιόνια Νησιά', short: 'Ιόνια' },
   { id: 'kyklades', label: 'Κυκλάδες', short: 'Κυκλάδες' },
   { id: 'dodekanisa', label: 'Δωδεκάνησα', short: 'Δωδεκάνησα' },
-  { id: 'voreio-aigaio', label: 'Λέσβος, Χίος, Σάμος & Λήμνος', short: 'Λέσβος-Χίος-Σάμος' },
+  { id: 'voreio-aigaio', label: 'Βόρειο Αιγαίο', short: 'Β. Αιγαίο' },
   { id: 'kriti', label: 'Κρήτη', short: 'Κρήτη' },
   { id: 'agion-oros', label: 'Άγιον Όρος', short: 'Άγιον Όρος' },
   { id: ABROAD_PERIFERIA_ID, label: 'Εξωτερικό', short: 'Εξωτερικό' },

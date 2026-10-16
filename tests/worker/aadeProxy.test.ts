@@ -137,6 +137,16 @@ describe('AADE Worker proxy', () => {
     expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toContain('application/soap+xml');
   });
 
+  it('does not read «ΑΝΕΝΕΡΓΟΣ ΑΦΜ» as active when the flag is missing', () => {
+    const result = parseAadeRegistryResponse(`
+      <rg_ws_public2_result_rtType>
+        <basic_rec><afm>090165560</afm><deactivation_flag_descr>ΑΝΕΝΕΡΓΟΣ ΑΦΜ</deactivation_flag_descr>
+          <stop_date>2024-03-12</stop_date></basic_rec>
+      </rg_ws_public2_result_rtType>`);
+    expect(result.active).toBe(false);
+    expect(result.stopDate).toBe('2024-03-12');
+  });
+
   it('enforces the registry historical-date limit of three years', () => {
     const now = new Date('2026-07-29T12:00:00.000Z');
     expect(validateAadeRegistryReferenceDate('2023-07-29', now)).toBe('2023-07-29');

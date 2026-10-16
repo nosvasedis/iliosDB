@@ -1,5 +1,6 @@
 import CustomerPhoneFields from './customers/CustomerPhoneFields';
-import type { CustomerVatLookupResult } from '../types';
+import CustomerVatStatusAlert from './customers/CustomerVatStatusAlert';
+import { useCustomerVatLookup } from './customers/useCustomerVatLookup';
 import CustomerVatProfileSuggestion from './customers/CustomerVatProfileSuggestion';
 import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
@@ -52,7 +53,6 @@ import {
     Sparkles,
 } from 'lucide-react';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
-import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
@@ -253,11 +253,11 @@ export default function CustomerDetailsModal({
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
-    const [isSearchingAfm, setIsSearchingAfm] = useState(false);
-    const [vatLookupEvidence, setVatLookupEvidence] = useState<CustomerVatLookupResult | null>(null);
     const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
     const [transferOrder, setTransferOrder] = useState<Order | null>(null);
     const { showToast } = useUI();
+    const vatLookup = useCustomerVatLookup(setEditForm);
+    const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;
     const { data: allShipments } = useAllShipments();
     const { data: allShipmentItems } = useAllShipmentItems();
     const { data: batches } = useProductionBatches();
@@ -508,6 +508,7 @@ export default function CustomerDetailsModal({
         };
         // Customers that never had a profile don't send an empty one.
         if (customer.profile === undefined && Object.keys(payload.profile ?? {}).length === 0) delete payload.profile;
+        if (!(await vatLookup.confirmSave(editForm.vat_number))) return;
         setIsSaving(true);
         try {
             await onUpdate(payload);
@@ -520,26 +521,7 @@ export default function CustomerDetailsModal({
     };
 
     const handleAfmLookup = async () => {
-        if (!editForm.vat_number || editForm.vat_number.length < 9) {
-            showToast('Μη έγκυρο ΑΦΜ.', 'error');
-            return;
-        }
-        setIsSearchingAfm(true);
-        setVatLookupEvidence(null);
-        try {
-            const result = await lookupCustomerVat(editForm.vat_number);
-            if (result) {
-                setEditForm(prev => applyCustomerVatLookup(prev, result));
-                setVatLookupEvidence(result);
-                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
-            } else {
-                showToast('Δεν βρέθηκαν στοιχεία.', 'info');
-            }
-        } catch (e: unknown) {
-            showToast((e as Error).message || 'Σφάλμα αναζήτησης.', 'error');
-        } finally {
-            setIsSearchingAfm(false);
-        }
+        await vatLookup.lookup(editForm.vat_number);
     };
 
     const copyOrderId = useCallback(
@@ -1193,6 +1175,7 @@ export default function CustomerDetailsModal({
                                     {isSearchingAfm ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} ΑΑΔΕ
                                 </button>
                             </div>
+                            <CustomerVatStatusAlert lookup={vatLookupEvidence} vatNumber={editForm.vat_number} applied={vatLookup.applied} onApply={vatLookup.applyEvidence} />
                         </FormField>
                     ) : (
                         <FormField label="VAT / Tax ID" hint="Π.χ. DE123456789 ή τοπικός φορολογικός αριθμός.">
