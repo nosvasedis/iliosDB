@@ -79,6 +79,14 @@ export function useCustomerServiceActions() {
       mutationFn: ({ consignmentId, reason }: { consignmentId: string; reason: string }) => customerServiceRepository.cancelConsignment(consignmentId, reason),
       onSuccess: () => refresh({ production: true }),
     }),
+    setConsignmentOffer: useMutation({
+      mutationFn: customerServiceRepository.setConsignmentOffer,
+      onSuccess: () => refresh(),
+    }),
+    deleteConsignment: useMutation({
+      mutationFn: customerServiceRepository.deleteConsignment,
+      onSuccess: () => refresh({ inventory: true, production: true }),
+    }),
     createRepairIntake: useMutation({
       mutationFn: (input: RepairIntakeInput) => customerServiceRepository.createRepairIntake(input),
       onSuccess: () => refresh({ production: true }),

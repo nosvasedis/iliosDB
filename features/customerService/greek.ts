@@ -107,6 +107,9 @@ export const REPAIR_QUALITY_STATUS_LABELS = {
 } as const;
 
 export const CONSIGNMENT_EVENT_LABELS: Record<string, string> = {
+  offer_set: 'Συμφωνία συνολικής προσφοράς',
+  offer_removed: 'Αφαίρεση συνολικής προσφοράς',
+  deleted: 'Διαγραφή Παρακαταθήκης',
   created: 'Δημιουργία',
   updated: 'Επεξεργασία',
   handed_off: 'Παράδοση στον πελάτη',

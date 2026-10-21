@@ -75,7 +75,7 @@ export const customerServiceRepository = {
       rows<RepairEvent>('repair_events'),
     ]);
     return {
-      consignments,
+      consignments: consignments.filter(entry => !entry.deleted_at),
       consignmentLines,
       consignmentAllocations,
       consignmentSettlements,
@@ -233,6 +233,26 @@ export const customerServiceRepository = {
       p_consignment_id: consignmentId,
       p_reason: reason,
       p_idempotency_key: operationKey(`consignment-cancel:${consignmentId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async setConsignmentOffer(input: { consignmentId: string; total: number | null; reason: string }) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('set_consignment_offer_v1', {
+      p_consignment_id: input.consignmentId, p_total: input.total, p_reason: input.reason,
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async deleteConsignment(input: { consignmentId: string; reason: string; returnToStock: boolean }) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('delete_consignment_v1', {
+      p_consignment_id: input.consignmentId, p_reason: input.reason,
+      p_return_to_stock: input.returnToStock,
+      p_idempotency_key: operationKey(`consignment-delete:${input.consignmentId}`),
     });
     if (error) throw new Error(customerServiceErrorMessage(error));
     return data;

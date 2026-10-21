@@ -49,11 +49,12 @@ export default function ConsignmentCard({ ctl, bundle, onOpen }: { ctl: ServiceC
       </div>
 
       <div className="mt-2.5 flex items-center gap-1.5">
-        {shown.map((line) => <ConsignmentSkuThumb key={line.id} product={ctl.productBySku.get(line.product_sku)} sku={line.product_sku} quantity={isOpen ? line.pending_quantity : line.quantity} />)}
+        {shown.map((line) => <ConsignmentSkuThumb key={line.id} product={ctl.productBySku.get(line.product_sku)} sku={line.product_sku} quantity={notHandedOff ? line.quantity : line.pending_quantity} returnedQuantity={line.returned_quantity} />)}
         {lines.length > shown.length && <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-[11px] font-bold text-slate-400">+{lines.length - shown.length}</div>}
       </div>
 
       <div className="mt-2.5 space-y-0.5 text-xs">
+        {entry.offer_total != null && <div className="font-bold text-indigo-700">Προσφορά {formatGreekMoney(Number(entry.offer_total))}</div>}
         <div className="text-slate-600">
           {notHandedOff
             ? <>{formatGreekNumber(totalPieces)} τεμ. προς παράδοση</>

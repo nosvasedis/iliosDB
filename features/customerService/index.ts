@@ -7,3 +7,4 @@ export * from './bulkConsignmentDraft';
 export * from './pendingConsignmentEdit';
 export * from './repairProductionPresentation';
 export * from './serviceBoard';
+export * from './consignmentPricing';

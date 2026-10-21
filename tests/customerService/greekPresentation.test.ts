@@ -55,6 +55,8 @@ const guardedFiles = [
   'components/customerService/consignments/ConsignmentDrawer.tsx',
   'components/customerService/consignments/QuickConsignmentForm.tsx',
   'components/customerService/consignments/SettleConsignmentModal.tsx',
+  'components/customerService/consignments/ConsignmentOfferDialog.tsx',
+  'components/customerService/consignments/DeleteConsignmentDialog.tsx',
   'components/customerService/repairs/RepairsPage.tsx',
   'components/customerService/repairs/RepairCard.tsx',
   'components/customerService/repairs/RepairDrawer.tsx',

@@ -7,6 +7,14 @@ import {
 } from '../../lib/migrationExport';
 
 describe('canonical migration export', () => {
+    it('retains consignment offers and deletion markers in migration exports', () => {
+        const migration = buildCanonicalMigration({
+            consignments: [{ id: 'c', offer_total: 300, offer_reason: 'Συμφωνία', deleted_at: '2026-10-21', deletion_reason: 'Διόρθωση' }],
+            consignment_lines: [{ id: 'l', consignment_id: 'c', offer_line_total: 300 }],
+        });
+        expect(migration.entities.consignments[0]).toMatchObject({ offer_total: 300, offer_reason: 'Συμφωνία', deleted_at: '2026-10-21', deletion_reason: 'Διόρθωση' });
+        expect(migration.entities.consignment_lines[0].offer_line_total).toBe(300);
+    });
     it('normalizes nested order and BOM rows into child entities', () => {
         const migration = buildCanonicalMigration({
             customers: [{ id: 'c1', full_name: 'Δοκιμή' }],

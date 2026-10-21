@@ -708,6 +708,10 @@ export interface Consignment {
   source_warehouse_id: string;
   status: ConsignmentStatus;
   financial_status: FinancialStatus;
+  offer_total?: number | null;
+  offer_reason?: string | null;
+  deleted_at?: string | null;
+  deletion_reason?: string | null;
   review_due_at: string;
   handed_off_at?: string | null;
   completed_at?: string | null;
@@ -732,6 +736,10 @@ export interface ConsignmentLine {
   pending_quantity: number;
   locked_unit_cost: number;
   locked_unit_price: number;
+  /** Allocated share of the whole-consignment offer; original unit price is retained. */
+  offer_line_total?: number | null;
+  /** Pieces covered when the offer was agreed (excludes earlier returns). */
+  offer_quantity?: number | null;
   price_override_reason?: string | null;
   created_at: string;
   updated_at: string;

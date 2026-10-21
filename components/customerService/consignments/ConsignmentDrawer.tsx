@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Banknote, FilePlus2, Pencil, RotateCcw, Tag, Undo2, X } from 'lucide-react';
+import { Banknote, FilePlus2, Pencil, RotateCcw, Tag, Trash2, Undo2, X } from 'lucide-react';
 import {
   CONSIGNMENT_EVENT_LABELS,
   CONSIGNMENT_RETURN_STATUS_LABELS,
   CONSIGNMENT_STATUS_LABELS,
   SETTLEMENT_STATUS_LABELS,
   canEditPendingConsignment,
+  consignmentUnitPrice,
   formatGreekDateOnly,
   formatGreekDateTime,
   formatGreekMoney,
@@ -76,7 +77,9 @@ export default function ConsignmentDrawer({ ctl, bundle, onClose, onEdit }: { ct
         <ActionMenu actions={[
           { key: 'edit', label: 'Επεξεργασία', icon: <Pencil size={14} />, onSelect: onEdit, hidden: !canEditPendingConsignment(entry.status, entry.handed_off_at) },
           { key: 'settle', label: 'Απολογισμός', icon: <Banknote size={14} />, onSelect: () => ctl.setOperation({ kind: 'settle', entry }), hidden: !isOpen || summary.pending === 0 || action === 'settle' },
+          { key: 'offer', label: 'Συνολική προσφορά / ειδική τιμή', icon: <Tag size={14} />, onSelect: () => ctl.setOperation({ kind: 'offer', entry }), hidden: ['cancelled', 'completed'].includes(entry.status) },
           { key: 'cancel', label: 'Ακύρωση Παρακαταθήκης', icon: <X size={14} />, danger: true, onSelect: () => ctl.setOperation({ kind: 'cancel-consignment', entry }), hidden: !(ctl.isAdmin && entry.status === 'pending_handoff') },
+          { key: 'delete', label: 'Διαγραφή Παρακαταθήκης', icon: <Trash2 size={14} />, danger: true, onSelect: () => ctl.setOperation({ kind: 'delete-consignment', entry }), hidden: !ctl.isAdmin },
         ]} />
       )}
       onClose={onClose}
@@ -92,6 +95,11 @@ export default function ConsignmentDrawer({ ctl, bundle, onClose, onEdit }: { ct
         ...(ctl.canSeeCost ? [{ label: 'Κόστος', value: formatGreekMoney(summary.cost), tone: 'muted' as const }] : []),
         { label: 'Οφειλή', value: formatGreekMoney(summary.due), tone: summary.due > 0 ? 'alert' as const : 'muted' as const },
       ]} />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+        {entry.offer_total != null ? <span>Συνολική προσφορά: <strong>{formatGreekMoney(Number(entry.offer_total))}</strong><span className="ml-2 text-xs text-indigo-600 line-through">{formatGreekMoney(lines.reduce((sum, l) => sum + Number(l.offer_quantity ?? l.quantity) * Number(l.locked_unit_price), 0))}</span></span> : <span>Συμφωνημένη ειδική τιμή για τα εκκρεμή τεμάχια</span>}
+        {!['cancelled', 'completed'].includes(entry.status) && <button type="button" className={ROW_BUTTON} onClick={() => ctl.setOperation({ kind: 'offer', entry })}><Tag size={13} /> {entry.offer_total != null ? 'Προσφορά' : 'Ορισμός προσφοράς'}</button>}
+      </div>
+      {entry.offer_reason && <p className="px-1 text-xs text-indigo-700">{entry.offer_reason}</p>}
       {entry.notes && <p className="px-1 text-xs text-slate-500">{entry.notes}</p>}
 
       <DrawerSection title={`Τεμάχια · ${formatGreekNumber(lines.length)}`}>
@@ -99,28 +107,30 @@ export default function ConsignmentDrawer({ ctl, bundle, onClose, onEdit }: { ct
           {lines.map((line) => {
             const product = ctl.productBySku.get(line.product_sku);
             const details = [
-              `${formatGreekMoney(Number(line.locked_unit_price))}/τεμ.`,
+              `${formatGreekMoney(consignmentUnitPrice(line))}/τεμ.${line.offer_line_total != null ? ' (προσφορά)' : ''}`,
+              line.offer_line_total != null ? `σύνολο ${formatGreekMoney(Number(line.offer_line_total))}` : null,
               line.size_info ? `μέγ. ${line.size_info}` : null,
               line.sold_quantity > 0 ? `πουλήθηκαν ${formatGreekNumber(line.sold_quantity)}` : null,
               line.returned_quantity > 0 ? `επιστράφηκαν ${formatGreekNumber(line.returned_quantity)}` : null,
             ].filter(Boolean);
             return (
-              <li key={line.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 py-2.5">
-                <ConsignmentSkuThumb product={product} sku={line.product_sku} />
+              <li key={line.id} className={`grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 py-2.5 ${line.pending_quantity === 0 && line.returned_quantity > 0 ? 'rounded-lg bg-rose-50/50' : ''}`}>
+                <ConsignmentSkuThumb product={product} sku={line.product_sku} quantity={entry.handed_off_at ? line.pending_quantity : line.quantity} returnedQuantity={line.returned_quantity} />
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-bold"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={product?.gender} /></div>
+                  <div className={`truncate text-sm font-bold ${line.pending_quantity === 0 && line.returned_quantity > 0 ? 'opacity-50' : ''}`}><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={product?.gender} /></div>
                   <div className="truncate text-[11px] text-slate-500">{details.join(' · ')}</div>
+                  {line.returned_quantity > 0 && <span className="mt-1 inline-flex rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">{line.pending_quantity === 0 ? 'Επιστράφηκε' : 'Μερική επιστροφή'} · {formatGreekNumber(line.returned_quantity)} τεμ.</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-14 text-right">
-                    <div className="text-sm font-black tabular-nums text-slate-900">{formatGreekNumber(isOpen ? line.pending_quantity : line.quantity)}</div>
-                    <div className="text-[10px] text-slate-400">{isOpen ? 'στον πελάτη' : 'τεμ.'}</div>
+                    <div className={`text-sm font-black tabular-nums ${line.pending_quantity === 0 && line.returned_quantity > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{formatGreekNumber(entry.handed_off_at ? line.pending_quantity : line.quantity)}</div>
+                    <div className="text-[10px] text-slate-400">{entry.handed_off_at ? 'στον πελάτη' : 'τεμ.'}</div>
                   </div>
                   {isOpen ? (
                     <ActionMenu label={`Ενέργειες για ${line.product_sku}`} actions={[
                       { key: 'sale', label: 'Πώληση', icon: <Banknote size={14} />, onSelect: () => ctl.setOperation({ kind: 'sale', line }), hidden: line.pending_quantity === 0 },
                       { key: 'return', label: 'Επιστροφή', icon: <Undo2 size={14} />, onSelect: () => ctl.setOperation({ kind: 'return', line }), hidden: line.pending_quantity === 0 },
-                      { key: 'price', label: 'Αλλαγή τιμής', icon: <Tag size={14} />, onSelect: () => ctl.setOperation({ kind: 'price', line }), hidden: !ctl.isAdmin },
+                      { key: 'price', label: 'Αλλαγή τιμής', icon: <Tag size={14} />, onSelect: () => ctl.setOperation({ kind: 'price', line }), hidden: !ctl.isAdmin || entry.offer_total != null },
                     ]} />
                   ) : <span className="w-9" />}
                 </div>

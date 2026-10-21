@@ -6,6 +6,7 @@ import type {
   RepairCharge,
   RepairItem,
 } from '../../types';
+import { consignmentSaleTotal } from './consignmentPricing';
 
 // ──────────────────────────────────────────────
 //  Παρακαταθήκες
@@ -52,7 +53,7 @@ export function summarizeConsignment(
   const open = ['active', 'partially_settled'].includes(entry.status);
   return {
     pending,
-    value: lines.reduce((sum, line) => sum + Number(line.pending_quantity || 0) * Number(line.locked_unit_price || 0), 0),
+    value: lines.reduce((sum, line) => sum + consignmentSaleTotal(line, Number(line.pending_quantity || 0), settlements), 0),
     cost: lines.reduce((sum, line) => sum + Number(line.pending_quantity || 0) * Number(line.locked_unit_cost || 0), 0),
     due: live.reduce((sum, item) => sum + Math.max(0, Number(item.total_amount || 0) - Number(item.paid_amount || 0)), 0),
     openReturns: returns.filter((item) => item.status === 'inspection').length,

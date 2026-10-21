@@ -72,7 +72,7 @@ import { getCustomerAssortment, overlapsForCustomer, SEVERITY_META } from '../fe
 import { cleanCustomerProfile, collectCustomerTags, readCustomerProfile, savedSocials } from '../features/customers/customerProfile';
 import { useCustomers } from '../hooks/api/useOrders';
 import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
-import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, findLiveRepairBatch, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
+import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, consignmentSaleTotal, findLiveRepairBatch, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
 import ConsignmentBadge from './customerService/ConsignmentBadge';
 import RepairBadge from './customerService/RepairBadge';
 import RepairStageBadge from './customerService/RepairStageBadge';
@@ -1044,7 +1044,7 @@ export default function CustomerDetailsModal({
                 ) : customerConsignments.map(entry => {
                     const lines = (customerServiceData?.consignmentLines || []).filter(line => line.consignment_id === entry.id);
                     const pending = lines.reduce((sum, line) => sum + line.pending_quantity, 0);
-                    const value = lines.reduce((sum, line) => sum + line.pending_quantity * Number(line.locked_unit_price), 0);
+                    const value = lines.reduce((sum, line) => sum + consignmentSaleTotal(line, line.pending_quantity, customerServiceData?.consignmentSettlements), 0);
                     return (
                         <div key={entry.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>

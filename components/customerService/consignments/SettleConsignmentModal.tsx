@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import type { Consignment } from '../../../types';
-import { buildSettlementSteps, formatGreekMoney, formatGreekNumber } from '../../../features/customerService';
+import { buildSettlementSteps, consignmentSaleTotal, consignmentUnitPrice, formatGreekMoney, formatGreekNumber } from '../../../features/customerService';
 import SkuColorizedText from '../../SkuColorizedText';
 import ConsignmentSkuThumb from '../ConsignmentSkuThumb';
 import type { ServiceController } from '../useServiceController';
@@ -40,7 +40,7 @@ export default function SettleConsignmentModal({ ctl, entry }: { ctl: ServiceCon
     unitPrice: Number(line.locked_unit_price),
   }))), [counts, lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const soldValue = lines.reduce((sum, line) => sum + get(line.id).sold * Number(line.locked_unit_price), 0);
+  const soldValue = lines.reduce((sum, line) => sum + consignmentSaleTotal(line, get(line.id).sold, bundle?.settlements), 0);
   const soldPieces = lines.reduce((sum, line) => sum + get(line.id).sold, 0);
   const returnedPieces = lines.reduce((sum, line) => sum + get(line.id).returned, 0);
   const remaining = lines.reduce((sum, line) => sum + line.pending_quantity, 0) - soldPieces - returnedPieces;
@@ -94,7 +94,7 @@ export default function SettleConsignmentModal({ ctl, entry }: { ctl: ServiceCon
                     <ConsignmentSkuThumb product={ctl.productBySku.get(line.product_sku)} sku={line.product_sku} quantity={line.pending_quantity} />
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={ctl.productBySku.get(line.product_sku)?.gender} /></div>
-                      <div className="text-[11px] text-slate-500">{formatGreekNumber(line.pending_quantity)} στον πελάτη · {formatGreekMoney(Number(line.locked_unit_price))}/τεμ.{line.size_info ? ` · ${line.size_info}` : ''}</div>
+                      <div className="text-[11px] text-slate-500">{formatGreekNumber(line.pending_quantity)} στον πελάτη · {formatGreekMoney(consignmentUnitPrice(line))}/τεμ.{line.offer_line_total != null ? ' (προσφορά)' : ''}{line.size_info ? ` · ${line.size_info}` : ''}</div>
                     </div>
                   </div>
                   <MiniStepper tone="emerald" value={value.sold} max={line.pending_quantity - value.returned} onChange={(sold) => set(line.id, { sold })} />

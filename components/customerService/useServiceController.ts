@@ -43,6 +43,8 @@ export type ServiceOperation =
   | { kind: 'reverse-sale'; settlement: ConsignmentSettlement }
   | { kind: 'reverse-return'; item: ConsignmentReturn }
   | { kind: 'cancel-consignment'; entry: Consignment }
+  | { kind: 'delete-consignment'; entry: Consignment }
+  | { kind: 'offer'; entry: Consignment }
   | { kind: 'settle'; entry: Consignment }
   | { kind: 'quality'; item: RepairItem; passed: boolean }
   | { kind: 'cost'; item: RepairItem }

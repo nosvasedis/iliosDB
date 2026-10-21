@@ -16,9 +16,11 @@ import { SYSTEM_IDS } from '../../../lib/supabase';
 import { PRODUCTION_STAGES } from '../../../utils/productionStages';
 import { getCatalogSelectionPricing } from '../../../utils/skuProductPicker';
 import SkuProductPicker from '../../legal/SkuProductPicker';
-import { REPAIR_COST_TYPE_LABELS, formatGreekMoney, repairOutstanding } from '../../../features/customerService';
+import { REPAIR_COST_TYPE_LABELS, consignmentSaleTotal, formatGreekMoney, repairOutstanding } from '../../../features/customerService';
 import type { ServiceController, ServiceOperation } from '../useServiceController';
 import SettleConsignmentModal from '../consignments/SettleConsignmentModal';
+import ConsignmentOfferDialog from '../consignments/ConsignmentOfferDialog';
+import DeleteConsignmentDialog from '../consignments/DeleteConsignmentDialog';
 import { ACTION_PRIMARY, ACTION_QUIET, ChoicePills, DANGER_BUTTON, Field, SERVICE_INPUT, ServiceModal } from './serviceUi';
 
 const PAYMENT_METHODS = ['Μετρητά', 'Κάρτα', 'Τράπεζα', 'Άλλο'] as const;
@@ -56,6 +58,8 @@ function QuantityStepper({ value, max, onChange }: { value: number; max?: number
 export default function OperationDialog({ ctl }: { ctl: ServiceController }) {
   const operation = ctl.operation;
   if (!operation) return null;
+  if (operation.kind === 'offer') return <ConsignmentOfferDialog key={operation.entry.id} ctl={ctl} entry={operation.entry} />;
+  if (operation.kind === 'delete-consignment') return <DeleteConsignmentDialog key={operation.entry.id} ctl={ctl} entry={operation.entry} />;
   if (operation.kind === 'settle') return <SettleConsignmentModal ctl={ctl} entry={operation.entry} />;
   const targetId = 'line' in operation ? operation.line.id
     : 'settlement' in operation ? operation.settlement.id
@@ -64,7 +68,7 @@ export default function OperationDialog({ ctl }: { ctl: ServiceController }) {
   return <SingleOperation key={`${operation.kind}:${targetId}`} ctl={ctl} operation={operation} />;
 }
 
-function SingleOperation({ ctl, operation }: { ctl: ServiceController; operation: Exclude<ServiceOperation, { kind: 'settle' }> }) {
+function SingleOperation({ ctl, operation }: { ctl: ServiceController; operation: Exclude<ServiceOperation, { kind: 'settle' | 'offer' | 'delete-consignment' }> }) {
   const close = () => ctl.setOperation(null);
   const [busy, setBusy] = useState(false);
   const run = async (task: () => Promise<boolean | void>) => {
@@ -124,6 +128,8 @@ function SaleDialog({ ctl, operation, busy, close, run }: DialogBase & { ctl: Se
   const [price, setPrice] = useState(locked);
   const [reason, setReason] = useState('');
   const changed = money(price) !== money(locked);
+  const offered = operation.line.offer_line_total != null;
+  const total = offered ? consignmentSaleTotal(operation.line, quantity, ctl.data?.consignmentSettlements) : quantity * price;
   return (
     <ServiceModal
       title="Πώληση από Παρακαταθήκη"
@@ -132,13 +138,13 @@ function SaleDialog({ ctl, operation, busy, close, run }: DialogBase & { ctl: Se
       onClose={close}
       busy={busy}
       size="sm"
-      footer={<Footer busy={busy} onCancel={close} label={`Καταχώριση ${formatGreekMoney(quantity * price)}`} disabled={changed && !reason.trim()} onSubmit={() => run(() => ctl.safeAction(() => ctl.actions.recordConsignmentSale.mutateAsync({ lineId: operation.line.id, quantity, unitPrice: price, reason: changed ? reason : null }), 'Η πώληση καταχωρίστηκε· δημιουργήθηκε οφειλή.'))} />}
+      footer={<Footer busy={busy} onCancel={close} label={`Καταχώριση ${formatGreekMoney(total)}`} disabled={!Number.isFinite(price) || price < 0 || (changed && !reason.trim())} onSubmit={() => run(() => ctl.safeAction(() => ctl.actions.recordConsignmentSale.mutateAsync({ lineId: operation.line.id, quantity, unitPrice: price, reason: changed ? reason : null }), 'Η πώληση καταχωρίστηκε.'))} />}
     >
       <div className="space-y-4">
         <Field label="Πόσα πουλήθηκαν;"><QuantityStepper value={quantity} max={operation.line.pending_quantity} onChange={setQuantity} /></Field>
-        <Field label="Τιμή ανά τεμάχιο" hint={`Συμφωνημένη: ${formatGreekMoney(locked)}`}>
+        {offered ? <p className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">Με τη συνολική προσφορά: <strong>{formatGreekMoney(total)}</strong> για {quantity} τεμ.</p> : <Field label="Τιμή ανά τεμάχιο" hint={`Συμφωνημένη: ${formatGreekMoney(locked)}`}>
           <input type="number" min={0} step="0.01" className={SERVICE_INPUT} value={price} onChange={(event) => setPrice(Number(event.target.value))} />
-        </Field>
+        </Field>}
         {changed && <Field label="Γιατί αλλάζει η τιμή; *"><input className={SERVICE_INPUT} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="π.χ. έκπτωση πελάτη" autoFocus /></Field>}
       </div>
     </ServiceModal>

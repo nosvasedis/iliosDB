@@ -70,6 +70,7 @@ const WORKFLOW_OPERATION_LABELS: Record<string, string> = {
   consignment_return: 'Επιστροφή από Παρακαταθήκη',
   consignment_return_reversal: 'Αναίρεση επιστροφής Παρακαταθήκης',
   consignment_restock: 'Επανένταξη επιστροφής στο απόθεμα',
+  consignment_delete: 'Επαναφορά αποθέματος λόγω διαγραφής Παρακαταθήκης',
   consignment_damage: 'Ακατάλληλη επιστροφή Παρακαταθήκης',
   repair_consumption: 'Ανάλωση υλικού επισκευής',
 };
