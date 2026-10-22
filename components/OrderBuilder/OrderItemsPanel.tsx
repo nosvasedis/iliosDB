@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check, History, ChevronDown } from 'lucide-react';
@@ -256,7 +257,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                     <span className="inline align-baseline">
                                                         <span className="text-slate-800">{item.sku}</span>
                                                         {finishCode ? <span className={finishClass}>{finishCode}</span> : null}
-                                                        {stoneCode ? <span className={stoneClass}>{stoneCode}</span> : null}
+                                                        {stoneCode ? <span className={stoneClass}><StoneCodeText code={stoneCode} /></span> : null}
                                                     </span>
                                                 );
                                             })()

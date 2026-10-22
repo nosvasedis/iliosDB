@@ -1,7 +1,7 @@
 import React from 'react';
 import { Gender } from '../types';
 import { getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
-import { getSkuFinishTextColor, getSkuStoneTextColor } from '../utils/skuColoring';
+import { getSkuFinishTextColor, getSkuStoneTextColor, getSkuStoneLetterStyle } from '../utils/skuColoring';
 
 interface Props {
     sku: string;
@@ -52,7 +52,11 @@ export default function SkuColorizedText({
                     }
 
                     return (
-                        <span key={`${variantSuffix}-${index}`} className={colorClass}>
+                        <span
+                            key={`${variantSuffix}-${index}`}
+                            className={colorClass}
+                            style={getSkuStoneLetterStyle(stone.code, index - (variantSuffix.length - stone.code.length))}
+                        >
                             {char}
                         </span>
                     );

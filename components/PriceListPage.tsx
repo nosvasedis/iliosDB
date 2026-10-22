@@ -1,3 +1,4 @@
+import StoneCodeText from './StoneCodeText';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -1033,7 +1034,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                                                                 key={partIdx}
                                                                                                 className={`font-bold px-1 rounded text-[10px] whitespace-nowrap ${part.style}`}
                                                                                             >
-                                                                                                {part.code}
+                                                                                                {part.type === 'stone' ? <StoneCodeText code={part.code} /> : part.code}
                                                                                             </span>
                                                                                         ))}
                                                                                     </span>

@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
@@ -109,7 +110,7 @@ function BatchCard({ b, idx }: { b: ShipmentGroup['not_ready_batches'][number]; 
         <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border ${containerClass}`}>
           <span className="font-black text-sm leading-none text-slate-800">{b.sku}</span>
           {finish.code && <span className={`font-black text-sm leading-none ${finishTextClass}`}>{finish.code}</span>}
-          {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}>{stone.code}</span>}
+          {stone.code && <span className={`font-black text-sm leading-none ${stoneTextClass}`}><StoneCodeText code={stone.code} /></span>}
         </div>
         {b.size_info && <span className="text-[10px] font-bold text-slate-500 mt-0.5 block">({b.size_info})</span>}
         <div className={`mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${stageColors.bg} ${stageColors.text} ${stageColors.border} text-xs font-bold`}>

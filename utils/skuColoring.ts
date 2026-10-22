@@ -92,3 +92,13 @@ export const getSkuFinishCardTheme = (finishCode: string): SkuFinishCardTheme =>
 
 export const getSkuStoneTextColor = (stoneCode: string): string =>
     SKU_STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500';
+
+// Inline colors also work in print views that do not load Tailwind styles.
+const MULTICOLOR_STONE_LETTER_STYLES = [
+    { color: '#dc2626' }, // M: red
+    { color: '#16a34a' }, // U: green
+    { color: '#2563eb' }, // L: blue
+] as const;
+
+export const getSkuStoneLetterStyle = (stoneCode: string, letterIndex: number) =>
+    stoneCode === 'MUL' ? MULTICOLOR_STONE_LETTER_STYLES[letterIndex] : undefined;

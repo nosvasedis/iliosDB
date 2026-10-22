@@ -1,3 +1,4 @@
+import StoneCodeText from './StoneCodeText';
 import { formatNumber } from '../utils/numberFormat';
 import React from 'react';
 import { getSpecialCreationDisplayNote } from '../utils/specialCreationSku';
@@ -54,7 +55,7 @@ const SkuColoredPrint: React.FC<{ sku: string; suffix?: string; gender?: Gender 
         <span style={{ fontWeight: 900, fontSize: '13px', letterSpacing: '-0.01em' }}>
             <span style={{ color: '#1e293b' }}>{sku}</span>
             <span style={{ color: fColor }}>{finish.code}</span>
-            <span style={{ color: sColor }}>{stone.code}</span>
+            <span style={{ color: sColor }}><StoneCodeText code={stone.code} /></span>
         </span>
     );
 };

@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Gender } from '../../types';
@@ -24,7 +25,7 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
             <span>{finishLabel}</span>
-            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stone.code}</span></>)}
+            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}><StoneCodeText code={stone.code} /></span></>)}
         </div>
     );
 };

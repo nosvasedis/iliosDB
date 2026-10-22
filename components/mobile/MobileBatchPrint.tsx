@@ -1,3 +1,5 @@
+import { getSkuStoneLetterStyle } from '../../utils/skuColoring';
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus, ScanBarcode } from 'lucide-react';
@@ -337,7 +339,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                 let colorClass = 'text-slate-400';
                 if (finish.code && i < finish.code.length) colorClass = fColor;
                 else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
-                return <span key={i} className={colorClass}>{char}</span>
+                return <span key={i} className={colorClass} style={getSkuStoneLetterStyle(stone.code, i - (suffixStr.length - stone.code.length))}>{char}</span>
             });
         };
 
@@ -649,7 +651,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 >
                                     <span className="text-lg font-black flex items-center gap-0.5">
                                         {finish.code}
-                                        {stone.code && <span className={stoneColorClass}>{stone.code}</span>}
+                                        {stone.code && <span className={stoneColorClass}><StoneCodeText code={stone.code} /></span>}
                                         {!finish.code && !stone.code && (v.suffix || 'BAS')}
                                     </span>
                                     <span className="text-[10px] uppercase font-bold opacity-80 truncate w-full text-center">{v.description || 'Var'}</span>

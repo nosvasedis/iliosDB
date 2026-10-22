@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Gem, Info, Plus, Wand2 } from 'lucide-react';
@@ -292,7 +293,7 @@ export default function SmartVariantAddPanel({
                 >
                   <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`} />
                   {stone.name}
-                  <span className="opacity-50 text-[10px] font-mono">{stone.code}</span>
+                  <span className="opacity-50 text-[10px] font-mono"><StoneCodeText code={stone.code} /></span>
                 </button>
               );
             })}

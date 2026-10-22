@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -699,7 +700,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                 </div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-1 text-xs font-bold text-slate-500">
                                                     <span>{display.description}</span>
-                                                    {display.stoneCode && <span className={`font-black ${display.stoneColor}`}>{display.stoneCode}</span>}
+                                                    {display.stoneCode && <span className={`font-black ${display.stoneColor}`}><StoneCodeText code={display.stoneCode} /></span>}
                                                 </div>
                                                 {item.customer_reference && (
                                                     <div className="mt-1 text-[11px] font-bold text-slate-600">

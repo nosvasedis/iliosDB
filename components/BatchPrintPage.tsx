@@ -1,3 +1,5 @@
+import { getSkuStoneLetterStyle } from '../utils/skuColoring';
+import StoneCodeText from './StoneCodeText';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
@@ -463,7 +465,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 let colorClass = 'text-slate-400';
                 if (finish.code && i < finish.code.length) colorClass = fColor;
                 else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
-                return <span key={i} className={colorClass}>{char}</span>
+                return <span key={i} className={colorClass} style={getSkuStoneLetterStyle(stone.code, i - (suffixStr.length - stone.code.length))}>{char}</span>
             });
         };
 
@@ -795,7 +797,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                     title={s.desc}
                                                 >
                                                     <span className={fColor}>{finish.code || 'LUSTRE'}</span>
-                                                    {stone.code && <span className={sColor}>{stone.code}</span>}
+                                                    {stone.code && <span className={sColor}><StoneCodeText code={stone.code} /></span>}
                                                     <span className="ml-1.5 text-[9px] text-slate-300 font-normal group-hover:text-emerald-400 normal-case">{s.desc}</span>
                                                 </button>
                                             );

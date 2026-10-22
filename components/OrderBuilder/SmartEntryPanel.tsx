@@ -1,3 +1,5 @@
+import { getSkuStoneLetterStyle } from '../../utils/skuColoring';
+import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -38,7 +40,7 @@ function SuffixHighlightPreview({ suffix, gender }: { suffix: string; gender?: P
                 if (finish.code && i < finish.code.length) colorClass = fColor;
                 else if (stone.code && i >= suffix.length - stone.code.length) colorClass = sColor;
                 return (
-                    <span key={i} className={colorClass}>
+                    <span key={i} className={colorClass} style={getSkuStoneLetterStyle(stone.code, i - (suffix.length - stone.code.length))}>
                         {char}
                     </span>
                 );
@@ -192,7 +194,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                 if (finish.code && i < finish.code.length) colorClass = fColor;
                 else if (stone.code && i >= suffixStr.length - stone.code.length) colorClass = sColor;
                 return (
-                    <span key={i} className={colorClass}>
+                    <span key={i} className={colorClass} style={getSkuStoneLetterStyle(stone.code, i - (suffixStr.length - stone.code.length))}>
                         {char}
                     </span>
                 );
@@ -585,7 +587,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                         <span className={FINISH_COLORS[finishCode] || 'text-slate-400'}>{finishCode}</span>
                                                     ) : null}
                                                     {stoneCode ? (
-                                                        <span className={STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500'}>{stoneCode}</span>
+                                                        <span className={STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500'}><StoneCodeText code={stoneCode} /></span>
                                                     ) : null}
                                                     {label ? <span className="text-slate-500 tabular-nums">{label}</span> : null}
                                                 </span>

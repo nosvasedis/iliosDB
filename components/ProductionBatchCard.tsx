@@ -1,3 +1,4 @@
+import StoneCodeText from './StoneCodeText';
 import { CustomerNameLabel } from './orders/OrderCustomerName';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -450,7 +451,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border mb-1 ${isSpecialCreation ? 'bg-violet-50/90 border-violet-200' : skuContainerClass}`}>
                         <span className={`font-black text-sm leading-none ${isSpecialCreation ? 'text-violet-900' : 'text-slate-800'}`}>{batch.sku}</span>
                         <span className={`font-black text-sm leading-none ${TEXT_FINISH_COLORS[finish.code] ?? 'text-slate-400'}`}>{finish.code}</span>
-                        <span className={`font-black text-sm leading-none ${TEXT_STONE_COLORS[stone.code] ?? 'text-emerald-500'}`}>{stone.code}</span>
+                        <span className={`font-black text-sm leading-none ${TEXT_STONE_COLORS[stone.code] ?? 'text-emerald-500'}`}><StoneCodeText code={stone.code} /></span>
                         <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block text-slate-400">| {finishConfig.label}</span>
                     </div>
 

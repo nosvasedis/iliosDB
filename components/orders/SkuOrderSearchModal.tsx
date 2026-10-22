@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import OrderCustomerName from './OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -199,7 +200,7 @@ function SuffixBadges({ match }: { match: SkuOrderSearchMatchedItem }) {
       {match.stoneCode ? (
         <span className="inline-flex items-center gap-1 rounded-lg border border-cyan-100 bg-cyan-50 px-2 py-0.5 text-[10px] font-black text-cyan-900">
           <Gem size={10} />
-          <span className={getSkuStoneTextColor(match.stoneCode)}>{match.stoneCode}</span>
+          <span className={getSkuStoneTextColor(match.stoneCode)}><StoneCodeText code={match.stoneCode} /></span>
           <span className="font-bold">{match.stoneName}</span>
         </span>
       ) : (

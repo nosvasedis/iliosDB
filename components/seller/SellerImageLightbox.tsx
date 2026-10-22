@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
@@ -108,7 +109,7 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
                     {currentVariant && (
                         <>
                             <span className="text-amber-200/90 ml-0.5">{finish.code}</span>
-                            <span className={`${stoneColor} ml-0.5`}>{stone.code}</span>
+                            <span className={`${stoneColor} ml-0.5`}><StoneCodeText code={stone.code} /></span>
                         </>
                     )}
                 </div>
@@ -177,7 +178,7 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
                                 {stone.code && (
                                     <>
                                         <span className="opacity-40">|</span>
-                                        <span className={stoneColor}>{stone.code}</span>
+                                        <span className={stoneColor}><StoneCodeText code={stone.code} /></span>
                                     </>
                                 )}
                             </div>

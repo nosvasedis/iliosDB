@@ -52,8 +52,9 @@ describe.each([
     expect(getDefaultLabelStone(product, { suffix, description: '', stock_qty: 0 })).toBe(name);
 
     const html = renderToStaticMarkup(<SkuColorizedText sku={product.sku + suffix} gender={Gender.Women} />);
-    for (const character of code) {
-      expect(html).toContain(`class="${color}">${character}</span>`);
+    for (const [index, character] of [...code].entries()) {
+      const letterStyle = code === 'MUL' ? ` style="color:${['#dc2626', '#16a34a', '#2563eb'][index]}"` : '';
+      expect(html).toContain(`class="${color}"${letterStyle}>${character}</span>`);
     }
   });
 

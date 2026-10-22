@@ -1,3 +1,4 @@
+import StoneCodeText from '../StoneCodeText';
 import OrderPriceModeToggle from '../OrderBuilder/OrderPriceModeToggle';
 import { getOrderCatalogPrice, getOrderPriceMode, setOrderItemsPriceMode, type OrderPriceMode } from '../../utils/orderPricing';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
@@ -1161,7 +1162,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                                 {stone.name || stone.code || '—'}
                                                             </span>
                                                             {stone.name && stone.code && (
-                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 ${stoneColor}`}>{stone.code}</span>
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 ${stoneColor}`}><StoneCodeText code={stone.code} /></span>
                                                             )}
                                                             <span className="text-sm font-black text-slate-900 mt-1">{formatCurrency(price)}</span>
                                                             <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+ Προσθήκη</span>
