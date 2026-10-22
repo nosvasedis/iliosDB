@@ -75,6 +75,7 @@ import {
     withProductionTiming,
 } from '../features/production/boardViewModel';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
+import PageErrorState from './ui/PageErrorState';
 
 function compareBatchesBySkuAscending(a: ProductionBatch, b: ProductionBatch): number {
     return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
@@ -3610,14 +3611,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     if (batchesError) {
         return (
-            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
-                <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
-                <p>Δεν ήταν δυνατή η φόρτωση παρτίδων παραγωγής.</p>
-                <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(batchesErr as Error)?.message}</p>
-                <button onClick={() => refetchBatches()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
-                    Ανανέωση
-                </button>
-            </div>
+            <PageErrorState
+                message="Δεν ήταν δυνατή η φόρτωση παρτίδων παραγωγής."
+                detail={(batchesErr as Error)?.message}
+                onRetry={() => refetchBatches()}
+            />
         );
     }
 

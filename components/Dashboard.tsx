@@ -67,6 +67,7 @@ import {
 } from '../features/dashboard/dashboardAnalysisViewModels';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
+import PageErrorState from './ui/PageErrorState';
 
 interface Props {
   products: Product[];
@@ -140,22 +141,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const handleOpenTopVariants = useCallback(() => {
     setTopVariantsModalOpen(true);
   }, []);
-
-  if (ordersError || batchesError) {
-    const err = ordersErr || batchesErr;
-    return (
-      <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
-        <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
-        <p>Δεν ήταν δυνατή η φόρτωση δεδομένων πίνακα ελέγχου.</p>
-        <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(err as Error)?.message}</p>
-        <div className="mt-4 flex gap-2">
-          <button onClick={() => { refetchOrders(); refetchBatches(); }} className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
-            Ανανέωση
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const stats = useMemo(() => {
     const productBySku = new Map(products.map(p => [p.sku, p]));
@@ -511,6 +496,18 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
           )}
       </div>
   );
+
+  // Kept below every hook so a failed refetch never changes the hook order.
+  if (ordersError || batchesError) {
+    const err = ordersErr || batchesErr;
+    return (
+      <PageErrorState
+        message="Δεν ήταν δυνατή η φόρτωση δεδομένων πίνακα ελέγχου."
+        detail={(err as Error)?.message}
+        onRetry={() => { refetchOrders(); refetchBatches(); }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col space-y-6">

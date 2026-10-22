@@ -20,14 +20,34 @@
     <link rel="icon" type="image/png" sizes="512x512" href="https://ilios-image-handler.iliosdb.workers.dev/android-chrome-512x512.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
       html, body { overscroll-behavior-y: none; }
-      body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f3f4f6;
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
+      ::selection { background: rgba(245, 158, 11, 0.22); color: #060b00; }
+
+      /* Keyboard focus ring for any control that does not define its own.
+         :where() keeps specificity at zero so Tailwind focus/outline utilities still win. */
+      :where(button, a, [role="button"], [tabindex="0"], summary, select):focus-visible {
+        outline: 2px solid rgba(6, 11, 0, 0.35);
+        outline-offset: 2px;
+      }
       
       /* Print view is hidden on screen by default */
       .print-view { display: none; }
       
+      /* Firefox only — Chromium keeps the ::-webkit-scrollbar styling below. */
+      @supports not selector(::-webkit-scrollbar) {
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+      }
       .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
       .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }

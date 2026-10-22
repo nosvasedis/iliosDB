@@ -124,11 +124,11 @@ export const PAGE_CONTAINER = 'flex flex-col h-full space-y-6';
 
 /** Dark brand button */
 export const BTN_PRIMARY =
-  'inline-flex items-center gap-2 bg-[#060b00] text-white font-bold rounded-xl px-5 py-2.5 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5';
+  'inline-flex items-center gap-2 bg-[#060b00] text-white font-bold rounded-xl px-5 py-2.5 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0';
 
 /** Secondary outlined button */
 export const BTN_SECONDARY =
-  'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300';
+  'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50';
 
 
 // ──────────────────────────────────────────────

@@ -53,6 +53,8 @@ import { usePrint } from './PrintContext';
 import { getOrderTransferIndicators } from '../utils/transferIndicators';
 import SpecialCreationNote from './SpecialCreationNote';
 import ConsignmentBadge from './customerService/ConsignmentBadge';
+import PageErrorState from './ui/PageErrorState';
+import EmptyState from './ui/EmptyState';
 
 interface Props {
     products: Product[];
@@ -1689,16 +1691,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const err = ordersErr || batchesErr;
         return (
             <div className="space-y-6 flex flex-col">
-                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
-                    <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
-                    <p>Δεν ήταν δυνατή η φόρτωση των παραγγελιών ή των παρτίδων παραγωγής.</p>
-                    <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(err as Error)?.message}</p>
-                    <div className="mt-4 flex gap-2">
-                        <button onClick={() => { refetchOrders(); refetchBatches(); }} className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
-                            Ανανέωση
-                        </button>
-                    </div>
-                </div>
+                <PageErrorState
+                    message="Δεν ήταν δυνατή η φόρτωση των παραγγελιών ή των παρτίδων παραγωγής."
+                    detail={(err as Error)?.message}
+                    onRetry={() => { refetchOrders(); refetchBatches(); }}
+                />
             </div>
         );
     }
@@ -1863,7 +1860,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         </div>
                     </div>
                     {filteredOrders.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 italic text-sm">Δεν βρέθηκαν παραγγελίες.</div>
+                        <EmptyState icon={ShoppingCart} title="Δεν βρέθηκαν παραγγελίες." variant="plain" size="compact" />
                     ) : (
                         <div style={{ height: `${ordersRowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
                             {ordersRowVirtualizer.getVirtualItems().map((virtualRow) => {

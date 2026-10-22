@@ -57,11 +57,11 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
       >
         <div className="flex min-w-0 items-start gap-3">
           {leading}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#060b00] text-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
             <Icon size={iconSize} strokeWidth={2.25} />
           </div>
           <div className="min-w-0 pt-0.5">
-            <h1 className="text-xl font-bold tracking-tight text-[#060b00]">{title}</h1>
+            <h1 className="truncate text-xl font-bold tracking-tight text-[#060b00]">{title}</h1>
             {subtitle ? <p className="mt-0.5 text-sm font-medium text-slate-500">{subtitle}</p> : null}
           </div>
         </div>

@@ -12,6 +12,7 @@ import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
+import EmptyState from './ui/EmptyState';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -596,11 +597,11 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                         ))}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <Box size={48} className="mb-4 opacity-20"/>
-                        <p className="font-bold">Δεν βρέθηκαν υλικά.</p>
-                        <p className="text-sm">Δοκιμάστε άλλη κατηγορία ή προσθέστε νέο.</p>
-                    </div>
+                    <EmptyState
+                        icon={Box}
+                        title="Δεν βρέθηκαν υλικά."
+                        hint="Δοκιμάστε άλλη κατηγορία ή προσθέστε νέο."
+                    />
                 )}
             </div>
         </div>

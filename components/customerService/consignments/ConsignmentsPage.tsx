@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Boxes, ClipboardCheck, Columns3, HandHeart, Layers, Loader2, Plus, ShieldCheck, Users } from 'lucide-react';
+import { Boxes, ClipboardCheck, Columns3, HandHeart, Layers, Plus, ShieldCheck, Users } from 'lucide-react';
 import DesktopPageHeader from '../../DesktopPageHeader';
 import { BTN_PRIMARY, PAGE_CONTAINER } from '../../ui/designTokens';
 import {
@@ -21,6 +21,9 @@ import { ActionMenu, EmptyBoard, KanbanBoard, KanbanColumn, KpiChip, type PillTo
 import ConsignmentCard from './ConsignmentCard';
 import ConsignmentDrawer from './ConsignmentDrawer';
 import QuickConsignmentForm from './QuickConsignmentForm';
+import IliosLoader from '../../ui/IliosLoader';
+import PageErrorState from '../../ui/PageErrorState';
+import EmptyState from '../../ui/EmptyState';
 
 type View = 'board' | 'clients' | 'activity';
 
@@ -143,9 +146,9 @@ export default function ConsignmentsPage() {
         />
 
         {ctl.isLoading ? (
-          <div className="flex min-h-64 items-center justify-center text-slate-500"><Loader2 className="mr-2 animate-spin" /> Φόρτωση…</div>
+          <IliosLoader variant="section" detail="Παρακαταθήκες" />
         ) : ctl.error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">Δεν ήταν δυνατή η φόρτωση: {ctl.error.message}</div>
+          <PageErrorState message="Δεν ήταν δυνατή η φόρτωση των παρακαταθηκών." detail={ctl.error.message} />
         ) : !hasAny ? (
           <EmptyBoard
             icon={<Boxes size={32} />}
@@ -161,7 +164,7 @@ export default function ConsignmentsPage() {
           </KanbanBoard>
         ) : view === 'clients' ? (
           <div className="space-y-3">
-            {byClient.length === 0 && <p className="py-10 text-center text-sm text-slate-400">Δεν βρέθηκαν αποτελέσματα.</p>}
+            {byClient.length === 0 && <EmptyState icon={Users} title="Δεν βρέθηκαν αποτελέσματα." size="compact" />}
             {byClient.map((group) => (
               <section key={group.id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">

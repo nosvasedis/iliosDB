@@ -13,6 +13,8 @@ import { usePrint } from './PrintContext';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
 import DesktopPageHeader from './DesktopPageHeader';
 import SupplierReceiptModal from './suppliers/SupplierReceiptModal';
+import PageErrorState from './ui/PageErrorState';
+import EmptyState from './ui/EmptyState';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -205,14 +207,11 @@ export default function SuppliersPage() {
 
     if (suppliersError) {
         return (
-            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl max-w-2xl" role="alert">
-                <p className="font-bold mb-2">Σφάλμα φόρτωσης</p>
-                <p>Δεν ήταν δυνατή η φόρτωση των προμηθευτών.</p>
-                <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(suppliersErr as Error)?.message}</p>
-                <button onClick={() => refetchSuppliers()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
-                    Ανανέωση
-                </button>
-            </div>
+            <PageErrorState
+                message="Δεν ήταν δυνατή η φόρτωση των προμηθευτών."
+                detail={(suppliersErr as Error)?.message}
+                onRetry={() => refetchSuppliers()}
+            />
         );
     }
 
@@ -238,10 +237,9 @@ export default function SuppliersPage() {
                         <button
                             type="button"
                             onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}
-                            className="rounded-xl bg-[#060b00] p-3.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
-                            title="Νέος Προμηθευτής"
+                            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
                         >
-                            <Plus size={22} strokeWidth={3} />
+                            <Plus size={18} strokeWidth={2.75} /> Νέος Προμηθευτής
                         </button>
                     </>
                 )}
@@ -263,10 +261,11 @@ export default function SuppliersPage() {
                         })}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <Globe size={48} className="opacity-20 mb-4" />
-                        <p className="font-bold">Δεν βρέθηκαν προμηθευτές.</p>
-                    </div>
+                    <EmptyState
+                        icon={Globe}
+                        title="Δεν βρέθηκαν προμηθευτές."
+                        hint={searchTerm ? 'Δοκιμάστε διαφορετική αναζήτηση.' : 'Πατήστε «Νέος Προμηθευτής» για να προσθέσετε τον πρώτο.'}
+                    />
                 )}
 
                 {/* CREATE / EDIT SUPPLIER MODAL */}

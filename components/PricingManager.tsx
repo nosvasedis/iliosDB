@@ -25,6 +25,7 @@ import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import EmptyState from './ui/EmptyState';
 
 interface Props {
   products: Product[];
@@ -831,7 +832,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                     </div>
                 </div>
                 {filteredList.length === 0 && (
-                    <div className="p-12 text-center text-slate-400">Δεν βρέθηκαν αποτελέσματα.</div>
+                    <EmptyState icon={Search} title="Δεν βρέθηκαν αποτελέσματα." variant="plain" size="compact" />
                 )}
             </div>
       )}

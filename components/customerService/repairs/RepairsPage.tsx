@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Archive, ClipboardCheck, Columns3, History, Loader2, Plus, Users, Wrench } from 'lucide-react';
+import { Archive, ClipboardCheck, Columns3, History, Plus, Users, Wrench } from 'lucide-react';
 import type { RepairItem } from '../../../types';
 import DesktopPageHeader from '../../DesktopPageHeader';
 import { BTN_PRIMARY, PAGE_CONTAINER } from '../../ui/designTokens';
@@ -24,6 +24,9 @@ import { EmptyBoard, KanbanBoard, KanbanColumn, KpiChip, StatusPill, type PillTo
 import RepairCard from './RepairCard';
 import RepairDrawer from './RepairDrawer';
 import QuickRepairForm from './QuickRepairForm';
+import IliosLoader from '../../ui/IliosLoader';
+import PageErrorState from '../../ui/PageErrorState';
+import EmptyState from '../../ui/EmptyState';
 
 type View = 'board' | 'clients' | 'history' | 'activity';
 
@@ -136,9 +139,9 @@ export default function RepairsPage() {
         />
 
         {ctl.isLoading ? (
-          <div className="flex min-h-64 items-center justify-center text-slate-500"><Loader2 className="mr-2 animate-spin" /> Φόρτωση…</div>
+          <IliosLoader variant="section" detail="Επισκευές" />
         ) : ctl.error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">Δεν ήταν δυνατή η φόρτωση: {ctl.error.message}</div>
+          <PageErrorState message="Δεν ήταν δυνατή η φόρτωση των επισκευών." detail={ctl.error.message} />
         ) : allItems.length === 0 ? (
           <EmptyBoard
             icon={<Wrench size={32} />}
@@ -154,7 +157,7 @@ export default function RepairsPage() {
           </KanbanBoard>
         ) : view === 'clients' ? (
           <div className="space-y-3">
-            {byClient.length === 0 && <p className="py-10 text-center text-sm text-slate-400">Καμία επισκευή σε εξέλιξη.</p>}
+            {byClient.length === 0 && <EmptyState icon={Wrench} title="Καμία επισκευή σε εξέλιξη." size="compact" />}
             {byClient.map(([id, items]) => (
               <section key={id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
                 <h3 className="mb-3 px-1 font-black text-slate-900">{ctl.customerName(id)} <span className="text-xs font-bold text-slate-400">· {formatGreekNumber(items.length)} σε εξέλιξη</span></h3>

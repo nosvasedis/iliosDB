@@ -22,6 +22,7 @@ import IliosLoader from './ui/IliosLoader';
 import SpecialCreationNote from './SpecialCreationNote';
 import InventoryAvailabilityNote from './inventory/InventoryAvailabilityNote';
 import { OFFER_STATUS_LABELS } from '../features/inventory';
+import EmptyState from './ui/EmptyState';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -961,9 +962,12 @@ export default function OffersPage({ products, materials, settings, collections,
                             <Loader2 size={16} className="animate-spin" /> Φόρτωση προσφορών...
                         </div>
                     ) : filteredOffers.length === 0 ? (
-                        <div className="p-8 text-center text-sm italic text-slate-400">
-                            {offerSearch.trim() ? 'Δεν βρέθηκαν προσφορές.' : 'Δεν υπάρχουν προσφορές.'}
-                        </div>
+                        <EmptyState
+                            icon={offerSearch.trim() ? Search : FileText}
+                            title={offerSearch.trim() ? 'Δεν βρέθηκαν προσφορές.' : 'Δεν υπάρχουν προσφορές.'}
+                            variant="plain"
+                            size="compact"
+                        />
                     ) : (
                         <div className="space-y-2">
                             {filteredOffers.map(offer => {

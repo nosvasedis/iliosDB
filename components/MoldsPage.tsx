@@ -10,6 +10,7 @@ import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
+import EmptyState from './ui/EmptyState';
 
 // -- MOLD CARD COMPONENT --
 interface MoldCardProps {
@@ -411,10 +412,10 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                         ))}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                        <MapPin size={48} className="mb-4 opacity-20" />
-                        <p className="font-bold">{moldTab === 'lstx' ? 'Δεν βρέθηκαν LSTX λάστιχα.' : 'Δεν βρέθηκαν λάστιχα.'}</p>
-                    </div>
+                    <EmptyState
+                        icon={MapPin}
+                        title={moldTab === 'lstx' ? 'Δεν βρέθηκαν LSTX λάστιχα.' : 'Δεν βρέθηκαν λάστιχα.'}
+                    />
                 )}
             </div>
 

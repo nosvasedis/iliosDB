@@ -15,6 +15,7 @@ import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLa
 import LabelPrintSettingsPanel from './printing/LabelPrintSettingsPanel';
 import LabelPreviewEditModal from './printing/LabelPreviewEditModal';
 import { getSizingInfo } from '../utils/sizing';
+import EmptyState from './ui/EmptyState';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -1195,10 +1196,10 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
                     {/* PRODUCT GRID */}
                     {catalogProducts.length === 0 ? (
-                        <div className="text-center py-20 text-slate-400">
-                            <ImageIcon size={48} className="mx-auto mb-3 opacity-30" />
-                            <p className="font-medium">Δεν βρέθηκαν προϊόντα με τα επιλεγμένα φίλτρα.</p>
-                        </div>
+                        <EmptyState
+                            icon={ImageIcon}
+                            title="Δεν βρέθηκαν προϊόντα με τα επιλεγμένα φίλτρα."
+                        />
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                             {catalogProducts.map(product => {

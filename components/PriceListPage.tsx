@@ -8,6 +8,7 @@ import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 import { getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
+import EmptyState from './ui/EmptyState';
 
 interface Props {
     products: Product[];
@@ -737,7 +738,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             </button>
                                         );
                                     }) : (
-                                        <div className="text-xs text-slate-400 italic text-center py-10">Δεν υπάρχουν συλλογές.</div>
+                                        <EmptyState icon={FolderKanban} title="Δεν υπάρχουν συλλογές." variant="plain" size="compact" />
                                     )}
                                 </div>
                                 

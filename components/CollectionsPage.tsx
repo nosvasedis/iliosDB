@@ -17,6 +17,7 @@ import ProductDetails from './ProductDetails';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import PageErrorState from './ui/PageErrorState';
 
 interface Props {
     products?: Product[];
@@ -547,11 +548,11 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                     title="Συλλογές"
                     subtitle="Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση."
                 />
-                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
-                    <p className="font-bold mb-2">Σφάλμα!</p>
-                    <p>Δεν ήταν δυνατή η φόρτωση των συλλογών.</p>
-                    <p className="text-sm mt-4 font-mono bg-red-100/50 p-2 rounded">{(error as Error).message}</p>
-                </div>
+                <PageErrorState
+                    message="Δεν ήταν δυνατή η φόρτωση των συλλογών."
+                    detail={(error as Error)?.message}
+                    onRetry={() => queryClient.invalidateQueries({ queryKey: ['collections'] })}
+                />
             </div>
         );
     }

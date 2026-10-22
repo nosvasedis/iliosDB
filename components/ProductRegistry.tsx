@@ -37,6 +37,7 @@ import {
     formatRegistryWeight,
     type RegistrySortMode,
 } from '../features/products';
+import EmptyState from './ui/EmptyState';
 
 interface Props {
     setPrintItems?: (items: PrintLabelItem[]) => void;
@@ -551,10 +552,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-20 text-slate-400">
-                            <Database size={48} className="mx-auto mb-4 opacity-20" />
-                            <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
-                        </div>
+                        <EmptyState
+                            icon={Database}
+                            title="Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια."
+                            hint="Δοκιμάστε άλλη αναζήτηση ή καθαρίστε τα φίλτρα."
+                        />
                     )
                 ) : (
                     /* ── TABLE (VIRTUALIZED) ── */
@@ -736,10 +738,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             })}
                         </div>
                     ) : (
-                        <div className="text-center py-20 text-slate-400">
-                            <Database size={48} className="mx-auto mb-4 opacity-20" />
-                            <p className="font-medium">Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια.</p>
-                        </div>
+                        <EmptyState
+                            icon={Database}
+                            title="Δεν βρέθηκαν κωδικοί με αυτά τα κριτήρια."
+                            hint="Δοκιμάστε άλλη αναζήτηση ή καθαρίστε τα φίλτρα."
+                        />
                     )
                 )}
             </div>

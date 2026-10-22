@@ -13,6 +13,7 @@ import { UserProfile, Order, OrderStatus } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
+import EmptyState from './ui/EmptyState';
 
 interface SellerFormState {
   full_name: string;
@@ -299,11 +300,11 @@ export default function SellersPage() {
       )}
 
       {filteredSellers.length === 0 && (
-        <div className="text-center py-20">
-          <UserCheck size={48} className="mx-auto text-slate-300 mb-4" />
-          <p className="text-lg font-bold text-slate-400">{searchTerm ? 'Δεν βρέθηκαν πλασιέ' : 'Κανένας πλασιέ'}</p>
-          <p className="text-sm text-slate-400 mt-1">{searchTerm ? 'Δοκιμάστε διαφορετική αναζήτηση.' : 'Πατήστε "Νέος Πλασιέ" για να ξεκινήσετε.'}</p>
-        </div>
+        <EmptyState
+          icon={UserCheck}
+          title={searchTerm ? 'Δεν βρέθηκαν πλασιέ' : 'Κανένας πλασιέ'}
+          hint={searchTerm ? 'Δοκιμάστε διαφορετική αναζήτηση.' : 'Πατήστε «Νέος Πλασιέ» για να ξεκινήσετε.'}
+        />
       )}
 
       {/* ── Detail Modal ── */}
