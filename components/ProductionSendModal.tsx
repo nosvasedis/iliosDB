@@ -8,7 +8,7 @@ import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, 
 import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, RotateCcw } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
-import SkuColorizedText from './SkuColorizedText';
+import ProductionSkuButton from './production/ProductionSkuButton';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { groupBatchesByShipment, isOrderReadyForShipment } from '../utils/orderReadiness';
@@ -61,6 +61,8 @@ import { BatchItemCard, RowItem } from './production/BatchItemCard';
 import { ProductionSendStageFilters } from './production/ProductionSendStageFilters';
 import { inventoryRepository, reservationQuantityForLine } from '../features/inventory';
 
+const ProductionSkuDetails = React.lazy(() => import('./production/ProductionSkuDetails'));
+
 interface Props {
     order: Order;
     products: Product[];
@@ -109,6 +111,16 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         });
     }, []);
     const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+    const [selectedProductDetails, setSelectedProductDetails] = useState<{ product: Product; suffix?: string } | null>(null);
+    const handleOpenProduct = useCallback((sku: string, suffix?: string) => {
+        const product = products.find(candidate => candidate.sku === sku)
+            || order.items.find(item => item.sku === sku)?.product_details;
+        if (!product || isSpecialCreationSku(sku)) {
+            showToast('Δεν υπάρχουν στοιχεία καταλόγου για αυτό το SKU.', 'info');
+            return;
+        }
+        setSelectedProductDetails({ product, suffix });
+    }, [products, order.items, showToast]);
     const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
 
     // Filters
@@ -1180,6 +1192,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
+            if (selectedProductDetails) { setSelectedProductDetails(null); return; }
             if (zoomImageUrl || historyModalBatch || priceSyncPreviewModalOpen || shipmentUndoRequest) return;
             if (stockDecision) { if (!isSending) setStockDecision(null); return; }
             if (splitTarget) { setSplitTarget(null); return; }
@@ -1190,7 +1203,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [zoomImageUrl, historyModalBatch, priceSyncPreviewModalOpen, shipmentUndoRequest, stockDecision, isSending, splitTarget, editingNoteBatch, bulkNoteOpen, isSavingBulkNote, holdingBatch, activeStagePopup]);
+    }, [selectedProductDetails, zoomImageUrl, historyModalBatch, priceSyncPreviewModalOpen, shipmentUndoRequest, stockDecision, isSending, splitTarget, editingNoteBatch, bulkNoteOpen, isSavingBulkNote, holdingBatch, activeStagePopup]);
 
     const submitOnCtrlEnter = (action: () => void) => (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); action(); }
@@ -1503,6 +1516,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                         onDelete={handleDeleteBatch}
                                                         onMergeBatches={handleMergeBatches}
                                                         onZoomImage={handleZoomImage}
+                                                        onOpenProduct={handleOpenProduct}
                                                     />
                                                 </div>
                                             </div>
@@ -1774,7 +1788,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <div className="min-w-0">
                                 <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><Scissors size={18} className="text-blue-500" /> Διαχωρισμός</h3>
-                                <SkuColorizedText sku={splitTarget.batch.sku} suffix={splitTarget.batch.variant_suffix || ''} gender={products.find(p => p.sku === splitTarget.batch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-600" />
+                                <ProductionSkuButton onOpen={handleOpenProduct} sku={splitTarget.batch.sku} suffix={splitTarget.batch.variant_suffix || ''} gender={products.find(p => p.sku === splitTarget.batch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-600" />
                             </div>
                             <button onClick={() => setSplitTarget(null)} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"><X size={18} /></button>
                         </div>
@@ -1833,7 +1847,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <button onClick={() => setEditingNoteBatch(null)} aria-label="Κλείσιμο" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-40"><X size={18} /></button>
                         </div>
                         <div className="text-xs font-bold text-slate-500">
-                            <SkuColorizedText sku={editingNoteBatch.sku} suffix={editingNoteBatch.variant_suffix || ''} gender={products.find(p => p.sku === editingNoteBatch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-700" />
+                            <ProductionSkuButton onOpen={handleOpenProduct} sku={editingNoteBatch.sku} suffix={editingNoteBatch.variant_suffix || ''} gender={products.find(p => p.sku === editingNoteBatch.sku)?.gender || Gender.Unisex} className="font-black text-xs" masterClassName="text-slate-700" />
                             <span className="ml-1.5 text-slate-400">· {formatNumber(editingNoteBatch.quantity)} τεμ.</span>
                         </div>
                         <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={submitOnCtrlEnter(() => { if (!isWorking) void handleSaveNote(); })}
@@ -2114,7 +2128,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                                 </button>
                                                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                                     <div className="text-[9px] font-bold text-slate-400 uppercase truncate">{product?.category || 'Προϊόν'}</div>
-                                                                    <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} className="font-black text-sm" masterClassName="text-slate-900" />
+                                                                    <ProductionSkuButton onOpen={handleOpenProduct} sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} className="font-black text-sm" masterClassName="text-slate-900" />
                                                                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
                                                                         <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border ${getProductionTimingStatusClasses(timeInfo.timingStatus)}`}>
                                                                             <Clock size={10} className="inline mr-0.5" />{timeInfo.timingLabel}
@@ -2227,7 +2241,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center"><Package size={14} className="text-slate-400" /></div>}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5">
-                                                    <SkuColorizedText sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} className="font-black text-sm" masterClassName="text-slate-900" />
+                                                    <ProductionSkuButton onOpen={handleOpenProduct} sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} className="font-black text-sm" masterClassName="text-slate-900" />
                                                     {item.size_info && <span className="text-[10px] text-slate-500 font-bold">#{item.size_info}</span>}
                                                 </div>
                                                 <div className="text-[10px] text-slate-500 font-medium">
@@ -2287,6 +2301,27 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 }}
                 isApplying={isApplyingPriceSync}
             />
+
+            {selectedProductDetails && (
+                <React.Suspense fallback={
+                    <div className="fixed inset-0 z-[650] flex items-center justify-center bg-slate-900/60 p-4">
+                        <div className="rounded-2xl bg-white p-6 text-center shadow-xl" role="status">
+                            <Loader2 size={24} className="mx-auto mb-3 animate-spin text-slate-500" />
+                            <p className="text-sm font-bold text-slate-700">Φόρτωση στοιχείων SKU…</p>
+                            <button type="button" onClick={() => setSelectedProductDetails(null)} className="mt-4 text-sm font-bold text-slate-500">Κλείσιμο</button>
+                        </div>
+                    </div>
+                }>
+                    <ProductionSkuDetails
+                        product={selectedProductDetails.product}
+                        initialVariantSuffix={selectedProductDetails.suffix}
+                        products={products}
+                        materials={materials}
+                        collections={collections || []}
+                        onClose={() => setSelectedProductDetails(null)}
+                    />
+                </React.Suspense>
+            )}
 
             {/* Image Zoom */}
             {zoomImageUrl && ReactDOM.createPortal(

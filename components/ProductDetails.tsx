@@ -77,6 +77,8 @@ interface Props {
     viewMode?: 'registry' | 'warehouse';
     onDuplicate?: (product: Product) => void;
     initialVariantSuffix?: string;
+    /** Allows details to open above an existing workflow modal. */
+    zIndex?: number;
 }
 
 const SmartQuantityInput = React.memo(({
@@ -517,7 +519,7 @@ const SummaryRow = React.memo(({ label, value, sub, color }: { label: string, va
     </div>
 ));
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix }: Props) {
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix, zIndex = 100 }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -1329,7 +1331,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     };
 
     const mainPortal = createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
+        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6 print:hidden" style={{ zIndex }}>
             {isRecipeModalOpen && (
                 <RecipeItemSelectorModal
                     type={isRecipeModalOpen}

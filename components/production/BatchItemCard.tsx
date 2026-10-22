@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
-import SkuColorizedText from '../SkuColorizedText';
+import ProductionSkuButton from './ProductionSkuButton';
 import SpecialCreationNote from '../SpecialCreationNote';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { groupProductionBatchesByStage } from '../../features/production/workflowSelectors';
@@ -57,6 +57,7 @@ interface BatchItemCardProps {
     onDelete: (batch: ProductionBatch) => void;
     onMergeBatches: (stage: ProductionStage, batches: ProductionBatch[]) => void;
     onZoomImage: (url: string, alt: string) => void;
+    onOpenProduct: (sku: string, suffix?: string) => void;
 }
 
 export const BatchItemCard = React.memo(function BatchItemCard({
@@ -82,6 +83,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     onDelete,
     onMergeBatches,
     onZoomImage,
+    onOpenProduct,
 }: BatchItemCardProps) {
     const spStub = isSpecialCreationSku(row.sku) ? getSpecialCreationProductStub() : null;
     const originalIndex = row.originalIndex;
@@ -132,7 +134,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                     </button>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                            <SkuColorizedText sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black text-sm" masterClassName={spStub ? 'text-violet-900' : 'text-slate-900'} />
+                            <ProductionSkuButton onOpen={onOpenProduct} sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black text-sm" masterClassName={spStub ? 'text-violet-900' : 'text-slate-900'} />
                             {row.fulfillment_mode === 'consignment' && <ConsignmentBadge compact />}
                             {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                             {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
