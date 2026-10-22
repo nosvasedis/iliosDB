@@ -826,6 +826,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 </div>
                             </div>
                         </div>
+                        <div className="mt-1 flex justify-end">
+                            <OrderPriceModeToggle value={priceMode} onChange={handlePriceModeChange} />
+                        </div>
                     </div>
                 </div>
 
@@ -867,8 +870,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 </button>
                             </div>
                         )}
-
-                        <OrderPriceModeToggle value={priceMode} onChange={handlePriceModeChange} />
 
                         <FulfillmentModeToggle
                             value={defaultFulfillmentMode}

@@ -6,7 +6,6 @@ import { CustomerPanel } from './OrderBuilder/CustomerPanel';
 import { SmartEntryPanel } from './OrderBuilder/SmartEntryPanel';
 import { OrderItemsPanel } from './OrderBuilder/OrderItemsPanel';
 import BarcodeScanner from './BarcodeScanner';
-import OrderPriceModeToggle from './OrderBuilder/OrderPriceModeToggle';
 
 interface Props {
     onBack: () => void;
@@ -54,10 +53,6 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                         <Save size={18} /> Αποθήκευση
                     </button>
                 </div>
-            </div>
-
-            <div className="px-6 py-3 bg-white border-b border-slate-200 shrink-0">
-                <OrderPriceModeToggle value={state.priceMode} onChange={actions.handlePriceModeChange} />
             </div>
 
             {/* 3-column layout with expandable items panel */}

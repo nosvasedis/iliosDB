@@ -8,6 +8,7 @@ import { getTagColor } from '../../features/orders/tagColors';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { SellerPicker } from './SellerPicker';
 import OrderTerritoryAlert from '../customers/OrderTerritoryAlert';
+import OrderPriceModeToggle from './OrderPriceModeToggle';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -166,6 +167,9 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                             <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
                             <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
                         </select>
+                    </div>
+                    <div className="flex justify-end !mt-1">
+                        <OrderPriceModeToggle value={state.priceMode} onChange={actions.handlePriceModeChange} />
                     </div>
                 </div>
 

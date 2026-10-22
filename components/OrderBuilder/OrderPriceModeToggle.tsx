@@ -6,19 +6,16 @@ export default function OrderPriceModeToggle({ value, onChange }: {
     onChange: (mode: OrderPriceMode) => void;
 }) {
     return (
-        <label className="flex min-h-11 cursor-pointer flex-wrap items-center gap-2 text-xs font-bold text-slate-700">
+        <label className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap py-1 text-[10px] font-medium text-slate-500 hover:text-slate-700">
             <input
                 type="checkbox"
                 role="switch"
                 aria-label="Λιανική ×3"
                 checked={value === 'retail'}
                 onChange={event => onChange(event.target.checked ? 'retail' : 'wholesale')}
-                className="h-4 w-4 accent-fuchsia-600"
+                className="h-3 w-3 accent-slate-600"
             />
             Λιανική ×3
-            <span className="text-[10px] font-medium text-slate-500">
-                {value === 'retail' ? 'Τιμές λιανικής' : 'Τιμές χονδρικής'}
-            </span>
         </label>
     );
 }
