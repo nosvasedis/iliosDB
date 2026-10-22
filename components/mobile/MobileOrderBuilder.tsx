@@ -1,3 +1,5 @@
+import OrderPriceModeToggle from '../OrderBuilder/OrderPriceModeToggle';
+import { getOrderCatalogPrice, getOrderPriceMode, setOrderItemsPriceMode, type OrderPriceMode } from '../../utils/orderPricing';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
 import RetailClientField from '../orders/RetailClientField';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
@@ -227,6 +229,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [customerPhone, setCustomerPhone] = useState(initialOrder?.customer_phone || '');
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
     const [items, setItems] = useState<OrderItem[]>(() => buildMobileOrderBuilderItems(initialOrder?.items || [], products));
+    const [priceMode, setPriceMode] = useState<OrderPriceMode>(() => getOrderPriceMode(initialOrder?.items || []));
+    const handlePriceModeChange = (mode: OrderPriceMode) => {
+        setPriceMode(mode);
+        setItems(prev => setOrderItemsPriceMode(prev, products, mode));
+    };
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
@@ -351,6 +358,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setCustomerPhone(hydrated.customerPhone);
         setCustomerId(hydrated.customerId);
         setItems(hydrated.items);
+        setPriceMode(hydrated.priceMode);
         setVatRate(hydrated.vatRate);
         setDiscountPercent(hydrated.discountPercent);
         setOrderNotes(parsedDraftNotes.cleanNotes || '');
@@ -369,12 +377,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (initialOrder) return;
         if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); return; }
         try {
-            sessionStorage.setItem(DRAFT_KEY, serializeMobileOrderBuilderDraft({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel }));
+            sessionStorage.setItem(DRAFT_KEY, serializeMobileOrderBuilderDraft({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, priceMode }));
         } catch (e) {
             // QuotaExceededError — silently skip; autosave is best-effort
             console.warn('Draft autosave skipped (storage full):', e);
         }
-    }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, initialOrder]);
+    }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, priceMode, initialOrder]);
 
     const handleUseInternalCustomer = () => {
         setCustomerId(INTERNAL_CUSTOMER_ID);
@@ -454,12 +462,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const handleAddItem = (variant: ProductVariant | null) => {
         if (!activeMaster) return;
         const master = activeMaster; // capture before state reset
-        const unitPrice = variant?.selling_price || master.selling_price || 0;
+        const unitPrice = getOrderCatalogPrice(master, variant?.suffix, priceMode);
         const newItem: OrderItem = {
             sku: master.sku,
             variant_suffix: variant?.suffix,
             quantity: qty,
-            price_at_order: unitPrice,
+            price_at_order: unitPrice, price_mode: priceMode,
             product_details: master,
             size_info: selectedSize || undefined,
             cord_color: selectedCordColor,
@@ -502,8 +510,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (match) {
             const { product, variant } = match;
             if (product.is_component) { showToast(`Το ${product.sku} είναι εξάρτημα.`, 'error'); return; }
-            const unitPrice = variant?.selling_price || product.selling_price || 0;
-            const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, product_details: product, fulfillment_mode: defaultFulfillmentMode };
+            const unitPrice = getOrderCatalogPrice(product, variant?.suffix, priceMode);
+            const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, price_mode: priceMode, product_details: product, fulfillment_mode: defaultFulfillmentMode };
             setItems(prev => {
                 const existingIdx = prev.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(newItem));
                 if (existingIdx >= 0) { const updated = [...prev]; updated[existingIdx].quantity += 1; return updated; }
@@ -860,6 +868,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </div>
                         )}
 
+                        <OrderPriceModeToggle value={priceMode} onChange={handlePriceModeChange} />
+
                         <FulfillmentModeToggle
                             value={defaultFulfillmentMode}
                             onChange={setDefaultFulfillmentMode}
@@ -1080,7 +1090,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     onClick={() => handleAddItem(resolvedVariant)}
                                     className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
                                 >
-                                    <span className="text-white/90 text-xs font-bold">{formatCurrency(resolvedVariant.selling_price || activeMaster.selling_price || 0)}</span>
+                                    <span className="text-white/90 text-xs font-bold">{formatCurrency(getOrderCatalogPrice(activeMaster, resolvedVariant.suffix, priceMode))}</span>
                                     Προσθήκη
                                 </button>
                             </div>
@@ -1131,14 +1141,14 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                 className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
                                             >
                                                 <SkuColorizedText sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} className="font-black" masterClassName="text-slate-900" />
-                                                <span className="text-white/90 text-xs font-bold">{formatCurrency(variantsForSelectedFinish[0].selling_price || 0)}</span>
+                                                <span className="text-white/90 text-xs font-bold">{formatCurrency(getOrderCatalogPrice(activeMaster, variantsForSelectedFinish[0].suffix, priceMode))}</span>
                                                 Προσθήκη
                                             </button>
                                         ) : (
                                             <div className="grid grid-cols-2 gap-2">
                                                 {variantsForSelectedFinish.map(v => {
                                                     const { stone } = getVariantComponents(v.suffix, activeMaster.gender);
-                                                    const price = v.selling_price || activeMaster.selling_price || 0;
+                                                    const price = getOrderCatalogPrice(activeMaster, v.suffix, priceMode);
                                                     const stoneColor = SKU_STONE_TEXT_COLORS[stone.code] || 'text-violet-600';
                                                     return (
                                                         <button

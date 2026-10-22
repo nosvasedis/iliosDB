@@ -1,3 +1,4 @@
+import { getOrderCatalogPrice } from './orderPricing';
 import { Order, Product, PriceSyncPreview, ItemPriceDelta, SkippedPriceItem } from '../types';
 import { getOrderItemMatchKey } from './orderItemMatch';
 import { isSpecialCreationSku } from './specialCreationSku';
@@ -88,13 +89,7 @@ export function generateOrderPriceSyncPreview(
         const product = products.find(p => p.sku === item.sku);
         if (!product) return;
 
-        let currentRegistryPrice = 0;
-        const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
-        if (hasSuffix) {
-            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-            currentRegistryPrice = variant?.selling_price || 0;
-        }
-        if (currentRegistryPrice === 0) currentRegistryPrice = product.selling_price;
+        const currentRegistryPrice = getOrderCatalogPrice(product, item.variant_suffix, item.price_mode);
 
         const hasPriceDiff = currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01;
         if (hasPriceDiff) {
@@ -161,6 +156,7 @@ export function hasUnsavedOrderPriceChanges(current: Order, saved: Order): boole
         if (!orig) return true;
         if (Math.abs(item.price_at_order - orig.price_at_order) > 0.01) return true;
         if (item.price_override !== orig.price_override) return true;
+        if (item.price_mode !== orig.price_mode) return true;
     }
     return false;
 }

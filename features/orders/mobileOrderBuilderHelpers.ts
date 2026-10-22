@@ -5,6 +5,7 @@ import { getSizingInfo, ProductSizingInfo } from '../../utils/sizing';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { calculateOrderFinancials } from './orderFinancials';
+import { getOrderCatalogPrice, getOrderPriceMode, type OrderPriceMode } from '../../utils/orderPricing';
 
 export interface MobileOrderBuilderDraftState {
   customerName: string;
@@ -15,6 +16,7 @@ export interface MobileOrderBuilderDraftState {
   discountPercent: number;
   orderNotes: string;
   retailClientLabel?: string;
+  priceMode?: OrderPriceMode;
 }
 
 export interface MobileOrderBuilderItemEditState {
@@ -144,16 +146,9 @@ export function buildMobileOrderBuilderItemUpdate(
   if (isSpecialCreationSku(current.sku)) return items;
 
   const product = products.find((candidate) => candidate.sku === current.sku) || current.product_details;
-  let nextPrice = current.price_at_order;
-
-  if (product) {
-    if (nextVariantSuffix !== undefined) {
-      const variant = product.variants?.find((candidate) => candidate.suffix === nextVariantSuffix);
-      nextPrice = variant?.selling_price || product.selling_price || 0;
-    } else {
-      nextPrice = product.selling_price || 0;
-    }
-  }
+  const nextPrice = product
+    ? getOrderCatalogPrice(product, nextVariantSuffix, current.price_mode)
+    : current.price_at_order;
 
   const edited: OrderItem = {
     ...current,
@@ -162,6 +157,7 @@ export function buildMobileOrderBuilderItemUpdate(
     cord_color: nextCordColor,
     enamel_color: nextEnamelColor,
     price_at_order: nextPrice,
+    price_override: undefined,
     product_details: product || current.product_details,
   };
 
@@ -235,6 +231,7 @@ export function serializeMobileOrderBuilderDraft(draft: MobileOrderBuilderDraftS
     discountPercent: draft.discountPercent,
     orderNotes: draft.orderNotes,
     retailClientLabel: draft.retailClientLabel,
+    priceMode: draft.priceMode,
   });
 }
 
@@ -251,6 +248,7 @@ export function parseMobileOrderBuilderDraft(raw: string): MobileOrderBuilderDra
       discountPercent: draft.discountPercent ?? 0,
       orderNotes: draft.orderNotes || '',
       retailClientLabel: draft.retailClientLabel,
+      priceMode: draft.priceMode === 'retail' ? 'retail' : getOrderPriceMode(draft.items || []),
     };
   } catch {
     return null;
@@ -270,5 +268,6 @@ export function hydrateMobileOrderBuilderDraft(
     discountPercent: draft.discountPercent,
     orderNotes: draft.orderNotes,
     retailClientLabel: draft.retailClientLabel,
+    priceMode: draft.priceMode || getOrderPriceMode(draft.items),
   };
 }

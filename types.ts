@@ -245,6 +245,8 @@ export interface OrderItem {
   quantity: number;
   price_at_order: number;
   price_override?: boolean;
+  /** Catalog price basis; absent on legacy wholesale lines. */
+  price_mode?: 'wholesale' | 'retail';
   product_details?: Product;
   size_info?: string; // e.g., "58" or "19cm"
   cord_color?: ProductOptionColor;

@@ -45,6 +45,8 @@ import {
     type OrderRangeResolution,
 } from '../features/orders/orderRangeEntry';
 
+import { getOrderCatalogPrice, getOrderPriceMode, setOrderItemsPriceMode, type OrderPriceMode } from '../utils/orderPricing';
+
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
 export const FINISH_COLORS: Record<string, string> = {
@@ -107,6 +109,12 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             };
         });
     });
+    const [priceMode, setPriceMode] = useState<OrderPriceMode>(() => getOrderPriceMode(initialOrder?.items || []));
+    const handlePriceModeChange = (mode: OrderPriceMode) => {
+        setPriceMode(mode);
+        setSelectedItems(prev => setOrderItemsPriceMode(prev, products, mode));
+        setPriceDiffs(null);
+    };
     const [tags, setTags] = useState<string[]>(initialOrder?.tags || []);
     const [tagInput, setTagInput] = useState('');
     const [customerSearch, setCustomerSearch] = useState('');
@@ -224,6 +232,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                             };
                         }));
                         setSelectedItems(syncedItems);
+                        setPriceMode(draft.priceMode || getOrderPriceMode(syncedItems));
                         setTags(draft.tags || []);
                         showToast('Ανακτήθηκε πρόχειρη παραγγελία.', 'info');
                     }
@@ -238,12 +247,12 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         if (!initialOrder) {
             const draftData = {
                 customerName, customerPhone, selectedCustomerId,
-                orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags,
+                orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags, priceMode,
                 timestamp: Date.now()
             };
             localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(draftData));
         }
-    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags]);
+    }, [initialOrder, customerName, customerPhone, selectedCustomerId, orderNotes, retailClientLabel, vatRate, discountPercent, selectedItems, tags, priceMode]);
 
     const clearDraft = () => localStorage.removeItem(DRAFT_ORDER_KEY);
 
@@ -558,12 +567,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         cordColor?: OrderItem['cord_color'],
         enamelColor?: OrderItem['enamel_color']
     ) => {
-        const unitPrice = variant?.selling_price || master.selling_price || 0;
+        const unitPrice = getOrderCatalogPrice(master, variant?.suffix, priceMode);
         const newItem: OrderItem = {
             sku: master.sku,
             variant_suffix: variant?.suffix,
             quantity: qty,
             price_at_order: unitPrice,
+            price_mode: priceMode,
             price_override: undefined,
             product_details: master,
             size_info: size || undefined,
@@ -846,12 +856,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                         return;
                     }
                 }
-                const unitPrice = variant?.selling_price || product.selling_price || 0;
+                const unitPrice = getOrderCatalogPrice(product, variant?.suffix, priceMode);
                 const newItem: OrderItem = {
                     sku: product.sku,
                     variant_suffix: variant?.suffix,
                     quantity: 1,
                     price_at_order: unitPrice,
+                    price_mode: priceMode,
                     product_details: product,
                     fulfillment_mode: defaultFulfillmentMode,
                 };
@@ -923,12 +934,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         const product = products.find(p => p.sku === item.sku) || item.product_details;
         let catalogPrice = item.price_at_order;
         if (!isSpecialCreationSku(item.sku) && product) {
-            if (item.variant_suffix !== undefined && item.variant_suffix !== null) {
-                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-                catalogPrice = variant?.selling_price || product.selling_price || item.price_at_order;
-            } else {
-                catalogPrice = product.selling_price || item.price_at_order;
-            }
+            catalogPrice = getOrderCatalogPrice(product, item.variant_suffix, item.price_mode);
         }
         const isOverride = !isSpecialCreationSku(item.sku) && Math.abs(price - catalogPrice) > 0.01;
 
@@ -946,13 +952,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         if (isSpecialCreationSku(item.sku)) return;
         const product = products.find(p => p.sku === item.sku) || item.product_details;
         if (!product) return;
-        let catalogPrice = 0;
-        if (item.variant_suffix !== undefined && item.variant_suffix !== null) {
-            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-            catalogPrice = variant?.selling_price || product.selling_price || 0;
-        } else {
-            catalogPrice = product.selling_price || 0;
-        }
+        const catalogPrice = getOrderCatalogPrice(product, item.variant_suffix, item.price_mode);
         if (catalogPrice <= 0) return;
         setSelectedItems(prev => {
             const updated = [...prev];
@@ -985,15 +985,9 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             const current = prev[dynamicIdx];
             const product = products.find(p => p.sku === current.sku) || current.product_details;
 
-            let nextPrice = current.price_at_order;
-            if (product) {
-                if (nextVariantSuffix !== undefined) {
-                    const variant = product.variants?.find(v => v.suffix === nextVariantSuffix);
-                    nextPrice = variant?.selling_price || product.selling_price || 0;
-                } else {
-                    nextPrice = product.selling_price || 0;
-                }
-            }
+            const nextPrice = product
+                ? getOrderCatalogPrice(product, nextVariantSuffix, current.price_mode)
+                : current.price_at_order;
 
             const edited: OrderItem = {
                 ...current,
@@ -1064,13 +1058,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
             const product = products.find(p => p.sku === item.sku);
             if (!product) return item;
-            let currentRegistryPrice = 0;
-            const hasSuffix = item.variant_suffix !== undefined && item.variant_suffix !== null;
-            if (hasSuffix) {
-                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-                currentRegistryPrice = variant?.selling_price || 0;
-            }
-            if (currentRegistryPrice === 0) currentRegistryPrice = product.selling_price;
+            const currentRegistryPrice = getOrderCatalogPrice(product, item.variant_suffix, item.price_mode);
             const hasPriceDiff = currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01;
             if (hasPriceDiff) {
                 itemDeltas.push({
@@ -1280,7 +1268,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             consignmentSubtotal: financials.consignmentSubtotal,
             consignmentVatAmount: financials.consignmentVat,
             consignmentValue: financials.consignmentValue,
-            defaultFulfillmentMode,
+            defaultFulfillmentMode, priceMode,
             selectedItems,
             isEditing: !!initialOrder,
             orderId: initialOrder?.id,
@@ -1297,6 +1285,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setSortOrder, setItemSearchTerm,
         },
         actions: {
+            handlePriceModeChange,
             handleSelectCustomer, handleUseRetailCustomer, handleUseInternalCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, confirmOrderRangeAdd, handleScanInOrder,

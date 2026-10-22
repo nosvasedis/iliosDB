@@ -1,5 +1,6 @@
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { isSpecialRingSku } from '../../utils/sizing';
 
 /** A jewellery kind (Δαχτυλίδια, Σκουλαρίκια…): the top level of «τι πουλάμε σε ποιον». */
 export interface JewelryKind {
@@ -53,6 +54,7 @@ export function kindFromCategory(category?: string | null): JewelryKind | null {
 
 /** Best-effort kind for a SKU that is no longer (or never was) in the catalogue. */
 export function kindFromSku(sku: string): JewelryKind | null {
+  if (isSpecialRingSku(sku)) return { id: 'ring', label: 'Δαχτυλίδια' };
   const letters = skuLetters(sku);
   const known = KNOWN_KINDS.find(kind => kind.prefixes.includes(letters));
   return known ? { id: known.id, label: known.label } : null;
@@ -60,6 +62,7 @@ export function kindFromSku(sku: string): JewelryKind | null {
 
 export function classifyJewelryKind(sku: string, category?: string | null): JewelryKind {
   if (isSpecialCreationSku(sku)) return SPECIAL_KIND;
+  if (isSpecialRingSku(sku)) return { id: 'ring', label: 'Δαχτυλίδια' };
   return kindFromCategory(category) ?? kindFromSku(sku) ?? UNMATCHED_KIND;
 }
 

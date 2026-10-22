@@ -264,7 +264,7 @@ const sanitizeDeliveryReminderData = (data: any) => {
 
 const sanitizeOrderItemData = (item: any): OrderItem => {
     const validColumns = [
-        'sku', 'variant_suffix', 'quantity', 'price_at_order', 'price_override',
+        'sku', 'variant_suffix', 'quantity', 'price_at_order', 'price_override', 'price_mode',
         'size_info', 'cord_color', 'enamel_color', 'notes', 'line_id', 'warehouse_id',
         'fulfillment_mode'
     ];

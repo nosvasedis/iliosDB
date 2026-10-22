@@ -25,6 +25,10 @@ export type ProductSizingInfo = {
 
 type SizingProduct = { prefix: string, category?: string, sku?: string, gender?: string };
 
+export function isSpecialRingSku(sku: string): boolean {
+    return /^(?:BDA|ΒΔΑ)(?:\d|$)/.test(sku.trim().toUpperCase());
+}
+
 function isRingCategory(category?: string): boolean {
     const normalized = (category || '').trim().toUpperCase();
     return normalized.includes('ΔΑΧΤΥΛ') || normalized.includes('ΔΑΚΤΥΛ') || normalized.includes('RING');
@@ -35,13 +39,21 @@ export function isSizable(product: SizingProduct): boolean {
 }
 
 export function getSizingInfo(product: SizingProduct): ProductSizingInfo | null {
-    const prefix = product.prefix.toUpperCase();
+    const prefix = (product.prefix || '').trim().toUpperCase();
+    // Imports can store only the first two letters as the prefix (BD / ΒΔ).
+    const isSpecialRing = isSpecialRingSku(product.sku || '')
+        || prefix === SIZED_PREFIXES.RINGS_SPECIAL_1
+        || prefix === SIZED_PREFIXES.RINGS_SPECIAL_2;
+
+    if (isSpecialRing) {
+        return { type: SIZE_TYPE_NUMBER, sizes: RING_SIZES_WOMEN };
+    }
 
     if (prefix === SIZED_PREFIXES.RINGS_MEN) {
         return { type: SIZE_TYPE_NUMBER, sizes: RING_SIZES_MEN };
     }
 
-    if (prefix === SIZED_PREFIXES.RINGS_WOMEN || prefix === 'BDA' || prefix === 'ΒΔΑ') {
+    if (prefix === SIZED_PREFIXES.RINGS_WOMEN) {
         return { type: SIZE_TYPE_NUMBER, sizes: RING_SIZES_WOMEN };
     }
 
