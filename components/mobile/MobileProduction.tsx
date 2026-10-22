@@ -987,7 +987,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const enrichedBatches = useMemo(() => {
         if (!batches || !allProducts || !materials || !orders) return [];
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         return batches.map(b => {

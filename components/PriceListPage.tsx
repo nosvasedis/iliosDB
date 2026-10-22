@@ -60,6 +60,8 @@ const getStoneChipStyle = (code: string) => {
         'MV': 'bg-purple-100 text-purple-800',
         'RZ': 'bg-pink-100 text-pink-800',
         'AK': 'bg-cyan-100 text-cyan-800',
+        'CI': 'bg-yellow-100 text-yellow-800',
+        'MUL': 'bg-fuchsia-100 bg-gradient-to-r from-rose-100 via-yellow-100 to-sky-100 text-fuchsia-800',
         // Women — Agate family
         'PAX': 'bg-green-100 text-green-700',
         'MAX': 'bg-blue-100 text-blue-700',

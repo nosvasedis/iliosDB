@@ -1072,7 +1072,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
 
     const enrichedBatches = useMemo(() => {
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         return batches?.map(b => {
             const prod = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : productsMap.get(b.sku);

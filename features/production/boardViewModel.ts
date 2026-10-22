@@ -18,7 +18,7 @@ import { getProductionTimingInfo } from '../../utils/productionTiming';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { getBatchStageChronologyTimestamp } from './selectors';
 
-const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
 const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
 export type ProductionTimingSnapshot = Pick<

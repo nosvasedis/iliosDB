@@ -11,6 +11,8 @@ export const PURCHASE_FINISH_STYLES: Record<string, string> = {
 };
 
 export const PURCHASE_STONE_TEXT_COLORS: Record<string, string> = {
+  CI: 'text-yellow-600',
+  MUL: 'text-fuchsia-600',
   KR: 'text-rose-600',
   QN: 'text-slate-900',
   LA: 'text-blue-600',

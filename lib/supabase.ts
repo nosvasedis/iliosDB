@@ -916,7 +916,7 @@ function buildBatchInsertFromOrderItem(
     allMaterials: Material[],
     createdAt: string,
 ): Record<string, unknown> | null {
-    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
     const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
     const nowUpdated = new Date().toISOString();
 
@@ -983,7 +983,7 @@ function buildBatchIdentityPayloadFromOrderItem(
     product: Product | undefined,
     allMaterials: Material[],
 ): Record<string, unknown> {
-    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
     const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
     const payload: Record<string, unknown> = {
         sku: item.sku,
@@ -3215,7 +3215,7 @@ export const api = {
         ]);
         const productsBySku = new Map(allProducts.map((product) => [product.sku, product]));
         const materialsById = new Map(allMaterials.map((material) => [material.id, material]));
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const now = new Date().toISOString();
 
@@ -3714,7 +3714,7 @@ export const api = {
         const shipmentSnapshot = await getOrderShipmentsSnapshot(orderId);
         const nextOrderStatus = getProductionSendOrderStatus(shipmentSnapshot.shipments.length);
 
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ', 'CI', 'MUL'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const batches: any[] = [];
         const existingBatches = await fetchBatchesByOrderId(orderId);

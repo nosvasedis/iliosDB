@@ -47,6 +47,8 @@ export const STONE_CODES_WOMEN: Record<string, string> = {
   'MV': 'Μωβ Ζιργκόν',
   'RZ': 'Ροζ Ζιργκόν',
   'AK': 'Άκουα Ζιργκόν',
+  'CI': 'Κίτρινα Ζιργκόν',
+  'MUL': 'Πολύχρωμα Ζιργκόν',
   'XAL': 'Χαλκηδόνιο'
 };
 

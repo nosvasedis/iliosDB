@@ -60,6 +60,7 @@ export const SKU_FINISH_CARD_THEMES: Record<string, SkuFinishCardTheme> = {
 
 // Superset mapping to keep visual behavior stable across desktop/mobile/seller surfaces.
 export const SKU_STONE_TEXT_COLORS: Record<string, string> = {
+    CI: 'text-yellow-600', MUL: 'text-fuchsia-600',
     KR: 'text-rose-600', QN: 'text-slate-900', LA: 'text-blue-600', TY: 'text-teal-500',
     TG: 'text-orange-700', IA: 'text-red-700', BSU: 'text-slate-800', GSU: 'text-emerald-800',
     RSU: 'text-rose-800', MA: 'text-emerald-600', FI: 'text-slate-400', OP: 'text-indigo-500',

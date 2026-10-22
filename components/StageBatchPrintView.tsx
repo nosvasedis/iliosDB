@@ -32,6 +32,7 @@ const FINISH_COLORS_PRINT: Record<string, string> = {
 };
 
 const STONE_COLORS_PRINT: Record<string, string> = {
+    'CI': '#ca8a04', 'MUL': '#c026d3',
     'KR': '#e11d48', 'QN': '#0f172a', 'LA': '#2563eb', 'TY': '#14b8a6',
     'TG': '#c2410c', 'IA': '#991b1b', 'BSU': '#1e293b', 'GSU': '#166534',
     'RSU': '#9f1239', 'MA': '#059669', 'FI': '#94a3b8', 'OP': '#4f46e5',

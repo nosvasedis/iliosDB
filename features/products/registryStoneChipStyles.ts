@@ -7,6 +7,12 @@ export const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: 
   MV: { bg: 'bg-purple-50', text: 'text-purple-800', dot: 'bg-purple-400' },
   RZ: { bg: 'bg-pink-50', text: 'text-pink-800', dot: 'bg-pink-300' },
   AK: { bg: 'bg-cyan-50', text: 'text-cyan-800', dot: 'bg-cyan-400' },
+  CI: { bg: 'bg-yellow-50', text: 'text-yellow-800', dot: 'bg-yellow-400' },
+  MUL: {
+    bg: 'bg-fuchsia-50 bg-gradient-to-r from-rose-50 via-yellow-50 to-sky-50',
+    text: 'text-fuchsia-800',
+    dot: 'bg-fuchsia-400 bg-gradient-to-r from-rose-400 via-yellow-400 to-sky-400',
+  },
   PAX: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },
   MAX: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
   KAX: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },
