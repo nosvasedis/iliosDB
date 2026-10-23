@@ -67,7 +67,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const [secondaryWeight, setSecondaryWeight] = useState(0);
     const [invoiceTotalWeight, setInvoiceTotalWeight] = useState<number | null>(null);
     const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
-    const [selectedFinishes, setSelectedFinishes] = useState<string[]>(['']);
+    const [selectedFinishes, setSelectedFinishes] = useState<string[]>([]);
     const [finishPrices, setFinishPrices] = useState<Record<string, number>>({});
     const [bridge, setBridge] = useState('');
 
@@ -629,7 +629,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setVariants(finalVariants);
             setSellingPrice(finalSellingPrice);
             if (onCancel) onCancel();
-            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setInvoiceTotalWeight(null); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); setIsSTXManuallySet(false); }
+            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setInvoiceTotalWeight(null); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes([]); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); setIsSTXManuallySet(false); }
         } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error?.message || error}`, "error"); } finally { setIsUploading(false); }
     };
 

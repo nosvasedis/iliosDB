@@ -9,6 +9,7 @@ import { availableFinishes } from '../ProductRegistry/constants';
 import { getStoneChipStyle } from '../../features/products/registryStoneChipStyles';
 import {
   buildSmartAddSuffixPlan,
+  buildVariantSuffixFromFinishAndStone,
   createVariantsFromSmartAdd,
   getSmartAddVariantSellingPrice,
   getStoneCatalogForGender,
@@ -43,7 +44,7 @@ export default function SmartVariantAddPanel({
   onAddVariants,
   showToast,
 }: Props) {
-  const [selectedFinishes, setSelectedFinishes] = useState<string[]>(['']);
+  const [selectedFinishes, setSelectedFinishes] = useState<string[]>([]);
   const [stoneSuffix, setStoneSuffix] = useState('');
   const [descriptionOverride, setDescriptionOverride] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -59,15 +60,38 @@ export default function SmartVariantAddPanel({
     [product.gender],
   );
 
+  const visibleFinishes = useMemo(
+    () => availableFinishes.filter((finish) =>
+      !existingSuffixSet.has(buildVariantSuffixFromFinishAndStone(finish.code, stoneSuffix)),
+    ),
+    [existingSuffixSet, stoneSuffix],
+  );
+
+  const availableStones = useMemo(() => {
+    const finishes = selectedFinishes.length > 0
+      ? selectedFinishes
+      : availableFinishes.map((finish) => finish.code);
+    return stoneCatalog.filter((stone) => finishes.some((finish) =>
+      !existingSuffixSet.has(buildVariantSuffixFromFinishAndStone(finish, stone.code)),
+    ));
+  }, [stoneCatalog, selectedFinishes, existingSuffixSet]);
+
+  useEffect(() => {
+    setSelectedFinishes((previous) => {
+      const next = previous.filter((code) => visibleFinishes.some((finish) => finish.code === code));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [visibleFinishes]);
+
   const filteredStones = useMemo(() => {
     const term = stoneSuffix.trim().toUpperCase();
-    if (!term) return stoneCatalog;
-    return stoneCatalog.filter(
+    if (!term) return availableStones;
+    return availableStones.filter(
       (stone) =>
         stone.code.includes(term) ||
         stone.name.toUpperCase().includes(term),
     );
-  }, [stoneCatalog, stoneSuffix]);
+  }, [availableStones, stoneSuffix]);
 
   const addPlan = useMemo(
     () => buildSmartAddSuffixPlan(selectedFinishes, stoneSuffix, existingSuffixSet),
@@ -79,6 +103,9 @@ export default function SmartVariantAddPanel({
     .map((entry) => entry.suffix);
 
   const singlePendingSuffix = pendingSuffixes.length === 1 ? pendingSuffixes[0] : null;
+  const canCreate = showAdvanced && advancedSuffix.trim()
+    ? !existingSuffixSet.has(advancedSuffix.trim().toUpperCase())
+    : pendingSuffixes.length > 0;
 
   const smartPreview = useMemo(() => {
     if (showAdvanced && advancedSuffix.trim()) {
@@ -123,11 +150,6 @@ export default function SmartVariantAddPanel({
   };
 
   const handleCreate = () => {
-    if (selectedFinishes.length === 0) {
-      showToast('Επιλέξτε τουλάχιστον ένα φινίρισμα.', 'error');
-      return;
-    }
-
     if (showAdvanced && advancedSuffix.trim()) {
       const rawSuffix = advancedSuffix.trim().toUpperCase();
       if (existingSuffixSet.has(rawSuffix)) {
@@ -167,6 +189,11 @@ export default function SmartVariantAddPanel({
       setAdvancedSuffix('');
       setDescriptionOverride('');
       showToast(`Παραλλαγή ${rawSuffix || 'Λουστρέ'} προστέθηκε!`, 'success');
+      return;
+    }
+
+    if (selectedFinishes.length === 0) {
+      showToast('Επιλέξτε τουλάχιστον ένα φινίρισμα.', 'error');
       return;
     }
 
@@ -222,13 +249,14 @@ export default function SmartVariantAddPanel({
             Φινίρισμα
           </label>
           <div className="flex flex-wrap gap-2">
-            {availableFinishes.map((finish) => {
+            {visibleFinishes.map((finish) => {
               const isSelected = selectedFinishes.includes(finish.code);
               const colorCls = FINISH_CHIP_COLORS[finish.code] || FINISH_CHIP_COLORS[''];
               return (
                 <button
                   key={finish.code || 'lustre'}
                   type="button"
+                  aria-pressed={isSelected}
                   onClick={() => toggleFinish(finish.code)}
                   className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
                     isSelected
@@ -240,6 +268,9 @@ export default function SmartVariantAddPanel({
                 </button>
               );
             })}
+            {visibleFinishes.length === 0 && (
+              <p className="text-xs text-slate-500">Όλοι οι συνδυασμοί φινιρίσματος υπάρχουν ήδη.</p>
+            )}
           </div>
           <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
             <Info size={10} />
@@ -263,12 +294,12 @@ export default function SmartVariantAddPanel({
               className="w-full p-3 border border-slate-200 rounded-xl font-mono text-sm font-black uppercase bg-white shadow-sm focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 outline-none transition-all"
             />
             <select
-              value={stoneCatalog.some((s) => s.code === stoneSuffix) ? stoneSuffix : ''}
+              value={availableStones.some((s) => s.code === stoneSuffix) ? stoneSuffix : ''}
               onChange={(e) => handleStoneSelect(e.target.value)}
               className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold bg-white text-slate-700 outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300"
             >
               <option value="">— Επιλογή —</option>
-              {stoneCatalog.map((stone) => (
+              {availableStones.map((stone) => (
                 <option key={stone.code} value={stone.code}>
                   {stone.name} ({stone.code})
                 </option>
@@ -297,6 +328,9 @@ export default function SmartVariantAddPanel({
                 </button>
               );
             })}
+            {filteredStones.length === 0 && (
+              <p className="text-xs text-slate-500">Δεν υπάρχουν νέοι συνδυασμοί πέτρας.</p>
+            )}
           </div>
         </div>
 
@@ -371,7 +405,7 @@ export default function SmartVariantAddPanel({
           <button
             type="button"
             onClick={handleCreate}
-            disabled={selectedFinishes.length === 0}
+            disabled={!canCreate}
             className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Plus size={20} />
