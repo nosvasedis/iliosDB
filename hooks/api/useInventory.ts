@@ -122,6 +122,15 @@ export function useInventoryEvents(enabled = true, limit = 250) {
   });
 }
 
+/** Latest movements of one variant, for the item drawer. */
+export function useInventoryItemEvents(productSku: string, variantSuffix: string, enabled = true, limit = 15) {
+  return useQuery({
+    queryKey: [...inventoryKeys.events(), 'item', productSku, variantSuffix, limit] as const,
+    queryFn: () => inventoryRepository.getItemMovementHistory(productSku, variantSuffix, limit),
+    enabled: enabled && !!productSku,
+  });
+}
+
 /** Count sessions open in the ERP, regardless of which device started them. */
 export function useActiveInventoryCountSessions(enabled = true) {
   return useQuery({

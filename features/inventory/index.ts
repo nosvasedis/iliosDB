@@ -7,3 +7,4 @@ export * from './movements';
 export * from './productProjection';
 export * from './availabilityPagination';
 export * from './repository';
+export * from './stockEntry';

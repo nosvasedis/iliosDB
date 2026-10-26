@@ -29,6 +29,7 @@ import {
 import { BTN_PRIMARY, BTN_SECONDARY, CARD } from '../ui/designTokens';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import ViewportPortal from './ViewportPortal';
+import { ConsignmentSizeSelect, ConsignmentStockHint, useConsignmentDrawPlans } from './consignments/ConsignmentLineExtras';
 
 type CustomerOption = { id: string; full_name: string };
 type WarehouseOption = { id: string; name: string };
@@ -61,6 +62,7 @@ export default function BulkConsignmentWorkbench({
   const defaultWarehouseId = warehouses[0]?.id || '';
   const [reviewDate, setReviewDate] = useState(plusDaysIsoDate(30));
   const [warehouseId, setWarehouseId] = useState(defaultWarehouseId);
+  const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
   const [sharedNotes, setSharedNotes] = useState('');
   const [rows, setRows] = useState<ConsignmentDraftRow[]>(() => [
     createEmptyConsignmentDraftRow({ warehouseId: defaultWarehouseId, reviewDate: plusDaysIsoDate(30) }),
@@ -261,7 +263,7 @@ export default function BulkConsignmentWorkbench({
               <button type="button" className={`${BTN_SECONDARY} mt-3`} onClick={applyDefaultsToAll}>Εφαρμογή σε όλες τις γραμμές</button>
             </section>
 
-            {clusters.map((cluster) => {
+            {clusters.map((cluster) => <ClusterPlans key={cluster.blockId} rows={cluster.rows} warehouseId={warehouseId}>{(plans) => {
               const pieces = cluster.rows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
               const value = cluster.rows.reduce((sum, row) => sum + (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0), 0);
               return (
@@ -299,6 +301,7 @@ export default function BulkConsignmentWorkbench({
                             compact
                             catalogOnly
                           />
+                          <div className="mt-1 px-1"><ConsignmentStockHint plan={plans[cluster.rows.indexOf(row)]} /></div>
                         </div>
                         <label>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Ποσ.</span>
@@ -314,17 +317,17 @@ export default function BulkConsignmentWorkbench({
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Τιμή</span>
                           <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={row.unitPrice} onChange={(event) => updateRow(row.id, { unitPrice: Number(event.target.value) })} />
                         </label>
-                        <label>
+                        <div>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Μέγεθος</span>
-                          <input className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm outline-none" value={row.sizeInfo} onChange={(event) => updateRow(row.id, { sizeInfo: event.target.value })} placeholder="—" />
-                        </label>
+                          <ConsignmentSizeSelect product={productsBySku.get(row.sku)} value={row.sizeInfo} onChange={(sizeInfo) => updateRow(row.id, { sizeInfo })} disabled={!row.sku} />
+                        </div>
                         <button type="button" className="mt-6 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} aria-label="Αφαίρεση γραμμής"><X size={16} /></button>
                       </div>
                     ))}
                   </div>
                 </section>
               );
-            })}
+            }}</ClusterPlans>)}
 
             <button type="button" className={`${BTN_SECONDARY} w-full justify-center py-3`} onClick={addClientBlock}>
               <Plus size={16} /> Προσθήκη πελάτη
@@ -363,4 +366,19 @@ export default function BulkConsignmentWorkbench({
     </div>
     </ViewportPortal>
   );
+}
+
+/** Per-customer stock preview; a component so the hook runs once per cluster. */
+function ClusterPlans({
+  rows,
+  warehouseId,
+  children,
+}: {
+  rows: ConsignmentDraftRow[];
+  warehouseId: string;
+  children: (plans: ReturnType<typeof useConsignmentDrawPlans>) => React.ReactNode;
+}) {
+  const lines = useMemo(() => rows.map((row) => ({ sku: row.sku, variantSuffix: row.variantSuffix, sizeInfo: row.sizeInfo, quantity: Number(row.quantity) || 0 })), [rows]);
+  const plans = useConsignmentDrawPlans(lines, rows[0]?.warehouseId || warehouseId);
+  return <>{children(plans)}</>;
 }

@@ -140,6 +140,31 @@ function mapInventoryPostingResult(data: unknown): InventoryPostingResult {
   };
 }
 
+function mapInventoryEvent(row: any): InventoryEvent {
+  return {
+    id: row.id,
+    sequenceNo: Number(row.sequence_no || 0),
+    operationType: row.operation_type,
+    productSku: row.product_sku,
+    variantSuffix: row.variant_suffix || '',
+    sizeInfo: normalizeInventorySizeInfo(row.size_info),
+    warehouseId: row.warehouse_id,
+    onHandDelta: Number(row.on_hand_delta || 0),
+    reservedDelta: Number(row.reserved_delta || 0),
+    onHandAfter: Number(row.on_hand_after || 0),
+    reservedAfter: Number(row.reserved_after || 0),
+    referenceType: row.reference_type,
+    referenceId: row.reference_id,
+    referenceLineId: row.reference_line_id,
+    transferGroupId: row.transfer_group_id,
+    reversalOf: row.reversal_of,
+    actorUserId: row.actor_user_id,
+    actorName: row.actor_name ? repairGreekMojibake(row.actor_name) : null,
+    reason: repairGreekMojibake(row.reason),
+    createdAt: row.created_at,
+  };
+}
+
 export const inventoryRepository = withProtectedWrites({
   async getAvailability(): Promise<InventoryAvailability[]> {
     const rows = await loadAllInventoryAvailabilityPages<AvailabilityRow>(
@@ -171,28 +196,20 @@ export const inventoryRepository = withProtectedWrites({
       .order('sequence_no', { ascending: false })
       .limit(limit);
     if (error) throw toInventoryOperationError('availability-read', error);
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      sequenceNo: Number(row.sequence_no || 0),
-      operationType: row.operation_type,
-      productSku: row.product_sku,
-      variantSuffix: row.variant_suffix || '',
-      sizeInfo: normalizeInventorySizeInfo(row.size_info),
-      warehouseId: row.warehouse_id,
-      onHandDelta: Number(row.on_hand_delta || 0),
-      reservedDelta: Number(row.reserved_delta || 0),
-      onHandAfter: Number(row.on_hand_after || 0),
-      reservedAfter: Number(row.reserved_after || 0),
-      referenceType: row.reference_type,
-      referenceId: row.reference_id,
-      referenceLineId: row.reference_line_id,
-      transferGroupId: row.transfer_group_id,
-      reversalOf: row.reversal_of,
-      actorUserId: row.actor_user_id,
-      actorName: row.actor_name ? repairGreekMojibake(row.actor_name) : null,
-      reason: repairGreekMojibake(row.reason),
-      createdAt: row.created_at,
-    }));
+    return (data || []).map(mapInventoryEvent);
+  },
+
+  async getItemMovementHistory(productSku: string, variantSuffix: string, limit = 20): Promise<InventoryEvent[]> {
+    const { data, error } = await supabase
+      .from('inventory_events')
+      .select('*')
+      .eq('product_sku', productSku)
+      .eq('variant_suffix', variantSuffix)
+      .order('created_at', { ascending: false })
+      .order('sequence_no', { ascending: false })
+      .limit(limit);
+    if (error) throw toInventoryOperationError('availability-read', error);
+    return (data || []).map(mapInventoryEvent);
   },
 
   async getOrderReservations(orderId: string): Promise<InventoryReservation[]> {

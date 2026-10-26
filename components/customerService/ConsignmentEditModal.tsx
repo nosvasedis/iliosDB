@@ -6,6 +6,7 @@ import SkuProductPicker from '../legal/SkuProductPicker';
 import ConsignmentBadge from './ConsignmentBadge';
 import CustomerSearchSelect from './CustomerSearchSelect';
 import ViewportPortal from './ViewportPortal';
+import { ConsignmentSizeSelect, ConsignmentStockHint, useConsignmentDrawPlans } from './consignments/ConsignmentLineExtras';
 import { getCatalogSelectionPricing } from '../../utils/skuProductPicker';
 import { formatGreekMoney, formatGreekNumber } from '../../features/customerService';
 import {
@@ -95,6 +96,9 @@ export default function ConsignmentEditModal({
   useEscapeToClose(onClose, saving);
 
   const catalogSkus = useMemo(() => new Set(products.map((product) => product.sku)), [products]);
+  const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+  const drawLines = useMemo(() => editLines.map((line) => ({ sku: line.sku, variantSuffix: line.variantSuffix, sizeInfo: line.sizeInfo, quantity: Number(line.quantity) || 0 })), [editLines]);
+  const plans = useConsignmentDrawPlans(drawLines, warehouseId);
   const issues = useMemo(
     () => validatePendingConsignmentEdit({
       customerId,
@@ -245,10 +249,11 @@ export default function ConsignmentEditModal({
                         <span className="mb-1 block text-[10px] font-bold text-slate-400">Τιμή</span>
                         <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} />
                       </label>
-                      <label>
+                      <div>
                         <span className="mb-1 block text-[10px] font-bold text-slate-400">Μέγεθος</span>
-                        <input className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm outline-none" value={line.sizeInfo} onChange={(event) => updateLine(line.key, { sizeInfo: event.target.value })} placeholder="—" />
-                      </label>
+                        <ConsignmentSizeSelect product={productsBySku.get(line.sku)} value={line.sizeInfo} onChange={(sizeInfo) => updateLine(line.key, { sizeInfo })} disabled={!line.sku} />
+                        <div className="mt-1"><ConsignmentStockHint plan={plans[editLines.indexOf(line)]} /></div>
+                      </div>
                       <button
                         type="button"
                         className="mt-6 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"

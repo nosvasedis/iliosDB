@@ -1,11 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
 const source = [
   '../../components/inventory/InventoryWorkspace.tsx',
-  '../../components/inventory/InventoryStockExplorer.tsx',
-  '../../components/inventory/InventoryGuideDialog.tsx',
-  '../../components/inventory/InventoryQuickSearch.tsx',
+  '../../components/inventory/InventoryStockList.tsx',
+  '../../components/inventory/InventoryItemDrawer.tsx',
+  '../../components/inventory/InventoryAdminDialogs.tsx',
+  '../../components/inventory/StockEntryDialog.tsx',
+  '../../components/inventory/ui/StockControls.tsx',
   '../../components/inventory/InventoryPostingDialog.tsx',
   '../../components/inventory/InventoryCountSessionDialog.tsx',
   '../../components/inventory/InventoryAvailabilityNote.tsx',
@@ -16,42 +20,25 @@ const source = [
   '../../components/mobile/MobileRegistry.tsx',
   '../../components/ProductRegistry.tsx',
   '../../components/PriceListPage.tsx',
-].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
+].map(read).join('\n');
 
-const workspaceSource = readFileSync(
-  new URL('../../components/inventory/InventoryWorkspace.tsx', import.meta.url),
-  'utf8',
-);
+const workspaceSource = read('../../components/inventory/InventoryWorkspace.tsx');
+const entrySource = read('../../components/inventory/StockEntryDialog.tsx');
+const controlsSource = read('../../components/inventory/ui/StockControls.tsx');
 
 describe('Greek inventory UI language contract', () => {
   it('does not expose known English inventory labels or fallbacks', () => {
     expect(source).not.toMatch(/["']Scan Stock["']/);
     expect(source).not.toMatch(/\|\|\s*["']User["']/);
     expect(source).not.toMatch(/label:\s*["']Unisex["']/);
-  });
-
-  it('uses the ERP reorder term and accented mobile actions', () => {
-    expect(source).toContain('Κάτω από Σημείο Αναπαραγγελίας');
-    expect(source).toContain('Γρήγορες Ενέργειες');
-    expect(source).toContain('Σάρωση Αποθέματος');
-  });
-
-  it('keeps the grouped SKU explorer and its help flow in professional Greek', () => {
-    expect(source).toContain('Κύριο SKU & εικόνα');
-    expect(source).toContain('Οδηγός Αποθήκης & Αποθέματος');
-    expect(source).toContain('Αποθήκη Προέλευσης');
-    expect(source).toContain('Πρώτη φυσική απογραφή σε κενό σύστημα');
+    expect(source).not.toContain('No results');
+    expect(source).not.toContain('Add warehouse');
     expect(source).not.toContain('No Image');
   });
 
-  it('keeps immediate search and smart posting fully Greek and operational', () => {
-    expect(source).toContain('Αναζήτηση SKU ή παραλλαγής…');
-    expect(source).toContain('Καταχώριση & επόμενο SKU');
-    expect(source).toContain('Απογραφή — Ορισμός ακριβούς Φυσικού Αποθέματος');
-    expect(source).toContain('Προσθήκη δεύτερης αποθήκης');
-    expect(source).toContain('Δεν πραγματοποιήθηκε καμία μεταβολή');
-    expect(source).not.toContain('No results');
-    expect(source).not.toContain('Add warehouse');
+  it('keeps accented mobile quick actions', () => {
+    expect(source).toContain('Γρήγορες Ενέργειες');
+    expect(source).toContain('Σάρωση Αποθέματος');
   });
 
   it('keeps mobile stock feedback canonical and operationally explicit', () => {
@@ -68,16 +55,24 @@ describe('Greek inventory UI language contract', () => {
     expect(source).not.toContain('Start session');
     expect(source).not.toContain('Submit batch');
   });
+});
 
-  it('keeps one primary stock-posting entry point and flexible warehouse terminology', () => {
-    const stockHeaderStart = workspaceSource.indexOf('Αναλυτικά Υπόλοιπα SKU');
-    const stockFiltersStart = workspaceSource.indexOf('Φίλτρο αποθήκης', stockHeaderStart);
-    const stockHeader = workspaceSource.slice(stockHeaderStart, stockFiltersStart);
+describe('streamlined Αποθήκη & Στοκ', () => {
+  it('has one screen with a single primary entry action and no tabs', () => {
+    expect(workspaceSource).toContain('Αποθήκη & Στοκ');
+    expect(workspaceSource.match(/<PackagePlus size=\{16\} \/> Καταχώριση/g)).toHaveLength(1);
+    expect(workspaceSource).not.toContain('role="tablist"');
+    expect(workspaceSource).not.toContain('Σημείο Αναπαραγγελίας');
+  });
 
-    expect(stockHeader).not.toContain('Καταχώριση Αποθέματος');
-    expect(stockHeader).toContain('Συνεδρία Απογραφής');
-    expect(workspaceSource).toContain('Κατηγορία / υπεύθυνος');
-    expect(workspaceSource).toContain('Δειγματολόγιο κύριου πλασιέ');
-    expect(workspaceSource).not.toContain("label: 'Κατάστημα'");
+  it('never requires a size: «Χωρίς μέγεθος» is always offered', () => {
+    expect(controlsSource).toContain('NO_SIZE_LABEL');
+    expect(entrySource).toContain('stockSizeOptions');
+    expect(entrySource).toContain('Το μέγεθος είναι προαιρετικό');
+  });
+
+  it('shows stock held at customers without allowing manual moves there', () => {
+    expect(workspaceSource).toContain('Σε πελάτες');
+    expect(workspaceSource).toContain('WORKFLOW_OWNED_WAREHOUSE_IDS');
   });
 });

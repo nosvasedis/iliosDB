@@ -65,6 +65,7 @@ export const INVENTORY_OPERATION_LABELS: Record<InventoryOperationType, string> 
  */
 const WORKFLOW_OPERATION_LABELS: Record<string, string> = {
   consignment_handoff: 'Παράδοση σε Παρακαταθήκη',
+  consignment_direct_in: 'Απευθείας καταχώριση σε Παρακαταθήκη',
   consignment_sale: 'Πώληση από Παρακαταθήκη',
   consignment_sale_reversal: 'Αναίρεση πώλησης Παρακαταθήκης',
   consignment_return: 'Επιστροφή από Παρακαταθήκη',

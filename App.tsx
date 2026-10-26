@@ -410,7 +410,7 @@ function ErpAppContent() {
   const adminPageRegistry: Record<AdminPage, React.ReactNode> = {
     dashboard: <Dashboard products={products} settings={settings} onNavigate={handleNav} />,
     registry: <ProductRegistry setPrintItems={setPrintItems} />,
-    inventory: <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />,
+    inventory: <Inventory products={products} onOpenConsignments={() => handleNav('consignments')} />,
     pricing: <PricingManager products={products} settings={settings} materials={materials} />,
     settings: <SettingsPage />,
     resources: (

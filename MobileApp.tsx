@@ -226,7 +226,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     ),
     consignments: <CustomerServiceWorkspace mode="consignments" />,
     repairs: <CustomerServiceWorkspace mode="repairs" />,
-    inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} />,
+    inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} onOpenConsignments={() => setActivePage('consignments')} />,
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
     registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,
     settings: <MobileSettings />,

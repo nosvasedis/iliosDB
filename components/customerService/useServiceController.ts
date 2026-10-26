@@ -62,6 +62,13 @@ export interface ConsignmentBundle {
   summary: ConsignmentSummary;
 }
 
+
+/** Pieces the handoff booked straight into the consignment location (not in stock). */
+function handoffDirectTotal(result: unknown): number {
+  const value = (result as { direct_total?: unknown } | null)?.direct_total;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 export function useServiceController(options: { loadOrders?: boolean } = {}) {
   const { profile } = useAuth();
   const { showToast, confirm } = useUI();
@@ -175,12 +182,14 @@ export function useServiceController(options: { loadOrders?: boolean } = {}) {
       return true;
     }
     const failures: string[] = [];
+    let direct = 0;
     for (const id of ids) {
-      try { await actions.handoffConsignment.mutateAsync(id); }
+      try { direct += handoffDirectTotal(await actions.handoffConsignment.mutateAsync(id)); }
       catch (handoffError) { failures.push(handoffError instanceof Error ? handoffError.message : 'άγνωστο σφάλμα'); }
     }
     if (failures.length === 0) {
-      showToast(ids.length > 1 ? `${ids.length} Παρακαταθήκες δημιουργήθηκαν και παραδόθηκαν.` : 'Η Παρακαταθήκη δημιουργήθηκε και παραδόθηκε στον πελάτη.', 'success');
+      const base = ids.length > 1 ? `${ids.length} Παρακαταθήκες δημιουργήθηκαν και παραδόθηκαν.` : 'Η Παρακαταθήκη δημιουργήθηκε και παραδόθηκε στον πελάτη.';
+      showToast(direct > 0 ? `${base} ${direct} τεμ. καταγράφηκαν απευθείας (δεν υπήρχαν στην αποθήκη).` : base, 'success');
     } else {
       showToast(`Η Παρακαταθήκη δημιουργήθηκε, αλλά η παράδοση δεν έγινε: ${failures[0]} Θα τη βρείτε στη στήλη «Προς παράδοση».`, 'error');
     }
@@ -190,11 +199,23 @@ export function useServiceController(options: { loadOrders?: boolean } = {}) {
   const handoffConsignment = useCallback(async (entry: Consignment) => {
     const accepted = await confirm({
       title: `Παράδοση ${entry.code}`,
-      message: 'Τα τεμάχια φεύγουν από την αποθήκη και καταγράφονται ως «στον πελάτη». Συνέχεια;',
+      message: 'Όσα τεμάχια υπάρχουν φεύγουν από την αποθήκη· όσα λείπουν καταγράφονται απευθείας στον πελάτη. Συνέχεια;',
       confirmText: 'Παράδοση',
     });
-    if (accepted) await safeAction(() => actions.handoffConsignment.mutateAsync(entry.id), 'Η Παρακαταθήκη παραδόθηκε στον πελάτη.');
-  }, [actions.handoffConsignment, confirm, safeAction]);
+    if (!accepted) return;
+    try {
+      const direct = handoffDirectTotal(await actions.handoffConsignment.mutateAsync(entry.id));
+      showToast(
+        direct > 0
+          ? `Η Παρακαταθήκη παραδόθηκε. ${direct} τεμ. καταγράφηκαν απευθείας (δεν υπήρχαν στην αποθήκη).`
+          : 'Η Παρακαταθήκη παραδόθηκε στον πελάτη.',
+        'success',
+      );
+      setOperation(null);
+    } catch (handoffError) {
+      showToast(handoffError instanceof Error ? handoffError.message : 'Η παράδοση δεν ολοκληρώθηκε.', 'error');
+    }
+  }, [actions.handoffConsignment, confirm, showToast]);
 
   const runSettlementSteps = useCallback(async (steps: SettlementStep[], note: string): Promise<boolean> => {
     let done = 0;

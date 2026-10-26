@@ -20,6 +20,7 @@ import SkuColorizedText from '../SkuColorizedText';
 import { getSkuFinishBadgeSurface, getSkuFinishCardTheme } from '../../utils/skuColoring';
 import {
   inventoryRepository,
+  stockSizeOptions,
   summarizeInventorySelectionByWarehouse,
   type InventoryAvailability,
 } from '../../features/inventory';
@@ -28,6 +29,7 @@ import {
   useInventoryAvailability,
 } from '../../hooks/api/useInventory';
 import { useAuth } from '../AuthContext';
+import { SizeChips } from '../inventory/ui/StockControls';
 
 interface Props {
   product: Product;
@@ -91,8 +93,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
   const availabilityQuery = useInventoryAvailability();
 
-  const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number; reason: string } | null>(null);
-  const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number; reason: string } | null>(null);
+  const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; sizeInfo: string; qty: number; reason: string } | null>(null);
+  const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; sizeInfo: string; qty: number; reason: string } | null>(null);
   const [stockMutationPending, setStockMutationPending] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -325,6 +327,15 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   };
 
   // ... (Adjust/Transfer Handlers remain the same)
+  // Size is optional: '' is the «Χωρίς μέγεθος» bucket; sized buckets are shown when they exist.
+  const sizeCountsFor = (warehouseId: string) => {
+      const counts: Record<string, number> = {};
+      (availabilityQuery.data || [])
+          .filter((row) => row.productSku === product.sku && row.variantSuffix === (activeVariant?.suffix || '') && row.warehouseId === warehouseId)
+          .forEach((row) => { counts[row.sizeInfo] = (counts[row.sizeInfo] || 0) + row.onHand; });
+      return counts;
+  };
+
   const handleAdjustStock = async () => {
       if (!adjustModal || stockMutationPending) return;
       const { warehouseId, type, qty } = adjustModal;
@@ -332,7 +343,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       const currentRow = (availabilityQuery.data || []).find((row) => (
           row.productSku === product.sku
           && row.variantSuffix === (activeVariant?.suffix || '')
-          && row.sizeInfo === ''
+          && row.sizeInfo === adjustModal.sizeInfo
           && row.warehouseId === warehouseId
       ));
       const expectedOnHand = type === 'set'
@@ -344,7 +355,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           await inventoryRepository.adjustStock({
               productSku: product.sku,
               variantSuffix: activeVariant?.suffix || '',
-              sizeInfo: '',
+              sizeInfo: adjustModal.sizeInfo,
               warehouseId,
               mode: type === 'set' ? 'set' : 'delta',
               quantity: type === 'set' ? qty : finalQty,
@@ -355,7 +366,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           const confirmedRow = confirmedRows.find((row) => (
               row.productSku === product.sku
               && row.variantSuffix === (activeVariant?.suffix || '')
-              && row.sizeInfo === ''
+              && row.sizeInfo === adjustModal.sizeInfo
               && row.warehouseId === warehouseId
           ));
           if (!confirmedRow || confirmedRow.onHand !== expectedOnHand) {
@@ -382,7 +393,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       const identityMatches = (row: InventoryAvailability, warehouseId: string) => (
           row.productSku === product.sku
           && row.variantSuffix === (activeVariant?.suffix || '')
-          && row.sizeInfo === ''
+          && row.sizeInfo === transferModal.sizeInfo
           && row.warehouseId === warehouseId
       );
       const sourceBefore = (availabilityQuery.data || []).find((row) => identityMatches(row, sourceId));
@@ -393,7 +404,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           await inventoryRepository.transferStock({
               productSku: product.sku,
               variantSuffix: activeVariant?.suffix || '',
-              sizeInfo: '',
+              sizeInfo: transferModal.sizeInfo,
               sourceWarehouseId: sourceId,
               destinationWarehouseId: targetId,
               quantity: qty,
@@ -440,9 +451,9 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               </div>
           </div>
           <div className="flex gap-2">
-              {isAdmin && <button aria-label={`Προσθήκη αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'add', qty: 1, reason: '' })} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 active:scale-95 transition-transform"><PlusCircle size={20}/></button>}
-              {canTransfer && <button aria-label={`Ενδοδιακίνηση από ${label}`} onClick={() => setTransferModal({ sourceId: whId, targetId: warehouses.find(w => w.id !== whId)?.id || '', qty: 1, reason: '' })} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 active:scale-95 transition-transform" disabled={available <= 0}><ArrowRightLeft size={20}/></button>}
-              {isAdmin && <button aria-label={`Διόρθωση αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'set', qty: onHand, reason: '' })} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 active:scale-95 transition-transform"><Settings2 size={20}/></button>}
+              {isAdmin && <button aria-label={`Προσθήκη αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'add', sizeInfo: '', qty: 1, reason: '' })} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 active:scale-95 transition-transform"><PlusCircle size={20}/></button>}
+              {canTransfer && <button aria-label={`Ενδοδιακίνηση από ${label}`} onClick={() => setTransferModal({ sourceId: whId, targetId: warehouses.find(w => w.id !== whId)?.id || '', sizeInfo: '', qty: 1, reason: '' })} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 active:scale-95 transition-transform" disabled={available <= 0}><ArrowRightLeft size={20}/></button>}
+              {isAdmin && <button aria-label={`Διόρθωση αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'set', sizeInfo: '', qty: sizeCountsFor(whId)[''] || 0, reason: '' })} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 active:scale-95 transition-transform"><Settings2 size={20}/></button>}
           </div>
       </div>
       );
@@ -859,6 +870,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Ενδοδιακίνηση</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setTransferModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προέλευσης</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Μέγεθος (προαιρετικό)</label><SizeChips options={stockSizeOptions(product, Object.keys(sizeCountsFor(transferModal.sourceId)))} counts={sizeCountsFor(transferModal.sourceId)} value={transferModal.sizeInfo} allowCustom={false} disabled={stockMutationPending} onChange={(sizeInfo) => setTransferModal({ ...transferModal, sizeInfo })} /></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προορισμού</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={transferModal.reason} onChange={e => setTransferModal({...transferModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="Καταχωρίστε την αιτία της ενδοδιακίνησης..."/></div>
@@ -874,6 +886,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Διόρθωση Αποθέματος</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setAdjustModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div className="text-center text-sm font-bold text-slate-500 mb-2">{warehouses.find(w => w.id === adjustModal.warehouseId)?.name}</div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Μέγεθος (προαιρετικό)</label><SizeChips options={stockSizeOptions(product, Object.keys(sizeCountsFor(adjustModal.warehouseId)))} counts={sizeCountsFor(adjustModal.warehouseId)} value={adjustModal.sizeInfo} disabled={stockMutationPending} onChange={(sizeInfo) => setAdjustModal({ ...adjustModal, sizeInfo, qty: adjustModal.type === 'set' ? (sizeCountsFor(adjustModal.warehouseId)[sizeInfo] || 0) : adjustModal.qty })} /></div>
                   {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Φυσικό Απόθεμα</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
                   {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={adjustModal.reason} onChange={e => setAdjustModal({...adjustModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-500/20" placeholder="Καταχωρίστε την αιτία της διόρθωσης..."/></div>

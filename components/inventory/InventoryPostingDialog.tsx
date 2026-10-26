@@ -176,7 +176,8 @@ export default function InventoryPostingDialog({
     ));
   }, [availability, selection]);
   const sizeOptions = useMemo(() => {
-    const base = sizing ? sizing.sizes.map(normalizeInventorySizeInfo) : [''];
+    // Size is always optional: «Χωρίς μέγεθος» comes first even for sized products.
+    const base = sizing ? ['', ...sizing.sizes.map(normalizeInventorySizeInfo)] : [''];
     const ordered = [...base];
     [...existingSizes, ...customSizes].forEach((size) => {
       if (!ordered.includes(size)) ordered.push(size);

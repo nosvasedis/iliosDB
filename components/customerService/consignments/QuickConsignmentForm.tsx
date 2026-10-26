@@ -18,6 +18,7 @@ import {
 } from '../../../features/customerService';
 import type { ServiceController } from '../useServiceController';
 import { ACTION_PRIMARY, ACTION_QUIET, Field, ROW_BUTTON, SERVICE_INPUT, ServiceModal } from '../shared/serviceUi';
+import { ConsignmentSizeSelect, ConsignmentStockHint, useConsignmentDrawPlans } from './ConsignmentLineExtras';
 
 const REVIEW_PRESETS = [
   { days: 14, label: '2 εβδ.' },
@@ -65,6 +66,11 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
     if (finalRows.length === 0) return ['Προσθέστε τουλάχιστον ένα τεμάχιο.'];
     return validateConsignmentDraftRows(finalRows, catalogSkus);
   }, [catalogSkus, customerId, finalRows]);
+  const productsBySku = useMemo(() => new Map(ctl.products.map((product) => [product.sku, product])), [ctl.products]);
+  const sourceWarehouseId = warehouseId || ctl.sourceWarehouses[0]?.id || '';
+  const drawLines = useMemo(() => rows.map((row) => ({ sku: row.sku, variantSuffix: row.variantSuffix, sizeInfo: row.sizeInfo, quantity: Number(row.quantity) || 0 })), [rows]);
+  const plans = useConsignmentDrawPlans(drawLines, sourceWarehouseId);
+  const directPieces = plans.reduce((sum, plan) => sum + (plan?.direct || 0), 0);
   const pieces = finalRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
   const value = finalRows.reduce((sum, row) => sum + (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0), 0);
 
@@ -122,7 +128,12 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
           <div className="mr-auto min-w-0 text-xs">
             {issues.length > 0
               ? <span className="font-bold text-slate-400">{issues[0]}</span>
-              : <span className="font-black text-slate-700">{formatGreekNumber(pieces)} τεμ. · {formatGreekMoney(value)}</span>}
+              : (
+                <span className="font-black text-slate-700">
+                  {formatGreekNumber(pieces)} τεμ. · {formatGreekMoney(value)}
+                  {handoffNow && directPieces > 0 && <span className="ml-1 font-bold text-amber-700">· {formatGreekNumber(directPieces)} νέα</span>}
+                </span>
+              )}
           </div>
           <button type="button" className={ACTION_QUIET} onClick={onClose} disabled={saving}>Άκυρο</button>
           <button type="button" className={`${ACTION_PRIMARY}`} onClick={submit} disabled={saving || issues.length > 0}>
@@ -167,7 +178,10 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
                     compact
                     catalogOnly
                   />
-                  {row.orderLineId && <div className="mt-1 text-[10px] text-slate-400">από παραγγελία #{formatOrderId(row.sourceOrderId)}</div>}
+                  <div className="mt-1 flex flex-wrap gap-x-2 px-1">
+                    {handoffNow && <ConsignmentStockHint plan={plans[rows.indexOf(row)]} />}
+                    {row.orderLineId && <span className="text-[10px] text-slate-400">από παραγγελία #{formatOrderId(row.sourceOrderId)}</span>}
+                  </div>
                 </div>
                 <label className="flex items-center gap-1.5 sm:block">
                   <span className="text-[10px] font-bold text-slate-400 sm:hidden">Ποσ.</span>
@@ -177,7 +191,7 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
                   <span className="text-[10px] font-bold text-slate-400 sm:hidden">€/τεμ.</span>
                   <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className={`${SERVICE_INPUT} px-2`} value={row.unitPrice} onChange={(event) => update(row.id, { unitPrice: Number(event.target.value) })} />
                 </label>
-                <input aria-label="Μέγεθος" className={`${SERVICE_INPUT} px-2`} value={row.sizeInfo} onChange={(event) => update(row.id, { sizeInfo: event.target.value })} placeholder="Μέγεθος" />
+                <ConsignmentSizeSelect product={productsBySku.get(row.sku)} value={row.sizeInfo} onChange={(sizeInfo) => update(row.id, { sizeInfo })} disabled={!row.sku} />
                 <button type="button" className="justify-self-end rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} aria-label="Αφαίρεση τεμαχίου"><Trash2 size={15} /></button>
               </div>
             ))}
@@ -201,7 +215,7 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
             <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#060b00]" checked={handoffNow} onChange={(event) => setHandoffNow(event.target.checked)} />
             <span>
               <span className="block text-sm font-black text-slate-800">Παραδίδονται τώρα στον πελάτη</span>
-              <span className="block text-[11px] text-slate-500">{handoffNow ? 'Τα τεμάχια αφαιρούνται αμέσως από την αποθήκη.' : 'Μένει «Προς παράδοση» (π.χ. είναι ακόμη στην Παραγωγή).'}</span>
+              <span className="block text-[11px] text-slate-500">{handoffNow ? 'Όσα υπάρχουν φεύγουν από την αποθήκη· όσα λείπουν καταγράφονται απευθείας στον πελάτη.' : 'Μένει «Προς παράδοση» (π.χ. είναι ακόμη στην Παραγωγή).'}</span>
             </span>
           </label>
         </div>
