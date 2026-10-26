@@ -752,6 +752,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                         min={1}
                                         value={scanQty}
                                         onChange={e => setScanQty(parseInt(e.target.value) || 1)}
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); } }}
                                         className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
                                     />
                                 </div>

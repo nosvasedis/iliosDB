@@ -595,7 +595,14 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     {input.length >= 3 && suggestions.length === 0 && (
                         <div className="mt-3 flex gap-2">
                              <div className="w-20 shrink-0">
-                                <input type="number" min="1" value={qty} onChange={e => setQty(parseInt(e.target.value)||1)} className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-slate-50 text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"/>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={qty}
+                                    onChange={e => setQty(parseInt(e.target.value)||1)}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); } }}
+                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-slate-50 text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                />
                             </div>
                             <button 
                                 onClick={executeSmartAdd}

@@ -431,6 +431,16 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         }
     };
 
+    const handleSmartEntryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+            triggerPrint();
+            return;
+        }
+        executeSmartAdd();
+    };
+
     // --- HISTORY ACTIONS ---
     const handleReloadLog = (log: ActionLog) => {
         const text = log.details.map(d => `${d.sku}${d.variant || ''} ${d.qty}`).join('\n');
@@ -706,14 +716,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         type="text"
                                         value={scanInput}
                                         onChange={handleSmartInput}
-                                        onKeyDown={e => {
-                                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                                                e.preventDefault();
-                                                triggerPrint();
-                                                return;
-                                            }
-                                            if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); }
-                                        }}
+                                        onKeyDown={handleSmartEntryKeyDown}
                                         placeholder="Πληκτρολογήστε..."
                                         className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
                                     />
@@ -727,6 +730,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     min="1"
                                     value={scanQty}
                                     onChange={e => setScanQty(parseInt(e.target.value) || 1)}
+                                    onKeyDown={handleSmartEntryKeyDown}
                                     className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
                                 />
                             </div>
