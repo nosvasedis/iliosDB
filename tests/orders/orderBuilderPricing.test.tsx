@@ -8,6 +8,10 @@ import MobileOrderBuilder from '../../components/mobile/MobileOrderBuilder';
 import OrderPriceModeToggle from '../../components/OrderBuilder/OrderPriceModeToggle';
 import { api } from '../../lib/supabase';
 
+vi.mock('../../lib/supabase', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../lib/supabase')>();
+    return { ...actual, api: { ...actual.api, updateOrder: vi.fn() } };
+});
 vi.mock('../../components/UIProvider', () => ({ useUI: () => ({ showToast: vi.fn(), confirm: vi.fn() }) }));
 vi.mock('../../components/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' }, profile: { id: 'u1', role: 'employee' } }) }));
 vi.mock('../../hooks/api/useCollections', () => ({ useCollections: () => ({ data: [] }) }));
@@ -44,6 +48,61 @@ afterEach(() => {
 });
 
 describe('order builder pricing controls', () => {
+    it('resolves complete sized SKUs consistently and clears invalid or removed sizes', () => {
+        const sizedProducts = [{ ...products[0], sku: 'DA012', prefix: 'DA', variants: [
+            { suffix: '', description: 'Λουστρέ' }, { suffix: 'D', description: 'Δίχρωμο' }, { suffix: 'DLA', description: 'Λάπις' },
+        ] }] as Product[];
+        let builder: ReturnType<typeof useOrderState>;
+        function Harness() {
+            builder = useOrderState({ products: sizedProducts, customers: [], onBack: vi.fn() });
+            return null;
+        }
+        mount(<Harness />);
+        const type = (value: string) => act(() => builder!.actions.handleSmartInput({ target: { value } } as any));
+        type('DA012DLA-62');
+        expect(builder!.state.selectedSize).toBe('62');
+        expect(builder!.state.filteredVariants.map(v => v.suffix)).toEqual(['DLA']);
+        expect(builder!.actions.getSkuComponents('DA012DLA-62', sizedProducts[0])).toMatchObject({ suffixStr: 'DLA', sizeText: '-62' });
+        type('DA012DLA-99');
+        expect(builder!.state.selectedSize).toBe('');
+        act(() => builder!.actions.executeAddItem());
+        act(() => builder!.actions.handleAddItem(sizedProducts[0].variants![2]));
+        expect(builder!.state.selectedItems).toHaveLength(0);
+        type('DA012DLA62');
+        expect(builder!.state.selectedSize).toBe('62');
+        act(() => builder!.actions.executeAddItem());
+        expect(builder!.state.selectedItems[0]).toMatchObject({ sku: 'DA012', variant_suffix: 'DLA', size_info: '62' });
+        type('DA012DLA 54');
+        expect(builder!.state.selectedSize).toBe('54');
+        type('DA012DLA');
+        expect(builder!.state.selectedSize).toBe('');
+        type('DA012DLA-52');
+        act(() => builder!.setters.setSelectedSize('50'));
+        expect(builder!.state.scanInput).toBe('DA012DLA-50');
+        act(() => builder!.actions.executeAddItem());
+        expect(builder!.state.selectedItems.map(item => item.size_info)).toEqual(['50', '62']);
+        type('DA012DLA-DA013DLA');
+        expect(builder!.state.selectedSize).toBe('');
+        act(() => builder!.actions.executeAddItem());
+        expect(builder!.state.pendingOrderRangeReview?.rows).toHaveLength(2);
+    });
+
+    it('keeps mobile rings editable through the dash and saves the selected size', async () => {
+        const sizedProducts = [{ ...products[0], sku: 'RN001', prefix: 'RN', variants: [{ suffix: 'P', description: 'Πατίνα', selling_price: 10 }] }] as Product[];
+        mount(<MobileOrderBuilder onBack={vi.fn()} initialOrder={{ ...order, items: [] }} products={sizedProducts} />);
+        const input = () => renderer.root.findAllByType('input').find(i => i.props.placeholder?.startsWith('Κωδικός ή πλήρης'))!;
+        for (const value of ['RN001P', 'RN001P-', 'RN001P-6', 'RN001P-62']) {
+            act(() => input().props.onChange({ target: { value } }));
+            expect(input().props.value).toBe(value);
+        }
+        expect(renderer.root.findByProps({ title: 'Μέγεθος 62' }).props.className).toContain('text-blue-600');
+        act(() => input().props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() }));
+        act(() => renderer.root.findAllByType('button').find(b => b.props.className?.includes('bg-emerald-600') && b.props.onClick)!.props.onClick());
+        await act(async () => { await renderer.root.findAllByType('button')[1].props.onClick(); });
+        expect(api.updateOrder).toHaveBeenCalledWith(expect.objectContaining({
+            items: [expect.objectContaining({ sku: 'RN001', variant_suffix: 'P', size_info: '62' })],
+        }), undefined);
+    });
     it('applies desktop retail mode to existing and scanned lines, edits, recalculation and save', async () => {
         let builder: ReturnType<typeof useOrderState>;
         function Harness() {

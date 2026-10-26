@@ -1,4 +1,5 @@
 import { ProductSizingInfo } from '../../utils/sizing';
+import { matchSkuSize, splitSkuSizeInput } from '../../utils/skuSizeInput';
 
 export type ParsedBatchLabelInputLine = {
   rawToken: string;
@@ -12,12 +13,6 @@ function parsePositiveInt(value: string | undefined): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function findMatchingSize(token: string | undefined, sizing?: Pick<ProductSizingInfo, 'sizes'> | null): string | undefined {
-  if (!token || !sizing) return undefined;
-  const normalized = token.trim().toUpperCase();
-  return sizing.sizes.find((size) => size.toUpperCase() === normalized);
-}
-
 export function parseBatchLabelInputLine(
   line: string,
   sizing?: Pick<ProductSizingInfo, 'sizes'> | null,
@@ -27,8 +22,9 @@ export function parseBatchLabelInputLine(
 
   const parts = cleanLine.split(/\s+/);
   const rawToken = parts[0].toUpperCase();
-  const size = findMatchingSize(parts[1], sizing);
-  const quantity = parsePositiveInt(size ? parts[2] : parts[1]) ?? 1;
+  const inline = splitSkuSizeInput(rawToken);
+  const size = matchSkuSize(inline.sizeToken || parts[1], sizing);
+  const quantity = parsePositiveInt(!inline.sizeToken && size ? parts[2] : parts[1]) ?? 1;
 
   return { rawToken, quantity, size };
 }

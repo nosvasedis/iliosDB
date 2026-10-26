@@ -1,3 +1,4 @@
+import { resolveSkuSizeInput, splitSkuSizeInput } from '../utils/skuSizeInput';
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { getSkuStoneLetterStyle } from '../utils/skuColoring';
 import StoneCodeText from './StoneCodeText';
@@ -59,7 +60,7 @@ interface ActionLog {
     id: string;
     timestamp: string;
     summary: string;
-    details: { sku: string; variant?: string; qty: number }[];
+    details: { sku: string; variant?: string; qty: number; size?: string }[];
 }
 
 interface ParsedBatchLabelQueueItem {
@@ -214,7 +215,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
             for (const rawSku of expandedSkus) {
                 let matchFound = false;
-                const match = findProductByScannedCode(rawSku, allProducts);
+                const resolved = resolveSkuSizeInput(rawSku, allProducts);
+                const match = resolved.invalidSize ? null : resolved.match;
 
                 if (match) {
                     const parsed = parseBatchLabelInputLine(line, getSizingInfo(match.product));
@@ -308,7 +310,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 id: Date.now().toString(),
                 timestamp: new Date().toISOString(),
                 summary: `${formatNumber(totalPieces)} Ετικέτες`,
-                details: printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity })),
+                details: printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity, size: i.size })),
             }, ...prev].slice(0, 50));
             if (notFound.length > 0) {
                 showToast(`${formatNumber(notFound.length)} κωδικοί δεν βρέθηκαν και παραλείφθηκαν.`, 'warning');
@@ -319,8 +321,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     // --- REVAMPED SMART INPUT LOGIC ---
     const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value.toUpperCase();
-        setScanInput(val);
+        const rawVal = e.target.value.toUpperCase();
+        const val = splitSkuSizeInput(rawVal).sku;
+        setScanInput(rawVal);
 
         if (val.length < 2) {
             setCandidateProducts([]);
@@ -390,7 +393,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     const selectSuffix = (suffix: string) => {
         if (activeMasterProduct) {
-            const fullCode = activeMasterProduct.sku + suffix;
+            const fullCode = activeMasterProduct.sku + suffix + splitSkuSizeInput(scanInput).sizeText;
             setScanInput(fullCode);
             setFilteredVariants([]);
             inputRef.current?.focus();
@@ -405,7 +408,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         const validEntries: string[] = [];
 
         for (const rawSku of expandedSkus) {
-            const match = findProductByScannedCode(rawSku, allProducts);
+            const resolved = resolveSkuSizeInput(rawSku, allProducts);
+            const match = resolved.invalidSize ? null : resolved.match;
             if (match) {
                 validEntries.push(rawSku);
                 addedCount++;
@@ -446,7 +450,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     // --- HISTORY ACTIONS ---
     const handleReloadLog = (log: ActionLog) => {
-        const text = log.details.map(d => `${d.sku}${d.variant || ''} ${d.qty}`).join('\n');
+        const text = log.details.map(d => `${d.sku}${d.variant || ''}${d.size ? `-${d.size}` : ''} ${d.qty}`).join('\n');
         setSkusText(text);
         setShowHistoryModal(false);
         showToast("Η ουρά φορτώθηκε από το ιστορικό.", "success");
@@ -454,6 +458,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     // --- VISUALIZERS ---
     const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+        const sized = resolveSkuSizeInput(text, allProducts);
+        const sizeText = sized.size ? sized.sizeText : '';
+        if (sizeText) text = sized.sku;
         let masterStr = text;
         let suffixStr = '';
 
@@ -486,12 +493,13 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             <span>
                 <span className="text-slate-900 font-black">{masterStr}</span>
                 <span className="font-black">{renderSuffixChars()}</span>
+                {sizeText && <span className="font-black text-blue-600" title={`Μέγεθος ${sized.size}`}>{sizeText}</span>}
             </span>
         );
     }
 
     const SkuVisualizer = () => {
-        if (scanInput.includes('-')) {
+        if (scanInput.includes('-') && !splitSkuSizeInput(scanInput).sizeToken) {
             const parts = scanInput.split('-');
             const start = parts[0];
             const end = parts.slice(1).join('-');
@@ -508,7 +516,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         }
         return (
             <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
-                <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct} />
+                <SkuPartVisualizer text={scanInput} masterContext={activeMasterProduct || resolveSkuSizeInput(scanInput, allProducts).match?.product || null} />
             </div>
         );
     };
@@ -721,6 +729,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         onChange={handleSmartInput}
                                         onKeyDown={handleSmartEntryKeyDown}
                                         placeholder="Πληκτρολογήστε..."
+                                        title="Μέγεθος μετά τον πλήρη κωδικό: RN001P-62 · Εύρος: DA050-DA063"
                                         className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
                                     />
                                 </div>
@@ -851,7 +860,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 }}
                                 rows={12}
                                 className="custom-scrollbar min-h-[220px] w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 font-mono text-sm text-slate-900 outline-none transition-all placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/20"
-                                placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA050-DA063 2\nXR2020 5`}
+                                placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nRN001P-62 2\nDA050-DA063 2\nXR2020 5`}
                             />
                             {(readyLineCount > 0 || missingCount > 0) ? (
                                 <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -1050,7 +1059,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                     <div className="flex flex-wrap gap-1">
                                                         {log.details.map((d, i) => (
                                                             <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
-                                                                {d.sku}{d.variant} <span className="font-medium text-slate-400">x{formatNumber(d.qty)}</span>
+                                                                {d.sku}{d.variant}{d.size && <span className="text-blue-600">-{d.size}</span>} <span className="font-medium text-slate-400">x{formatNumber(d.qty)}</span>
                                                             </span>
                                                         ))}
                                                     </div>

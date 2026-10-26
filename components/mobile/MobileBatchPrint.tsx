@@ -1,3 +1,4 @@
+import { resolveSkuSizeInput, splitSkuSizeInput } from '../../utils/skuSizeInput';
 import { getSkuStoneLetterStyle } from '../../utils/skuColoring';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
@@ -22,6 +23,7 @@ interface QueueItem {
     product: Product;
     variant?: ProductVariant;
     qty: number;
+    size?: string;
 }
 
 // Visual Helpers for Variants
@@ -176,13 +178,16 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
 
         expandedSkus.forEach(rawSku => {
             let matchFound = false;
-            const match = findProductByScannedCode(rawSku, products || []);
+            const sized = resolveSkuSizeInput(rawSku, products || []);
+            const match = sized.invalidSize ? null : sized.match;
+            const sizeSuffix = sized.size ? `-${sized.size}` : '';
             
             if (match) {
                 // CASE A: Exact Match for a variant or a simple product with no variants
                 if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
                     newItems.push({
-                        skuString: match.product.sku + (match.variant?.suffix || ''),
+                        skuString: match.product.sku + (match.variant?.suffix || '') + sizeSuffix,
+                        size: sized.size,
                         product: match.product,
                         variant: match.variant,
                         qty: qty
@@ -198,7 +203,8 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                         // If the product has a "Master/Lustre" variant (empty suffix),
                         // assume typing the SKU alone refers specifically to that variant.
                         newItems.push({
-                            skuString: match.product.sku,
+                            skuString: match.product.sku + sizeSuffix,
+                            size: sized.size,
                             product: match.product,
                             variant: baseVariant,
                             qty: qty
@@ -209,7 +215,8 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                         // Otherwise, intelligently add ALL available variants
                         variants.forEach(v => {
                             newItems.push({
-                                skuString: match.product.sku + v.suffix,
+                                skuString: match.product.sku + v.suffix + sizeSuffix,
+                                size: sized.size,
                                 product: match.product,
                                 variant: v,
                                 qty: qty
@@ -315,6 +322,10 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
 
     // --- VISUALIZERS ---
     const SkuPartVisualizer = ({ text, masterContext }: { text: string, masterContext: Product | null }) => {
+        const sized = resolveSkuSizeInput(text, products || []);
+        const sizeText = sized.size ? sized.sizeText : '';
+        if (sizeText) text = sized.sku;
+        masterContext = masterContext || sized.match?.product || null;
         let masterStr = text;
         let suffixStr = '';
 
@@ -347,12 +358,13 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
             <span>
                 <span className="text-slate-900 font-black">{masterStr}</span>
                 <span className="font-black">{renderSuffixChars()}</span>
+                {sizeText && <span className="font-black text-blue-600" title={`Μέγεθος ${sized.size}`}>{sizeText}</span>}
             </span>
         );
     }
 
     const SkuVisualizer = () => {
-        if (input.includes('-')) {
+        if (input.includes('-') && !splitSkuSizeInput(input).sizeToken) {
             const parts = input.split('-');
             const start = parts[0];
             const end = parts.slice(1).join('-');
@@ -395,6 +407,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 settings={settings}
                                     product={item.product}
                                     variant={item.variant}
+                                    size={item.size}
                                     width={printFormat === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm} 
                                     height={printFormat === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm} 
                                     format={printFormat}

@@ -1,3 +1,4 @@
+import { resolveSkuSizeInput } from '../../utils/skuSizeInput';
 import { getSkuStoneLetterStyle } from '../../utils/skuColoring';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
@@ -93,7 +94,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
         if (sug) return sug;
         const m = state.activeMaster;
         if (!m) return null;
-        const u = state.scanInput.trim().toUpperCase();
+        const u = resolveSkuSizeInput(state.scanInput, [m], true).sku;
         const mu = m.sku.toUpperCase();
         if (u.startsWith(mu) && u.length > mu.length) {
             const tail = u.slice(mu.length).trim();
@@ -184,7 +185,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
 
     // SKU Visualizer: renders the SKU text overlay with colour-coded suffix
     const SkuVisualizer = () => {
-        const { masterStr, suffixStr, finish, stone } = actions.getSkuComponents(state.scanInput, state.activeMaster);
+        const { masterStr, suffixStr, finish, stone, sizeText } = actions.getSkuComponents(state.scanInput, state.activeMaster);
         const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
         const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
 
@@ -205,6 +206,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                 <span>
                     <span className="text-slate-900 font-black">{masterStr}</span>
                     <span className="font-black">{renderSuffixChars()}</span>
+                    {sizeText && <span className="font-black text-blue-600" title={`Μέγεθος ${state.selectedSize}`}>{sizeText}</span>}
                 </span>
             </div>
         );

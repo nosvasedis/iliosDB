@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BatchPrintPage from '../../components/BatchPrintPage';
 import MobileBatchPrint from '../../components/mobile/MobileBatchPrint';
 import OffersPage from '../../components/OffersPage';
+import BarcodeView from '../../components/BarcodeView';
 import { INITIAL_SETTINGS } from '../../constants';
 import { Gender, PlatingType, ProductionType, type Product } from '../../types';
 
@@ -122,6 +123,15 @@ describe.each<Surface>(['desktop', 'mobile', 'offers'])('%s smart entry keyboard
 });
 
 describe('desktop batch print shortcut', () => {
+  it('passes an inline size and quantity to the label renderer from the text queue', () => {
+    const { setPrintItems } = mount('desktop', 'DA10X-52 62\nDA11X-54 2\nDA10X-99 1');
+    act(() => qtyInput().props.onKeyDown(enter('Enter', { ctrlKey: true })));
+    act(() => vi.runAllTimers());
+    expect(setPrintItems).toHaveBeenCalledExactlyOnceWith([
+      expect.objectContaining({ product: products[0], size: '52', quantity: 62 }),
+      expect.objectContaining({ product: products[1], size: '54', quantity: 2 }),
+    ]);
+  });
   it.each(['sku', 'quantity'])('preserves Ctrl/Cmd+Enter printing from %s without adding the draft', source => {
     for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
       const { setSkusText, setPrintItems } = mount('desktop', 'DA11X 2');
@@ -133,6 +143,25 @@ describe('desktop batch print shortcut', () => {
       expect(setSkusText).not.toHaveBeenCalled();
       expect(setPrintItems).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ product: products[1], quantity: 2 })]);
       act(() => view.unmount());
+    }
+  });
+});
+
+describe.each<Surface>(['desktop', 'mobile'])('%s sized smart entry', surface => {
+  it('highlights the size and adds the requested quantity', () => {
+    const { setSkusText } = mount(surface);
+    act(() => skuInput().props.onChange({ target: { value: 'DA10X-52' } }));
+    expect(view.root.findByProps({ title: 'Μέγεθος 52' }).props.className).toContain('text-blue-600');
+    act(() => qtyInput().props.onChange({ target: { value: '62' } }));
+    act(() => qtyInput().props.onKeyDown(enter()));
+    if (surface === 'desktop') expect(setSkusText).toHaveBeenCalledExactlyOnceWith('DA10X-52 62');
+    else {
+      act(() => skuInput().props.onChange({ target: { value: 'DA10X-54' } }));
+      act(() => qtyInput().props.onKeyDown(enter()));
+      act(() => view.root.findAllByType('button').find(b => b.children.includes(' Προεπισκόπηση & Εκτύπωση'))!.props.onClick());
+      const labels = view.root.findAllByType(BarcodeView);
+      expect(labels.filter(label => label.props.size === '52')).toHaveLength(62);
+      expect(labels.filter(label => label.props.size === '54')).toHaveLength(1);
     }
   });
 });

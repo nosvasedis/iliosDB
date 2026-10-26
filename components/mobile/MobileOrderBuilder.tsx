@@ -1,3 +1,4 @@
+import { resolveSkuSizeInput } from '../../utils/skuSizeInput';
 import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { orderItemsDraftSnapshot } from '../../lib/editorSnapshots';
 import StoneCodeText from '../StoneCodeText';
@@ -296,7 +297,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
 
-    const typedSkuColor = useMemo(() => resolveTypedSkuColorParts(input, products), [input, products]);
+    const typedSizedInput = useMemo(() => resolveSkuSizeInput(input, products, true), [input, products]);
+    const typedSkuColor = useMemo(() => resolveTypedSkuColorParts(typedSizedInput.size ? typedSizedInput.sku : input, products), [input, products, typedSizedInput]);
 
     const editingItem = editingIndex !== null ? items[editingIndex] : null;
     const territorySkus = useMemo(() => items.map(item => item.sku), [items]);
@@ -325,7 +327,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (term.length < 2) { setSuggestions([]); return; }
         if (term === SPECIAL_CREATION_SKU) { setSuggestions([]); return; }
         // If input matches a full product+variant code (e.g. SK005PAK), resolve immediately
-        const fullMatch = findProductByScannedCode(term, products);
+        const fullMatch = typedSizedInput.invalidSize ? null : typedSizedInput.match;
+        // Sized SKUs stay editable until Enter, allowing the final -size to be typed.
+        if (fullMatch && getSizingInfo(fullMatch.product)) {
+            setSuggestions([fullMatch.product]);
+            return;
+        }
         if (fullMatch?.variant && fullMatch.product && !fullMatch.product.is_component) {
             setActiveMaster(fullMatch.product);
             setResolvedVariant(fullMatch.variant);
@@ -342,7 +349,25 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             return;
         }
         setSuggestions(buildMobileOrderBuilderProductSuggestions(products, term));
-    }, [input, products]);
+    }, [input, products, typedSizedInput]);
+
+    const resolveTypedSizedInput = () => {
+        const { match, size, invalidSize } = typedSizedInput;
+        if (invalidSize || !match || match.product.is_component) {
+            showToast(invalidSize ? 'Το μέγεθος δεν υποστηρίζεται για αυτόν τον κωδικό.' : 'Ο κωδικός δεν βρέθηκε.', 'error');
+            return;
+        }
+        setActiveMaster(match.product);
+        setResolvedVariant(match.variant || null);
+        setSizeMode(getSizingInfo(match.product));
+        setSelectedSize(size || '');
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
+        setSelectedFinish(null);
+        setSuggestions([]);
+        setItemNotes('');
+        setInput('');
+    };
 
     // ── Autosave draft to sessionStorage (new orders only) ──────────────────
     useEffect(() => {
@@ -419,13 +444,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     };
 
     const handleSelectMaster = (p: Product) => {
+        const typed = resolveSkuSizeInput(input, products, true);
+        const preserveTyped = !typed.invalidSize && typed.match?.product.sku === p.sku;
         setActiveMaster(p);
-        setResolvedVariant(null);
+        setResolvedVariant(preserveTyped ? typed.match?.variant || null : null);
         setInput('');
         setSuggestions([]);
         setSelectedFinish(null);
         setSizeMode(buildMobileOrderBuilderEditingSizeMode(p));
-        setSelectedSize('');
+        setSelectedSize(preserveTyped ? typed.size || '' : '');
         setSelectedCordColor(undefined);
         setSelectedEnamelColor(undefined);
         setItemNotes('');
@@ -898,6 +925,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                     className="font-black"
                                                     masterClassName="text-slate-900"
                                                 />
+                                                {typedSizedInput.size && <span className="font-black text-blue-600" title={`Μέγεθος ${typedSizedInput.size}`}>{typedSizedInput.sizeText}</span>}
                                             </div>
                                         ) : null}
                                         <input
@@ -905,7 +933,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             type="text"
                                             value={input}
                                             onChange={e => setInput(e.target.value.toUpperCase())}
-                                            onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); resolveTypedSizedInput(); } }}
                                             placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
                                             className={`relative z-10 w-full bg-transparent p-2 outline-none font-black uppercase ${input.trim() ? 'text-transparent caret-slate-800' : 'text-slate-900'}`}
                                         />
