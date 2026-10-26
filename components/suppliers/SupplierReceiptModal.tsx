@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import { Building2, Loader2, PackageCheck, X } from 'lucide-react';
 import type { SupplierOrder } from '../../types';
@@ -17,6 +18,8 @@ export default function SupplierReceiptModal({ order, onClose, onConfirm }: Prop
   const [warehouseId, setWarehouseId] = useState(order.receipt_warehouse_id || SYSTEM_IDS.CENTRAL);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+    useRestartDraft('Παραλαβή προμηθευτή', { warehouseId }, { busy: isSubmitting });
+
   useEscapeToClose(onClose, isSubmitting);
   const totalQuantity = useMemo(
     () => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0),

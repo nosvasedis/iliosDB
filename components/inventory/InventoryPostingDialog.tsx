@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -126,6 +127,8 @@ export default function InventoryPostingDialog({
   const [customSize, setCustomSize] = useState('');
   const [reason, setReason] = useState(countSession?.reason || '');
   const [saving, setSaving] = useState(false);
+    useRestartDraft('Καταχώρηση αποθέματος', { mode, selection: selection?.displaySku, warehouseIds, values, customSizes, customSize, reason }, { busy: saving });
+
   const pickerInputRef = useRef<HTMLInputElement>(null);
   useEscapeToClose(onClose, saving);
 

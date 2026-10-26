@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 /**
@@ -99,6 +100,8 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
   const [executionSteps, setExecutionSteps] = useState<ExecutionStepState[]>([]);
   const [result, setResult] = useState<TransferResult | null>(null);
   const [updatedOrderB, setUpdatedOrderB] = useState<Order | null>(null);
+    useRestartDraft('Μεταφορά υπολοίπων', { order: selectedOrderB?.id, confirmText }, { enabled: step !== 'result', busy: step === 'executing' });
+
   const confirmInputRef = useRef<HTMLInputElement>(null);
 
   // ── Candidate orders ──────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, Loader2, Plus, Trash2, Wrench, X } from 'lucide-react';
 import type { RepairItem, RepairOriginType } from '../../../types';
@@ -46,6 +47,8 @@ export default function QuickRepairForm({ ctl, presetCustomerId, lockCustomer = 
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    useRestartDraft('Παραλαβή επισκευής', { customerId, rows, notes }, { busy: saving });
+
   const isRework = Boolean(previousRepairItem);
 
   const catalogSkus = useMemo(() => new Set(ctl.products.map((product) => product.sku)), [ctl.products]);

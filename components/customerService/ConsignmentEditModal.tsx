@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Pencil, Plus, Warehouse, X } from 'lucide-react';
 import type { Consignment, ConsignmentLine, Product } from '../../types';
@@ -88,6 +89,8 @@ export default function ConsignmentEditModal({
   const [notes, setNotes] = useState(entry.notes || '');
   const [editLines, setEditLines] = useState<EditLine[]>(() => linesFromConsignment(lines));
   const [submitAttempted, setSubmitAttempted] = useState(false);
+    useRestartDraft('Επεξεργασία παρακαταθήκης', { customerId, warehouseId, reviewDueAt, notes, editLines });
+
 
   useEscapeToClose(onClose, saving);
 

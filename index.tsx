@@ -5,6 +5,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { UIProvider } from './components/UIProvider';
+import { AppUpdateProvider } from './components/AppUpdateProvider';
 import { registerQueryClient } from './lib/queryClientRegistry';
 import { productionKeys } from './features/production/keys';
 import { orderKeys } from './features/orders/keys';
@@ -71,6 +72,12 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+// Observe Vite failures without swallowing the rejection: the local lazy boundary
+// must receive it rather than being handed an undefined module.
+window.addEventListener('vite:preloadError', () => {
+  void recoverFromChunkLoadError(import.meta.url);
+});
+
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
@@ -100,7 +107,7 @@ root.render(
       }}
     >
       <UIProvider>
-        <App />
+        <AppUpdateProvider><App /></AppUpdateProvider>
       </UIProvider>
     </PersistQueryClientProvider>
   </React.StrictMode>

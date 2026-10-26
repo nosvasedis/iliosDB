@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { getOrderCustomerPhone } from '../../utils/orderCustomer';
 import OrderCustomerName from '../orders/OrderCustomerName';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -27,7 +28,9 @@ function toLocalInputValue(isoLike?: string | null) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, customers, selectedOrder, existingPlan, existingReminders = [], mobile = false }: Props) {
+const EMPTY_REMINDERS: OrderDeliveryReminder[] = [];
+
+export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, customers, selectedOrder, existingPlan, existingReminders = EMPTY_REMINDERS, mobile = false }: Props) {
   const [orderId, setOrderId] = useState(selectedOrder?.id || existingPlan?.order_id || '');
   const [targetAt, setTargetAt] = useState(toLocalInputValue(existingPlan?.target_at));
   const [wantCallReminder, setWantCallReminder] = useState(false);
@@ -44,6 +47,9 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
   const [contactPhoneOverride, setContactPhoneOverride] = useState(existingPlan?.contact_phone_override || '');
   const [reminders, setReminders] = useState<Array<{ id: string; trigger_at: string; action_type: OrderDeliveryReminder['action_type']; reason: string; source: OrderDeliveryReminder['source']; sort_order: number }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const plannerDraft = { orderId, targetAt, wantCallReminder, internalNotes, mode, monthValue, windowStart, windowEnd, holidayAnchor, holidayYear, holidayOffsetDays, contactPhoneOverride, reminders };
+  const plannerRestart = useRestartDraft('Προγραμματισμός παράδοσης', plannerDraft, { enabled: isOpen, identity: existingPlan?.id || selectedOrder?.id });
+
 
   const order = useMemo(() => orders.find((candidate) => candidate.id === orderId) || null, [orders, orderId]);
   const customer = useMemo(() => customers.find((candidate) => candidate.id === order?.customer_id), [customers, order]);
@@ -77,48 +83,39 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
   }, [targetAt]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || plannerRestart.dirty) return;
     const isNonExact = existingPlan && existingPlan.planning_mode !== 'exact';
-    setAdvancedOpen(!!isNonExact || (existingReminders?.length ?? 0) > 1);
-    setOrderId(selectedOrder?.id || existingPlan?.order_id || '');
-    setTargetAt(toLocalInputValue(existingPlan?.target_at));
-    setMode(existingPlan?.planning_mode || 'exact');
-    setMonthValue(existingPlan?.window_start ? new Date(existingPlan.window_start).toISOString().slice(0, 7) : '');
-    setWindowStart(toLocalInputValue(existingPlan?.window_start));
-    setWindowEnd(toLocalInputValue(existingPlan?.window_end));
-    setHolidayAnchor(existingPlan?.holiday_anchor || 'orthodox_easter');
-    setHolidayYear(existingPlan?.holiday_year || new Date().getFullYear());
-    setHolidayOffsetDays(existingPlan?.holiday_offset_days || 0);
-    setContactPhoneOverride(existingPlan?.contact_phone_override || '');
-    setInternalNotes(existingPlan?.internal_notes || '');
-    setWantCallReminder(
-      !isNonExact && (existingReminders?.length ?? 0) > 0
-        && existingReminders.some((r) => !r.completed_at)
-    );
-  }, [existingPlan, existingReminders, isOpen, selectedOrder]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (existingReminders.length > 0) {
-      setReminders(existingReminders.map((reminder) => ({
-        id: reminder.id,
-        trigger_at: toLocalInputValue(reminder.trigger_at),
-        action_type: reminder.action_type,
-        reason: reminder.reason,
-        source: reminder.source,
-        sort_order: reminder.sort_order
-      })));
-    } else {
-      setReminders([]);
-    }
-  }, [existingReminders, isOpen]);
-
-  useEffect(() => {
-    if (!order) return;
-    if (!contactPhoneOverride) {
-      setContactPhoneOverride(getOrderCustomerPhone(order, customer));
-    }
-  }, [contactPhoneOverride, customer?.phone, order]);
+    const nextOrderId = selectedOrder?.id || existingPlan?.order_id || '';
+    const nextOrder = orders.find(candidate => candidate.id === nextOrderId) || selectedOrder;
+    const nextCustomer = customers.find(candidate => candidate.id === nextOrder?.customer_id);
+    const next = {
+      orderId: nextOrderId,
+      targetAt: toLocalInputValue(existingPlan?.target_at),
+      wantCallReminder: !!(!isNonExact && existingReminders.some(reminder => !reminder.completed_at)),
+      internalNotes: existingPlan?.internal_notes || '',
+      mode: existingPlan?.planning_mode || 'exact' as DeliveryPlanningMode,
+      monthValue: existingPlan?.window_start ? new Date(existingPlan.window_start).toISOString().slice(0, 7) : '',
+      windowStart: toLocalInputValue(existingPlan?.window_start),
+      windowEnd: toLocalInputValue(existingPlan?.window_end),
+      holidayAnchor: existingPlan?.holiday_anchor || 'orthodox_easter' as DeliveryHolidayAnchor,
+      holidayYear: existingPlan?.holiday_year || new Date().getFullYear(),
+      holidayOffsetDays: existingPlan?.holiday_offset_days || 0,
+      contactPhoneOverride: existingPlan?.contact_phone_override || (nextOrder ? getOrderCustomerPhone(nextOrder, nextCustomer) : ''),
+      reminders: existingReminders.map(reminder => ({
+        id: reminder.id, trigger_at: toLocalInputValue(reminder.trigger_at),
+        action_type: reminder.action_type, reason: reminder.reason,
+        source: reminder.source, sort_order: reminder.sort_order,
+      })),
+    };
+    plannerRestart.markSaved(next);
+    setAdvancedOpen(!!isNonExact || existingReminders.length > 1);
+    setOrderId(next.orderId); setTargetAt(next.targetAt); setMode(next.mode);
+    setMonthValue(next.monthValue); setWindowStart(next.windowStart); setWindowEnd(next.windowEnd);
+    setHolidayAnchor(next.holidayAnchor); setHolidayYear(next.holidayYear);
+    setHolidayOffsetDays(next.holidayOffsetDays); setContactPhoneOverride(next.contactPhoneOverride);
+    setInternalNotes(next.internalNotes); setWantCallReminder(next.wantCallReminder);
+    setReminders(next.reminders);
+  }, [existingPlan, existingReminders, isOpen, selectedOrder, orders, customers]);
 
   if (!isOpen) return null;
 

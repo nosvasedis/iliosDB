@@ -1,8 +1,9 @@
+import { withProtectedWrites } from '../../lib/appUpdates';
 import { api, supabase, uploadProductImage, deleteProduct as deleteProductApi } from '../../lib/supabase';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
 import { Mold, ProductMold, ProductVariant, ProductionType, RecipeItem } from '../../types';
 
-export const productsRepository = {
+export const productsRepository = withProtectedWrites({
   getProducts: async () => {
     const products = await api.getProducts();
     if (isInspectionModeActive()) return products;
@@ -37,7 +38,7 @@ export const productsRepository = {
     api.insertProductMold(input),
   renameProduct: (oldSku: string, newSku: string) => api.renameProduct(oldSku, newSku),
   deleteProduct: (sku: string, imageUrl?: string | null) => deleteProductApi(sku, imageUrl),
-};
+});
 
 export interface ProductStockSnapshot {
   stock_qty: number;

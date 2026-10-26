@@ -1,3 +1,4 @@
+import { useRestartBlocker } from '../hooks/useRestartBlocker';
 import React, { createContext, useContext, useState } from 'react';
 import { Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
@@ -75,6 +76,8 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
     const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
     const [proformaToPrint, setProformaToPrint] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
+    useRestartBlocker({ label: 'Εκτύπωση σε εξέλιξη', busy: !!(printItems.length || orderToPrint || ordersToPrint || remainingOrderToPrint || shipmentToPrint || shipmentsToPrint || offerToPrint || supplierOrderToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || skuSalesPrintData || orderAnalyticsData || stageBatchPrintData || legalDocumentToPrint || proformaToPrint) });
+
 
     return (
         <PrintContext.Provider

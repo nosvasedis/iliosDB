@@ -1,3 +1,4 @@
+import { appUpdates } from '../lib/appUpdates';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isLocalMode } from '../lib/supabase';
 import { isInspectionModeActive } from '../lib/inspectionMode';
@@ -39,7 +40,7 @@ export function useOfflineSync(): OfflineSyncState {
     }, []);
 
     const triggerSync = useCallback(async () => {
-        if (isLocalMode || isInspectionModeActive() || isSyncing.current || !navigator.onLine) return;
+        if (appUpdates.getSnapshot().restarting || isLocalMode || isInspectionModeActive() || isSyncing.current || !navigator.onLine) return;
         isSyncing.current = true;
         setSyncStatus('syncing');
         try {

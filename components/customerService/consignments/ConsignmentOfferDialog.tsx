@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../../hooks/useRestartBlocker';
 import React, { useState } from 'react';
 import { Loader2, Tag } from 'lucide-react';
 import type { Consignment } from '../../../types';
@@ -11,6 +12,8 @@ export default function ConsignmentOfferDialog({ ctl, entry }: { ctl: ServiceCon
   const [total, setTotal] = useState(String(entry.offer_total ?? Math.round(original * 100) / 100));
   const [reason, setReason] = useState(entry.offer_reason || '');
   const [busy, setBusy] = useState(false);
+    useRestartDraft('Προσφορά παρακαταθήκης', { total, reason }, { busy });
+
   const normalized = total.trim().replace(',', '.');
   const amount = Number(normalized);
   const blocked = !bundle || bundle.lines.some(l => l.sold_quantity > 0) || !bundle.lines.some(l => l.pending_quantity > 0);

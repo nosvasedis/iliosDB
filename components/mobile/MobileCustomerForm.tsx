@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import CustomerPhoneFields from '../customers/CustomerPhoneFields';
 import CustomerVatStatusAlert from '../customers/CustomerVatStatusAlert';
 import { useCustomerVatLookup } from '../customers/useCustomerVatLookup';
@@ -18,6 +19,8 @@ export interface MobileCustomerFormProps {
 export default function MobileCustomerForm({ customer, onSave, onCancel }: MobileCustomerFormProps) {
     const [form, setForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
+    useRestartDraft('Στοιχεία πελάτη', form, { busy: isSaving });
+
     const { showToast } = useUI();
     const vatLookup = useCustomerVatLookup(setForm);
     const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;

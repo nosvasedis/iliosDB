@@ -1,3 +1,5 @@
+import { protectOperation } from '../lib/appUpdates';
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -45,21 +47,25 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
 }) => {
     const [isEditing, setIsEditing] = useState(!material.id.includes('-') && material.name.includes('Νέο')); // Auto-edit if new
     const [editForm, setEditForm] = useState<Material>(material);
+    const [savingRow, setSavingRow] = useState(false);
     
     // Smart Strand Calculation State
-    const [strandPrice, setStrandPrice] = useState<number>(0);
+    const [strandPrice, setStrandPrice] = useState<number>(() => material.stones_per_strand ? material.cost_per_unit * material.stones_per_strand : 0);
+    useRestartDraft('Στοιχεία υλικού', { editForm, strandPrice }, { enabled: isEditing, identity: material.id, busy: savingRow });
+
 
     // Sync external updates
     useEffect(() => {
         if (!isEditing) setEditForm(material);
     }, [material, isEditing]);
 
-    // Initialize Strand Price for UI
+    // Refresh the preview only while closed; a refetch must not replace a draft.
     useEffect(() => {
+        if (isEditing) return;
         if (material.stones_per_strand && material.stones_per_strand > 0) {
             setStrandPrice(material.cost_per_unit * material.stones_per_strand);
         }
-    }, [material.cost_per_unit, material.stones_per_strand]);
+    }, [material.cost_per_unit, material.stones_per_strand, isEditing]);
 
     // Auto-calculate unit cost when Strand Price or Count changes
     useEffect(() => {
@@ -72,9 +78,12 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
         }
     }, [strandPrice, editForm.stones_per_strand, isEditing]);
 
-    const handleSave = () => {
-        onSave(editForm);
-        setIsEditing(false);
+    const handleSave = async () => {
+        if (savingRow) return;
+        setSavingRow(true);
+        try { await onSave(editForm); setIsEditing(false); }
+        catch { /* Preserve the editor after a failed save. */ }
+        finally { setSavingRow(false); }
     };
 
     const handleCancel = () => {
@@ -312,6 +321,8 @@ export default function MaterialsPage({ settings }: Props) {
 
   // Floating Action Button State
   const [showFab, setShowFab] = useState(false);
+    useRestartDraft('Παραλλαγές υλικού', variantPrices, { enabled: isVariantModalOpen, identity: activeMaterialForVariants?.id });
+
   const headerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -399,13 +410,14 @@ export default function MaterialsPage({ settings }: Props) {
           showToast("Αποθηκεύτηκε.", 'success');
       } catch (e) {
           showToast("Σφάλμα αποθήκευσης.", 'error');
+          throw e;
       }
   };
 
   const handleDelete = async (id: string) => {
       if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
           try {
-              await supabase.from('materials').delete().eq('id', id);
+              await protectOperation(async () => await supabase.from('materials').delete().eq('id', id));
               queryClient.invalidateQueries({ queryKey: ['materials'] });
               showToast("Διαγράφηκε.", 'info');
           } catch (e) {
@@ -429,7 +441,7 @@ export default function MaterialsPage({ settings }: Props) {
       });
       
       try {
-          await supabase.from('materials').update({ variant_prices: pricesObj }).eq('id', activeMaterialForVariants.id);
+          await protectOperation(async () => await supabase.from('materials').update({ variant_prices: pricesObj }).eq('id', activeMaterialForVariants.id));
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           setIsVariantModalOpen(false);
           showToast("Ειδικές τιμές αποθηκεύτηκαν.", 'success');

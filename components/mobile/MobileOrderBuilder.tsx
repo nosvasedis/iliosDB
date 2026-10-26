@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import { orderItemsDraftSnapshot } from '../../lib/editorSnapshots';
 import StoneCodeText from '../StoneCodeText';
 import OrderPriceModeToggle from '../OrderBuilder/OrderPriceModeToggle';
 import { getOrderCatalogPrice, getOrderPriceMode, setOrderItemsPriceMode, type OrderPriceMode } from '../../utils/orderPricing';
@@ -279,6 +281,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [showCreateClientScreen, setShowCreateClientScreen] = useState(false);
     const [resolvedVariant, setResolvedVariant] = useState<ProductVariant | null>(null);
     const [specialCreationUnitPriceStr, setSpecialCreationUnitPriceStr] = useState('');
+
+    useRestartDraft('Παραγγελία', { customerName, customerPhone, customerId, items: orderItemsDraftSnapshot(items), vatRate, discountPercent, orderNotes, retailClientLabel, priceMode, mobSelectedSellerId, mobSelectedSellerName, mobSellerCommissionPercent, itemNotes, input, qty, selectedFinish, defaultFulfillmentMode, selectedSize, selectedCordColor, selectedEnamelColor, pendingEdit: editingIndex !== null ? { editFinish, editVariantSuffix, editSizeInfo, editCordColor, editEnamelColor } : null, specialCreationUnitPriceStr }, { identity: initialOrder?.id, busy: isSaving });
 
     const inputRef = useRef<HTMLInputElement>(null);
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;

@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { INTERNAL_CUSTOMER_ID } from '../utils/retailConstants';
 import { formatNumber } from '../utils/numberFormat';
 import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
@@ -924,12 +925,19 @@ export default function LegalDocumentsPage({
   const confirmDelivery = useConfirmLegalDelivery();
   const pollDeliveryStatus = usePollLegalDeliveryStatus();
 
+  useRestartDraft('Μετατροπή προτιμολογίου', convertModal, { enabled: !!convertModal });
+  const legalDraftRestart = useRestartDraft('Παραστατικό', draftBundle, { enabled: !!draftBundle && isLegalDocumentEditable(draftBundle.document), identity: draftBundle?.document.id, initiallyDirty: !!draftBundle && !legalDocuments.some(row => row.id === draftBundle.document.id) });
+  const proformaRestart = useRestartDraft('Προτιμολόγιο', proformaBundle, { enabled: !!proformaBundle, identity: proformaBundle?.document.id, initiallyDirty: !!proformaBundle && !proformas.some(row => row.id === proformaBundle.document.id) });
+  const legalSettingsRestart = useRestartDraft('Ρυθμίσεις παραστατικών', settingsDraft);
+  const sequencesRestart = useRestartDraft('Αρίθμηση παραστατικών', sequenceDrafts);
+  useRestartDraft('Στοιχεία σύνδεσης παραστατικών', { credentialDraft, registryCredentialDraft, cloudflareBootstrapDraft, inspectionPinDraft, inspectionPinConfirm, newCarrier });
+
   useEffect(() => {
-    if (legalSettings) {
+    if (legalSettings && !legalSettingsRestart.dirty) {
       const usesLegacyProductDefaults = legalSettings.default_income_classification_category === 'category1_2'
         && legalSettings.inhouse_income_classification_category === 'category1_2'
         && legalSettings.imported_income_classification_category === 'category1_1';
-      setSettingsDraft({
+      const nextSettings = {
         ...DEFAULT_LEGAL_SETTINGS,
         ...legalSettings,
         ...(usesLegacyProductDefaults ? {
@@ -938,14 +946,17 @@ export default function LegalDocumentsPage({
         } : {}),
         issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(legalSettings.issuer || {}) },
         loading_address: legalSettings.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
-      });
+      };
+      legalSettingsRestart.markSaved(nextSettings);
+      setSettingsDraft(nextSettings);
     }
   }, [legalSettings]);
 
   useEffect(() => {
-    setSequenceDrafts(Object.fromEntries(
-      sequences.map((sequence) => [sequence.id, { ...sequence }]),
-    ));
+    if (sequencesRestart.dirty) return;
+    const next = Object.fromEntries(sequences.map((sequence) => [sequence.id, { ...sequence }]));
+    sequencesRestart.markSaved(next);
+    setSequenceDrafts(next);
   }, [sequences]);
 
   useEffect(() => {
@@ -1510,6 +1521,7 @@ export default function LegalDocumentsPage({
     }
     try {
       await saveDraft.mutateAsync(draftBundle);
+      legalDraftRestart.markSaved();
       showToast('Το πρόχειρο αποθηκεύτηκε. Θα το βρείτε στο Αρχείο → Πρόχειρα.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε το πρόχειρο.', 'error');
@@ -1520,6 +1532,7 @@ export default function LegalDocumentsPage({
     if (!proformaBundle) return;
     try {
       await saveProforma.mutateAsync(proformaBundle);
+      proformaRestart.markSaved();
       showToast('Το προτιμολόγιο αποθηκεύτηκε. Θα το βρείτε στο Αρχείο → Προτιμολόγια.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε το προτιμολόγιο.', 'error');
@@ -1892,6 +1905,7 @@ export default function LegalDocumentsPage({
   const handleSaveSettings = async () => {
     try {
       await saveSettings.mutateAsync(settingsDraft);
+      legalSettingsRestart.markSaved();
       setDraftBundle((current) => {
         if (!current || !isLegalDocumentEditable(current.document)) return current;
         return { ...current, document: applyIssuerSettingsToDocument(current.document, settingsDraft) };
@@ -2985,6 +2999,7 @@ export default function LegalDocumentsPage({
     }
     try {
       await saveSequence.mutateAsync(sequence);
+      sequencesRestart.markSaved((previous: Record<string, LegalNumberingSequence>) => ({ ...previous, [sequence.id]: sequence }));
       showToast(`Η σειρά «${sequence.series}» αποθηκεύτηκε με επόμενο ${sequence.next_aa}.`, 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε η σειρά.', 'error');

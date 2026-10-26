@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, HandHeart, Loader2, PackageCheck, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import SkuProductPicker from '../../legal/SkuProductPicker';
@@ -43,6 +44,8 @@ export default function QuickConsignmentForm({ ctl, presetCustomerId, lockCustom
   const [warehouseId, setWarehouseId] = useState(ctl.sourceWarehouses[0]?.id || '');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+    useRestartDraft('Παρακαταθήκη', { customerId, rows, reviewDate, handoffNow, warehouseId, notes }, { busy: saving });
+
 
   const catalogSkus = useMemo(() => new Set(ctl.products.map((product) => product.sku)), [ctl.products]);
   const tagged = useMemo(

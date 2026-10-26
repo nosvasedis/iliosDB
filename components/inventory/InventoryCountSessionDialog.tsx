@@ -1,3 +1,4 @@
+import { useRestartDraft, useRestartBlocker } from '../../hooks/useRestartBlocker';
 import React, {
   useCallback,
   useEffect,
@@ -249,6 +250,9 @@ export default function InventoryCountSessionDialog({
   const [abandonTarget, setAbandonTarget] = useState<{ id: string; name: string } | null>(null);
   const [abandonReason, setAbandonReason] = useState('');
   const [abandoning, setAbandoning] = useState(false);
+    useRestartDraft('Ρύθμιση απογραφής', { setupTitle, setupReason, setupWarehouseId }, { enabled: !session });
+  useRestartBlocker({ label: 'Απογραφή', dirty: !!storageError, busy: starting || !!submissionKind || abandoning || !!resumingSessionId });
+
   const autoOpenedInitialRef = useRef(false);
   // Latest values for the one-time initialization, so a refetch of warehouses
   // or products never resets an open session mid-count.

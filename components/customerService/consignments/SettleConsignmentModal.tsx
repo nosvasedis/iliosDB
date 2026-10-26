@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import type { Consignment } from '../../../types';
@@ -24,6 +25,8 @@ export default function SettleConsignmentModal({ ctl, entry }: { ctl: ServiceCon
   const [counts, setCounts] = useState<Record<string, { sold: number; returned: number }>>({});
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+    useRestartDraft('Κλείσιμο παρακαταθήκης', { counts, note }, { busy });
+
   const close = () => ctl.setOperation(null);
 
   const get = (lineId: string) => counts[lineId] || { sold: 0, returned: 0 };

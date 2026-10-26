@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
@@ -60,6 +61,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   const [safetyError, setSafetyError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+    useRestartDraft('Αποστολή', { shipQtys, notes }, { busy: submissionState !== 'idle' });
+
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {

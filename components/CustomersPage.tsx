@@ -1,3 +1,4 @@
+import { lazyWithChunkRecovery } from '../lib/chunkLoadRecovery';
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
 import {
@@ -53,7 +54,7 @@ import {
   type PurchaseFilter,
 } from '../features/customers/customerAssortment';
 
-const CustomersMap = React.lazy(() => import('./customers/CustomersMap'));
+const CustomersMap = lazyWithChunkRecovery(() => import('./customers/CustomersMap'));
 
 interface Props {
     onPrintOrder?: (order: Order) => void;

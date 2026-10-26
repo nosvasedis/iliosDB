@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Loader2, Tag, X } from 'lucide-react';
@@ -14,6 +15,8 @@ export function OrderBulkTagModal({
     onSave: (tag: string) => void;
 }) {
     const [tag, setTag] = useState('');
+    useRestartDraft('Ετικέτες παραγγελιών', tag);
+
     const trimmed = tag.trim();
 
     return (

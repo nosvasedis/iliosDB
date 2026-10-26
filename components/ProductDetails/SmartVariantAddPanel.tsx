@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -49,6 +50,8 @@ export default function SmartVariantAddPanel({
   const [descriptionOverride, setDescriptionOverride] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advancedSuffix, setAdvancedSuffix] = useState('');
+
+  useRestartDraft('Νέα παραλλαγή SKU', { selectedFinishes, stoneSuffix, descriptionOverride, advancedSuffix }, { identity: product.sku });
 
   const existingSuffixSet = useMemo(
     () => new Set((existingVariants || []).map((variant) => variant.suffix)),

@@ -1,3 +1,4 @@
+import { useRestartBlocker } from '../hooks/useRestartBlocker';
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 
@@ -46,6 +47,8 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
     options: { message: '' },
     resolve: null,
   });
+    useRestartBlocker({ label: 'Επιβεβαίωση ενέργειας', busy: confirmState.isOpen });
+
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);

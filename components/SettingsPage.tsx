@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
+import { requestAppRestart } from '../lib/appUpdates';
 import { formatNumber } from '../utils/numberFormat';
 import PricingRulesSettings from './PricingRulesSettings';
 
@@ -49,7 +51,10 @@ export default function SettingsPage() {
     const [localGeminiKey, setLocalGeminiKey] = useState(GEMINI_API_KEY);
 
     useEffect(() => {
-        if (settingsData) setSettings(settingsData);
+        if (settingsData && !settingsRestart.dirty) {
+            settingsRestart.markSaved({ settings: settingsData, key: localGeminiKey });
+            setSettings(settingsData);
+        }
     }, [settingsData]);
 
     const [isLoadingPrice, setIsLoadingPrice] = useState(false);
@@ -83,6 +88,8 @@ export default function SettingsPage() {
     const [backupManagerMode, setBackupManagerMode] = useState<'export' | 'restore'>('export');
     const [pendingRestoreData, setPendingRestoreData] = useState<unknown>(null);
     const [pendingEncryptedBackup, setPendingEncryptedBackup] = useState<Uint8Array | null>(null);
+    const settingsRestart = useRestartDraft('Ρυθμίσεις', { settings: settings, key: localGeminiKey }, { enabled: !!settings, busy: isSaving || isMaintenanceAction || isExporting });
+
     const filteredImageOptimizationPreview = useMemo(() => {
         const filter = imageOptimizationFilter.trim().toUpperCase();
         const filtered = filter
@@ -129,10 +136,11 @@ export default function SettingsPage() {
         try {
             // Κεντρική αποθήκευση για τοπικά και απομακρυσμένα δεδομένα.
             await api.updateSettings(settings);
+            settingsRestart.markSaved();
 
             if (localGeminiKey !== GEMINI_API_KEY) {
                 localStorage.setItem('VITE_GEMINI_API_KEY', localGeminiKey);
-                setTimeout(() => window.location.reload(), 1000);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
                 return;
             }
             await queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -260,7 +268,7 @@ export default function SettingsPage() {
                 setBackupSummary(resetCount > 0
                     ? `Η επαναφορά ολοκληρώθηκε. ${formatNumber(resetCount)} χρήστες πρέπει να ορίσουν νέο κωδικό μέσω του email επαναφοράς.`
                     : 'Η επαναφορά ολοκληρώθηκε επιτυχώς! Το ERP θα ανανεωθεί.');
-                setTimeout(() => window.location.reload(), 3000);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             }
             setBackupComplete(true);
         } catch (error: any) {
@@ -338,7 +346,7 @@ export default function SettingsPage() {
                 const tx = db.transaction('sync_queue', 'readwrite');
                 tx.objectStore('sync_queue').clear();
                 showToast("Η ουρά εκκαθαρίστηκε. Ο συγχρονισμός θα σταματήσει.", "success");
-                setTimeout(() => window.location.reload(), 1500);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } catch (err) {
                 showToast("Σφάλμα εκκαθάρισης.", "error");
                 setIsMaintenanceAction(false);
@@ -358,7 +366,7 @@ export default function SettingsPage() {
             try {
                 await offlineDb.clearAll();
                 showToast("Η τοπική μνήμη εκκαθαρίστηκε. Γίνεται ανανέωση...", "success");
-                setTimeout(() => window.location.reload(), 1500);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } catch (err) {
                 showToast("Σφάλμα εκκαθάρισης.", "error");
                 setIsMaintenanceAction(false);

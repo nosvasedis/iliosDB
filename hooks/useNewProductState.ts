@@ -1,3 +1,5 @@
+import { laborDraftSnapshot } from '../lib/editorSnapshots';
+import { useRestartDraft } from './useRestartBlocker';
 import { getPricingRules } from '../utils/pricingRules';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
@@ -112,6 +114,8 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
     const [smartAddStoneSuffix, setSmartAddStoneSuffix] = useState('');
     const [useIliosFormula, setUseIliosFormula] = useState(true);
+
+    useRestartDraft('Νέο SKU', { productionType, sku, category, gender, stxDescription, isAssembly, weight, secondaryWeight, invoiceTotalWeight, plating, selectedFinishes, finishPrices, bridge, supplierId, supplierSku, supplierCost, sellingPrice: useIliosFormula ? null : sellingPrice, recipe, labor: laborDraftSnapshot(labor), variants, image: selectedImage ? [selectedImage.name, selectedImage.size, selectedImage.lastModified] : null, selectedMolds, newVariantSuffix, newVariantDesc, newMoldCode, newMoldLoc, newMoldDesc, smartAddStoneSuffix, useIliosFormula }, { busy: isUploading || isCreatingMold });
 
     const STEPS = getSteps(productionType);
     const finalStepId = STEPS[STEPS.length - 1].id;

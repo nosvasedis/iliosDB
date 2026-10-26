@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import { requestAppRestart } from '../../lib/appUpdates';
 import { formatNumber } from '../../utils/numberFormat';
 import PricingRulesSettings from '../PricingRulesSettings';
 
@@ -43,10 +45,15 @@ export default function MobileSettings() {
     const [backupManagerMode, setBackupManagerMode] = useState<'export' | 'restore'>('export');
     const [pendingRestoreData, setPendingRestoreData] = useState<unknown>(null);
     const [pendingEncryptedBackup, setPendingEncryptedBackup] = useState<Uint8Array | null>(null);
+    const settingsRestart = useRestartDraft('Ρυθμίσεις', { settings: localSettings, key: geminiKey }, { enabled: !!localSettings, busy: isSaving || isExporting });
+
 
     // Initialize local state when data loads
     React.useEffect(() => {
-        if (settings) setLocalSettings(settings);
+        if (settings && !settingsRestart.dirty) {
+            settingsRestart.markSaved({ settings: settings, key: geminiKey });
+            setLocalSettings(settings);
+        }
     }, [settings]);
 
     const handleLogout = () => {
@@ -64,10 +71,11 @@ export default function MobileSettings() {
         try {
             // Use central API method for persistence (local + cloud)
             await api.updateSettings(localSettings);
+            settingsRestart.markSaved();
 
             if (geminiKey !== GEMINI_API_KEY) {
                 localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
-                setTimeout(() => window.location.reload(), 1000);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } else {
                 queryClient.invalidateQueries({ queryKey: ['settings'] });
                 showToast("Οι ρυθμίσεις αποθηκεύτηκαν.", "success");
@@ -204,7 +212,7 @@ export default function MobileSettings() {
                 setBackupSummary(resetCount > 0
                     ? `Επαναφορά ολοκληρώθηκε. ${formatNumber(resetCount)} χρήστες πρέπει να αλλάξουν κωδικό μέσω email.`
                     : 'Επιτυχής επαναφορά! Ανανέωση...');
-                setTimeout(() => window.location.reload(), 3000);
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             }
             setBackupComplete(true);
         } catch (error: any) {

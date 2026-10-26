@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { getSkuStoneLetterStyle } from '../utils/skuColoring';
 import StoneCodeText from './StoneCodeText';
 import { formatNumber } from '../utils/numberFormat';
@@ -195,6 +196,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
     const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
+    useRestartDraft('Επεξεργασία ετικέτας', labelOverrideDrafts, { busy: isProcessing });
+
 
     const inputRef = useRef<HTMLInputElement>(null);
 

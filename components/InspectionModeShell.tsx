@@ -120,7 +120,7 @@ const InspectionModeShell: React.FC = () => {
         <p className="text-sm text-slate-500 max-w-md">Ελέγξτε τη σύνδεσή σας και ανανεώστε τη σελίδα.</p>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={() => void snapshotQuery.refetch()}
           className="mt-6 rounded-xl bg-[#060b00] px-5 py-2.5 text-sm font-bold text-white hover:bg-black transition-colors"
         >
           Ανανέωση

@@ -1,3 +1,5 @@
+import { protectOperation } from '../lib/appUpdates';
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mold, Product } from '../types';
@@ -23,14 +25,22 @@ interface MoldCardProps {
 const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete, highlighted = false }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Mold>(mold);
+    const [savingRow, setSavingRow] = useState(false);
+    useRestartDraft('Στοιχεία λάστιχου', editForm, { enabled: isEditing, busy: savingRow, identity: mold.code });
+
 
     useEffect(() => {
         if (!isEditing) setEditForm(mold);
     }, [mold, isEditing]);
 
-    const handleSave = () => {
-        onSaveRow(editForm);
-        setIsEditing(false);
+    const handleSave = async () => {
+        if (savingRow) return;
+        setSavingRow(true);
+        try {
+            await onSaveRow(editForm);
+            setIsEditing(false);
+        } catch { /* The parent reports the error; keep all edits available. */ }
+        finally { setSavingRow(false); }
     };
 
     const handleCancel = () => {
@@ -147,6 +157,8 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
 
     // Floating actions appear only after the header scrolls out of view
     const [showFab, setShowFab] = useState(false);
+    useRestartDraft('Νέο λάστιχο', newMold, { enabled: isCreating });
+
     const headerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -266,7 +278,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
         }
 
         try {
-            const { error } = await supabase.from('molds').insert(newMold);
+            const { error } = await protectOperation(async () => await supabase.from('molds').insert(newMold));
             if (error) throw error;
 
             queryClient.invalidateQueries({ queryKey: ['molds'] });
@@ -289,7 +301,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
         if (!yes) return;
 
         try {
-            const { error } = await supabase.from('molds').delete().eq('code', code);
+            const { error } = await protectOperation(async () => await supabase.from('molds').delete().eq('code', code));
             if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['molds'] });
             showToast("Διαγράφηκε.", 'info');
@@ -301,11 +313,11 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
 
     const handleSaveRow = async (moldToSave: Mold) => {
         try {
-            const { error } = await supabase.from('molds').update({
+            const { error } = await protectOperation(async () => await supabase.from('molds').update({
                 location: moldToSave.location,
                 description: moldToSave.description,
                 weight_g: moldToSave.weight_g
-            }).eq('code', moldToSave.code);
+            }).eq('code', moldToSave.code));
 
             if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['molds'] });
@@ -313,6 +325,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
         } catch (e) {
             console.error("Error saving mold:", e);
             showToast("Σφάλμα αποθήκευσης.", 'error');
+            throw e;
         }
     };
 

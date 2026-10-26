@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -265,6 +266,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     // Grid pagination
     const [gridPage, setGridPage] = useState(0);
+    useRestartDraft('Τιμή SKU', editingPrice, { enabled: !!editingPrice, identity: editingPrice?.sku });
+
     const GRID_PAGE_SIZE = 60;
 
     // Reset pages only when the actual filter/sort/view inputs change. Keying this on

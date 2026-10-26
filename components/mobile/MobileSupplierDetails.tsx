@@ -1,3 +1,4 @@
+import { protectOperation } from '../../lib/appUpdates';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useMemo, useState } from 'react';
@@ -82,7 +83,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
 
     const handleLinkProduct = async (sku: string) => {
         try {
-            await supabase.from('products').update({ supplier_id: supplier.id }).eq('sku', sku);
+            await protectOperation(async () => await supabase.from('products').update({ supplier_id: supplier.id }).eq('sku', sku));
             await invalidateProductsAndCatalog(queryClient);
             showToast('Προϊόν συνδέθηκε.', 'success');
         } catch {
@@ -92,7 +93,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
 
     const handleUnlinkProduct = async (sku: string) => {
         try {
-            await supabase.from('products').update({ supplier_id: null }).eq('sku', sku);
+            await protectOperation(async () => await supabase.from('products').update({ supplier_id: null }).eq('sku', sku));
             await invalidateProductsAndCatalog(queryClient);
             showToast('Σύνδεση αφαιρέθηκε.', 'success');
         } catch {

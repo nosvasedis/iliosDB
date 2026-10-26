@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Undo2 } from 'lucide-react';
@@ -7,6 +8,8 @@ import { getLegalDocumentDisplayNumber } from '../../utils/legalDocuments';
 
 export default function CreditDocumentModal({original,lines,available,reservedLines,onClose,onCreate}:{original:LegalDocument;lines:LegalDocumentLine[];available:Record<string,number>;reservedLines:LegalDocumentLine[];onClose:()=>void;onCreate:(bundle:ReturnType<typeof buildCreditDraft>)=>Promise<void>}) {
   const [quantities,setQuantities]=useState(available),[busy,setBusy]=useState(false),[error,setError]=useState('');
+    useRestartDraft('Πιστωτικό παραστατικό', quantities, { busy });
+
   const dialog = useRef<HTMLElement>(null);
   useEffect(() => { const previous = document.activeElement as HTMLElement | null; dialog.current?.focus(); return () => previous?.focus(); }, []);
   const create=async()=>{setBusy(true);try{if (Object.entries(quantities).some(([id,qty]) => !Number.isFinite(qty) || qty < 0 || qty > (available[id] || 0))) throw new Error('Επιλέξτε ποσότητες μέχρι το διαθέσιμο υπόλοιπο.');await onCreate(buildCreditDraft(original,lines,quantities,reservedLines));}catch(e){setError((e as Error).message);}finally{setBusy(false);}};

@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
+import { lazyWithChunkRecovery } from '../lib/chunkLoadRecovery';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { getOrderCustomerName } from '../utils/orderCustomer';
 import OrderCustomerName from './orders/OrderCustomerName';
@@ -61,7 +63,7 @@ import { BatchItemCard, RowItem } from './production/BatchItemCard';
 import { ProductionSendStageFilters } from './production/ProductionSendStageFilters';
 import { inventoryRepository, reservationQuantityForLine } from '../features/inventory';
 
-const ProductionSkuDetails = React.lazy(() => import('./production/ProductionSkuDetails'));
+const ProductionSkuDetails = lazyWithChunkRecovery(() => import('./production/ProductionSkuDetails'));
 
 interface Props {
     order: Order;
@@ -200,6 +202,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     // ─── OPTIMIZED: Selection as Set<string> ─────────────────────────────────
     const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
     const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+    useRestartDraft('Εργασίες παραγωγής', { toSendQuantities, stockDecision, splitStage: splitTarget ? splitStage : null, splitQty: splitTarget ? splitQty : '', noteText: editingNoteBatch ? noteText : '', bulkNoteText: bulkNoteOpen ? bulkNoteText : '', holdReason: holdingBatch ? holdReason : '' }, { busy: isSending || isWorking || isSavingBulkNote || isUndoingShipment || isApplyingPriceSync });
+
 
     // ─── Scoped batch history lookup (filtered to this order's batches) ──────
     const orderBatchIds = useMemo(() => new Set(existingBatches.map(b => b.id)), [existingBatches]);

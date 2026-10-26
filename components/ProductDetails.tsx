@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
+import { productDraftSnapshot } from '../lib/editorSnapshots';
 import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 
@@ -563,6 +565,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isDeletingImage, setIsDeletingImage] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
+    const productRestart = useRestartDraft('Καρτέλα SKU', { product: productDraftSnapshot(editedProduct), tempSku, newMoldCode: isAddingMold ? newMoldCode : '', newMoldLoc: isAddingMold ? newMoldLoc : '', newMoldDesc: isAddingMold ? newMoldDesc : '' }, { identity: product.sku, busy: isSaving || isRenaming || isDeleting || isUploadingImage || isDeletingImage || isCreatingMold });
 
     const TABS = useMemo((): DetailsTab[] => {
         const baseTabs: DetailsTab[] = [
@@ -583,7 +586,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [TABS, activeTab]);
 
     useEffect(() => {
-        setEditedProduct(buildEditableProduct(product));
+        if (productRestart.dirty && editedProduct.sku === product.sku) return;
+        const next = buildEditableProduct(product);
+        productRestart.markSaved({
+            product: productDraftSnapshot(next), tempSku: product.sku,
+            newMoldCode: '', newMoldLoc: '', newMoldDesc: '',
+        });
+        setEditedProduct(next);
         setTempSku(product.sku); // Reset SKU field
         setViewIndex(getVariantIndexBySuffix(
             getSortedProductVariants(product, product.variants || []),

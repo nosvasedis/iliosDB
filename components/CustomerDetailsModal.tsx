@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import CustomerPhoneFields from './customers/CustomerPhoneFields';
 import CustomerVatStatusAlert from './customers/CustomerVatStatusAlert';
 import { useCustomerVatLookup } from './customers/useCustomerVatLookup';
@@ -593,6 +594,8 @@ export default function CustomerDetailsModal({
 
     /** One-click fix when the address names another country than the «Χώρα» field. */
     const [isFixingCountry, setIsFixingCountry] = useState(false);
+    useRestartDraft('Στοιχεία πελάτη', editForm, { enabled: isEditing, identity: customer.id, busy: isSaving });
+
     const fixCountry = async (code: string) => {
         setIsFixingCountry(true);
         try {

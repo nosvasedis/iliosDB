@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import { lazyWithChunkRecovery } from '../../lib/chunkLoadRecovery';
 import CustomerPhoneDisplay from '../customers/CustomerPhoneDisplay';
 import CustomerPhoneFields from '../customers/CustomerPhoneFields';
 import CustomerVatStatusAlert from '../customers/CustomerVatStatusAlert';
@@ -53,7 +55,7 @@ import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVat
 import { isDomesticCountry } from '../../features/customers/customerLocation';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
 
-const CustomersMap = React.lazy(() => import('../customers/CustomersMap'));
+const CustomersMap = lazyWithChunkRecovery(() => import('../customers/CustomersMap'));
 
 interface Props {
     mode: 'customers' | 'suppliers';
@@ -91,6 +93,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const directoryById = useMemo(() => new Map(directory.map(e => [e.customer.id, e])), [directory]);
     const assortmentIndex = useAssortmentIndex({ enabled: mode === 'customers' });
     const [purchaseFilter, setPurchaseFilter] = useState<PurchaseFilter>(EMPTY_PURCHASE_FILTER);
+    useRestartDraft('Στοιχεία επαφής', editData, { enabled: isEditing, identity: editData?.id });
+
     const purchaseMatches = useMemo(
         () => (assortmentIndex && purchaseFilter.items.length ? evaluatePurchaseFilter(assortmentIndex, purchaseFilter) : null),
         [assortmentIndex, purchaseFilter],

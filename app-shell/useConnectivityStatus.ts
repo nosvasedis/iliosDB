@@ -1,3 +1,4 @@
+import { appUpdates } from '../lib/appUpdates';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, isLocalMode } from '../lib/supabase';
 import { isInspectionModeActive } from '../lib/inspectionMode';
@@ -47,7 +48,7 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
   }, []);
 
   const triggerSync = useCallback(async () => {
-    if (isLocalMode || isInspectionModeActive() || syncingRef.current || !getInitialOnlineState()) return;
+    if (appUpdates.getSnapshot().restarting || isLocalMode || isInspectionModeActive() || syncingRef.current || !getInitialOnlineState()) return;
     syncingRef.current = true;
     setIsSyncing(true);
     try {

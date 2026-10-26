@@ -1,3 +1,4 @@
+import { requestAppRestart, protectOperation, withProtectedWrites } from './appUpdates';
 import { withCustomerPhones } from '../features/customers/customerPhones';
 import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, isReservedCustomerName, isSystemCustomerId, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../utils/retailConstants';
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
@@ -1099,7 +1100,7 @@ export const saveConfiguration = (url: string, key: string, workerKey: string, g
     localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
     localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
     localStorage.removeItem('ILIOS_LOCAL_MODE');
-    window.location.reload();
+    requestAppRestart('Οι αλλαγές θα εφαρμοστούν μετά την επανεκκίνηση.');
 };
 
 export const clearConfiguration = () => {
@@ -1108,7 +1109,7 @@ export const clearConfiguration = () => {
     localStorage.removeItem('VITE_WORKER_AUTH_KEY');
     localStorage.removeItem('VITE_GEMINI_API_KEY');
     localStorage.removeItem('ILIOS_LOCAL_MODE');
-    window.location.reload();
+    requestAppRestart('Οι αλλαγές θα εφαρμοστούν μετά την επανεκκίνηση.');
 };
 
 export const SYSTEM_IDS = {
@@ -1155,6 +1156,8 @@ export const shouldStoreImageLocally = async (): Promise<boolean> => {
 };
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
+    return protectOperation(async () => {
+
     if (await shouldStoreImageLocally()) {
         const compact = await compressImage(file);
         return new Promise((resolve, reject) => {
@@ -1180,9 +1183,13 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     });
     if (!response.ok) throw new Error(`Status ${response.status}`);
     return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
+
+    });
 };
 
 export const segmentProductImage = async (file: Blob, sku: string): Promise<Blob> => {
+    return protectOperation(async () => {
+
     if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
         throw new CatalogPrepareFailedError(0);
     }
@@ -1206,9 +1213,13 @@ export const segmentProductImage = async (file: Blob, sku: string): Promise<Blob
         throw new CatalogPrepareFailedError(response.status);
     }
     return await response.blob();
+
+    });
 };
 
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
+    return protectOperation(async () => {
+
     try {
         if (!isLocalMode) {
             const { error: inventoryGuardError } = await supabase.rpc('assert_product_inventory_retirable_v1', {
@@ -1235,6 +1246,8 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
             ),
         };
     }
+
+    });
 };
 
 /** Check stock availability for order items (pure function, no DB call — reads from in-memory products). */
@@ -1290,7 +1303,7 @@ async function getProductsUncached(): Promise<Product[]> {
     );
 }
 
-export const api = {
+const apiMethods = {
     lookupAfm: async (afm: string): Promise<PublicVatLookupResult | null> => {
         // Strip any country prefix and whitespace/dashes the user may have typed
         const cleanAfm = afm.replace(/^EL/i, '').replace(/[-\s]/g, '').trim();
@@ -4639,3 +4652,5 @@ export const api = {
         return { success: true, rolledBack: false };
     },
 };
+
+export const api = withProtectedWrites(apiMethods);

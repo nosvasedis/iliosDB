@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import OrderCustomerName, { CustomerNameLabel } from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 
@@ -636,6 +637,8 @@ const AssemblyOrderSelectorSheet = ({
 
 const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch, onClose: () => void, onConfirm: (reason: string) => void }) => {
     const [reason, setReason] = useState('');
+    useRestartDraft('Εργασία παραγωγής', { reason });
+
     return (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col justify-end">
             <div className="bg-white rounded-t-3xl p-6 animate-in slide-in-from-bottom-full duration-300">
@@ -665,6 +668,8 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
 
 const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: ProductionBatch, onClose: () => void, onSave: (notes: string) => void, isProcessing: boolean }) => {
     const [note, setNote] = useState(batch.notes || '');
+    useRestartDraft('Εργασία παραγωγής', { note }, { busy: isProcessing });
+
 
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -706,6 +711,8 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     const { batch, targetStage } = state;
     const [quantity, setQuantity] = useState(batch.quantity);
     const [selectedTarget, setSelectedTarget] = useState<ProductionStage>(targetStage);
+    useRestartDraft('Εργασία παραγωγής', { quantity, selectedTarget });
+
 
     const handleConfirmClick = () => {
         if (quantity > 0 && quantity <= batch.quantity) {

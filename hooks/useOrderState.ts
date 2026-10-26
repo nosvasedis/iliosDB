@@ -1,3 +1,5 @@
+import { useRestartDraft } from './useRestartBlocker';
+import { orderItemsDraftSnapshot } from '../lib/editorSnapshots';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../utils/orderCustomer';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord, PriceSyncPreview } from '../types';
@@ -201,6 +203,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         if (!skuCode || !skuCode.includes('-')) return null;
         return resolveOrderRangeInput(skuCode, products);
     }, [scanInput, products]);
+
+    useRestartDraft('Παραγγελία', { customerName, customerPhone, selectedCustomerId, orderNotes, retailClientLabel, vatRate, discountPercent, items: orderItemsDraftSnapshot(selectedItems), tags, priceMode, selectedSellerId, selectedSellerName, sellerCommissionPercent, itemNotes, selectedSize, selectedCordColor, selectedEnamelColor, specialCreationUnitPriceStr, scanInput, scanQty, defaultFulfillmentMode, tagInput, priceChangeLog }, { busy: isSaving, identity: initialOrder?.id });
 
     // --- Draft autosave ---
     useEffect(() => {

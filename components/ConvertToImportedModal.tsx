@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 import React, { useMemo, useState } from 'react';
@@ -45,6 +46,8 @@ export default function ConvertToImportedModal({
     const [stoneSettingCost, setStoneSettingCost] = useState<number | ''>(product.labor.stone_setting_cost || '');
     const [weightG, setWeightG] = useState<number | ''>(product.weight_g || '');
     const [secondaryWeightG, setSecondaryWeightG] = useState<number | ''>(product.secondary_weight_g || '');
+    useRestartDraft('Μετατροπή SKU', { supplierId, supplierSku, supplierCost, technicianCostPerGram, platingCostPerGram, stoneSettingCost, weightG, secondaryWeightG });
+
 
     const conversionInput: ImportedConversionInput = useMemo(() => ({
         supplierId,

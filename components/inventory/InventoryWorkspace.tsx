@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import {
   Activity,
@@ -172,6 +173,8 @@ function OperationDialog({
   const [destinationWarehouseId, setDestinationWarehouseId] = useState(destinationOptions[0]?.id || '');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+    useRestartDraft('Κίνηση αποθέματος', { quantityText, destinationWarehouseId, reason }, { busy: saving });
+
   useEscapeToClose(onClose, saving);
 
   const quantity = parseWholeQuantity(quantityText);
@@ -392,6 +395,8 @@ function MovementReversalDialog({
   const { showToast } = useUI();
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+    useRestartDraft('Αντιστροφή κίνησης', { reason }, { busy: saving });
+
   const reversalState = getInventoryEventReversalState(event, events, true);
   useEscapeToClose(onClose, saving);
 
@@ -501,6 +506,8 @@ function ReconciliationIssueCard({ issue, warehouses, onResolved }: { issue: Inv
   );
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+    const issueRestart = useRestartDraft('Συμφωνία αποθέματος', { target, targetWarehouseId, note }, { busy: saving });
+
 
   const resolve = async () => {
     if (!note.trim()) {
@@ -524,6 +531,7 @@ function ReconciliationIssueCard({ issue, warehouses, onResolved }: { issue: Inv
         targetOnHand: targetQuantity,
         targetWarehouseId: needsWarehouse ? targetWarehouseId : null,
       });
+      issueRestart.markSaved();
       await onResolved();
       showToast('Η συμφωνία αποθέματος ολοκληρώθηκε και καταγράφηκε στο Ιστορικό Κινήσεων.', 'success');
     } catch (error) {
@@ -602,6 +610,8 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const [reversalEvent, setReversalEvent] = useState<InventoryEvent | null>(null);
   const [movementLimit, setMovementLimit] = useState(MOVEMENT_PAGE_SIZE);
   const [refreshing, setRefreshing] = useState(false);
+    useRestartDraft('Στοιχεία αποθήκης', warehouseForm, { enabled: !!warehouseForm, busy: savingWarehouse });
+
 
   const availabilityQuery = useInventoryAvailability();
   const eventsQuery = useInventoryEvents(activeTab === 'overview' || activeTab === 'movements', movementLimit);

@@ -1,3 +1,5 @@
+import { protectOperation } from '../lib/appUpdates';
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import { getPricingRules } from '../utils/pricingRules';
 
@@ -66,6 +68,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [selectedSnapshot, setSelectedSnapshot] = useState<PriceSnapshot | null>(null);
   const [comparisonItems, setComparisonItems] = useState<SnapshotComparisonItem[]>([]);
   const [isLoadingSnapshotItems, setIsLoadingSnapshotItems] = useState(false);
+    useRestartDraft('Σημείωση τιμών', snapshotNote, { busy: isCommitting || isSnapshotting || !!processingSingleId });
+
 
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
@@ -154,7 +158,7 @@ export default function PricingManager({ products, settings, materials }: Props)
         });
       if (error) throw error;
     } else {
-      const { error } = await supabase.from('products').update(updates).eq('sku', item.masterSku);
+      const { error } = await protectOperation(async () => await supabase.from('products').update(updates).eq('sku', item.masterSku));
       if (error) throw error;
     }
   };

@@ -1,3 +1,5 @@
+import { protectOperation } from '../lib/appUpdates';
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, Material, SupplierOrder } from '../types';
@@ -102,6 +104,8 @@ export default function SuppliersPage() {
     const [viewOrderId, setViewOrderId] = useState<string | null>(null);
     const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
     const [receiptOrder, setReceiptOrder] = useState<SupplierOrder | null>(null);
+    useRestartDraft('Στοιχεία προμηθευτή', supplierForm, { enabled: isEditing, identity: selectedSupplier?.id });
+
 
     const filteredSuppliers = useMemo(() => {
         if (!suppliers) return [];
@@ -166,7 +170,7 @@ export default function SuppliersPage() {
     const handleLinkProduct = async (sku: string) => {
         if (!selectedSupplier) return;
         try {
-            await supabase.from('products').update({ supplier_id: selectedSupplier.id }).eq('sku', sku);
+            await protectOperation(async () => await supabase.from('products').update({ supplier_id: selectedSupplier.id }).eq('sku', sku));
             invalidateProductsAndCatalog(queryClient);
             showToast("Προϊόν συνδέθηκε.", "success");
         } catch (e) { showToast("Σφάλμα.", "error"); }
@@ -174,7 +178,7 @@ export default function SuppliersPage() {
 
     const handleUnlinkProduct = async (sku: string) => {
         try {
-            await supabase.from('products').update({ supplier_id: null }).eq('sku', sku);
+            await protectOperation(async () => await supabase.from('products').update({ supplier_id: null }).eq('sku', sku));
             invalidateProductsAndCatalog(queryClient);
             showToast("Σύνδεση αφαιρέθηκε.", "success");
         } catch (e) { showToast("Σφάλμα.", "error"); }

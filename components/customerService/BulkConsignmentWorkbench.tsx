@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -65,6 +66,8 @@ export default function BulkConsignmentWorkbench({
     createEmptyConsignmentDraftRow({ warehouseId: defaultWarehouseId, reviewDate: plusDaysIsoDate(30) }),
   ]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+    useRestartDraft('Μαζική παρακαταθήκη', { reviewDate, warehouseId, sharedNotes, rows });
+
 
   useEscapeToClose(onClose, saving);
 

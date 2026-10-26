@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import OrderCustomerName from './orders/OrderCustomerName';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
@@ -136,6 +137,8 @@ export default function SellersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [showResetField, setShowResetField] = useState(false);
+    useRestartDraft('Στοιχεία πλασιέ', { form, resetPassword }, { enabled: showCreateModal, identity: editingSeller?.id, busy: isSaving });
+
 
   const globalStats = useMemo(() => {
     if (!orders || !sellers) return null;

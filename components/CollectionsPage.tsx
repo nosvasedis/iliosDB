@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Collection, Product } from '../types';
@@ -181,6 +182,8 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
     // Product details
     const [viewProduct, setViewProduct] = useState<Product | null>(null);
+    useRestartDraft('Συλλογή', { newCollectionName, renameValue: isRenaming ? renameValue : '', bulkSkus: addPanelOpen ? bulkSkus : '', pendingSkus: [...pendingSkus], collectionDesc: isDescModalOpen ? collectionDesc : '', aiGuidance: isDescModalOpen ? aiGuidance : '' }, { busy: isBulkAdding || isGeneratingDesc });
+
 
     const workspaceScrollRef = useRef<HTMLDivElement>(null);
     const registrySearchRef = useRef<HTMLInputElement>(null);

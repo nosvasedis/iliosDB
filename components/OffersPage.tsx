@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
+import { orderItemsDraftSnapshot } from '../lib/editorSnapshots';
 import { getSkuStoneLetterStyle } from '../utils/skuColoring';
 import StoneCodeText from './StoneCodeText';
 import { INTERNAL_CUSTOMER_ID } from '../utils/retailConstants';
@@ -83,6 +85,7 @@ export default function OffersPage({ products, materials, settings, collections,
     const [retailClientLabel, setRetailClientLabel] = useState('');
     const [items, setItems] = useState<OrderItem[]>([]);
 
+
     // Convert-after-edit state
     const [pendingConvertOffer, setPendingConvertOffer] = useState<Offer | null>(null);
 
@@ -100,6 +103,8 @@ export default function OffersPage({ products, materials, settings, collections,
     const [activeMasterProduct, setActiveMasterProduct] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant; suffix: string; desc: string }[]>([]);
     const skuInputRef = useRef<HTMLInputElement>(null);
+
+    useRestartDraft('Προσφορά', { customerName, customerPhone, customerId, customSilverPrice, hideSilverPriceInPdf, hideOfferValidityInPdf, offerValidityDays, discountPercent, vatRate, offerNotes, retailClientLabel, items: orderItemsDraftSnapshot(items), scanInput, scanQty }, { enabled: isCreating, identity: editingOffer?.id, busy: isSaving });
 
     // Filtered Customers for Search
     const filteredCustomers = useMemo(() => {

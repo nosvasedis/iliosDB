@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -337,6 +338,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         next[index] = rebuilt;
         return next;
     });
+
+    useRestartDraft('Παραγγελία προμηθευτή', { items, notes }, { identity: initialOrder?.id, busy: isSaving });
 
     const handleSave = async () => {
         if (cartSearchTerm.trim() && hiddenItemCount > 0) {

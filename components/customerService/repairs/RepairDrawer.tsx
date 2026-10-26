@@ -1,3 +1,4 @@
+import { useRestartBlocker } from '../../../hooks/useRestartBlocker';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Archive,
@@ -97,6 +98,8 @@ export default function RepairDrawer({ ctl, item, onClose, onRework }: { ctl: Se
   const [photoType, setPhotoType] = useState<AttachmentType>(item.status === 'quality_check' ? 'quality' : item.status === 'received' ? 'intake' : 'other');
   const [uploading, setUploading] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+    useRestartBlocker({ label: 'Φωτογραφία επισκευής', busy: uploading });
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cycles = (ctl.data?.repairCycles || []).filter((cycle) => cycle.repair_item_id === item.id).sort((a, b) => a.cycle_number - b.cycle_number);

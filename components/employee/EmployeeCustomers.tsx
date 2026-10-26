@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 
 import React, { useState, useMemo } from 'react';
@@ -23,6 +24,7 @@ export default function EmployeeCustomers() {
     const [isEditing, setIsEditing] = useState(false);
     const [editType, setEditType] = useState<'customer' | 'supplier'>('customer');
     const [editData, setEditData] = useState<any>(null); // Polymorphic object
+    useRestartDraft('Στοιχεία επαφής', editData, { enabled: isEditing, identity: editData?.id });
 
     const filteredList = useMemo(() => {
         if (tab === 'customers') {

@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import { orderItemsDraftSnapshot } from '../../lib/editorSnapshots';
 import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
 import RetailClientField from '../orders/RetailClientField';
@@ -76,6 +78,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const [showSettings, setShowSettings] = useState(false); // Toggle for pricing settings
     const [isFetchingPrice, setIsFetchingPrice] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    useRestartDraft('Προσφορά', { customerName, customerPhone, customerId, customSilverPrice, hideSilverPriceInPdf, hideOfferValidityInPdf, offerValidityDays, discountPercent, vatRate, notes, retailClientLabel, items: orderItemsDraftSnapshot(items), skuInput, qtyInput }, { enabled: view === 'builder', identity: editingId, busy: isSaving });
 
     // Convert-after-edit state
     const [pendingConvertOffer, setPendingConvertOffer] = useState<Offer | null>(null);

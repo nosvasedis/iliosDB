@@ -1,3 +1,4 @@
+import { withProtectedWrites } from '../../lib/appUpdates';
 import { isLocalMode, supabase } from '../../lib/supabase';
 import type {
   Consignment,
@@ -41,7 +42,7 @@ async function rows<T>(table: string, orderColumn = 'created_at'): Promise<T[]> 
   return (data || []) as T[];
 }
 
-export const customerServiceRepository = {
+export const customerServiceRepository = withProtectedWrites({
   async getWorkspaceData(): Promise<CustomerServiceWorkspaceData> {
     const [
       consignments,
@@ -430,4 +431,4 @@ export const customerServiceRepository = {
     if (error) throw new Error(customerServiceErrorMessage(error));
     return data.signedUrl;
   },
-};
+});

@@ -15,6 +15,8 @@ import { formatNumber } from '../utils/numberFormat';
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useNotificationCorner } from './AppUpdateProvider';
 import {
     X, ArrowRight, Layers, PauseCircle, PlayCircle,
     Truck, RotateCcw, ShoppingCart, Edit2, Send,
@@ -367,6 +369,7 @@ interface LiveActivityFeedProps {
 }
 
 export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ notifications, onDismiss }) => {
+    const corner = useNotificationCorner();
     const [displayItems, setDisplayItems] = useState<DisplayItem[]>([]);
     // Per-item removal timers — keyed by eventId
     const removeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -429,9 +432,9 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ notification
 
     if (displayItems.length === 0) return null;
 
-    return (
+    const content = (
         <div
-            className="fixed bottom-4 left-4 z-[250] flex flex-col pointer-events-none print:hidden"
+            className={corner ? 'flex flex-col pointer-events-none print:hidden' : 'fixed bottom-4 left-4 z-[250] flex flex-col pointer-events-none print:hidden'}
             style={{ gap: 0 }} // gaps handled inside each height-wrapper
         >
             {displayItems.map(item => (
@@ -456,4 +459,5 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ notification
             ))}
         </div>
     );
+    return corner ? createPortal(content, corner) : content;
 };

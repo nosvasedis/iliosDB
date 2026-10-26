@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState } from 'react';
 import { Loader2, UserCheck, X } from 'lucide-react';
@@ -21,6 +22,8 @@ export function OrderBulkSellerModal({
     const [sellerId, setSellerId] = useState<string | undefined>(undefined);
     const [sellerName, setSellerName] = useState<string | undefined>(undefined);
     const [commission, setCommission] = useState<number | undefined>(undefined);
+    useRestartDraft('Πλασιέ παραγγελιών', { sellerId, sellerName, commission });
+
 
     return (
         <div className="fixed inset-0 z-[350] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">

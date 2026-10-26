@@ -1,3 +1,5 @@
+import { protectOperation } from '../../lib/appUpdates';
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,6 +43,9 @@ export default function MobileResources({ products }: { products?: Product[] }) 
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
     const [editingMold, setEditingMold] = useState<Mold | null>(null);
     const [isCreating, setIsCreating] = useState(false);
+    useRestartDraft('Στοιχεία υλικού', editingMaterial, { enabled: !!editingMaterial, identity: editingMaterial?.id });
+    useRestartDraft('Στοιχεία λάστιχου', editingMold, { enabled: !!editingMold, identity: editingMold?.code });
+
 
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -110,7 +115,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
         if (!editingMaterial || !editingMaterial.id) return;
         if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
             try {
-                await supabase.from('materials').delete().eq('id', editingMaterial.id);
+                await protectOperation(async () => await supabase.from('materials').delete().eq('id', editingMaterial.id));
                 queryClient.invalidateQueries({ queryKey: ['materials'] });
                 setEditingMaterial(null);
                 showToast("Διαγράφηκε.", "success");
@@ -130,8 +135,8 @@ export default function MobileResources({ products }: { products?: Product[] }) 
             return;
         }
         try {
-            if (isCreating) await supabase.from('molds').insert(editingMold);
-            else await supabase.from('molds').update(editingMold).eq('code', editingMold.code);
+            if (isCreating) await protectOperation(async () => await supabase.from('molds').insert(editingMold));
+            else await protectOperation(async () => await supabase.from('molds').update(editingMold).eq('code', editingMold.code));
             queryClient.invalidateQueries({ queryKey: ['molds'] });
             setEditingMold(null);
             showToast("Αποθηκεύτηκε.", "success");
@@ -142,7 +147,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
          if (!editingMold || !editingMold.code) return;
          if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
             try {
-                await supabase.from('molds').delete().eq('code', editingMold.code);
+                await protectOperation(async () => await supabase.from('molds').delete().eq('code', editingMold.code));
                 queryClient.invalidateQueries({ queryKey: ['molds'] });
                 setEditingMold(null);
                 showToast("Διαγράφηκε.", "success");

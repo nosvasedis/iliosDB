@@ -1,3 +1,4 @@
+import { useRestartDraft, useRestartBlocker } from '../../../hooks/useRestartBlocker';
 import React, { useMemo, useState } from 'react';
 import {
   Banknote,
@@ -71,6 +72,8 @@ export default function OperationDialog({ ctl }: { ctl: ServiceController }) {
 function SingleOperation({ ctl, operation }: { ctl: ServiceController; operation: Exclude<ServiceOperation, { kind: 'settle' | 'offer' | 'delete-consignment' }> }) {
   const close = () => ctl.setOperation(null);
   const [busy, setBusy] = useState(false);
+    useRestartBlocker({ label: 'Εργασία εξυπηρέτησης', busy });
+
   const run = async (task: () => Promise<boolean | void>) => {
     setBusy(true);
     try { await task(); } finally { setBusy(false); }
@@ -127,6 +130,8 @@ function SaleDialog({ ctl, operation, busy, close, run }: DialogBase & { ctl: Se
   const [quantity, setQuantity] = useState(1);
   const [price, setPrice] = useState(locked);
   const [reason, setReason] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { quantity,price,reason });
+
   const changed = money(price) !== money(locked);
   const offered = operation.line.offer_line_total != null;
   const total = offered ? consignmentSaleTotal(operation.line, quantity, ctl.data?.consignmentSettlements) : quantity * price;
@@ -155,6 +160,8 @@ function PaymentDialog({ outstanding, busy, close, onSubmit }: DialogBase & { ou
   const [amount, setAmount] = useState(outstanding);
   const [method, setMethod] = useState<(typeof PAYMENT_METHODS)[number]>('Μετρητά');
   const [notes, setNotes] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { amount,method,notes });
+
   const invalid = !(amount > 0) || money(amount) > outstanding;
   return (
     <ServiceModal title="Είσπραξη" subtitle={`Υπόλοιπο: ${formatGreekMoney(outstanding)}`} icon={<Wallet size={18} />} onClose={close} busy={busy} size="sm"
@@ -176,6 +183,8 @@ function PaymentDialog({ outstanding, busy, close, onSubmit }: DialogBase & { ou
 function ReturnDialog({ max, busy, close, onSubmit }: DialogBase & { max: number; onSubmit: (quantity: number, notes: string) => void }) {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { quantity,notes });
+
   return (
     <ServiceModal title="Επιστροφή από πελάτη" subtitle="Τα τεμάχια πάνε στον έλεγχο επιστροφών πριν μπουν ξανά σε απόθεμα." icon={<Undo2 size={18} />} onClose={close} busy={busy} size="sm"
       footer={<Footer busy={busy} onCancel={close} label="Παραλαβή επιστροφής" onSubmit={() => onSubmit(quantity, notes)} />}>
@@ -197,6 +206,8 @@ function RouteReturnDialog({ ctl, quantity, busy, close, onSubmit }: DialogBase 
   const [resolution, setResolution] = useState<'restocked' | 'production' | 'damaged'>('restocked');
   const [warehouseId, setWarehouseId] = useState<string>(ctl.sourceWarehouses[0]?.id || SYSTEM_IDS.CENTRAL);
   const [reason, setReason] = useState<string>(ROUTE_DEFAULT_REASON.restocked);
+    useRestartDraft('Εργασία εξυπηρέτησης', { resolution,warehouseId,reason });
+
   return (
     <ServiceModal title="Τι γίνεται με την επιστροφή;" subtitle={`${quantity} τεμ. σε έλεγχο`} icon={<RotateCcw size={18} />} onClose={close} busy={busy} size="sm"
       footer={<Footer busy={busy} onCancel={close} label="Ολοκλήρωση" disabled={!reason.trim()} onSubmit={() => onSubmit(resolution, resolution === 'restocked' ? warehouseId : null, reason)} />}>
@@ -226,6 +237,8 @@ function RouteReturnDialog({ ctl, quantity, busy, close, onSubmit }: DialogBase 
 function PriceDialog({ current, busy, close, onSubmit }: DialogBase & { current: number; onSubmit: (price: number, reason: string) => void }) {
   const [price, setPrice] = useState(current);
   const [reason, setReason] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { price,reason });
+
   return (
     <ServiceModal title="Αλλαγή συμφωνημένης τιμής" subtitle={`Τρέχουσα: ${formatGreekMoney(current)}`} onClose={close} busy={busy} size="sm"
       footer={<Footer busy={busy} onCancel={close} label="Αποθήκευση" disabled={!reason.trim() || money(price) === money(current)} onSubmit={() => onSubmit(money(price), reason)} />}>
@@ -239,6 +252,8 @@ function PriceDialog({ current, busy, close, onSubmit }: DialogBase & { current:
 
 function ReasonDialog({ title, text, confirmLabel, danger = false, optional = false, icon, busy, close, onSubmit }: DialogBase & { title: string; text: string; confirmLabel: string; danger?: boolean; optional?: boolean; icon?: React.ReactNode; onSubmit: (reason: string) => void }) {
   const [reason, setReason] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { reason });
+
   return (
     <ServiceModal title={title} onClose={close} busy={busy} size="sm"
       footer={<Footer busy={busy} onCancel={close} label={confirmLabel} danger={danger} icon={icon} disabled={!optional && !reason.trim()} onSubmit={() => onSubmit(reason.trim())} />}>
@@ -256,6 +271,8 @@ function ReworkDialog({ code, busy, close, onSubmit }: DialogBase & { code: stri
   const stages = PRODUCTION_STAGES.filter((entry) => entry.id !== ProductionStage.AwaitingDelivery && entry.id !== ProductionStage.Ready);
   const [stage, setStage] = useState<string>(ProductionStage.Polishing);
   const [notes, setNotes] = useState('');
+    useRestartDraft('Εργασία εξυπηρέτησης', { stage,notes });
+
   return (
     <ServiceModal title={`Ξανά στην Παραγωγή · ${code}`} subtitle="Ανοίγει νέος κύκλος επισκευής" icon={<RotateCcw size={18} />} onClose={close} busy={busy} size="sm"
       footer={<Footer busy={busy} onCancel={close} label="Επιστροφή στην Παραγωγή" disabled={!notes.trim()} onSubmit={() => onSubmit(stage, notes.trim())} />}>
@@ -279,6 +296,8 @@ function CostDialog({ ctl, busy, close, onSubmit }: DialogBase & { ctl: ServiceC
   const [sku, setSku] = useState('');
   const [variantSuffix, setVariantSuffix] = useState('');
   const [warehouseId, setWarehouseId] = useState<string>(ctl.sourceWarehouses[0]?.id || SYSTEM_IDS.CENTRAL);
+    useRestartDraft('Εργασία εξυπηρέτησης', { costType,description,quantity,unitCost,sku,variantSuffix,warehouseId });
+
   const usesStock = costType === 'material' || costType === 'component';
   return (
     <ServiceModal title="Κόστος επισκευής" subtitle="Εσωτερικό — δεν το βλέπει ο πελάτης" onClose={close} busy={busy}
@@ -330,6 +349,8 @@ function ChargeDialog({ ctl, itemId, code, busy, close, run }: DialogBase & { ct
   const [amount, setAmount] = useState(Number(existing?.amount || 0));
   const [paid, setPaid] = useState(Number(existing?.paid_amount || 0));
   const [notes, setNotes] = useState(existing?.notes || '');
+    useRestartDraft('Εργασία εξυπηρέτησης', { chargeType,amount,paid,notes });
+
   const chargeable = chargeType === 'chargeable';
   const invalid = chargeable && (!(amount > 0) || paid > amount);
   return (
@@ -362,6 +383,8 @@ function DeliverDialog({ ctl, operation, busy, close, run }: DialogBase & { ctl:
   const charge = ctl.chargeByRepairId.get(operation.item.id);
   const outstanding = repairOutstanding(charge);
   const [collectNow, setCollectNow] = useState(outstanding > 0);
+    useRestartDraft('Εργασία εξυπηρέτησης', { collectNow });
+
   const label = useMemo(() => (collectNow && outstanding > 0 ? `Είσπραξη ${formatGreekMoney(outstanding)} & παράδοση` : 'Παραδόθηκε'), [collectNow, outstanding]);
   const submit = () => run(async () => {
     if (collectNow && outstanding > 0 && charge) {

@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
+import { requestAppRestart } from '../lib/appUpdates';
 
 import React, { useState, useRef } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight, HardDrive, Upload, Loader2 } from 'lucide-react';
@@ -19,6 +21,8 @@ export default function SetupScreen() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast, confirm } = useUI();
 
+    const setupRestart = useRestartDraft('Ρύθμιση σύνδεσης', { url, key, workerKey, geminiKey }, { busy: isRestoring });
+
     if (isMobile) {
         return <MobileSetupScreen />;
     }
@@ -27,12 +31,14 @@ export default function SetupScreen() {
         e.preventDefault();
         if (url && key) {
             saveConfiguration(url, key, workerKey, geminiKey);
+            setupRestart.markSaved();
         }
     };
 
     const handleRunLocally = () => {
         localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
-        window.location.reload();
+        setupRestart.markSaved();
+        requestAppRestart('Οι αλλαγές θα εφαρμοστούν μετά την επανεκκίνηση.');
     };
 
     const handleRestoreBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +81,8 @@ export default function SetupScreen() {
                 });
 
                 showToast('Επιτυχής επαναφορά! Το ERP θα ξεκινήσει τοπικά.', 'success');
-                setTimeout(() => window.location.reload(), 1500);
+                setupRestart.markSaved();
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } catch {
                 showToast('Το αρχείο δεν είναι έγκυρο αντίγραφο Ilios ERP.', 'error');
             } finally {

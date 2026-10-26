@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../hooks/useRestartBlocker';
 import CustomerPhoneFields from './customers/CustomerPhoneFields';
 import CustomerVatStatusAlert from './customers/CustomerVatStatusAlert';
 import { useCustomerVatLookup } from './customers/useCustomerVatLookup';
@@ -37,6 +38,8 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
     const [form, setForm] = useState<Customer>(draft);
     const [tab, setTab] = useState<CreateTab>('general');
     const [isSaving, setIsSaving] = useState(false);
+    useRestartDraft('Νέος πελάτης', form, { identity: draft.id, busy: isSaving, initiallyDirty: !!draft.full_name?.trim() });
+
     const { showToast } = useUI();
     const vatLookup = useCustomerVatLookup(setForm, { onApplied: () => setTab('fiscal') });
     const { isSearching: isSearchingAfm, evidence: vatLookupEvidence } = vatLookup;

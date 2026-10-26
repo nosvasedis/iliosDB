@@ -1,3 +1,4 @@
+import { withProtectedWrites } from '../../lib/appUpdates';
 import type { Offer, Order, SupplierOrder, Warehouse } from '../../types';
 import { SYSTEM_IDS, isLocalMode, supabase } from '../../lib/supabase';
 import { repairGreekMojibake, toInventoryOperationError } from './greek';
@@ -139,7 +140,7 @@ function mapInventoryPostingResult(data: unknown): InventoryPostingResult {
   };
 }
 
-export const inventoryRepository = {
+export const inventoryRepository = withProtectedWrites({
   async getAvailability(): Promise<InventoryAvailability[]> {
     const rows = await loadAllInventoryAvailabilityPages<AvailabilityRow>(
       async (from, to, includeCount): Promise<InventoryAvailabilityPage<AvailabilityRow>> => {
@@ -613,7 +614,7 @@ export const inventoryRepository = {
     const { error } = await supabase.from('warehouses').delete().eq('id', warehouseId);
     if (error) throw toInventoryOperationError('warehouse-delete', error);
   },
-};
+});
 
 export function withOfferSource(order: Order, offer: Offer): Order {
   return { ...order, source_offer_id: offer.id };

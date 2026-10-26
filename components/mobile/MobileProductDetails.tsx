@@ -1,3 +1,4 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
@@ -97,6 +98,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
   const [showImageMenu, setShowImageMenu] = useState(false);
+  useRestartDraft('Απόθεμα SKU', { transferModal, adjustModal }, { busy: stockMutationPending || isUploadingImage || isDeletingImage, identity: product.sku });
   const [localImageUrl, setLocalImageUrl] = useState<string | null>(product.image_url);
 
   const imageInputRef = useRef<HTMLInputElement>(null);

@@ -1,3 +1,5 @@
+import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import { requestAppRestart } from '../../lib/appUpdates';
 
 import React, { useState, useRef } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight, HardDrive, Upload, Loader2 } from 'lucide-react';
@@ -15,10 +17,13 @@ export default function MobileSetupScreen() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
 
+    const setupRestart = useRestartDraft('Ρύθμιση σύνδεσης', { url, key }, { busy: isRestoring });
+
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         if(url && key) {
             saveConfiguration(url, key, '', '');
+            setupRestart.markSaved();
         }
     };
 
@@ -51,7 +56,8 @@ export default function MobileSetupScreen() {
                     includeLocalExtras: validation.hasExtras || true,
                 });
                 showToast('Επιτυχία!', 'success');
-                setTimeout(() => window.location.reload(), 1500);
+                setupRestart.markSaved();
+                requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } catch {
                 showToast('Μη έγκυρο αρχείο.', 'error');
             } finally {
@@ -121,7 +127,7 @@ export default function MobileSetupScreen() {
                         </button>
                         
                         <button 
-                            onClick={() => { localStorage.setItem('ILIOS_LOCAL_MODE', 'true'); window.location.reload(); }}
+                            onClick={() => { localStorage.setItem('ILIOS_LOCAL_MODE', 'true'); setupRestart.markSaved(); requestAppRestart('Οι αλλαγές θα εφαρμοστούν μετά την επανεκκίνηση.'); }}
                             className="w-full border-2 border-slate-100 text-slate-400 py-3 rounded-2xl font-bold text-xs active:bg-slate-50"
                         >
                             Είσοδος χωρίς δεδομένα

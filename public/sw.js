@@ -1,31 +1,16 @@
-const workerUrl = new URL(self.location.href);
-const cacheVersion = (workerUrl.searchParams.get('v') || 'dev').replace(/[^a-z0-9_-]/gi, '_');
-const CACHE_NAME = `ilios-runtime-${cacheVersion}`;
+// A cache policy version, independent of deployments. Hashed assets are immutable.
+const CACHE_NAME = 'ilios-runtime-safe-v1';
 const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v1';
 const IMAGE_CACHE_LIMIT = 200;
 const PRECACHE_URLS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) =>
-      Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-          return Promise.resolve();
-        })
-      )
-    ).then(() => self.clients.claim())
-  );
-});
+// Never take over live pages, or delete another build's resources on activation.
 
 function isBypassedRequest(url) {
   return (
@@ -55,6 +40,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  if (url.origin === self.location.origin && (url.pathname === '/version.json' || url.pathname === '/sw.js')) {
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
   if (isProductImageRequest(event.request, url)) {
     event.respondWith(
       caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
@@ -79,18 +69,18 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(new Request(event.request, { cache: 'no-cache' }))
         .then((response) => {
+          if (!response.ok) throw new Error('Navigation unavailable');
           if (response.ok) {
             const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put('/index.html', responseToCache);
-            });
+            event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put('/index.html', responseToCache)).catch(() => {}));
           }
           return response;
         })
         .catch(async () => {
-          const cachedResponse = await caches.match('/index.html');
+          const current = await caches.open(CACHE_NAME);
+          const cachedResponse = await current.match('/index.html') || await caches.match('/index.html');
           return (
             cachedResponse ||
             new Response('Application is offline.', {
@@ -106,17 +96,24 @@ self.addEventListener('fetch', (event) => {
 
   if (isAppAsset(url)) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
+      (async () => {
+        const valid = response => response && response.ok && (
+          !/\.(?:m?js|css)$/.test(url.pathname) ||
+          (/\.css$/.test(url.pathname) ? /text\/css/i : /javascript|ecmascript/i).test(response.headers.get('Content-Type') || '')
+        );
+        const cached = await caches.match(event.request);
+        if (valid(cached)) return cached;
+        try {
+          const response = await fetch(event.request);
+          if (!valid(response)) throw new Error('Asset unavailable');
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {}));
           return response;
-        })
-        .catch(() => caches.match(event.request))
+        } catch {
+          const fallback = await caches.match(event.request);
+          return valid(fallback) ? fallback : new Response('Asset unavailable', { status: 503 });
+        }
+      })()
     );
     return;
   }
@@ -139,9 +136,7 @@ self.addEventListener('fetch', (event) => {
             url.host.includes('pub-07bab0635aee4da18c155fcc9dc3bb36.r2.dev'))
         ) {
           const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache)).catch(() => {}));
         }
 
         return response;

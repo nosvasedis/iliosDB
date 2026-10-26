@@ -1,3 +1,4 @@
+import { withProtectedWrites } from '../../lib/appUpdates';
 import { api } from '../../lib/supabase';
 import {
   LegalCarrier,
@@ -24,7 +25,7 @@ import {
   LegalOrderLineAllocation,
 } from '../../types';
 
-export const legalRepository = {
+export const legalRepository = withProtectedWrites({
   getSettings: (): Promise<LegalSettings> => api.getLegalSettings(),
   saveSettings: (settings: LegalSettings): Promise<void> => api.saveLegalSettings(settings),
   getCredentialStatus: (): Promise<AadeCredentialStatus> => api.getAadeCredentialStatus(),
@@ -126,4 +127,4 @@ export const legalRepository = {
     api.pollLegalDeliveryStatus(documentId, userName),
   hasInspectionExitPin: (): Promise<boolean> => api.hasInspectionExitPin(),
   setInspectionExitPin: (pin: string): Promise<void> => api.setInspectionExitPin(pin),
-};
+});
