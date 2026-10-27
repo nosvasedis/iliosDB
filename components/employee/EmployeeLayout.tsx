@@ -8,12 +8,15 @@ import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
 import { employeeDesktopNavSections, employeeMobileNavItems, renderNavIcon } from '../../surfaces/navConfig';
 import type { EmployeePage } from '../../surfaces/pageIds';
 import {
-  SidebarCollapseButton,
+  SidebarBackdrop,
+  SidebarBrand,
+  SidebarEscapeListener,
+  SidebarFooterMeta,
   SidebarHoverTooltip,
   SidebarNavButton,
   SidebarOverlayScrim,
   SidebarSectionLabel,
-  SidebarVersionMark,
+  SidebarUserCard,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
@@ -60,24 +63,28 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
   return (
     <div className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
-        <aside className={`${sidebarAsideClass(isCollapsed)} hidden md:flex`}>
-          <div className={`relative flex shrink-0 items-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 flex-col justify-center px-1.5 py-2' : 'h-16 justify-center px-3'}`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />}
-            <div className={`flex min-w-0 items-center ${isCollapsed ? '' : 'absolute right-2 top-1/2 max-w-[42%] -translate-y-1/2 justify-end gap-1.5'}`}>
-              {!isCollapsed && (
-                <span className="truncate text-xs font-medium text-slate-300">{profile?.full_name || 'Κατάστημα'}</span>
-              )}
+        <SidebarEscapeListener
+          active={!isCollapsed && prefersCollapsedDesktopSidebar(window.innerWidth)}
+          onEscape={() => setIsCollapsed(true)}
+        />
+        <aside className={`${sidebarAsideClass(isCollapsed)} hidden md:flex`} aria-label="Κύρια πλοήγηση">
+          <SidebarBackdrop />
+          <SidebarBrand
+            logoSrc={APP_LOGO}
+            iconSrc={APP_ICON_ONLY}
+            railMode={isCollapsed}
+            status={
               <SidebarHoverTooltip label="Λειτουργία καταστήματος">
-                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-emerald-300" aria-label="Λειτουργία καταστήματος">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-400/[0.08] ring-1 ring-inset ring-emerald-300/15" aria-label="Λειτουργία καταστήματος">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                 </span>
               </SidebarHoverTooltip>
-            </div>
-          </div>
+            }
+          />
 
-          <nav className={`flex flex-1 flex-col px-1.5 py-1 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
+          <nav className={`flex flex-1 flex-col px-2 py-1.5 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {employeeDesktopNavSections.map((section, sectionIndex) => (
-              <div key={section.title}>
+              <div key={section.title} role="group" aria-label={section.title}>
                 <SidebarSectionLabel title={section.title} collapsed={isCollapsed} first={sectionIndex === 0} />
                 {section.items.map((item) => (
                   <SidebarNavButton
@@ -94,19 +101,14 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
             ))}
           </nav>
 
-          <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
-            <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
-            <SidebarHoverTooltip label="Αποσύνδεση">
-              <button
-                onClick={handleLogout}
-                className={`mt-0.5 flex w-full items-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-rose-300 ${isCollapsed ? 'h-9 justify-center' : 'h-9 gap-2.5 px-2.5'}`}
-              >
-                <LogOut size={16} /> {!isCollapsed && <span className="text-[13px] font-medium">Αποσύνδεση</span>}
-              </button>
-            </SidebarHoverTooltip>
-            <div className="mt-2">
-              <SidebarVersionMark compact={isCollapsed} />
-            </div>
+          <div className="shrink-0 border-t border-white/[0.06] bg-black/10 px-2 py-2">
+            <SidebarUserCard
+              name={profile?.full_name || 'Κατάστημα'}
+              subtitle="Λειτουργία καταστήματος"
+              railMode={isCollapsed}
+              onLogout={handleLogout}
+            />
+            <SidebarFooterMeta railMode={isCollapsed} isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
           </div>
         </aside>
 

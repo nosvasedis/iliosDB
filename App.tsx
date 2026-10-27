@@ -1,8 +1,6 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import {
   Menu,
-  X,
-  LogOut,
   ShieldAlert,
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
@@ -44,13 +42,15 @@ import InspectionModeShell from './components/InspectionModeShell';
 import { InspectionModeProvider } from './components/InspectionModeProvider';
 import IliosLoader from './components/ui/IliosLoader';
 import {
-  SidebarCollapseButton,
+  SidebarBackdrop,
+  SidebarBrand,
   SidebarConnectionBadge,
-  SidebarHoverTooltip,
+  SidebarEscapeListener,
+  SidebarFooterMeta,
   SidebarNavButton,
   SidebarOverlayScrim,
   SidebarSectionLabel,
-  SidebarVersionMark,
+  SidebarUserCard,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
@@ -495,29 +495,32 @@ function ErpAppContent() {
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
-        <aside className={sidebarAsideClass(railMode, isSidebarOpen)}>
-          <div className={`relative flex shrink-0 items-center border-b border-white/[0.06] ${railMode ? 'h-14 flex-col justify-center gap-0.5 px-1.5 py-2' : 'h-16 justify-center px-3'}`}>
-            {!railMode ? (
-              <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" />
-            ) : (
-              <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
-            )}
-            <div className={`flex items-center ${railMode ? '' : 'absolute right-2 top-1/2 -translate-y-1/2 gap-0.5'}`}>
+        <SidebarEscapeListener
+          active={isSidebarOpen || (!isCollapsed && prefersCollapsedDesktopSidebar(window.innerWidth))}
+          onEscape={() => { setIsSidebarOpen(false); if (prefersCollapsedDesktopSidebar(window.innerWidth)) setIsCollapsed(true); }}
+        />
+        <aside className={`${sidebarAsideClass(railMode, isSidebarOpen)} ${isSidebarOpen ? 'z-50' : ''}`} aria-label="Κύρια πλοήγηση">
+          <SidebarBackdrop />
+          <SidebarBrand
+            logoSrc={APP_LOGO}
+            iconSrc={APP_ICON_ONLY}
+            railMode={railMode}
+            onClose={() => setIsSidebarOpen(false)}
+            status={
               <SidebarConnectionBadge
                 isLocalMode={isLocalMode}
                 isOnline={isOnline}
                 isSyncing={isSyncing}
                 pendingCount={pendingCount}
               />
-              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white md:hidden"><X size={18} /></button>
-            </div>
-          </div>
-          <nav className={`flex flex-1 flex-col px-1.5 py-1 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
+            }
+          />
+          <nav className={`flex flex-1 flex-col px-2 py-1.5 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {adminNavSections.map((section, sectionIndex) => {
               const visibleItems = section.items.filter((item) => !isLocalMode || !hiddenInLocalMode.has(item.id));
               if (visibleItems.length === 0) return null;
               return (
-                <div key={section.title}>
+                <div key={section.title} role="group" aria-label={section.title}>
                   <SidebarSectionLabel title={section.title} collapsed={railMode} first={sectionIndex === 0} />
                   {visibleItems.map((item) => (
                     <SidebarNavButton
@@ -534,8 +537,7 @@ function ErpAppContent() {
               );
             })}
           </nav>
-          <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
-            <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
+          <div className="shrink-0 border-t border-white/[0.06] bg-black/10 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
             {adminFooterNavItems.map((item) => (
               <SidebarNavButton
                 key={item.id}
@@ -546,18 +548,13 @@ function ErpAppContent() {
                 onClick={() => handleNav(item.id)}
               />
             ))}
-            <SidebarHoverTooltip label={profile?.full_name ? `Αποσύνδεση · ${profile.full_name}` : 'Αποσύνδεση'}>
-              <button
-                onClick={handleLogout}
-                className={`mt-0.5 flex w-full items-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-white ${railMode ? 'h-9 justify-center' : 'h-9 gap-2.5 px-2.5'}`}
-              >
-                <LogOut size={16} className="shrink-0" />
-                {!railMode && <span className="truncate text-[13px] font-medium">{profile?.full_name || 'User'}</span>}
-              </button>
-            </SidebarHoverTooltip>
-            <div className="mt-2">
-              <SidebarVersionMark compact={railMode} />
-            </div>
+            <SidebarUserCard
+              name={profile?.full_name || 'User'}
+              subtitle={isLocalMode ? 'Τοπική λειτουργία' : 'Διαχειριστής'}
+              railMode={railMode}
+              onLogout={handleLogout}
+            />
+            <SidebarFooterMeta railMode={railMode} isCollapsed={isCollapsed} onToggle={toggleCollapse} />
           </div>
         </aside>
         <main className={sidebarMainClass(isCollapsed)}>
