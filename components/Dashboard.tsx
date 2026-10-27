@@ -1,47 +1,27 @@
-import { formatNumber } from '../utils/numberFormat';
-import React, { useState, useMemo, useCallback } from 'react';
-import { Product, GlobalSettings, Order, OrderStatus, ProductionStage, Gender, ProductionType } from '../types';
-import { 
-  TrendingUp, 
-  Package, 
-  AlertTriangle, 
-  ArrowUpRight, 
-  DollarSign, 
-  Factory, 
-  Activity, 
-  BarChart3, 
-  Coins, 
-  Wallet, 
-  Scale, 
-  Target, 
-  Trophy,
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  Eye,
+  EyeOff,
+  Factory,
+  Landmark,
+  LayoutDashboard,
+  Package,
+  RefreshCw,
   ShoppingBag,
-  Crown,
-  Gem,
-  HelpCircle,
-  ChevronDown,
-  FileText,
+  TrendingUp,
+  Trophy,
+  UserCheck,
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-} from 'recharts';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
+import { Gender, GlobalSettings, OrderStatus, Product, ProductionStage } from '../types';
+import { formatNumber, formatDecimal } from '../utils/numberFormat';
 import { productionKeys, productionRepository } from '../features/production';
 import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
-import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
-import DashboardOverviewMosaic, { type DashboardNavigatePage, type MosaicLoadingFlags } from './dashboard/DashboardOverviewMosaic';
 import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
-import SpecialCreationNote from './SpecialCreationNote';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { getAttentionItems } from '../utils/deliveryScheduling';
 import { api } from '../lib/supabase';
@@ -49,788 +29,533 @@ import {
   buildProductionPulse,
   buildCanonicalInventoryRiskRows,
   buildCanonicalDemandPressureRows,
-  buildOffersSummary,
   buildReadyOrdersSummary,
 } from '../features/dashboard/dashboardMosaicViewModels';
+import {
+  buildAttentionItems,
+  buildInventoryValuation,
+  buildMonthlyTrend,
+  buildOrderPipeline,
+  buildStageLoad,
+  buildStuckBatches,
+  countStonesSold,
+  inHouseSilverGrams,
+  percentDelta,
+  resolvePeriodComparison,
+  summarizeEventsInWindow,
+} from '../features/dashboard/dashboardCommandViewModels';
 import { useInventoryAvailability } from '../hooks/api/useInventory';
 import { DASHBOARD_TERM_HINTS } from '../features/dashboard/dashboardTermHints';
 import { buildShippedQtyByOrderId } from '../utils/shipmentUtils';
 import { useSellers } from '../hooks/api/useSellers';
-import { useCollections } from '../hooks/api/useCollections';
 import {
   buildCategoryChartData,
   buildCollectionChartData,
-  buildGenderChartData,
   buildFinishChartData,
+  buildGenderChartData,
   buildTopVariantRows,
-  buildTopCustomerRows,
 } from '../features/dashboard/dashboardAnalysisViewModels';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
-import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
+import { FinancePeriodMode } from '../utils/financeAnalytics';
+import { isInternalOrder } from '../utils/orderCustomer';
 import PageErrorState from './ui/PageErrorState';
+import SkuColorizedText from './SkuColorizedText';
+import SpecialCreationNote from './SpecialCreationNote';
+import type { AdminPage } from '../surfaces/pageIds';
+import { DashboardPrivacyContext, EmptyNote, KpiTile, Money, Panel, RankRow } from './dashboard/DashboardKit';
+import {
+  AttentionStrip,
+  DeliveryRemindersPanel,
+  PipelinePanel,
+  ReadyOrdersPanel,
+  StageLoadPanel,
+  TrendPanel,
+} from './dashboard/DashboardOverviewPanels';
+import { FinanceTab, OperationsTab, SalesTab, type SilverOrderScope } from './dashboard/DashboardTabs';
 
 interface Props {
   products: Product[];
   settings: GlobalSettings;
-  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'pricelist' | 'analytics' | 'offers' | 'deliveries' | 'legal') => void;
+  onNavigate?: (page: AdminPage) => void;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: getProductionStageLabel(ProductionStage.AwaitingDelivery),
-    [ProductionStage.Waxing]: getProductionStageLabel(ProductionStage.Waxing),
-    [ProductionStage.Casting]: getProductionStageLabel(ProductionStage.Casting),
-    [ProductionStage.Setting]: getProductionStageLabel(ProductionStage.Setting),
-    [ProductionStage.Polishing]: getProductionStageLabel(ProductionStage.Polishing),
-    [ProductionStage.Assembly]: getProductionStageLabel(ProductionStage.Assembly),
-    [ProductionStage.Labeling]: getProductionStageLabel(ProductionStage.Labeling),
-    [ProductionStage.Ready]: getProductionStageLabel(ProductionStage.Ready)
-};
+type DashboardTab = 'overview' | 'sales' | 'finance' | 'operations';
 
-const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
-
-type SilverOrderScope = 'active' | 'delivered' | 'all_non_cancelled';
-
-const SILVER_SCOPE_LABELS: Record<SilverOrderScope, string> = {
-    active: 'Ενεργές παραγγελίες',
-    delivered: 'Αποσταλμένα περιόδου',
-    all_non_cancelled: 'Όλες εκτός ακυρωμένων',
-};
-
-const DASHBOARD_TABS = [
-  { id: 'overview' as const, label: 'Επισκόπηση', icon: Activity },
-  { id: 'financials' as const, label: 'Οικονομικά', icon: DollarSign },
-  { id: 'production' as const, label: 'Παραγωγή', icon: Factory },
-  { id: 'inventory' as const, label: 'Αποθήκη', icon: Package },
+const DASHBOARD_TABS: Array<{ id: DashboardTab; label: string; icon: typeof Activity }> = [
+  { id: 'overview', label: 'Επισκόπηση', icon: LayoutDashboard },
+  { id: 'sales', label: 'Πωλήσεις', icon: ShoppingBag },
+  { id: 'finance', label: 'Οικονομικά', icon: Landmark },
+  { id: 'operations', label: 'Παραγωγή & Αποθήκη', icon: Factory },
 ];
 
-export default function Dashboard({ products, settings, onNavigate }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory'>('overview');
-  const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
-  const [showPendingRevenue, setShowPendingRevenue] = useState(false);
-  const [showRealizedRevenue, setShowRealizedRevenue] = useState(false);
-  const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
-  const [statFinanceIndex, setStatFinanceIndex] = useState(0);
-  const [statOpsIndex, setStatOpsIndex] = useState(0);
-  const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
-  const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
-  const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
-  const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
+const PRIVACY_STORAGE_KEY = 'ilios.dashboard.hideAmounts';
+const TAB_STORAGE_KEY = 'ilios.dashboard.tab';
 
-  const { data: orders, isLoading: ordersLoading, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable (private mode); the preference simply won't persist.
+  }
+}
+
+function todayLabel(): string {
+  const label = new Date().toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+export default function Dashboard({ products, settings, onNavigate }: Props) {
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    const stored = readStored(TAB_STORAGE_KEY);
+    return DASHBOARD_TABS.some((tab) => tab.id === stored) ? (stored as DashboardTab) : 'overview';
+  });
+  const [hideAmounts, setHideAmounts] = useState(() => readStored(PRIVACY_STORAGE_KEY) !== 'false');
+  const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
+  const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
+  const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
+  const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
+
+  useEffect(() => writeStored(TAB_STORAGE_KEY, activeTab), [activeTab]);
+  useEffect(() => writeStored(PRIVACY_STORAGE_KEY, String(hideAmounts)), [hideAmounts]);
+
+  const ordersQuery = useOrdersWithItems();
+  const { data: orders, isLoading: ordersLoading } = ordersQuery;
   const { data: allShipments, isLoading: shipmentsLoading } = useAllShipments();
   const { data: allShipmentItems, isLoading: shipmentItemsLoading } = useAllShipmentItems();
   const { data: sellers } = useSellers();
-  const { data: batches, isLoading: batchesLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
+  const batchesQuery = useQuery({
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
   });
-  const { data: collections } = useCollections();
+  const { data: batches, isLoading: batchesLoading } = batchesQuery;
   const { enrichedItems: deliveryItems, isLoading: deliveryLoading } = useOrderDeliveryPlans();
-  const { data: offers, isLoading: offersLoading } = useQuery({
-    queryKey: ['offers'],
-    queryFn: api.getOffers,
-  });
-  const { data: inventoryAvailability = [] } = useInventoryAvailability();
-  const { analytics: financeStats, isLoading: financeLoading } = useFinanceAnalytics({
-    products,
-    settings,
-    period: { mode: financePeriodMode },
-  });
-  const periodLabel = financeStats?.period.label ?? 'την επιλεγμένη περίοδο';
+  const offersQuery = useQuery({ queryKey: ['offers'], queryFn: api.getOffers });
+  const { data: offers, isLoading: offersLoading } = offersQuery;
+  const { data: inventoryAvailability = [], isLoading: inventoryLoading } = useInventoryAvailability();
+  const {
+    analytics: finance,
+    allRealizedEvents,
+    isLoading: financeLoading,
+    refetch: refetchFinance,
+  } = useFinanceAnalytics({ products, settings, period: { mode: financePeriodMode } });
 
-  const handleOpenTopVariants = useCallback(() => {
-    setTopVariantsModalOpen(true);
-  }, []);
+  const navigate = useCallback((page: AdminPage) => onNavigate?.(page), [onNavigate]);
+  const openTopVariants = useCallback(() => setTopVariantsModalOpen(true), []);
+  const periodLabel = finance?.period.label ?? 'Επιλεγμένη περίοδος';
 
-  const stats = useMemo(() => {
-    const productBySku = new Map(products.map(p => [p.sku, p]));
-    const physicalInventoryRows = inventoryAvailability.filter((row) => row.onHand > 0);
-    const totalStockQty = physicalInventoryRows.reduce((sum, row) => sum + row.onHand, 0);
-    let totalCostValue = 0; 
-    let totalPotentialRevenue = 0; 
-    let totalSilverWeight = 0;
+  const productBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
 
-    physicalInventoryRows.forEach((row) => {
-      const product = productBySku.get(row.productSku);
-      if (!product) return;
-      const variant = product.variants?.find((candidate) => candidate.suffix === row.variantSuffix);
-      const cost = variant?.active_price ?? product.active_price;
-      const sellingPrice = variant?.selling_price ?? product.selling_price;
-      totalCostValue += cost * row.onHand;
-      totalSilverWeight += product.weight_g * row.onHand;
-      if (!product.is_component) totalPotentialRevenue += sellingPrice * row.onHand;
-    });
+  // ── Sales & comparisons ──────────────────────────────────────────────────
+  const comparison = useMemo(() => (finance ? resolvePeriodComparison(finance.period) : null), [finance]);
+  const previous = useMemo(
+    () => (comparison ? summarizeEventsInWindow(allRealizedEvents, comparison.previous) : null),
+    [comparison, allRealizedEvents],
+  );
+  const trend = useMemo(() => buildMonthlyTrend(allRealizedEvents), [allRealizedEvents]);
 
-    const potentialMargin = totalPotentialRevenue - totalCostValue;
-    const marginPercent = totalPotentialRevenue > 0 ? (potentialMargin / totalPotentialRevenue) * 100 : 0;
-
-    const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready || o.status === OrderStatus.PartiallyDelivered) || [];
-    const allNonCancelledOrders = orders?.filter(o => o.status !== OrderStatus.Cancelled) || [];
-    const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
-
-    const calculateInHouseSilverGrams = (orderList: Order[]) =>
-        orderList.reduce((orderAcc, order) => {
-            return orderAcc + order.items.reduce((itemAcc, item) => {
-                const product = productBySku.get(item.sku);
-                if (!product || product.production_type === ProductionType.Imported || product.is_component) {
-                    return itemAcc;
-                }
-
-                return itemAcc + ((product.weight_g || 0) + (product.secondary_weight_g || 0)) * item.quantity;
-            }, 0);
-        }, 0);
-    
-    let stonesSold = 0;
-    financeStats?.events.realized.forEach(event => {
-        const p = products.find(prod => prod.sku === event.sku);
-        if (p) {
-            p.recipe.forEach(ri => {
-               if (ri.type === 'raw') stonesSold += (ri.quantity * event.quantity);
-            });
-        }
-    });
-    if (!financeStats) {
-      const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
-      completedOrders.forEach(o => {
-        o.items.forEach(i => {
-            const p = products.find(prod => prod.sku === i.sku);
-            if (p) {
-                p.recipe.forEach(ri => {
-                   if (ri.type === 'raw') stonesSold += (ri.quantity * i.quantity);
-                });
-            }
-        });
-      });
-    }
-
-    const stockValueMap = new Map<string, { sku: string; category: string; value: number; qty: number }>();
-    physicalInventoryRows.forEach((row) => {
-      const product = productBySku.get(row.productSku);
-      if (!product || product.is_component) return;
-      const variant = product.variants?.find((candidate) => candidate.suffix === row.variantSuffix);
-      const sku = `${row.productSku}${row.variantSuffix}`;
-      const current = stockValueMap.get(sku) || { sku, category: product.category, value: 0, qty: 0 };
-      current.value += (variant?.active_price ?? product.active_price) * row.onHand;
-      current.qty += row.onHand;
-      stockValueMap.set(sku, current);
-    });
-    const stockValueBySku = Array.from(stockValueMap.values())
-        .filter(item => item.value > 0)
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
-
+  const totals = finance?.totals;
+  const deltas = useMemo(() => {
+    if (!totals || !previous) return { revenue: null, profit: null, pieces: null, orders: null };
     return {
-        totalStockQty,
-        totalCostValue,
-        totalPotentialRevenue,
-        totalSilverWeight,
-        potentialMargin,
-        marginPercent,
-        activeOrdersCount: financeStats?.totals.activeOrderCount ?? activeOrders.length,
-        inHouseSilverUsed: {
-            active: calculateInHouseSilverGrams(activeOrders),
-            delivered: financeStats?.totals.silverWeightGrams ?? 0,
-            all_non_cancelled: calculateInHouseSilverGrams(allNonCancelledOrders),
-        },
-        pendingRevenue: financeStats?.totals.backlogNet ?? 0,
-        totalRevenue: financeStats?.totals.realizedNet ?? 0,
-        realizedGross: financeStats?.totals.realizedGross ?? 0,
-        realizedVat: financeStats?.totals.vat ?? 0,
-        realizedDiscount: financeStats?.totals.discount ?? 0,
-        financeCost: financeStats?.totals.estimatedCost ?? 0,
-        financeProfit: financeStats?.totals.estimatedProfit ?? 0,
-        financeMargin: financeStats?.totals.margin ?? 0,
-        shippedPieces: financeStats?.totals.shippedPieces ?? 0,
-        backlogPieces: financeStats?.totals.backlogPieces ?? 0,
-        legalGap: financeStats?.legal.netGap ?? 0,
-        legalIssuedNet: financeStats?.legal.issuedNet ?? 0,
-        activeBatchesCount: activeBatches.length,
-        totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
-        topStockValue: stockValueBySku,
-        silverSold: financeStats?.totals.silverWeightKg ?? 0,
-        stonesSold
+      revenue: percentDelta(totals.realizedNet, previous.revenue),
+      profit: percentDelta(totals.estimatedProfit, previous.profit),
+      pieces: percentDelta(totals.shippedPieces, previous.pieces),
+      orders: percentDelta(totals.realizedOrderCount, previous.orders),
     };
-  }, [products, orders, batches, financeStats, inventoryAvailability]);
+  }, [totals, previous]);
 
-  const categoryData = useMemo(() => {
-      if (!financeStats) return [];
-      return buildCategoryChartData(
-        financeStats.events.realized,
-        products,
-        categoryGenderFilter,
-      );
-  }, [financeStats, products, categoryGenderFilter]);
-
-  const collectionChartData = useMemo(() => {
-      if (!financeStats) return [];
-      return buildCollectionChartData(financeStats.topCollections);
-  }, [financeStats]);
-
-  const genderChartData = useMemo(() => {
-      if (!financeStats) return [];
-      return buildGenderChartData(financeStats.events.realized, products);
-  }, [financeStats, products]);
-
-  const finishChartData = useMemo(() => {
-      if (!financeStats) return [];
-      return buildFinishChartData(financeStats.events.realized, products);
-  }, [financeStats, products]);
-
-  const topVariantRows = useMemo(() => {
-      if (!financeStats) return [];
-      return buildTopVariantRows(financeStats.topVariants, products);
-  }, [financeStats, products]);
-
-  const topCustomerRows = useMemo(() => {
-      if (!financeStats) return [];
-      return buildTopCustomerRows(financeStats.topCustomers);
-  }, [financeStats]);
-
-  const collectionRankings = useMemo(() => {
-      return (financeStats?.topCollections ?? []).slice(0, 8);
-  }, [financeStats?.topCollections]);
-
-  const productionStageData = useMemo(() => {
-      if (!batches) return [];
-      const period = financeStats?.period;
-      const stages: Record<string, number> = {};
-      batches.forEach(b => {
-          if (b.current_stage === ProductionStage.Ready) return;
-          if (period && !isWithinFinancePeriod(b.created_at, period)) return;
-          const label = STAGE_LABELS[b.current_stage] || b.current_stage;
-          stages[label] = (stages[label] || 0) + b.quantity;
-      });
-      return Object.entries(stages).map(([name, value]) => ({ name, value }));
-  }, [batches, financeStats?.period]);
-
-  const topSoldProducts = useMemo(() => {
-      return (financeStats?.topProducts ?? []).slice(0, 5);
-  }, [financeStats?.topProducts]);
-
-  const financeStatSlides: DashboardStatSlide[] = useMemo(() => [
-    {
-      id: 'revenue',
-      title: 'Πραγματοποιημένα έσοδα',
-      value: formatCurrency(stats.totalRevenue),
-      sub: `${formatNumber(stats.shippedPieces)} τεμ. απεστάλησαν`,
-      icon: DollarSign,
-      bg: 'bg-emerald-600',
-      text: 'text-white',
-      blurValue: !showRealizedRevenue,
-      showEyeToggle: true,
-      isValueVisible: showRealizedRevenue,
-      onToggleVisibility: () => setShowRealizedRevenue((v) => !v),
-      hint: DASHBOARD_TERM_HINTS.realizedRevenue,
-    },
-    {
-      id: 'profit',
-      title: 'Εκτιμώμενο κέρδος',
-      value: formatCurrency(stats.financeProfit),
-      sub: `${formatDecimal(stats.financeMargin, 1)}% περιθώριο`,
-      icon: TrendingUp,
-      bg: 'bg-blue-600',
-      text: 'text-white',
-      blurValue: !showEstimatedProfit,
-      showEyeToggle: true,
-      isValueVisible: showEstimatedProfit,
-      onToggleVisibility: () => setShowEstimatedProfit((v) => !v),
-      hint: DASHBOARD_TERM_HINTS.estimatedProfit,
-    },
-  ], [stats, showRealizedRevenue, showEstimatedProfit]);
-
-  const opsStatSlides: DashboardStatSlide[] = useMemo(() => [
-    {
-      id: 'pending',
-      title: 'Εκκρεμής αξία',
-      value: formatCurrency(stats.pendingRevenue),
-      sub: `${formatNumber(stats.activeOrdersCount)} ανοιχτές παραγγελίες · ${formatNumber(stats.backlogPieces)} τεμ.`,
-      icon: Activity,
-      bg: 'bg-slate-900',
-      text: 'text-white',
-      blurValue: !showPendingRevenue,
-      showEyeToggle: true,
-      isValueVisible: showPendingRevenue,
-      onToggleVisibility: () => setShowPendingRevenue((v) => !v),
-      hint: DASHBOARD_TERM_HINTS.backlogValue,
-    },
-    {
-      id: 'production',
-      title: 'Σε Παραγωγή',
-      value: formatNumber(stats.totalItemsInProduction),
-      sub: `${formatNumber(stats.activeBatchesCount)} παρτίδες ενεργές`,
-      icon: Factory,
-      bg: 'bg-amber-500',
-      text: 'text-white',
-      hint: DASHBOARD_TERM_HINTS.inProduction,
-    },
-  ], [stats, showPendingRevenue]);
-
-  const goToPrevFinanceStat = () => setStatFinanceIndex((i) => (i - 1 + financeStatSlides.length) % financeStatSlides.length);
-  const goToNextFinanceStat = () => setStatFinanceIndex((i) => (i + 1) % financeStatSlides.length);
-  const goToPrevOpsStat = () => setStatOpsIndex((i) => (i - 1 + opsStatSlides.length) % opsStatSlides.length);
-  const goToNextOpsStat = () => setStatOpsIndex((i) => (i + 1) % opsStatSlides.length);
-
-  const deliveryAttention = useMemo(() => getAttentionItems(deliveryItems), [deliveryItems]);
-  const productionPulse = useMemo(() => buildProductionPulse(batches), [batches]);
-  const inventoryRisk = useMemo(
-    () => buildCanonicalInventoryRiskRows(inventoryAvailability),
-    [inventoryAvailability],
-  );
-  const inventoryPolicyRows = useMemo(
-    () => buildCanonicalInventoryRiskRows(inventoryAvailability, 10).rows,
-    [inventoryAvailability],
-  );
-  const demandPressure = useMemo(
-    () => buildCanonicalDemandPressureRows(inventoryAvailability),
-    [inventoryAvailability],
-  );
-  const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
+  // ── Operations ───────────────────────────────────────────────────────────
   const shippedQtyByOrderId = useMemo(
     () => buildShippedQtyByOrderId(allShipments, allShipmentItems),
     [allShipments, allShipmentItems],
   );
-  const readyOrdersSummary = useMemo(
+  const readyOrders = useMemo(
     () => buildReadyOrdersSummary(orders, batches, shippedQtyByOrderId),
     [orders, batches, shippedQtyByOrderId],
   );
+  const deliveryAttention = useMemo(() => getAttentionItems(deliveryItems), [deliveryItems]);
+  const productionPulse = useMemo(() => buildProductionPulse(batches), [batches]);
+  const stageLoad = useMemo(() => buildStageLoad(batches), [batches]);
+  const stuckBatches = useMemo(() => buildStuckBatches(batches), [batches]);
+  const inProduction = useMemo(() => {
+    const active = (batches ?? []).filter((batch) => batch.current_stage !== ProductionStage.Ready);
+    return { pieces: active.reduce((sum, batch) => sum + batch.quantity, 0), batches: active.length };
+  }, [batches]);
 
-  const mosaicLoading: MosaicLoadingFlags = useMemo(() => ({
-    finance: financeLoading,
-    orders: ordersLoading,
-    batches: batchesLoading,
-    shipments: shipmentsLoading || shipmentItemsLoading,
-    delivery: deliveryLoading,
-    offers: offersLoading,
-  }), [financeLoading, ordersLoading, batchesLoading, shipmentsLoading, shipmentItemsLoading, deliveryLoading, offersLoading]);
-
-  const mosaicData = useMemo(() => ({
-    periodLabel,
-    colors: COLORS,
-    materials: {
-      silverSold: stats.silverSold,
-      silverValue: stats.silverSold * 1000 * settings.silver_price_gram,
-      stonesSold: stats.stonesSold,
-    },
-    productionPulse,
-    deliveryAttention,
-    readyOrdersSummary,
-    orderEconomics: {
-      averageOrderValue: financeStats?.totals.averageOrderValue ?? 0,
-      averageBasketSize: financeStats?.totals.averageBasketSize ?? 0,
-    },
-    discountVat: {
-      discount: stats.realizedDiscount,
-      vat: stats.realizedVat,
-    },
-    backlogDepth: {
-      gross: financeStats?.totals.backlogGross ?? 0,
-      vat: financeStats?.totals.backlogVat ?? 0,
-      net: stats.pendingRevenue,
-    },
-    offersPipeline,
-    compliance: {
-      legalGap: stats.legalGap,
-      issuedCount: financeStats?.legal.issuedCount ?? 0,
-    },
-    categoryData,
-    collectionData: collectionChartData,
-    collectionRankings,
-    topVariants: topVariantRows,
-    genderData: genderChartData,
-    finishData: finishChartData,
-    topCustomers: topCustomerRows,
-    inventoryRisk,
-    demandPressure,
-    categoryGenderFilter,
-    onCategoryGenderFilterChange: setCategoryGenderFilter,
-  }), [
-    periodLabel,
-    stats,
-    settings.silver_price_gram,
-    productionPulse,
-    deliveryAttention,
-    readyOrdersSummary,
-    financeStats,
-    offersPipeline,
-    categoryData,
-    collectionChartData,
-    collectionRankings,
-    topVariantRows,
-    genderChartData,
-    finishChartData,
-    topCustomerRows,
-    inventoryRisk,
-    demandPressure,
-    categoryGenderFilter,
-  ]);
-
-  const handleMosaicNavigate = (page: DashboardNavigatePage) => {
-    if (page === 'financials') {
-      setActiveTab('financials');
-      return;
-    }
-    onNavigate?.(page);
-  };
-
-  const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
-      <div 
-        className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
-        title={hint}
-      >
-          <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 ${colorClass}`}>
-              {React.cloneElement(icon as React.ReactElement<any>, { size: 64 })}
-          </div>
-          <div>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
-                {title}
-                {hint && <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />}
-              </p>
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">{value}</h3>
-          </div>
-          {subValue && (
-              <div className="mt-4">
-                  <div className={`text-xs font-bold px-2 py-1 rounded-full bg-slate-50 inline-flex items-center gap-1 ${colorClass}`}>
-                      {subValue}
-                  </div>
-              </div>
-          )}
-      </div>
+  const lowStock = useMemo(() => buildCanonicalInventoryRiskRows(inventoryAvailability, 8), [inventoryAvailability]);
+  const demandPressure = useMemo(() => buildCanonicalDemandPressureRows(inventoryAvailability, 8), [inventoryAvailability]);
+  const valuation = useMemo(
+    () => buildInventoryValuation(inventoryAvailability, productBySku),
+    [inventoryAvailability, productBySku],
   );
 
+  const pipeline = useMemo(
+    () =>
+      buildOrderPipeline({
+        orders,
+        offers,
+        backlogEvents: finance?.events.backlog ?? [],
+        readyOrders,
+        realizedOrderCount: totals?.realizedOrderCount ?? 0,
+        realizedRevenue: totals?.realizedNet ?? 0,
+      }),
+    [orders, offers, finance, readyOrders, totals],
+  );
+
+  const attentionItems = useMemo(
+    () =>
+      buildAttentionItems({
+        deliveryAttention,
+        stageLoad,
+        readyOrders,
+        lowStockCount: lowStock.totalLowStock,
+        demandPressureCount: demandPressure.totalPressure,
+        pendingOffers: pipeline[0]?.count ?? 0,
+        legalGap: finance && finance.legal.issuedCount > 0 ? finance.legal.netGap : null,
+        costWarningCount: finance?.costWarnings.length ?? 0,
+      }),
+    [deliveryAttention, stageLoad, readyOrders, lowStock.totalLowStock, demandPressure.totalPressure, pipeline, finance],
+  );
+
+  // ── Sales breakdowns ─────────────────────────────────────────────────────
+  const realizedEvents = finance?.events.realized;
+  const categoryData = useMemo(
+    () => (realizedEvents ? buildCategoryChartData(realizedEvents, products, categoryGenderFilter, 10) : []),
+    [realizedEvents, products, categoryGenderFilter],
+  );
+  const collectionData = useMemo(() => (finance ? buildCollectionChartData(finance.topCollections, 10) : []), [finance]);
+  const genderData = useMemo(() => (realizedEvents ? buildGenderChartData(realizedEvents, products) : []), [realizedEvents, products]);
+  const finishData = useMemo(() => (realizedEvents ? buildFinishChartData(realizedEvents, products) : []), [realizedEvents, products]);
+  const topVariants = useMemo(() => (finance ? buildTopVariantRows(finance.topVariants, products, 8) : []), [finance, products]);
+
+  // ── Materials ────────────────────────────────────────────────────────────
+  const stonesSold = useMemo(
+    () => (realizedEvents ? countStonesSold(realizedEvents, productBySku) : 0),
+    [realizedEvents, productBySku],
+  );
+  const silverForProduction = useMemo(() => {
+    const customer = (orders ?? []).filter((order) => order.status !== OrderStatus.Cancelled);
+    const active = customer.filter(
+      (order) =>
+        order.status === OrderStatus.Pending ||
+        order.status === OrderStatus.InProduction ||
+        order.status === OrderStatus.Ready ||
+        order.status === OrderStatus.PartiallyDelivered,
+    );
+    return {
+      active: inHouseSilverGrams(active, productBySku),
+      delivered: totals?.silverWeightGrams ?? 0,
+      all_non_cancelled: inHouseSilverGrams(customer, productBySku),
+    } satisfies Record<SilverOrderScope, number>;
+  }, [orders, productBySku, totals?.silverWeightGrams]);
+
+  const activeOrderCount = useMemo(
+    () =>
+      totals?.activeOrderCount ??
+      (orders ?? []).filter((order) => !isInternalOrder(order) && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled).length,
+    [totals?.activeOrderCount, orders],
+  );
+
+  const isRefreshing = ordersQuery.isFetching || batchesQuery.isFetching || offersQuery.isFetching;
+  const refreshAll = () => {
+    ordersQuery.refetch();
+    batchesQuery.refetch();
+    offersQuery.refetch();
+    refetchFinance();
+  };
+
   // Kept below every hook so a failed refetch never changes the hook order.
-  if (ordersError || batchesError) {
-    const err = ordersErr || batchesErr;
+  if (ordersQuery.isError || batchesQuery.isError) {
+    const err = ordersQuery.error || batchesQuery.error;
     return (
       <PageErrorState
         message="Δεν ήταν δυνατή η φόρτωση δεδομένων πίνακα ελέγχου."
         detail={(err as Error)?.message}
-        onRetry={() => { refetchOrders(); refetchBatches(); }}
+        onRetry={() => { ordersQuery.refetch(); batchesQuery.refetch(); }}
       />
     );
   }
 
+  const opsLoading = ordersLoading || batchesLoading || shipmentsLoading || shipmentItemsLoading;
+  const attentionLoading = opsLoading || deliveryLoading || inventoryLoading;
+  const comparisonLabel = comparison?.label;
+
   return (
-    <div className="flex flex-col space-y-6">
-      <DesktopPageHeader
-        icon={Activity}
-        title="Πίνακας Ελέγχου"
-        subtitle="Έξυπνη επισκόπηση και ανάλυση κερδοφορίας"
-        tail={(
-          <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
-        )}
-        tailClassName="flex shrink-0 items-center justify-end"
-        below={(
-          <nav className="flex w-full justify-center px-1" aria-label="Ενότητες πίνακα ελέγχου">
-            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm">
-              {DASHBOARD_TABS.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 ${
-                      isActive
-                        ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90'
-                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                    }`}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
-                    {tab.label}
-                  </button>
-                );
-              })}
+    <DashboardPrivacyContext.Provider value={hideAmounts}>
+      <div className="flex flex-col space-y-5">
+        <DesktopPageHeader
+          icon={Activity}
+          title="Πίνακας Ελέγχου"
+          subtitle={`${todayLabel()} · ${periodLabel}`}
+          tail={(
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setHideAmounts((value) => !value)}
+                aria-pressed={!hideAmounts}
+                title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
+                className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
+                  hideAmounts
+                    ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
+                <span className="hidden sm:inline">{hideAmounts ? 'Ποσά κρυφά' : 'Ποσά ορατά'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={refreshAll}
+                title="Ανανέωση δεδομένων"
+                aria-label="Ανανέωση δεδομένων"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
+              >
+                <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
+              <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
             </div>
-          </nav>
-        )}
-      />
-
-      {activeTab === 'overview' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <DashboardStatCarousel
-                  variant="desktop"
-                  slides={financeStatSlides}
-                  activeIndex={statFinanceIndex}
-                  onPrev={goToPrevFinanceStat}
-                  onNext={goToNextFinanceStat}
-                  isLoading={financeLoading}
-                />
-                <DashboardStatCarousel
-                  variant="desktop"
-                  slides={opsStatSlides}
-                  activeIndex={statOpsIndex}
-                  onPrev={goToPrevOpsStat}
-                  onNext={goToNextOpsStat}
-                  isLoading={ordersLoading || batchesLoading}
-                />
-              </div>
-
-              <DashboardOverviewMosaic
-                data={mosaicData}
-                loading={mosaicLoading}
-                onNavigate={handleMosaicNavigate}
-                onOpenTopVariants={handleOpenTopVariants}
-              />
-
-              {topVariantsModalOpen && (
-                <TopVariantsAnalyticsModal
-                  realizedEvents={financeStats?.events.realized ?? []}
-                  backlogEvents={financeStats?.events.backlog ?? []}
-                  products={products}
-                  orders={orders ?? []}
-                  sellers={sellers ?? []}
-                  periodLabel={periodLabel}
-                  periodMode={financePeriodMode}
-                  onPeriodChange={setFinancePeriodMode}
-                  onClose={() => setTopVariantsModalOpen(false)}
-                  onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}
-                />
-              )}
-          </div>
-      )}
-
-      {activeTab === 'financials' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${formatNumber(stats.shippedPieces)} τεμ. απεστάλησαν`} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Καθαρή αξία που έχει αποσταλεί ή παραδοθεί, μετά την έκπτωση και χωρίς ΦΠΑ." />
-                  <KPICard title="Εκτιμώμενο μικτό κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${formatDecimal(stats.financeMargin, 1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Πραγματοποιημένα έσοδα μείον εκτιμώμενο κόστος παραγωγής." />
-                  <KPICard title="Εκτιμώμενο κόστος" value={formatCurrency(stats.financeCost)} subValue={`ΦΠΑ ${formatCurrency(stats.realizedVat)}`} icon={<Scale/>} colorClass="text-slate-600" hint="Κόστος για όσα έχουν αποσταλεί στην επιλεγμένη περίοδο. Το ΦΠΑ εμφανίζεται ξεχωριστά." />
-              </div>
-
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                  <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center">
-                          <Coins size={24}/>
-                      </div>
-                      <div>
-                          <div className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Ασήμι για Παραγωγή</div>
-                          <div className="text-slate-500 text-xs mt-0.5">Μόνο in-house είδη, χωρίς εισαγόμενα και STX.</div>
-                          <div className="mt-3">
-                              <select
-                                  value={silverOrderScope}
-                                  onChange={e => setSilverOrderScope(e.target.value as SilverOrderScope)}
-                                  className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl py-2 px-3 outline-none cursor-pointer hover:border-slate-300 focus:ring-2 focus:ring-slate-200"
-                                  aria-label="Εύρος παραγγελιών για ασήμι παραγωγής"
-                              >
-                                  {(Object.keys(SILVER_SCOPE_LABELS) as SilverOrderScope[]).map(scope => (
-                                      <option key={scope} value={scope}>{SILVER_SCOPE_LABELS[scope]}</option>
-                                  ))}
-                              </select>
-                          </div>
-                      </div>
-                  </div>
-                  <div className="text-right">
-                      <div className="font-black text-slate-900 text-3xl">
-                          {formatDecimal(stats.inHouseSilverUsed[silverOrderScope] / 1000, 3)} <span className="text-base text-slate-400 font-bold">kg</span>
-                      </div>
-                      <div className="text-[11px] font-bold text-slate-400 mt-1">
-                          {formatDecimal(stats.inHouseSilverUsed[silverOrderScope], 1)} g
-                      </div>
-                  </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <KPICard title="Εκκρεμής αξία παραγγελιών" value={formatCurrency(stats.pendingRevenue)} subValue={`${formatNumber(stats.activeOrdersCount)} ανοιχτές παραγγελίες`} icon={<Package/>} colorClass="text-indigo-600" hint="Καθαρή αξία τεμαχίων που δεν έχουν αποσταλεί ακόμη. Δεν μετράει στα έσοδα." />
-                  <KPICard title="Αξία αποθέματος (λιανική)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
-              </div>
-
-              <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-                  <button
+          )}
+          tailClassName="flex shrink-0 items-center justify-end"
+          below={(
+            <nav className="flex w-full justify-center px-1" aria-label="Ενότητες πίνακα ελέγχου">
+              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+                {DASHBOARD_TABS.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  const badge = tab.id === 'overview' ? attentionItems.filter((item) => item.severity === 'critical' || item.severity === 'warning').length : 0;
+                  return (
+                    <button
+                      key={tab.id}
                       type="button"
-                      onClick={() => setLegalReconciliationOpen((open) => !open)}
-                      aria-expanded={legalReconciliationOpen}
-                      className="flex w-full items-center justify-between gap-4 p-6 text-left transition-colors hover:bg-slate-50/80"
-                  >
-                      <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center shrink-0">
-                              <FileText size={24}/>
-                          </div>
-                          <div>
-                              <div className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Συμφωνία με παραστατικά</div>
-                              <div className="text-slate-500 text-xs mt-0.5">Σύγκριση πραγματοποιημένων εσόδων με εκδοθέντα παραστατικά.</div>
-                          </div>
-                      </div>
-                      <ChevronDown size={20} className={`shrink-0 text-slate-400 transition-transform ${legalReconciliationOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {legalReconciliationOpen && (
-                      <div className="border-t border-slate-100 px-6 pb-6">
-                          <KPICard title="Συμφωνία με παραστατικά" value={formatCurrency(stats.legalGap)} subValue={`Εκδόθηκαν ${formatCurrency(stats.legalIssuedNet)}`} icon={<Wallet/>} colorClass={Math.abs(stats.legalGap) < 0.01 ? 'text-emerald-600' : 'text-amber-600'} hint="Διαφορά ανάμεσα στα πραγματοποιημένα έσοδα και την καθαρή αξία εκδομένων παραστατικών." />
-                      </div>
-                  )}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
+                        isActive
+                          ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90'
+                          : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                      }`}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
+                      {tab.label}
+                      {badge > 0 && !attentionLoading ? (
+                        <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-black tabular-nums text-amber-700">{badge}</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
+            </nav>
+          )}
+        />
 
-              <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                      <div className="p-4 bg-indigo-100 text-indigo-600 rounded-2xl">
-                          <BarChart3 size={32} />
-                      </div>
-                      <div>
-                          <h3 className="font-black text-indigo-900 text-lg">Προηγμένη Ανάλυση Δεδομένων</h3>
-                          <p className="text-sm text-indigo-600/80">Δείτε αναλυτικά γραφήματα, τάσεις πωλήσεων και κερδοφορία ανά κατηγορία.</p>
-                      </div>
-                  </div>
-                  <button 
-                    onClick={() => onNavigate?.('analytics')}
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 whitespace-nowrap"
-                  >
-                      Άνοιγμα Αναλυτικών <ArrowUpRight size={18}/>
-                  </button>
-              </div>
+        {activeTab === 'overview' && (
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <AttentionStrip items={attentionItems} isLoading={attentionLoading} onNavigate={navigate} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                      <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <Gem size={20} className="text-emerald-500" /> Ανάλυση Κατανάλωσης Υλικών
-                      </h3>
-                      <div className="space-y-4">
-                          <div className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
-                                        <Scale size={20}/>
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800 uppercase text-[10px] tracking-widest">Συνολικό Ασήμι</div>
-                                        <div className="text-slate-500 text-xs">Από πωληθέντα είδη</div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="font-black text-emerald-700 text-xl">{formatDecimal(stats.silverSold, 3)} kg</div>
-                                </div>
-                          </div>
-                          <div className="flex items-center justify-between p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-                                        <Gem size={20}/>
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800 uppercase text-[10px] tracking-widest">Πέτρες & Υλικά</div>
-                                        <div className="text-slate-500 text-xs">Συνολικά τεμάχια</div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="font-black text-blue-700 text-xl">{formatNumber(stats.stonesSold)} <span className="text-xs font-normal">τμχ</span></div>
-                                </div>
-                          </div>
-                      </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiTile
+                label="Καθαρά έσοδα"
+                icon={TrendingUp}
+                tone="emerald"
+                isLoading={financeLoading}
+                value={<Money value={totals?.realizedNet ?? 0} />}
+                delta={comparison ? deltas.revenue : undefined}
+                deltaLabel={comparisonLabel}
+                sub={<span>{formatNumber(totals?.shippedPieces ?? 0)} τεμ. · {formatNumber(totals?.realizedOrderCount ?? 0)} παραγγ.</span>}
+                sparkline={trend.map((point) => point.revenue)}
+                hint={DASHBOARD_TERM_HINTS.realizedRevenue}
+                onClick={() => setActiveTab('finance')}
+              />
+              <KpiTile
+                label="Μικτό κέρδος"
+                icon={Trophy}
+                tone="indigo"
+                isLoading={financeLoading}
+                value={<Money value={totals?.estimatedProfit ?? 0} />}
+                delta={comparison ? deltas.profit : undefined}
+                deltaLabel={comparisonLabel}
+                sub={<span>Περιθώριο {formatDecimal(totals?.margin ?? 0, 1)}%</span>}
+                sparkline={trend.map((point) => point.profit)}
+                hint={DASHBOARD_TERM_HINTS.estimatedProfit}
+                onClick={() => setActiveTab('finance')}
+              />
+              <KpiTile
+                label="Ανοιχτές παραγγελίες"
+                icon={Package}
+                tone="sky"
+                isLoading={financeLoading}
+                value={<Money value={totals?.backlogNet ?? 0} />}
+                sub={<span>{formatNumber(activeOrderCount)} παραγγελίες · {formatNumber(totals?.backlogPieces ?? 0)} τεμ. προς αποστολή</span>}
+                hint={DASHBOARD_TERM_HINTS.backlogValue}
+                onClick={() => navigate('orders')}
+              />
+              <KpiTile
+                label="Σε παραγωγή"
+                icon={Factory}
+                tone="amber"
+                isLoading={batchesLoading}
+                value={<span className="tabular-nums">{formatNumber(inProduction.pieces)} <span className="text-base font-bold text-slate-400">τεμ.</span></span>}
+                sub={<span>{formatNumber(inProduction.batches)} παρτίδες · υγεία ροής {formatNumber(productionPulse.healthScore)}%</span>}
+                hint={DASHBOARD_TERM_HINTS.inProduction}
+                onClick={() => navigate('production')}
+              />
+            </div>
+
+            {comparisonLabel && !financeLoading ? (
+              <p className="-mt-2 px-1 text-[11px] font-medium text-slate-400">Οι μεταβολές % συγκρίνονται {comparisonLabel}.</p>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <TrendPanel data={trend} isLoading={financeLoading} className="lg:col-span-8" onOpenAnalytics={() => navigate('analytics')} />
+              <PipelinePanel steps={pipeline} isLoading={opsLoading || offersLoading || financeLoading} onNavigate={navigate} className="lg:col-span-4" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <StageLoadPanel rows={stageLoad} healthScore={productionPulse.healthScore} isLoading={batchesLoading} onNavigate={navigate} compact />
+              <DeliveryRemindersPanel entries={deliveryAttention} isLoading={deliveryLoading} onNavigate={navigate} />
+              <ReadyOrdersPanel summary={readyOrders} isLoading={opsLoading} onNavigate={navigate} className="md:col-span-2 xl:col-span-1" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Panel
+                title="Κορυφαία SKU"
+                subtitle={`Σε τεμάχια · ${periodLabel}`}
+                icon={Trophy}
+                tone="amber"
+                isLoading={financeLoading}
+                hint={DASHBOARD_TERM_HINTS.topVariants}
+                action={{ label: 'Πλήρης ανάλυση', onClick: openTopVariants }}
+              >
+                {topVariants.length === 0 ? (
+                  <EmptyNote message={`Δεν βρέθηκαν πωλήσεις για ${periodLabel.toLowerCase()}.`} />
+                ) : (
+                  <div className="-mx-3">
+                    {topVariants.slice(0, 6).map((row, index) => (
+                      <RankRow
+                        key={row.key}
+                        rank={index + 1}
+                        onClick={openTopVariants}
+                        title={(
+                          <>
+                            <SkuColorizedText sku={row.sku} suffix={row.variantSuffix} gender={row.gender} className="text-xs" />
+                            <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-0.5" />
+                          </>
+                        )}
+                        subtitle={row.category}
+                        value={`${formatNumber(row.quantity)} τεμ.`}
+                        valueSub={<Money value={row.revenue} />}
+                      />
+                    ))}
                   </div>
-                  
-                  <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                      <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                          <Crown size={20} className="text-purple-500" /> Απόθεμα Υψηλής Αξίας
-                      </h3>
-                      <div className="space-y-4">
-                          {stats.topStockValue.map((item, index) => (
-                              <div key={item.sku} className="flex items-center justify-between p-4 bg-purple-50/50 rounded-2xl border border-purple-100">
-                                  <div>
-                                      <div className="font-bold text-slate-800">{item.sku}</div>
-                                      <div className="text-[10px] text-slate-500">{item.category}</div>
-                                  </div>
-                                  <div className="text-right">
-                                      <div className="font-black text-purple-700">{formatCurrency(item.value)}</div>
-                                      <div className="text-[10px] text-slate-400 font-bold">{formatNumber(item.qty)} τμχ (Stock)</div>
-                                  </div>
-                              </div>
-                          ))}
-                          {stats.topStockValue.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν βρέθηκε απόθεμα.</div>}
-                      </div>
+                )}
+              </Panel>
+              <Panel
+                title="Κορυφαίοι πελάτες"
+                subtitle={`Με βάση τα καθαρά έσοδα · ${periodLabel}`}
+                icon={UserCheck}
+                tone="emerald"
+                isLoading={financeLoading}
+                hint={DASHBOARD_TERM_HINTS.topCustomers}
+                action={{ label: 'Πελάτες', onClick: () => navigate('customers') }}
+              >
+                {(finance?.topCustomers.length ?? 0) === 0 ? (
+                  <EmptyNote message={`Δεν βρέθηκαν πωλήσεις για ${periodLabel.toLowerCase()}.`} />
+                ) : (
+                  <div className="-mx-3">
+                    {finance!.topCustomers.slice(0, 6).map((customer, index) => {
+                      const share = totals && totals.realizedNet > 0 ? (customer.revenue / totals.realizedNet) * 100 : 0;
+                      return (
+                        <RankRow
+                          key={customer.id}
+                          rank={index + 1}
+                          title={customer.name}
+                          subtitle={`${formatNumber(customer.orders)} παραγγελίες · ${formatDecimal(share, 1)}% των εσόδων`}
+                          value={<Money value={customer.revenue} />}
+                        />
+                      );
+                    })}
                   </div>
-              </div>
+                )}
+              </Panel>
+            </div>
           </div>
-      )}
+        )}
 
-      {activeTab === 'production' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                  <div className="mb-8 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                          <Factory size={20} className="text-amber-500" /> Φόρτος Εργασίας ανά Στάδιο
-                      </h3>
-                      <p className="text-xs font-semibold text-slate-500">Παρτίδες που ξεκίνησαν {periodLabel.toLowerCase()}.</p>
-                  </div>
-                  <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={productionStageData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                              <XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 'bold'}} interval={0} height={50}/>
-                              <YAxis tick={{fontSize: 12}} allowDecimals={false} tickFormatter={formatNumber} />
-                              <Tooltip formatter={(value: number) => formatNumber(value)} cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                              <Bar dataKey="value" fill="#f59e0b" radius={[6, 6, 0, 0]} name="Τεμάχια" barSize={60} />
-                          </BarChart>
-                      </ResponsiveContainer>
-                  </div>
-              </div>
-          </div>
-      )}
+        {activeTab === 'sales' && (
+          <SalesTab
+            isLoading={financeLoading}
+            periodLabel={periodLabel}
+            finance={finance}
+            deltas={deltas}
+            comparisonLabel={comparisonLabel}
+            categoryData={categoryData}
+            categoryGenderFilter={categoryGenderFilter}
+            onCategoryGenderFilterChange={setCategoryGenderFilter}
+            collectionData={collectionData}
+            genderData={genderData}
+            finishData={finishData}
+            topVariants={topVariants}
+            onOpenTopVariants={openTopVariants}
+            onNavigate={navigate}
+          />
+        )}
 
-      {activeTab === 'inventory' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Τεμάχια Πωληθέντα" value={formatNumber(stats.shippedPieces)} subValue={periodLabel} icon={<ShoppingBag/>} colorClass="text-emerald-600" hint={`Συνολικά τεμάχια που αποστάλθηκαν ${periodLabel.toLowerCase()}.`} />
-                  <KPICard title="Έσοδα Περιόδου" value={formatCurrency(stats.totalRevenue)} subValue={`${formatDecimal(stats.financeMargin, 1)}% περιθώριο`} icon={<DollarSign/>} colorClass="text-blue-600" hint={`Πραγματοποιημένα έσοδα για ${periodLabel.toLowerCase()}.`} />
-                  <KPICard title="Τρέχον Απόθεμα" value={formatNumber(stats.totalStockQty)} subValue={`${formatNumber(products.length)} κωδικοί`} icon={<Package/>} colorClass="text-slate-600" hint="Συνολικά τεμάχια στην αποθήκη αυτή τη στιγμή." />
-                  <KPICard title="Αξία Αποθέματος" value={formatCurrency(stats.totalCostValue)} subValue={`${formatDecimal(stats.totalSilverWeight, 0)}g ασήμι`} icon={<Scale/>} colorClass="text-amber-600" hint="Τρέχουσα αξία κόστους αποθέματος." />
-              </div>
+        {activeTab === 'finance' && (
+          <FinanceTab
+            isLoading={financeLoading}
+            periodLabel={periodLabel}
+            finance={finance}
+            trend={trend}
+            activeOrderCount={activeOrderCount}
+            silverPrice={settings.silver_price_gram}
+            stonesSold={stonesSold}
+            silverForProduction={silverForProduction}
+            silverScope={silverOrderScope}
+            onSilverScopeChange={setSilverOrderScope}
+            onNavigate={navigate}
+          />
+        )}
 
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                  <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                      <Trophy size={20} className="text-emerald-500" /> Κορυφαία Πωλήσεις ({periodLabel})
-                  </h3>
-                  <div className="space-y-4">
-                      {topSoldProducts.map((item) => (
-                          <div key={item.key} className="flex items-center justify-between gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                              <div>
-                                  <div className="font-bold text-slate-800">{item.sku}</div>
-                                  <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
-                                  <div className="text-[10px] text-slate-500">{formatNumber(item.quantity)} τμχ</div>
-                              </div>
-                              <div className="text-right">
-                                  <div className="font-black text-emerald-700">{formatCurrency(item.revenue)}</div>
-                                  <div className="text-[10px] text-slate-400 font-bold">{formatDecimal(item.margin, 1)}% περιθώριο</div>
-                              </div>
-                          </div>
-                      ))}
-                      {topSoldProducts.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.</div>}
-                  </div>
-              </div>
+        {activeTab === 'operations' && (
+          <OperationsTab
+            batchesLoading={batchesLoading}
+            inventoryLoading={inventoryLoading}
+            stageLoad={stageLoad}
+            healthScore={productionPulse.healthScore}
+            readyBatches={productionPulse.ready}
+            inProduction={inProduction}
+            stuckBatches={stuckBatches}
+            stageLabel={getProductionStageLabel}
+            valuation={valuation}
+            lowStock={lowStock}
+            demandPressure={demandPressure}
+            productBySku={productBySku}
+            onNavigate={navigate}
+          />
+        )}
 
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                  <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                      <AlertTriangle size={20} className="text-amber-500" /> Χαμηλό Απόθεμα
-                  </h3>
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                          <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
-                              <tr>
-                                  <th className="p-4 rounded-l-xl">SKU</th>
-                                  <th className="p-4">Κατηγορία</th>
-                                  <th className="p-4 text-center">Στοκ</th>
-                                  <th className="p-4 rounded-r-xl">Κατάσταση</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50">
-                              {inventoryPolicyRows.map(row => (
-                                  <tr key={row.label} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="p-4 font-bold text-slate-800">{row.label}</td>
-                                      <td className="p-4 text-slate-500">{products.find(product => product.sku === row.sku)?.category || '—'}</td>
-                                      <td className="p-4 text-center font-black">{formatNumber(row.stock)}</td>
-                                      <td className="p-4">
-                                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${row.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                                              {row.stock === 0 ? 'Μη διαθέσιμο' : 'Κάτω από το σημείο αναπαραγγελίας'}
-                                          </span>
-                                      </td>
-                                  </tr>
-                              ))}
-                              {inventoryPolicyRows.length === 0 && (
-                                  <tr><td colSpan={4} className="p-8 text-center text-sm font-semibold text-slate-400">Δεν υπάρχουν είδη κάτω από το Σημείο Αναπαραγγελίας.</td></tr>
-                              )}
-                          </tbody>
-                      </table>
-                  </div>
-              </div>
-          </div>
-      )}
-    </div>
+        {topVariantsModalOpen && (
+          <TopVariantsAnalyticsModal
+            realizedEvents={finance?.events.realized ?? []}
+            backlogEvents={finance?.events.backlog ?? []}
+            products={products}
+            orders={orders ?? []}
+            sellers={sellers ?? []}
+            periodLabel={periodLabel}
+            periodMode={financePeriodMode}
+            onPeriodChange={setFinancePeriodMode}
+            onClose={() => setTopVariantsModalOpen(false)}
+            onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}
+          />
+        )}
+      </div>
+    </DashboardPrivacyContext.Provider>
   );
 }

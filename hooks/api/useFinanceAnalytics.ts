@@ -11,6 +11,7 @@ import {
   buildFinanceLineEvents,
   rankFinanceAnalyticsFromEvents,
   FinanceAnalytics,
+  FinanceLineEvent,
   FinanceLineEventBundle,
   FinancePeriodSelection,
 } from '../../utils/financeAnalytics';
@@ -112,8 +113,12 @@ interface UseFinanceAnalyticsParams {
   period?: FinancePeriodSelection;
 }
 
+const NO_EVENTS: FinanceLineEvent[] = [];
+
 export function useFinanceAnalytics({ products, settings, period }: UseFinanceAnalyticsParams): {
   analytics: FinanceAnalytics | null;
+  /** Every realized line event regardless of period (not deduped) — for trends and period comparisons. */
+  allRealizedEvents: FinanceLineEvent[];
   isLoading: boolean;
   isError: boolean;
   error: unknown;
@@ -206,5 +211,5 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
     if (!settings) settingsQuery.refetch();
   };
 
-  return { analytics, isLoading, isError, error, refetch };
+  return { analytics, allRealizedEvents: eventBundle?.realized ?? NO_EVENTS, isLoading, isError, error, refetch };
 }
