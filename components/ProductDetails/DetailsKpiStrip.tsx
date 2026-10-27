@@ -39,8 +39,9 @@ export default function DetailsKpiStrip({
     price,
     margin,
     retailMultiplier,
-    totalWeight,
-    secondaryWeight,
+    metalWeight,
+    weightBreakdown,
+    invoiceWeight,
     variantCount,
     moldCount,
     usageCount,
@@ -51,8 +52,10 @@ export default function DetailsKpiStrip({
     price: number;
     margin: number;
     retailMultiplier: number;
-    totalWeight: number;
-    secondaryWeight: number;
+    metalWeight: number;
+    weightBreakdown: string;
+    /** Full weight incl. recipe materials; `null` = incomplete, `undefined` = same as metal. */
+    invoiceWeight?: number | null;
     variantCount: number;
     moldCount: number;
     usageCount: number;
@@ -90,9 +93,15 @@ export default function DetailsKpiStrip({
             <Kpi
                 icon={Weight}
                 label="Βάρος"
-                value={`${formatDecimal(totalWeight, 2)} g`}
-                sub={secondaryWeight > 0 ? `${formatDecimal(totalWeight - secondaryWeight, 2)} + ${formatDecimal(secondaryWeight, 2)} g` : 'Ασήμι 925'}
-            />
+                value={`${formatDecimal(metalWeight, 2)} g`}
+                sub={weightBreakdown}
+            >
+                {invoiceWeight !== undefined && (
+                    <div className={`truncate text-[11px] font-semibold ${invoiceWeight === null ? 'text-amber-600' : 'text-slate-600'}`}>
+                        Σύνολο {invoiceWeight === null ? '— ελλιπές' : `${formatDecimal(invoiceWeight, 2)} g`}
+                    </div>
+                )}
+            </Kpi>
             <Kpi
                 icon={isComponent ? MapPin : Layers}
                 label={isComponent ? 'Λάστιχα' : 'Παραλλαγές / Λάστιχα'}

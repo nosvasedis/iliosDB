@@ -45,6 +45,8 @@ import {
     saveProductGraph,
 } from '../features/products';
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
+import { buildProductCardWeightPresentation, formatRegistryWeight, shouldShowCardInvoiceTotal } from '../features/products/productCardPresentation';
+import WeightComposition, { describeWeightBreakdown } from './ProductDetails/WeightComposition';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
 import ConvertToImportedModal from './ConvertToImportedModal';
 import BarcodeGallery from './ProductRegistry/BarcodeGallery';
@@ -210,6 +212,30 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         [editedProduct, allProducts, allMaterials],
     );
 
+    // Same weight reading as the registry cards: κύριο + δευτερεύον + STX (from the recipe) = μέταλλο,
+    // plus the full "Σύνολο" with every recipe material when it differs.
+    const productsBySku = useMemo(() => new Map(allProducts.map(p => [p.sku, p])), [allProducts]);
+    const weightView = useMemo(
+        () => buildProductCardWeightPresentation(editedProduct, productsBySku),
+        [editedProduct, productsBySku],
+    );
+    const showInvoiceTotal = shouldShowCardInvoiceTotal(weightView.recipeItemCount, weightView.totalWeight, invoiceTotalWeightResult);
+    const stxComponents = useMemo(() => editedProduct.recipe.flatMap(item => {
+        if (item.type !== 'component') return [];
+        const component = productsBySku.get(item.sku);
+        const weight = component ? component.weight_g + (component.secondary_weight_g || 0) : 0;
+        return weight > 0 ? [{ sku: item.sku, quantity: item.quantity, weight }] : [];
+    }), [editedProduct.recipe, productsBySku]);
+    const weightSummary = (
+        <WeightComposition
+            view={weightView}
+            invoice={invoiceTotalWeightResult}
+            showInvoiceTotal={showInvoiceTotal}
+            secondaryLabel={secondaryWeightLabel}
+            stxComponents={stxComponents}
+        />
+    );
+
     const analyticalCostingItems = useMemo(() => {
         return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
     }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
@@ -232,7 +258,26 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             { label: 'Κατηγορία', value: editedProduct.category || '—' },
             { label: 'Φύλο', value: GENDER_LABELS[editedProduct.gender] || editedProduct.gender },
             { label: 'Επιμετάλλωση', value: hasVariants ? 'Ανά παραλλαγή' : (PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type) },
+            {
+                label: 'Βάρος μετάλλου',
+                value: (
+                    <span className="block">
+                        <span className="font-mono">{formatRegistryWeight(weightView.totalWeight)} g</span>
+                        {weightView.hasWeightBreakdown || weightView.skipCasting
+                            ? <span className="block text-[10px] font-medium text-slate-400">{describeWeightBreakdown(weightView)}</span>
+                            : null}
+                    </span>
+                ),
+            },
         ];
+        if (showInvoiceTotal) {
+            facts.push({
+                label: 'Σύνολο με υλικά',
+                value: invoiceTotalWeightResult.value === null
+                    ? <span className="text-amber-600">Ελλιπές</span>
+                    : <span className="font-mono">{formatRegistryWeight(invoiceTotalWeightResult.value)} g</span>,
+            });
+        }
         if (isInHouse) {
             facts.push({ label: 'Συνταγή', value: `${editedProduct.recipe.length} είδη` });
             facts.push({ label: 'Λάστιχα', value: editedProduct.molds.length ? <span className="font-mono">{editedProduct.molds.map(m => m.quantity > 1 ? `${m.code}×${m.quantity}` : m.code).join(', ')}</span> : '—' });
@@ -241,7 +286,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             facts.push({ label: 'Κωδ. προμηθευτή', value: editedProduct.supplier_sku ? <span className="font-mono">{editedProduct.supplier_sku}</span> : '—' });
         }
         return facts;
-    }, [editedProduct, hasVariants, isInHouse, suppliers]);
+    }, [editedProduct, hasVariants, isInHouse, suppliers, weightView, showInvoiceTotal, invoiceTotalWeightResult]);
 
     const handleSelectRecipeItem = (item: RecipeSelection) => {
         setEditedProduct(prev => ({
@@ -576,8 +621,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     price={displayedPrice}
                     margin={displayedMargin}
                     retailMultiplier={retailMultiplier}
-                    totalWeight={editedProduct.weight_g + (editedProduct.secondary_weight_g || 0)}
-                    secondaryWeight={editedProduct.secondary_weight_g || 0}
+                    metalWeight={weightView.totalWeight}
+                    weightBreakdown={describeWeightBreakdown(weightView)}
+                    invoiceWeight={showInvoiceTotal ? invoiceTotalWeightResult.value : undefined}
                     variantCount={variants.length}
                     moldCount={editedProduct.molds.length}
                     usageCount={componentUsageCount}
@@ -614,6 +660,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         allMolds={allMolds}
                                         secondaryWeightLabel={secondaryWeightLabel}
                                         invoiceTotalWeightResult={invoiceTotalWeightResult}
+                                        weightSummary={weightSummary}
                                         finishGroups={finishGroups}
                                         sortedFinishCodes={sortedFinishCodes}
                                         masterCost={masterCost}
@@ -627,6 +674,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         setProduct={setEditedProduct}
                                         suppliers={suppliers || []}
                                         invoiceTotalWeightResult={invoiceTotalWeightResult}
+                                        weightSummary={weightSummary}
                                         importedCostAnalysis={importedCostAnalysis}
                                         masterCost={masterCost}
                                         pricing={pricing}

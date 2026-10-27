@@ -27,6 +27,7 @@ export default function OverviewInHousePanel({
     allMolds,
     secondaryWeightLabel,
     invoiceTotalWeightResult,
+    weightSummary,
     finishGroups,
     sortedFinishCodes,
     masterCost,
@@ -40,6 +41,7 @@ export default function OverviewInHousePanel({
     allMolds: Mold[];
     secondaryWeightLabel: string;
     invoiceTotalWeightResult: InvoiceTotalWeightResult;
+    weightSummary: React.ReactNode;
     finishGroups: Record<string, ProductVariant[]>;
     sortedFinishCodes: string[];
     masterCost: number;
@@ -106,9 +108,10 @@ export default function OverviewInHousePanel({
                     subtitle="Βάση κοστολόγησης ασημιού & εργατικών"
                     actions={<SkipCastingToggle product={product} setProduct={setProduct} />}
                 >
+                    <div className="mb-4">{weightSummary}</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                         <DetailsField
-                            label={`Βάρος (g)${skipCasting ? ' — 0' : ''}`}
+                            label={`Κύριο βάρος (g)${skipCasting ? ' — 0' : ''}`}
                             icon={Weight}
                             action={product.molds.length > 0 && !skipCasting ? (
                                 <button

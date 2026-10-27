@@ -25,6 +25,7 @@ export default function OverviewImportedPanel({
     setProduct,
     suppliers,
     invoiceTotalWeightResult,
+    weightSummary,
     importedCostAnalysis,
     masterCost,
     pricing,
@@ -34,6 +35,7 @@ export default function OverviewImportedPanel({
     setProduct: React.Dispatch<React.SetStateAction<Product>>;
     suppliers: Supplier[];
     invoiceTotalWeightResult: InvoiceTotalWeightResult;
+    weightSummary: React.ReactNode;
     importedCostAnalysis: ImportedCostAnalysis;
     masterCost: number;
     pricing: SkuPricing;
@@ -83,8 +85,9 @@ export default function OverviewImportedPanel({
                 title="Βάρη"
                 actions={<SkipCastingToggle product={product} setProduct={setProduct} />}
             >
+                <div className="mb-4">{weightSummary}</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,14rem)_1fr]">
-                    <DetailsField label={`Βάρος (g)${product.skip_casting ? ' — 0' : ''}`} icon={Weight}>
+                    <DetailsField label={`Κύριο βάρος (g)${product.skip_casting ? ' — 0' : ''}`} icon={Weight}>
                         <input type="number" step="0.01" disabled={!!product.skip_casting} className={detailsMonoInputClass} value={product.weight_g} onChange={e => setProduct(prev => ({ ...prev, weight_g: parseFloat(e.target.value) || 0 }))} />
                     </DetailsField>
                     <InvoiceTotalWeightField
