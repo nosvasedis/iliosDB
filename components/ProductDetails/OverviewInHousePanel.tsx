@@ -53,7 +53,7 @@ export default function OverviewInHousePanel({
             return sum + ((mold?.weight_g || 0) * pm.quantity);
         }, 0);
         if (total > 0) {
-            const rounded = parseFloat(total.toFixed(1));
+            const rounded = parseFloat(total.toFixed(2));
             setProduct(prev => ({ ...prev, weight_g: rounded }));
             showToast(`Βάρος ενημερώθηκε: ${formatNumber(rounded)}g`, 'success');
         } else {

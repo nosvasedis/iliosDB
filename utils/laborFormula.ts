@@ -151,6 +151,11 @@ export function deriveRateFromTotal(total: number, weightBasis: number, fallback
   return fallbackRate;
 }
 
+/** Strip binary float noise (e.g. 3.5699999999999994 → 3.57) from derived figures. */
+function cleanNumber(value: number, decimals = 4): number {
+  return Number.isFinite(value) ? parseFloat(value.toFixed(decimals)) : 0;
+}
+
 export interface LaborFormulaLine {
   rate: number;
   weightBasis: number;
@@ -165,12 +170,12 @@ export function getCastingFormulaLine(
   product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component' | 'skip_casting'>,
   settings?: PricingSettings,
 ): LaborFormulaLine {
-  const weightBasis = getCastingWeightBasis(product);
+  const weightBasis = cleanNumber(getCastingWeightBasis(product));
   const isOverridden = !!labor.casting_cost_manual_override;
   const defaultRate = (product.is_component || product.skip_casting) ? 0 : getPricingRules(settings).casting_rate;
-  const total = isOverridden
+  const total = cleanNumber(isOverridden
     ? labor.casting_cost || 0
-    : weightBasis * defaultRate;
+    : weightBasis * defaultRate);
   const rate = isOverridden
     ? deriveRateFromTotal(labor.casting_cost || 0, weightBasis, defaultRate)
     : defaultRate;
@@ -183,18 +188,18 @@ export function getTechnicianFormulaLine(
   useSplitTechnician = false,
   settings?: PricingSettings,
 ): LaborFormulaLine {
-  const weightBasis = product.is_component ? product.weight_g : getTotalWeight(product);
+  const weightBasis = cleanNumber(product.is_component ? product.weight_g : getTotalWeight(product));
   const isOverridden = !!labor.technician_cost_manual_override;
   const defaultRate = product.is_component
     ? getPricingRules(settings).stx_technician_rate
     : getTechnicianRateForWeight(weightBasis, settings);
-  const total = isOverridden
+  const total = cleanNumber(isOverridden
     ? labor.technician_cost || 0
     : product.is_component
       ? product.weight_g * getPricingRules(settings).stx_technician_rate
       : useSplitTechnician
         ? calculateSplitTechnicianCost(product, settings)
-        : calculateTechnicianCostFromWeight(weightBasis, settings);
+        : calculateTechnicianCostFromWeight(weightBasis, settings));
   const rate = isOverridden
     ? deriveRateFromTotal(labor.technician_cost || 0, weightBasis, defaultRate)
     : useSplitTechnician && weightBasis > 0 && !product.is_component
@@ -241,7 +246,7 @@ export function getPlatingXFormulaLine(
   allProducts: Product[],
   settings?: PricingSettings,
 ): LaborFormulaLine {
-  const weightBasis = getPlatingXWeightBasis(product, allProducts);
+  const weightBasis = cleanNumber(getPlatingXWeightBasis(product, allProducts));
   const isOverridden = !!labor.plating_cost_x_manual_override;
   const defaultRate = getPricingRules(settings).plating_rate;
   const total = isOverridden
@@ -259,7 +264,7 @@ export function getPlatingDFormulaLine(
   allProducts: Product[],
   settings?: PricingSettings,
 ): LaborFormulaLine {
-  const weightBasis = getPlatingDWeightBasis(product, allProducts);
+  const weightBasis = cleanNumber(getPlatingDWeightBasis(product, allProducts));
   const isOverridden = !!labor.plating_cost_d_manual_override;
   const defaultRate = getPricingRules(settings).plating_rate;
   const total = isOverridden

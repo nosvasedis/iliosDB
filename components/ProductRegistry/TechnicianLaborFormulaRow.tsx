@@ -38,28 +38,32 @@ function finishLabel(code: string): string {
   return FINISH_CODES[code] ?? code;
 }
 
-export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps> = ({
+export interface ResolvedTechnicianRow {
+  line: LaborFormulaLine;
+  readOnly: boolean;
+  contextLabel?: string;
+  hint?: string;
+  showTierScale: boolean;
+  tierPrimaryWeight: number;
+  tierSecondaryWeight: number;
+}
+
+/**
+ * Which technician rule applies for the variant in view (shared by the wizard row
+ * and the SKU card labor sheet so both always agree).
+ */
+export function resolveTechnicianRow({
   settings,
-  icon,
   labor,
   product,
   useSplitTechnician,
   hasMixedTechnician,
   selectedVariantSuffix = null,
-  onRateChange,
-  onWeightChange,
-  onTotalChange,
-  onToggleOverride,
-}) => {
-  const masterLine = useMemo(
-    () => getTechnicianFormulaLine(labor, product, useSplitTechnician, settings),
-    [labor, product, useSplitTechnician, settings],
-  );
-
-  const selectedFinishCode = useMemo(() => {
-    if (selectedVariantSuffix == null) return null;
-    return getVariantComponents(selectedVariantSuffix, product.gender).finish.code;
-  }, [selectedVariantSuffix, product.gender]);
+}: Pick<TechnicianLaborFormulaRowProps, 'settings' | 'labor' | 'product' | 'useSplitTechnician' | 'hasMixedTechnician' | 'selectedVariantSuffix'>): ResolvedTechnicianRow {
+  const masterLine = getTechnicianFormulaLine(labor, product, useSplitTechnician, settings);
+  const selectedFinishCode = selectedVariantSuffix == null
+    ? null
+    : getVariantComponents(selectedVariantSuffix, product.gender).finish.code;
 
   const showVariantRule = hasMixedTechnician
     && !product.is_component
@@ -76,23 +80,39 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
     contextLabel = finishLabel(selectedFinishCode ?? '');
   }
 
-  const hint = useMemo(() => {
-    if (line.isOverridden && !readOnly) return undefined;
-    if (product.is_component) return undefined;
-    if (readOnly) return undefined;
-    if (useSplitTechnician) {
-      return `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product, settings)}`;
-    }
-    return undefined;
-  }, [line.isOverridden, readOnly, product, useSplitTechnician, settings]);
+  let hint: string | undefined;
+  if (!(line.isOverridden && !readOnly) && !product.is_component && !readOnly && useSplitTechnician) {
+    hint = `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product, settings)}`;
+  }
 
-  const showTierScale = !product.is_component;
-  const tierPrimaryWeight = useSplitTechnician && !readOnly
-    ? getTotalWeight(product)
-    : line.weightBasis;
-  const tierSecondaryWeight = useSplitTechnician && !readOnly
-    ? (product.secondary_weight_g || 0)
-    : 0;
+  return {
+    line,
+    readOnly,
+    contextLabel,
+    hint,
+    showTierScale: !product.is_component,
+    tierPrimaryWeight: useSplitTechnician && !readOnly ? getTotalWeight(product) : line.weightBasis,
+    tierSecondaryWeight: useSplitTechnician && !readOnly ? (product.secondary_weight_g || 0) : 0,
+  };
+}
+
+export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps> = ({
+  settings,
+  icon,
+  labor,
+  product,
+  useSplitTechnician,
+  hasMixedTechnician,
+  selectedVariantSuffix = null,
+  onRateChange,
+  onWeightChange,
+  onTotalChange,
+  onToggleOverride,
+}) => {
+  const { line, readOnly, contextLabel, hint, showTierScale, tierPrimaryWeight, tierSecondaryWeight } = useMemo(
+    () => resolveTechnicianRow({ settings, labor, product, useSplitTechnician, hasMixedTechnician, selectedVariantSuffix }),
+    [settings, labor, product, useSplitTechnician, hasMixedTechnician, selectedVariantSuffix],
+  );
 
   return (
     <LaborCostFormulaRow

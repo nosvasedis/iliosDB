@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 import { laborDraftSnapshot } from '../lib/editorSnapshots';
 import { useRestartDraft } from './useRestartBlocker';
 import { getPricingRules } from '../utils/pricingRules';
@@ -385,8 +386,10 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }, 0);
 
         if (total > 0) {
-            setWeight(total);
-            showToast(`Βάρος ενημερώθηκε: ${total.toFixed(2)}g`, "success");
+            // Mold weights are decimals: summing them leaves float noise (e.g. 5.1000000000000005).
+            const rounded = parseFloat(total.toFixed(2));
+            setWeight(rounded);
+            showToast(`Βάρος ενημερώθηκε: ${formatNumber(rounded)}g`, "success");
         } else {
             showToast("Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.", "info");
         }
