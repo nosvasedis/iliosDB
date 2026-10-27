@@ -1,5 +1,6 @@
-import React, { createContext, memo, useContext, useId } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus, type LucideIcon } from 'lucide-react';
+import React, { createContext, memo, useContext, useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus, X, type LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import DashboardTermHint from './DashboardTermHint';
@@ -93,8 +94,8 @@ export const Panel = memo(function Panel({
 }: PanelProps) {
   return (
     <section className={`flex min-w-0 flex-col rounded-3xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${className}`}>
-      <header className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 pb-3 pt-4 sm:px-5">
+        <div className="flex min-w-0 flex-1 basis-48 items-center gap-2.5">
           {Icon ? (
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ${TONE[tone].icon}`}>
               <Icon size={15} strokeWidth={2.25} />
@@ -122,7 +123,7 @@ export const Panel = memo(function Panel({
           ) : null}
         </div>
       </header>
-      <div className={`flex flex-1 flex-col px-5 pb-5 ${bodyClassName}`}>
+      <div className={`flex flex-1 flex-col px-4 pb-4 sm:px-5 sm:pb-5 ${bodyClassName}`}>
         {isLoading ? <PanelSkeleton rows={skeletonRows} /> : children}
       </div>
     </section>
@@ -229,7 +230,7 @@ export const KpiTile = memo(function KpiTile({
   return (
     <Wrapper
       {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`group relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all ${
+      className={`group relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-4 text-left sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all ${
         onClick ? 'hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300' : ''
       }`}
     >
@@ -255,13 +256,13 @@ export const KpiTile = memo(function KpiTile({
         </div>
       ) : (
         <>
-          <div className="mt-4 text-[1.7rem] font-black leading-none tracking-tight text-slate-900">{value}</div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-500">
+          <div className="mt-4 truncate text-2xl font-black leading-tight tracking-tight text-slate-900 2xl:text-[1.75rem]">{value}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-500">
             {delta !== undefined ? <DeltaBadge delta={delta} inverse={inverseDelta} title={deltaLabel} /> : null}
             {sub}
           </div>
           {sparkline ? (
-            <div className="mt-3 -mb-1">
+            <div className="-mb-1 mt-auto pt-3">
               <Sparkline values={sparkline} color={TONE[tone].stroke} />
             </div>
           ) : null}
@@ -285,9 +286,9 @@ export function MiniStat({
   tone?: DashboardTone;
 }) {
   return (
-    <div className={`min-w-0 rounded-2xl ${TONE[tone].soft} px-4 py-3`}>
+    <div className={`min-w-0 rounded-2xl ${TONE[tone].soft} px-3.5 py-3 sm:px-4`}>
       <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-lg font-black tabular-nums text-slate-900">{value}</p>
+      <p className="mt-1 truncate text-base font-black tabular-nums text-slate-900 sm:text-lg">{value}</p>
       {sub ? <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{sub}</p> : null}
     </div>
   );
@@ -384,6 +385,96 @@ export function RankRow({
         {valueSub ? <div className="text-[10px] font-semibold text-slate-400">{valueSub}</div> : null}
       </div>
     </Wrapper>
+  );
+}
+
+// ─── Dialog ────────────────────────────────────────────────────────────────────
+
+const DIALOG_WIDTH = {
+  md: 'sm:max-w-3xl',
+  xl: 'sm:max-w-[min(96vw,88rem)]',
+} as const;
+
+/**
+ * Dashboard dialog: full-screen sheet on phones, centred card from `sm` up.
+ * Closes on Escape and backdrop click; locks page scroll while open.
+ */
+export function DashboardDialog({
+  title,
+  subtitle,
+  icon: Icon,
+  actions,
+  onClose,
+  size = 'md',
+  fixedHeight = false,
+  ariaLabel,
+  children,
+}: {
+  title: string;
+  subtitle?: React.ReactNode;
+  icon: LucideIcon;
+  actions?: React.ReactNode;
+  onClose: () => void;
+  size?: keyof typeof DIALOG_WIDTH;
+  /** Fill 92vh even when content is short (split-pane layouts). */
+  fixedHeight?: boolean;
+  ariaLabel?: string;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[220] flex items-stretch justify-center bg-slate-950/55 backdrop-blur-[2px] animate-in fade-in duration-150 sm:items-center sm:p-4 lg:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={ariaLabel ?? title}
+      onClick={onClose}
+    >
+      <div
+        className={`flex w-full flex-col overflow-hidden bg-slate-50 shadow-2xl animate-in zoom-in-95 duration-150 sm:rounded-[1.75rem] sm:ring-1 sm:ring-black/5 ${DIALOG_WIDTH[size]} ${
+          fixedHeight ? 'h-full sm:h-[92vh]' : 'max-h-full sm:max-h-[92vh]'
+        }`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-slate-200/70 bg-white px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
+              <Icon size={18} strokeWidth={2.25} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-bold tracking-tight text-[#060b00] sm:text-lg">{title}</h2>
+              {subtitle ? <div className="truncate text-xs font-medium text-slate-500 sm:text-sm">{subtitle}</div> : null}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {actions ? <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">{actions}</div> : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Κλείσιμο"
+            >
+              <X size={19} />
+            </button>
+          </div>
+          {actions ? <div className="flex w-full flex-wrap items-center gap-2 md:hidden">{actions}</div> : null}
+        </header>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

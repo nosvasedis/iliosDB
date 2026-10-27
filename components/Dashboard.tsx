@@ -34,6 +34,8 @@ import {
 import {
   buildAttentionItems,
   buildInventoryValuation,
+  buildMissingCostRows,
+  type AttentionItem,
   buildMonthlyTrend,
   buildOrderPipeline,
   buildStageLoad,
@@ -59,6 +61,8 @@ import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode } from '../utils/financeAnalytics';
 import { isInternalOrder } from '../utils/orderCustomer';
 import PageErrorState from './ui/PageErrorState';
+import MissingCostsModal from './dashboard/MissingCostsModal';
+import { requestRegistrySku } from '../utils/registryHandoff';
 import SkuColorizedText from './SkuColorizedText';
 import SpecialCreationNote from './SpecialCreationNote';
 import type { AdminPage } from '../surfaces/pageIds';
@@ -122,6 +126,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
+  const [missingCostsOpen, setMissingCostsOpen] = useState(false);
 
   useEffect(() => writeStored(TAB_STORAGE_KEY, activeTab), [activeTab]);
   useEffect(() => writeStored(PRIVACY_STORAGE_KEY, String(hideAmounts)), [hideAmounts]);
@@ -210,6 +215,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     [orders, offers, finance, readyOrders, totals],
   );
 
+  const missingCostRows = useMemo(
+    () => (finance ? buildMissingCostRows(finance.events.realized, finance.events.backlog) : []),
+    [finance],
+  );
+
   const attentionItems = useMemo(
     () =>
       buildAttentionItems({
@@ -220,9 +230,25 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         demandPressureCount: demandPressure.totalPressure,
         pendingOffers: pipeline[0]?.count ?? 0,
         legalGap: finance && finance.legal.issuedCount > 0 ? finance.legal.netGap : null,
-        costWarningCount: finance?.costWarnings.length ?? 0,
+        costWarningCount: missingCostRows.length,
       }),
-    [deliveryAttention, stageLoad, readyOrders, lowStock.totalLowStock, demandPressure.totalPressure, pipeline, finance],
+    [deliveryAttention, stageLoad, readyOrders, lowStock.totalLowStock, demandPressure.totalPressure, pipeline, finance, missingCostRows.length],
+  );
+
+  const handleAttentionSelect = useCallback(
+    (item: AttentionItem) => {
+      if (item.opens === 'missing-costs') setMissingCostsOpen(true);
+      else navigate(item.page);
+    },
+    [navigate],
+  );
+  const openRegistryForSku = useCallback(
+    (sku: string) => {
+      requestRegistrySku(sku);
+      setMissingCostsOpen(false);
+      navigate('registry');
+    },
+    [navigate],
   );
 
   // ── Sales breakdowns ─────────────────────────────────────────────────────
@@ -296,7 +322,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
           title="Πίνακας Ελέγχου"
           subtitle={`${todayLabel()} · ${periodLabel}`}
           tail={(
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <button
                 type="button"
                 onClick={() => setHideAmounts((value) => !value)}
@@ -323,7 +349,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
             </div>
           )}
-          tailClassName="flex shrink-0 items-center justify-end"
+          tailClassName="flex min-w-0 items-center lg:shrink-0 lg:justify-end"
           below={(
             <nav className="flex w-full justify-center px-1" aria-label="Ενότητες πίνακα ελέγχου">
               <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
@@ -335,7 +361,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
+                      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
                         isActive
                           ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90'
                           : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
@@ -357,7 +383,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
         {activeTab === 'overview' && (
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <AttentionStrip items={attentionItems} isLoading={attentionLoading} onNavigate={navigate} />
+            <AttentionStrip items={attentionItems} isLoading={attentionLoading} onSelect={handleAttentionSelect} />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <KpiTile
@@ -412,9 +438,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               <p className="-mt-2 px-1 text-[11px] font-medium text-slate-400">Οι μεταβολές % συγκρίνονται {comparisonLabel}.</p>
             ) : null}
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <TrendPanel data={trend} isLoading={financeLoading} className="lg:col-span-8" onOpenAnalytics={() => navigate('analytics')} />
-              <PipelinePanel steps={pipeline} isLoading={opsLoading || offersLoading || financeLoading} onNavigate={navigate} className="lg:col-span-4" />
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+              <TrendPanel data={trend} isLoading={financeLoading} className="xl:col-span-8" onOpenAnalytics={() => navigate('analytics')} />
+              <PipelinePanel steps={pipeline} isLoading={opsLoading || offersLoading || financeLoading} onNavigate={navigate} className="xl:col-span-4" />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -519,6 +545,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
             silverForProduction={silverForProduction}
             silverScope={silverOrderScope}
             onSilverScopeChange={setSilverOrderScope}
+            missingCostCount={missingCostRows.length}
+            onOpenMissingCosts={() => setMissingCostsOpen(true)}
             onNavigate={navigate}
           />
         )}
@@ -538,6 +566,16 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
             demandPressure={demandPressure}
             productBySku={productBySku}
             onNavigate={navigate}
+          />
+        )}
+
+        {missingCostsOpen && (
+          <MissingCostsModal
+            rows={missingCostRows}
+            periodLabel={periodLabel}
+            onOpenRegistry={openRegistryForSku}
+            onOpenOrders={() => { setMissingCostsOpen(false); navigate('orders'); }}
+            onClose={() => setMissingCostsOpen(false)}
           />
         )}
 

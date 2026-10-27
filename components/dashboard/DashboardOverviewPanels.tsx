@@ -29,6 +29,7 @@ import type {
 import type { ReadyOrdersSummary } from '../../features/dashboard/dashboardMosaicViewModels';
 import type { DeliveryAttentionEntry } from '../../utils/deliveryScheduling';
 import { VIBRANT_STAGES } from '../production/stageConstants';
+import { DASHBOARD_TERM_HINTS } from '../../features/dashboard/dashboardTermHints';
 import OrderCustomerName from '../orders/OrderCustomerName';
 import { DashboardPrivacyContext, EmptyNote, Money, Panel, Segmented, Shimmer } from './DashboardKit';
 
@@ -46,15 +47,15 @@ const SEVERITY_STYLE: Record<AttentionSeverity, { card: string; count: string; i
 export const AttentionStrip = memo(function AttentionStrip({
   items,
   isLoading,
-  onNavigate,
+  onSelect,
 }: {
   items: AttentionItem[];
   isLoading: boolean;
-  onNavigate: Navigate;
+  onSelect: (item: AttentionItem) => void;
 }) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-3">
         {Array.from({ length: 4 }, (_, index) => (
           <Shimmer key={index} className="h-[4.5rem] rounded-2xl" />
         ))}
@@ -75,7 +76,7 @@ export const AttentionStrip = memo(function AttentionStrip({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" role="list" aria-label="Χρειάζονται προσοχή">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-3" role="list" aria-label="Χρειάζονται προσοχή">
       {items.map((item) => {
         const style = SEVERITY_STYLE[item.severity];
         const Icon = style.icon;
@@ -84,7 +85,7 @@ export const AttentionStrip = memo(function AttentionStrip({
             key={item.id}
             type="button"
             role="listitem"
-            onClick={() => onNavigate(item.page)}
+            onClick={() => onSelect(item)}
             className={`group flex min-w-0 items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${style.card}`}
           >
             <Icon size={16} className={`mt-1 shrink-0 ${style.iconClass}`} />
@@ -275,8 +276,8 @@ export const PipelinePanel = memo(function PipelinePanel({
       skeletonRows={6}
       hint="Ανοιχτές προσφορές και παραγγελίες ανά φάση. Η αξία είναι η καθαρή αξία που απομένει προς αποστολή."
     >
-      <ol className="relative flex flex-1 flex-col justify-between gap-1">
-        <span className="absolute bottom-5 left-[0.6rem] top-5 w-px bg-slate-200" aria-hidden />
+      <ol className="relative grid flex-1 grid-cols-1 gap-1 md:grid-cols-2 md:gap-x-6 xl:flex xl:flex-col xl:justify-between">
+        <span className="absolute bottom-5 left-[0.6rem] top-5 w-px bg-slate-200 md:hidden xl:block" aria-hidden />
         {steps.map((step) => (
           <li key={step.id}>
             <button
@@ -356,9 +357,14 @@ export const StageLoadPanel = memo(function StageLoadPanel({
                 <span className={`h-2 w-2 shrink-0 rounded-full ${VIBRANT_STAGES[row.stage]}`} />
                 <span className="w-24 shrink-0 truncate font-semibold text-slate-600">{compact ? row.shortLabel : row.label}</span>
                 {!compact ? (
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${VIBRANT_STAGES[row.stage]}`} style={{ width: `${(row.pieces / max) * 100}%` }} />
-                  </div>
+                  <>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${VIBRANT_STAGES[row.stage]}`} style={{ width: `${(row.pieces / max) * 100}%` }} />
+                    </div>
+                    <span className="hidden w-14 shrink-0 text-right text-[10px] font-semibold tabular-nums text-slate-400 sm:block">
+                      {row.batches > 0 ? `${formatNumber(row.batches)} παρτ.` : '—'}
+                    </span>
+                  </>
                 ) : (
                   <span className="flex-1" />
                 )}
@@ -415,6 +421,7 @@ export const DeliveryRemindersPanel = memo(function DeliveryRemindersPanel({
       tone="sky"
       className={className}
       isLoading={isLoading}
+      hint={DASHBOARD_TERM_HINTS.deliveryAttention}
       action={{ label: 'Παραδόσεις', onClick: () => onNavigate('deliveries') }}
     >
       {entries.length === 0 ? (
@@ -478,7 +485,7 @@ export const ReadyOrdersPanel = memo(function ReadyOrdersPanel({
       className={className}
       isLoading={isLoading}
       action={{ label: 'Παραγγελίες', onClick: () => onNavigate('orders') }}
-      hint="Παραγγελίες με όλα τα τεμάχια στο «Έτοιμα». Για Μερική Παράδοση μετράει όταν η επόμενη αποστολή είναι πλήρως έτοιμη."
+      hint={DASHBOARD_TERM_HINTS.readyOrders}
     >
       {entries.length === 0 ? (
         <EmptyNote message="Καμία παραγγελία έτοιμη αυτή τη στιγμή." icon={PackageCheck} />

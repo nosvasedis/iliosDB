@@ -1,5 +1,5 @@
 import { getOrderCustomerName } from '../../utils/orderCustomer';
-import { Offer, Order, OrderStatus, Product, ProductionBatch, ProductionStage } from '../../types';
+import { Order, OrderStatus, ProductionBatch, ProductionStage } from '../../types';
 import {
   buildPartialDeliveryProgressSegments,
   isOrderReadyForShipment,
@@ -30,11 +30,6 @@ export interface DemandPressureRow {
   label: string;
 }
 
-export interface OffersPipelineSummary {
-  count: number;
-  totalValue: number;
-}
-
 export type ReadyOrderShipmentKind = 'full' | 'partial';
 
 export interface ReadyOrderEntry {
@@ -54,7 +49,6 @@ export interface ReadyOrdersSummary {
   entries: ReadyOrderEntry[];
 }
 
-const LOW_STOCK_THRESHOLD = 5;
 const DELAYED_HOURS = 48;
 
 export function buildProductionPulse(batches: ProductionBatch[] | undefined): ProductionPulseSummary {
@@ -87,48 +81,6 @@ export function buildProductionPulse(batches: ProductionBatch[] | undefined): Pr
   return { delayed, onHold, ready, inProgress, healthScore };
 }
 
-export function buildInventoryRiskRows(products: Product[], limit = 3): {
-  totalLowStock: number;
-  rows: InventoryRiskRow[];
-} {
-  const rows: InventoryRiskRow[] = [];
-
-  products.forEach((product) => {
-    if (product.is_component) return;
-
-    if (product.variants && product.variants.length > 0) {
-      product.variants.forEach((variant) => {
-        const stock = variant.stock_qty ?? 0;
-        if (stock < LOW_STOCK_THRESHOLD) {
-          rows.push({
-            sku: product.sku,
-            suffix: variant.suffix,
-            stock,
-            label: variant.suffix ? `${product.sku}${variant.suffix}` : product.sku,
-          });
-        }
-      });
-      return;
-    }
-
-    if (product.stock_qty < LOW_STOCK_THRESHOLD) {
-      rows.push({
-        sku: product.sku,
-        suffix: '',
-        stock: product.stock_qty,
-        label: product.sku,
-      });
-    }
-  });
-
-  rows.sort((a, b) => a.stock - b.stock);
-
-  return {
-    totalLowStock: rows.length,
-    rows: rows.slice(0, limit),
-  };
-}
-
 export function buildCanonicalInventoryRiskRows(
   availability: InventoryAvailability[],
   limit = 3,
@@ -143,70 +95,6 @@ export function buildCanonicalInventoryRiskRows(
     }))
     .sort((a, b) => a.stock - b.stock || a.label.localeCompare(b.label, 'el'));
   return { totalLowStock: rows.length, rows: rows.slice(0, limit) };
-}
-
-export function buildDemandPressureRows(
-  products: Product[],
-  orders: Order[] | undefined,
-  limit = 3,
-): { totalPressure: number; rows: DemandPressureRow[] } {
-  const demandMap: Record<string, { sku: string; suffix: string; demand: number }> = {};
-
-  (orders ?? []).forEach((order) => {
-    if (
-      order.status !== OrderStatus.Pending &&
-      order.status !== OrderStatus.InProduction &&
-      order.status !== OrderStatus.PartiallyDelivered
-    ) {
-      return;
-    }
-    order.items.forEach((item) => {
-      const key = `${item.sku}::${item.variant_suffix || ''}`;
-      const existing = demandMap[key];
-      if (existing) {
-        existing.demand += item.quantity;
-      } else {
-        demandMap[key] = {
-          sku: item.sku,
-          suffix: item.variant_suffix || '',
-          demand: item.quantity,
-        };
-      }
-    });
-  });
-
-  const rows: DemandPressureRow[] = [];
-
-  products.forEach((product) => {
-    if (product.is_component) return;
-
-    const addRow = (suffix: string, stock: number) => {
-      const key = `${product.sku}::${suffix}`;
-      const entry = demandMap[key];
-      if (!entry || entry.demand <= stock) return;
-      rows.push({
-        sku: product.sku,
-        suffix,
-        demand: entry.demand,
-        stock,
-        gap: entry.demand - stock,
-        label: suffix ? `${product.sku}${suffix}` : product.sku,
-      });
-    };
-
-    if (product.variants && product.variants.length > 0) {
-      product.variants.forEach((variant) => addRow(variant.suffix, variant.stock_qty ?? 0));
-    } else {
-      addRow('', product.stock_qty);
-    }
-  });
-
-  rows.sort((a, b) => b.gap - a.gap);
-
-  return {
-    totalPressure: rows.length,
-    rows: rows.slice(0, limit),
-  };
 }
 
 export function buildCanonicalDemandPressureRows(
@@ -225,14 +113,6 @@ export function buildCanonicalDemandPressureRows(
     }))
     .sort((a, b) => b.gap - a.gap || a.label.localeCompare(b.label, 'el'));
   return { totalPressure: rows.length, rows: rows.slice(0, limit) };
-}
-
-export function buildOffersSummary(offers: Offer[] | undefined): OffersPipelineSummary {
-  const pending = (offers ?? []).filter((o) => o.status === 'Pending');
-  return {
-    count: pending.length,
-    totalValue: pending.reduce((acc, o) => acc + (o.total_price || 0), 0),
-  };
 }
 
 /**
@@ -282,13 +162,4 @@ export function buildReadyOrdersSummary(
     partialCount,
     entries,
   };
-}
-
-/** @deprecated Prefer buildReadyOrdersSummary — kept for simple count callers */
-export function countReadyOrders(
-  orders: Order[] | undefined,
-  batches: ProductionBatch[] | undefined,
-  shippedQtyByOrderId?: Map<string, number>,
-): number {
-  return buildReadyOrdersSummary(orders, batches, shippedQtyByOrderId).total;
 }

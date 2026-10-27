@@ -24,7 +24,6 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { Gender, Product } from '../../types';
-import { formatCurrency } from '../../utils/pricingEngine';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import type { FinanceAnalytics } from '../../utils/financeAnalytics';
 import type { AdminPage } from '../../surfaces/pageIds';
@@ -223,14 +222,14 @@ export const SalesTab = memo(function SalesTab({
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Panel
           title="Κορυφαία SKU"
           subtitle={`Τεμάχια, έσοδα και περιθώριο · ${periodLabel}`}
           icon={Trophy}
           tone="amber"
           isLoading={isLoading}
-          className="lg:col-span-7"
+          className="xl:col-span-7"
           hint={DASHBOARD_TERM_HINTS.topVariants}
           action={{ label: 'Πλήρης ανάλυση', onClick: onOpenTopVariants }}
         >
@@ -275,7 +274,7 @@ export const SalesTab = memo(function SalesTab({
           icon={Crown}
           tone="emerald"
           isLoading={isLoading}
-          className="lg:col-span-5"
+          className="xl:col-span-5"
           hint={DASHBOARD_TERM_HINTS.topCustomers}
           action={{ label: 'Πελάτες', onClick: () => onNavigate('customers') }}
         >
@@ -324,6 +323,8 @@ interface FinanceTabProps {
   silverForProduction: Record<SilverOrderScope, number>;
   silverScope: SilverOrderScope;
   onSilverScopeChange: (scope: SilverOrderScope) => void;
+  missingCostCount: number;
+  onOpenMissingCosts: () => void;
   onNavigate: Navigate;
 }
 
@@ -338,6 +339,8 @@ export const FinanceTab = memo(function FinanceTab({
   silverForProduction,
   silverScope,
   onSilverScopeChange,
+  missingCostCount,
+  onOpenMissingCosts,
   onNavigate,
 }: FinanceTabProps) {
   const totals = finance?.totals;
@@ -354,7 +357,7 @@ export const FinanceTab = memo(function FinanceTab({
 
   return (
     <div className={TAB_ANIMATION}>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Panel
           title="Αποτελέσματα περιόδου"
           subtitle={`Από αποστολές · ${periodLabel} · χωρίς ΦΠΑ`}
@@ -362,7 +365,7 @@ export const FinanceTab = memo(function FinanceTab({
           tone="emerald"
           isLoading={isLoading}
           skeletonRows={8}
-          className="lg:col-span-7"
+          className="xl:col-span-7"
           hint="Κατάσταση αποτελεσμάτων από τα πραγματικά τεμάχια που στάλθηκαν. Το κόστος είναι εκτίμηση από τις συνταγές και τις τρέχουσες τιμές."
         >
           {!totals || totals.realizedNet === 0 ? (
@@ -378,7 +381,7 @@ export const FinanceTab = memo(function FinanceTab({
                   return (
                     <li
                       key={line.id}
-                      className={`grid grid-cols-[minmax(0,1fr)_7rem_6.5rem] items-center gap-3 rounded-xl px-3 py-2 ${
+                      className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(4rem,9rem)_3rem_7.5rem] ${
                         line.kind === 'result' ? 'bg-emerald-50' : line.kind === 'subtotal' ? 'bg-slate-50' : ''
                       }`}
                     >
@@ -386,8 +389,11 @@ export const FinanceTab = memo(function FinanceTab({
                         {line.kind === 'minus' ? <span className="mr-1 text-slate-300">−</span> : null}
                         {line.label}
                       </span>
-                      <span className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <span className="hidden h-1.5 overflow-hidden rounded-full bg-slate-100 sm:block">
                         <span className={`block h-full rounded-full ${barClass}`} style={{ width: `${share}%` }} />
+                      </span>
+                      <span className="hidden text-right text-[10px] font-bold tabular-nums text-slate-400 sm:block" title="% των καθαρών εσόδων">
+                        {totals.realizedNet > 0 ? `${formatDecimal((line.value / totals.realizedNet) * 100, 0)}%` : ''}
                       </span>
                       <Money
                         value={line.value}
@@ -397,27 +403,30 @@ export const FinanceTab = memo(function FinanceTab({
                   );
                 })}
               </ul>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
                 <MiniStat label="Περιθώριο" value={`${formatDecimal(totals.margin, 1)}%`} tone="emerald" />
                 <MiniStat label="Κόστος / έσοδα" value={`${formatDecimal(totals.realizedNet > 0 ? (totals.estimatedCost / totals.realizedNet) * 100 : 0, 1)}%`} />
                 <MiniStat label="ΦΠΑ περιόδου" value={<Money value={totals.vat} />} />
                 <MiniStat label="Μικτή αξία" value={<Money value={totals.realizedGross} />} sub="με ΦΠΑ" />
               </div>
-              {finance && finance.costWarnings.length > 0 ? (
+              {missingCostCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => onNavigate('registry')}
-                  className="mt-3 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+                  onClick={onOpenMissingCosts}
+                  className="mt-3 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-100"
                 >
                   <AlertTriangle size={13} className="shrink-0" />
-                  {formatNumber(finance.costWarnings.length)} γραμμές χωρίς πλήρες κόστος — το κέρδος μπορεί να υπερεκτιμάται.
+                  <span className="flex-1">
+                    {formatNumber(missingCostCount)} {missingCostCount === 1 ? 'κωδικός πουλήθηκε' : 'κωδικοί πουλήθηκαν'} χωρίς κόστος — το κέρδος υπερεκτιμάται.
+                  </span>
+                  <span className="shrink-0 font-black">Προβολή</span>
                 </button>
               ) : null}
             </>
           )}
         </Panel>
 
-        <div className="flex flex-col gap-4 lg:col-span-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:col-span-5 xl:flex xl:flex-col">
           <Panel
             title="Ανοιχτές παραγγελίες"
             subtitle="Αξία που δεν έχει σταλεί ακόμη"
@@ -469,7 +478,7 @@ export const FinanceTab = memo(function FinanceTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Panel
           title="Μηνιαία απόδοση"
           subtitle="Τελευταίοι 12 μήνες, πιο πρόσφατος πρώτος"
@@ -477,7 +486,7 @@ export const FinanceTab = memo(function FinanceTab({
           tone="indigo"
           isLoading={isLoading}
           skeletonRows={8}
-          className="lg:col-span-7"
+          className="xl:col-span-7"
           action={{ label: 'Αναλυτικά', onClick: () => onNavigate('analytics') }}
         >
           <div className="max-h-[26rem] overflow-auto">
@@ -529,7 +538,7 @@ export const FinanceTab = memo(function FinanceTab({
           </div>
         </Panel>
 
-        <div className="flex flex-col gap-4 lg:col-span-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:col-span-5 xl:flex xl:flex-col">
           <Panel title="Υλικά πωλήσεων" subtitle={periodLabel} icon={Gem} tone="violet" isLoading={isLoading} hint={DASHBOARD_TERM_HINTS.materials}>
             <div className="grid grid-cols-2 gap-3">
               <MiniStat
@@ -682,15 +691,15 @@ export const OperationsTab = memo(function OperationsTab({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <StageLoadPanel rows={stageLoad} healthScore={healthScore} isLoading={batchesLoading} onNavigate={onNavigate} className="lg:col-span-7" />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <StageLoadPanel rows={stageLoad} healthScore={healthScore} isLoading={batchesLoading} onNavigate={onNavigate} className="xl:col-span-7" />
         <StuckBatchesPanel
           total={stuckBatches.total}
           rows={stuckBatches.rows}
           stageLabel={stageLabel}
           isLoading={batchesLoading}
           onNavigate={onNavigate}
-          className="lg:col-span-5"
+          className="xl:col-span-5"
         />
       </div>
 
@@ -749,14 +758,14 @@ export const OperationsTab = memo(function OperationsTab({
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Panel
           title="Απόθεμα υψηλής αξίας"
           subtitle="Κωδικοί με τη μεγαλύτερη δεσμευμένη αξία κόστους"
           icon={Crown}
           tone="violet"
           isLoading={inventoryLoading}
-          className="lg:col-span-7"
+          className="xl:col-span-7"
         >
           {valuation.topValue.length === 0 ? (
             <EmptyNote message="Δεν βρέθηκε απόθεμα." icon={Package} />
@@ -774,7 +783,7 @@ export const OperationsTab = memo(function OperationsTab({
             />
           )}
         </Panel>
-        <Panel title="Σύνθεση αποθέματος" subtitle="Αξία και δυνητικό περιθώριο" icon={Scale} tone="slate" isLoading={inventoryLoading} className="lg:col-span-5">
+        <Panel title="Σύνθεση αποθέματος" subtitle="Αξία και δυνητικό περιθώριο" icon={Scale} tone="slate" isLoading={inventoryLoading} className="xl:col-span-5">
           <div className="grid grid-cols-2 gap-3">
             <MiniStat label="Αξία κόστους" value={<Money value={valuation.costValue} decimals={false} />} />
             <MiniStat label="Αξία χονδρικής" value={<Money value={valuation.wholesaleValue} decimals={false} />} />

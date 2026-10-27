@@ -39,6 +39,7 @@ import {
     type RegistrySortMode,
 } from '../features/products';
 import EmptyState from './ui/EmptyState';
+import { consumeRegistrySku } from '../utils/registryHandoff';
 
 interface Props {
     setPrintItems?: (items: PrintLabelItem[]) => void;
@@ -128,7 +129,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const { data: settings, isLoading: loadingSettings } = useSettings();
     const { data: collections, isLoading: loadingCollections } = useCollections();
 
-    const [searchTerm, setSearchTerm] = useState('');
+    const [handoffSku] = useState(() => consumeRegistrySku());
+    const [searchTerm, setSearchTerm] = useState(handoffSku ?? '');
 
     const [filterCategory, setFilterCategory] = useState<string>('All');
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
@@ -333,6 +335,20 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         scrollContainer.addEventListener('scroll', handleScroll);
         return () => scrollContainer.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Dashboard / other pages can hand over a SKU: open it straight away when it exists.
+    const handoffResolved = useRef(false);
+    useEffect(() => {
+        if (!handoffSku || handoffResolved.current || !products) return;
+        handoffResolved.current = true;
+        const match = findProductByScannedCode(handoffSku, products);
+        if (match) {
+            setSelectedVariantSuffix(match.variant?.suffix);
+            setSelectedProduct(match.product);
+        } else {
+            showToast(`Ο κωδικός ${handoffSku} δεν υπάρχει στο Μητρώο.`, 'info');
+        }
+    }, [handoffSku, products, showToast]);
 
     const handleGlobalScan = (code: string) => {
         if (!products) return;

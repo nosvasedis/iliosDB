@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
 import {
   buildReadyOrdersSummary,
-  countReadyOrders,
 } from '../../features/dashboard/dashboardMosaicViewModels';
 
 describe('buildReadyOrdersSummary', () => {
@@ -150,22 +149,5 @@ describe('buildReadyOrdersSummary', () => {
     ];
     const shippedQty = new Map([['o1', 3]]);
     expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(0);
-  });
-});
-
-describe('countReadyOrders', () => {
-  const baseBatch = {
-    created_at: '',
-    updated_at: '',
-    priority: 'Normal' as const,
-    requires_setting: false,
-  };
-
-  it('delegates to buildReadyOrdersSummary', () => {
-    const orders = [{ id: 'o1', status: OrderStatus.Ready, customer_name: 'A', items: [{ sku: 'X', quantity: 1, price_at_order: 1 }] }] as Order[];
-    const batches = [
-      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'X', quantity: 1, current_stage: ProductionStage.Ready },
-    ];
-    expect(countReadyOrders(orders, batches)).toBe(1);
   });
 });

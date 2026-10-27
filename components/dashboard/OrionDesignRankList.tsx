@@ -10,9 +10,9 @@ import {
 } from '../../features/dashboard/orionDesignAnalytics';
 
 const RANK_STYLES: Record<number, string> = {
-  1: 'bg-amber-500 text-white ring-2 ring-amber-200',
-  2: 'bg-slate-400 text-white ring-2 ring-slate-200',
-  3: 'bg-orange-400 text-white ring-2 ring-orange-200',
+  1: 'bg-amber-400 text-amber-950',
+  2: 'bg-slate-300 text-slate-800',
+  3: 'bg-orange-300 text-orange-950',
 };
 
 const TYPE_DOT: Record<OrionJewelleryType, string> = {
@@ -55,57 +55,63 @@ const DesignRow = memo(function DesignRow({
     <button
       type="button"
       onClick={onSelect}
-      className="group w-full rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-colors hover:border-emerald-200 hover:shadow-md"
+      className="group w-full rounded-2xl bg-white p-3 text-left ring-1 ring-slate-200/70 transition-all hover:shadow-sm hover:ring-slate-300"
     >
-      <div className="flex gap-4">
-        <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-black tabular-nums ${
             rankStyle ?? 'bg-slate-100 text-slate-500'
           }`}
         >
           {formatNumber(row.rank)}
-        </div>
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
+        </span>
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/60">
           {src ? (
             <img src={src} alt={row.displayName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-300">
-              <ImageIcon size={20} />
+              <ImageIcon size={18} />
             </div>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-sm font-black text-slate-900">{row.displayName}</p>
-              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">Παράσταση {row.label}</p>
-            </div>
-            <ChevronRight size={16} className="mt-0.5 shrink-0 text-slate-300 group-hover:text-emerald-500" />
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-emerald-50/80 px-2 py-1.5 ring-1 ring-emerald-100">
-              <p className="text-[9px] font-bold uppercase text-emerald-600/80">Τεμ.</p>
-              <p className="text-sm font-black text-emerald-900">{formatNumber(row.quantity)}</p>
-            </div>
-            <div className="rounded-xl bg-blue-50/80 px-2 py-1.5 ring-1 ring-blue-100">
-              <p className="text-[9px] font-bold uppercase text-blue-600/80">Έσοδα</p>
-              <p className="text-sm font-black text-blue-900">{formatCurrency(row.revenue)}</p>
-            </div>
-            <div className="rounded-xl bg-teal-50/80 px-2 py-1.5 ring-1 ring-teal-100">
-              <p className="text-[9px] font-bold uppercase text-teal-600/80">Κέρδος</p>
-              <p className="text-sm font-black text-teal-900">{formatCurrency(row.profit)}</p>
-            </div>
-          </div>
+          <p className="truncate text-sm font-black text-slate-900">{row.displayName}</p>
+          <p className="text-[11px] font-medium text-slate-400">Παράσταση {row.label}</p>
           <TypeMixBar row={row} />
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-semibold text-slate-500">
-            {ORION_TYPE_CHIPS.filter((chip) => row.typeMix[chip.id].quantity > 0).map((chip) => (
-              <span key={chip.id} className="inline-flex items-center gap-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${TYPE_DOT[chip.id]}`} />
-                {chip.label} {formatNumber(row.typeMix[chip.id].quantity)}
-              </span>
-            ))}
-          </div>
         </div>
+        <div className="hidden shrink-0 grid-cols-[3.25rem_5.75rem_5.75rem] gap-2 text-right sm:grid">
+          {[
+            { label: 'Τεμ.', value: formatNumber(row.quantity) },
+            { label: 'Έσοδα', value: formatCurrency(row.revenue) },
+            { label: 'Κέρδος', value: formatCurrency(row.profit) },
+          ].map((cell) => (
+            <div key={cell.label}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{cell.label}</p>
+              <p className="truncate text-xs font-black tabular-nums text-slate-800">{cell.value}</p>
+            </div>
+          ))}
+        </div>
+        <ChevronRight size={16} className="shrink-0 text-slate-300 transition-colors group-hover:text-emerald-500" />
+      </div>
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center sm:hidden">
+        {[
+          { label: 'Τεμ.', value: formatNumber(row.quantity) },
+          { label: 'Έσοδα', value: formatCurrency(row.revenue) },
+          { label: 'Κέρδος', value: formatCurrency(row.profit) },
+        ].map((cell) => (
+          <div key={cell.label} className="rounded-lg bg-slate-50 px-1 py-1">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{cell.label}</p>
+            <p className="truncate text-xs font-black tabular-nums text-slate-800">{cell.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 pl-[6.25rem] text-[10px] font-semibold text-slate-500">
+        {ORION_TYPE_CHIPS.filter((chip) => row.typeMix[chip.id].quantity > 0).map((chip) => (
+          <span key={chip.id} className="inline-flex items-center gap-1">
+            <span className={`h-1.5 w-1.5 rounded-full ${TYPE_DOT[chip.id]}`} />
+            {chip.label} {formatNumber(row.typeMix[chip.id].quantity)}
+          </span>
+        ))}
       </div>
     </button>
   );
@@ -128,36 +134,36 @@ export default function OrionDesignRankList({
 }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 space-y-2 border-b border-slate-100 bg-white px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {ORION_TYPE_CHIPS.map((chip) => {
-            const active = jewelleryTypes.size === 0 || jewelleryTypes.has(chip.id);
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => onToggleType(chip.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                  active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={onShowSkus}
-            className="ml-auto rounded-lg px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-          >
-            Κωδικοί
-          </button>
-        </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/70 bg-white px-4 py-2.5 sm:px-5">
+        {ORION_TYPE_CHIPS.map((chip) => {
+          const active = jewelleryTypes.size === 0 || jewelleryTypes.has(chip.id);
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onToggleType(chip.id)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                active ? 'bg-white text-slate-900 ring-1 ring-slate-300' : 'bg-slate-100 text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${active ? TYPE_DOT[chip.id] : 'bg-slate-300'}`} />
+              {chip.label}
+            </button>
+          );
+        })}
         {rows.length > 0 && (
-          <p className="text-[10px] font-bold text-slate-400">{formatNumber(rows.length)} παραστάσεις</p>
+          <span className="text-[11px] font-semibold text-slate-400">{formatNumber(rows.length)} παραστάσεις</span>
         )}
+        <button
+          type="button"
+          onClick={onShowSkus}
+          className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+        >
+          Προβολή κωδικών
+        </button>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3 sm:px-4">
         {rows.length === 0 ? (
           <div className="py-16 text-center text-sm text-slate-400">
             Δεν βρέθηκαν παραστάσεις με τα τρέχοντα φίλτρα.

@@ -308,6 +308,8 @@ export interface AttentionItem {
   title: string;
   detail: string;
   page: AdminPage;
+  /** When set, the card opens an in-dashboard drill-down instead of navigating. */
+  opens?: 'missing-costs';
 }
 
 const SEVERITY_ORDER: Record<AttentionSeverity, number> = { critical: 0, warning: 1, action: 2, info: 3 };
@@ -347,7 +349,7 @@ export function buildAttentionItems(params: {
     items.push({ id: 'low-stock', severity: 'warning', count: params.lowStockCount, title: 'Χαμηλό απόθεμα', detail: 'Κάτω από το σημείο αναπαραγγελίας', page: 'inventory' });
   }
   if (params.costWarningCount > 0) {
-    items.push({ id: 'cost', severity: 'warning', count: params.costWarningCount, title: 'Ελλιπή κόστη', detail: 'Πωλήσεις χωρίς πλήρες κόστος', page: 'registry' });
+    items.push({ id: 'cost', severity: 'warning', count: params.costWarningCount, title: 'Ελλιπή κόστη', detail: 'Πωληθέντες κωδικοί χωρίς κόστος', page: 'registry', opens: 'missing-costs' });
   }
   if (params.legalGap !== null && Math.abs(params.legalGap) >= 1) {
     items.push({ id: 'legal', severity: 'info', count: 1, title: 'Απόκλιση παραστατικών', detail: 'Έσοδα ≠ εκδοθέντα παραστατικά', page: 'legal' });
@@ -464,6 +466,71 @@ export function inHouseSilverGrams(orders: Order[], productBySku: Map<string, Pr
       }, 0),
     0,
   );
+}
+
+// ─── Missing costs ─────────────────────────────────────────────────────────────
+
+export interface MissingCostOrderRef {
+  orderId: string;
+  customerName: string;
+  quantity: number;
+  net: number;
+  stage: 'realized' | 'backlog';
+}
+
+export interface MissingCostRow {
+  sku: string;
+  reason: string;
+  realizedQuantity: number;
+  realizedNet: number;
+  backlogQuantity: number;
+  backlogNet: number;
+  orders: MissingCostOrderRef[];
+}
+
+/**
+ * Sales lines whose cost could not be estimated (cost counted as 0 → profit overstated),
+ * grouped per SKU with the orders they come from.
+ */
+export function buildMissingCostRows(realized: FinanceLineEvent[], backlog: FinanceLineEvent[]): MissingCostRow[] {
+  const bySku = new Map<string, MissingCostRow & { orderIndex: Map<string, MissingCostOrderRef> }>();
+  const add = (event: FinanceLineEvent, stage: MissingCostOrderRef['stage']) => {
+    if (!event.costWarning) return;
+    const separator = event.costWarning.indexOf(': ');
+    const reason = separator >= 0 ? event.costWarning.slice(separator + 2) : event.costWarning;
+    const row = bySku.get(event.sku) ?? {
+      sku: event.sku,
+      reason,
+      realizedQuantity: 0,
+      realizedNet: 0,
+      backlogQuantity: 0,
+      backlogNet: 0,
+      orders: [],
+      orderIndex: new Map<string, MissingCostOrderRef>(),
+    };
+    if (stage === 'realized') {
+      row.realizedQuantity += event.quantity;
+      row.realizedNet += event.net;
+    } else {
+      row.backlogQuantity += event.quantity;
+      row.backlogNet += event.net;
+    }
+    const orderKey = `${event.orderId}::${stage}`;
+    const ref = row.orderIndex.get(orderKey) ?? { orderId: event.orderId, customerName: event.customerName, quantity: 0, net: 0, stage };
+    ref.quantity += event.quantity;
+    ref.net += event.net;
+    row.orderIndex.set(orderKey, ref);
+    bySku.set(event.sku, row);
+  };
+  dedupeIdenticalFinanceEvents(realized).forEach((event) => add(event, 'realized'));
+  backlog.forEach((event) => add(event, 'backlog'));
+
+  return Array.from(bySku.values())
+    .map(({ orderIndex, ...row }) => ({
+      ...row,
+      orders: Array.from(orderIndex.values()).sort((a, b) => b.net - a.net),
+    }))
+    .sort((a, b) => b.realizedNet + b.backlogNet - (a.realizedNet + a.backlogNet));
 }
 
 // ─── Profit & loss ─────────────────────────────────────────────────────────────

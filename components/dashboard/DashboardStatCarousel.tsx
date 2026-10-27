@@ -1,7 +1,18 @@
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
-import { MosaicSpinner } from './dashboardMiniCharts';
 import DashboardTermHint from './DashboardTermHint';
+
+function MosaicSpinner({ light = false }: { light?: boolean }) {
+  return (
+    <div
+      className={`h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-t-transparent ${
+        light ? 'border-white/25 border-t-white/80' : 'border-slate-200 border-t-slate-400'
+      }`}
+      role="status"
+      aria-label="Φόρτωση"
+    />
+  );
+}
 
 export type DashboardStatSlide = {
   id: string;

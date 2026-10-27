@@ -1,7 +1,6 @@
 import { Gender, Product, Collection } from '../../types';
 import {
   FinanceCollectionRanking,
-  FinanceCustomerRanking,
   FinanceLineEvent,
   FinanceVariantRanking,
 } from '../../utils/financeAnalytics';
@@ -110,13 +109,6 @@ export function buildTopVariantRows(
       ...row,
       gender: bySku.get(row.sku)?.gender,
     }));
-}
-
-export function buildTopCustomerRows(
-  topCustomers: FinanceCustomerRanking[],
-  limit = 8,
-): FinanceCustomerRanking[] {
-  return topCustomers.slice(0, limit);
 }
 
 export type EnrichedVariantAnalyticsRow = DashboardVariantRow & {

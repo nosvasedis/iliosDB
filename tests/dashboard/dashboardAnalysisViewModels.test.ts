@@ -5,7 +5,6 @@ import {
   buildEnrichedVariantAnalyticsRows,
   buildFinishChartData,
   buildGenderChartData,
-  buildTopCustomerRows,
   buildTopVariantRows,
 } from '../../features/dashboard/dashboardAnalysisViewModels';
 import type { FinanceLineEvent, FinanceVariantRanking } from '../../utils/financeAnalytics';
@@ -154,17 +153,6 @@ describe('dashboardAnalysisViewModels', () => {
     const rows = buildTopVariantRows(rankings, products, 8);
     expect(rows[0].variantSuffix).toBe('P');
     expect(rows[0].gender).toBe(Gender.Women);
-  });
-
-  it('buildTopCustomerRows slices to limit', () => {
-    const customers = [
-      { id: 'c1', name: 'Alpha', revenue: 300, orders: 2 },
-      { id: 'c2', name: 'Beta', revenue: 200, orders: 1 },
-      { id: 'c3', name: 'Gamma', revenue: 100, orders: 1 },
-    ];
-
-    expect(buildTopCustomerRows(customers, 2)).toHaveLength(2);
-    expect(buildTopCustomerRows(customers, 2)[0].name).toBe('Alpha');
   });
 
   it('buildEnrichedVariantAnalyticsRows returns all variants when limit omitted', () => {

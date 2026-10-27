@@ -1,10 +1,12 @@
-import { formatNumber } from '../../utils/numberFormat';
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   ImageIcon,
   Gift,
@@ -69,13 +71,20 @@ const SORT_OPTIONS: { id: VariantAnalyticsSort; label: string }[] = [
 ];
 
 const RANK_STYLES: Record<number, string> = {
-  1: 'bg-amber-500 text-white ring-2 ring-amber-200',
-  2: 'bg-slate-400 text-white ring-2 ring-slate-200',
-  3: 'bg-orange-400 text-white ring-2 ring-orange-200',
+  1: 'bg-amber-400 text-amber-950',
+  2: 'bg-slate-300 text-slate-800',
+  3: 'bg-orange-300 text-orange-950',
 };
 
-/** Fixed virtual row slot — content + gap between cards */
-const ROW_HEIGHT = 156;
+/** Estimated virtual row slot — content + gap between rows (rows are measured). */
+const ROW_HEIGHT = 92;
+
+function metricValue(row: Pick<EnrichedVariantAnalyticsRow, 'quantity' | 'revenue' | 'profit' | 'margin'>, sort: VariantAnalyticsSort): number {
+  if (sort === 'revenue') return row.revenue;
+  if (sort === 'profit') return row.profit;
+  if (sort === 'margin') return row.margin;
+  return row.quantity;
+}
 
 interface Props {
   realizedEvents: FinanceLineEvent[];
@@ -92,12 +101,17 @@ interface Props {
 
 const VariantListRow = memo(function VariantListRow({
   row,
+  share,
+  sort,
   isSelected,
   isCopied,
   onSelect,
   onCopy,
 }: {
   row: EnrichedVariantAnalyticsRow;
+  /** 0–100: this row's sort metric relative to the leader */
+  share: number;
+  sort: VariantAnalyticsSort;
   isSelected: boolean;
   isCopied: boolean;
   onSelect: () => void;
@@ -107,101 +121,134 @@ const VariantListRow = memo(function VariantListRow({
   const profitNote = describeNegativeProfit(row);
   const marginLabel = formatVariantMargin(row);
   const rankStyle = RANK_STYLES[row.rank];
+  const negative = row.profit < 0;
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`group w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition-colors ${
+      className={`group relative w-full rounded-2xl bg-white p-3 text-left transition-all ${
         isSelected
-          ? 'border-emerald-400 ring-2 ring-emerald-500/25'
-          : 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
+          ? 'shadow-md ring-2 ring-emerald-500'
+          : 'ring-1 ring-slate-200/70 hover:shadow-sm hover:ring-slate-300'
       }`}
     >
-      <div className="flex gap-4">
-        <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-black tabular-nums ${
             rankStyle ?? 'bg-slate-100 text-slate-500'
           }`}
         >
           {formatNumber(row.rank)}
-        </div>
+        </span>
 
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/60">
           {src ? (
             <img src={src} alt={row.sku} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-300">
-              <ImageIcon size={20} />
+              <ImageIcon size={18} />
             </div>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <SkuColorizedText
-              sku={row.sku}
-              suffix={row.variantSuffix}
-              gender={row.gender}
-              className="text-sm"
-            />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SkuColorizedText sku={row.sku} suffix={row.variantSuffix} gender={row.gender} className="truncate text-sm" />
             <span
               role="button"
               tabIndex={0}
+              title="Αντιγραφή κωδικού"
               onClick={(e) => { e.stopPropagation(); onCopy(); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCopy(); }
               }}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-500 opacity-0 transition-opacity group-hover:opacity-100"
+              className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-opacity hover:bg-slate-100 hover:text-slate-700 ${
+                isCopied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+              }`}
             >
-              {isCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+              {isCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
             </span>
           </div>
-          <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1.5" />
-
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-              {row.category.split(' ')[0]}
-            </span>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-medium text-slate-400">
+            <span className="truncate">{row.category.split(' ')[0]}</span>
             {(row.giftQuantity ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700 ring-1 ring-fuchsia-100"
-                title="Δώρα με τιμή 0€"
-              >
+              <span className="inline-flex items-center gap-0.5 font-bold text-fuchsia-600" title="Δώρα με τιμή 0€">
                 <Gift size={10} />
                 {formatNumber(row.giftQuantity)} δώρο
               </span>
             )}
           </div>
-
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <div className="rounded-xl bg-emerald-50/80 px-2 py-1.5 ring-1 ring-emerald-100">
-              <p className="text-[9px] font-bold uppercase text-emerald-600/80">Τεμ.</p>
-              <p className="text-sm font-black text-emerald-900">{formatNumber(row.quantity)}</p>
-            </div>
-            <div className="rounded-xl bg-blue-50/80 px-2 py-1.5 ring-1 ring-blue-100">
-              <p className="text-[9px] font-bold uppercase text-blue-600/80">Έσοδα</p>
-              <p className="text-sm font-black text-blue-900">{formatCurrency(row.revenue)}</p>
-            </div>
+          <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1" />
+          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden>
             <div
-              className={`rounded-xl px-2 py-1.5 ring-1 ${row.profit >= 0 ? 'bg-teal-50/80 ring-teal-100' : 'bg-red-50/80 ring-red-100'}`}
-              title={profitNote ?? undefined}
-            >
-              <p className={`text-[9px] font-bold uppercase ${row.profit >= 0 ? 'text-teal-600/80' : 'text-red-600/80'}`}>Κέρδος</p>
-              <p className={`text-sm font-black ${row.profit >= 0 ? 'text-teal-900' : 'text-red-700'}`}>
-                {formatCurrency(row.profit)}
-              </p>
-            </div>
-            <div className="rounded-xl bg-amber-50/80 px-2 py-1.5 ring-1 ring-amber-100" title={profitNote ?? undefined}>
-              <p className="text-[9px] font-bold uppercase text-amber-700/80">Περιθ.</p>
-              <p className="text-sm font-black text-amber-900">{marginLabel}</p>
-            </div>
+              className={`h-full rounded-full ${sort === 'profit' && negative ? 'bg-rose-400' : 'bg-emerald-500'}`}
+              style={{ width: `${Math.max(2, share)}%` }}
+            />
           </div>
         </div>
+
+        <div className="hidden shrink-0 grid-cols-[3.25rem_5.75rem_5.75rem_3.25rem] items-center gap-2 text-right sm:grid">
+          <Metric label="Τεμ." value={formatNumber(row.quantity)} active={sort === 'quantity'} />
+          <Metric label="Έσοδα" value={formatCurrency(row.revenue)} active={sort === 'revenue'} />
+          <Metric label="Κέρδος" value={formatCurrency(row.profit)} active={sort === 'profit'} tone={negative ? 'negative' : undefined} title={profitNote ?? undefined} />
+          <Metric label="Περιθ." value={marginLabel} active={sort === 'margin'} title={profitNote ?? undefined} />
+        </div>
+      </div>
+
+      <div className="mt-2.5 grid grid-cols-4 gap-1.5 text-center sm:hidden">
+        <Metric label="Τεμ." value={formatNumber(row.quantity)} active={sort === 'quantity'} compact />
+        <Metric label="Έσοδα" value={formatCurrency(row.revenue)} active={sort === 'revenue'} compact />
+        <Metric label="Κέρδος" value={formatCurrency(row.profit)} active={sort === 'profit'} tone={negative ? 'negative' : undefined} compact />
+        <Metric label="Περιθ." value={marginLabel} active={sort === 'margin'} compact />
       </div>
     </button>
   );
 });
+
+function Metric({
+  label,
+  value,
+  active,
+  tone,
+  title,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  tone?: 'negative';
+  title?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? 'rounded-lg bg-slate-50 px-1 py-1' : ''} title={title}>
+      <p className={`text-[9px] font-bold uppercase tracking-wide ${active ? 'text-emerald-600' : 'text-slate-400'}`}>{label}</p>
+      <p
+        className={`truncate text-xs font-black tabular-nums ${
+          tone === 'negative' ? 'text-rose-600' : active ? 'text-slate-900' : 'text-slate-600'
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SummaryStat({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'positive' | 'negative' }) {
+  return (
+    <div className="min-w-0 px-4 py-2.5 sm:px-5">
+      <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+      <p
+        className={`truncate text-base font-black tabular-nums sm:text-lg ${
+          tone === 'negative' ? 'text-rose-600' : tone === 'positive' ? 'text-emerald-700' : 'text-slate-900'
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 function TopVariantsModalBody({
   realizedEvents,
@@ -222,6 +269,8 @@ function TopVariantsModalBody({
   const deferredFilters = useDeferredValue(filters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  /** Below `lg` the list and the detail share the screen one at a time. */
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const listParentRef = useRef<HTMLDivElement>(null);
 
   const collectionsQuery = useCollections();
@@ -353,7 +402,22 @@ function TopVariantsModalBody({
       setSelectedKey(row.key);
       setQuery('');
     });
+    setMobileView('detail');
   }, []);
+
+  const metricMax = useMemo(
+    () => Math.max(0.0001, ...displayed.map((row) => Math.abs(metricValue(row, sort)))),
+    [displayed, sort],
+  );
+
+  const summary = useMemo(() => {
+    const source = showDesigns ? designRankings : displayed;
+    const totals = source.reduce(
+      (acc, row) => ({ quantity: acc.quantity + row.quantity, revenue: acc.revenue + row.revenue, profit: acc.profit + row.profit }),
+      { quantity: 0, revenue: 0, profit: 0 },
+    );
+    return { ...totals, count: source.length, margin: totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : 0 };
+  }, [designRankings, displayed, showDesigns]);
 
   const handleSelectVariant = useCallback((variantSuffix: string, itemNote?: string | null) => {
     if (!inspectDetail) return;
@@ -447,14 +511,31 @@ function TopVariantsModalBody({
     onPrintReady(handlePrint);
   }, [handlePrint, onPrintReady]);
 
+  const sortLabel = SORT_OPTIONS.find((option) => option.id === sort)?.label ?? 'Τεμάχια';
+
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="grid shrink-0 grid-cols-2 divide-x divide-y divide-slate-100 border-b border-slate-200/70 bg-white sm:grid-cols-5 sm:divide-y-0">
+        <SummaryStat label={showDesigns ? 'Παραστάσεις' : 'Παραλλαγές'} value={formatNumber(summary.count)} />
+        <SummaryStat label="Τεμάχια" value={formatNumber(summary.quantity)} />
+        <SummaryStat label="Έσοδα" value={formatCurrency(summary.revenue)} />
+        <SummaryStat label="Κέρδος" value={formatCurrency(summary.profit)} tone={summary.profit < 0 ? 'negative' : 'positive'} />
+        <div className="col-span-2 sm:col-span-1">
+          <SummaryStat label="Περιθώριο" value={summary.revenue > 0 ? `${formatDecimal(summary.margin, 1)}%` : '—'} />
+        </div>
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col border-b border-slate-100 lg:w-[45%] lg:border-b-0 lg:border-r">
-          <div className="shrink-0 space-y-3 border-b border-slate-100 bg-white px-5 py-3 sm:px-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <section
+          className={`min-h-0 min-w-0 flex-1 flex-col border-slate-200/70 lg:flex lg:max-w-[46%] lg:border-r ${
+            mobileView === 'list' ? 'flex' : 'hidden'
+          }`}
+          aria-label="Κατάταξη"
+        >
+          <div className="shrink-0 space-y-2.5 border-b border-slate-200/70 bg-white px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   type="search"
                   value={query}
@@ -463,45 +544,48 @@ function TopVariantsModalBody({
                     if (e.target.value.trim().length >= 2) setSelectedKey(null);
                   }}
                   placeholder="Αναζήτηση κωδικού…"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                 />
               </div>
               {onOpenRegistry && (
                 <button
                   type="button"
                   onClick={onOpenRegistry}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                  title="Άνοιγμα Μητρώου Κωδικών"
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
                 >
-                  <ExternalLink size={15} />
-                  Μητρώο
+                  <ExternalLink size={14} />
+                  <span className="hidden sm:inline">Μητρώο</span>
                 </button>
               )}
             </div>
 
             {previewComponents.master && (
-              <div className="flex items-center gap-2">
-                <SkuColorizedText
-                  sku={previewComponents.master}
-                  suffix={previewComponents.suffix}
-                  gender={productsMap.get(previewComponents.master)?.gender}
-                  className="text-sm"
-                />
-              </div>
+              <SkuColorizedText
+                sku={previewComponents.master}
+                suffix={previewComponents.suffix}
+                gender={productsMap.get(previewComponents.master)?.gender}
+                className="text-sm"
+              />
             )}
 
             <div className="flex flex-wrap items-center gap-2">
-              {SORT_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setSort(option.id)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                    sort === option.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+              <div className="inline-flex rounded-xl bg-slate-100 p-0.5" role="radiogroup" aria-label="Ταξινόμηση">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={sort === option.id}
+                    onClick={() => setSort(option.id)}
+                    className={`rounded-[10px] px-2.5 py-1 text-[11px] font-bold transition-all ${
+                      sort === option.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               {orionEligible && (forceSkuList || selectedDesignNo != null) && (
                 <button
                   type="button"
@@ -510,14 +594,14 @@ function TopVariantsModalBody({
                     setSelectedDesignNo(null);
                     setSelectedKey(null);
                   }}
-                  className="rounded-lg bg-fuchsia-50 px-3 py-1.5 text-xs font-bold text-fuchsia-700 hover:bg-fuchsia-100"
+                  className="rounded-lg bg-fuchsia-50 px-2.5 py-1 text-[11px] font-bold text-fuchsia-700 transition-colors hover:bg-fuchsia-100"
                 >
                   Παραστάσεις
                 </button>
               )}
               {!showDesigns && displayed.length > 0 && (
-                <span className="ml-auto text-[10px] font-bold text-slate-400">
-                  {formatNumber(displayed.length)} παραλλαγές
+                <span className="ml-auto text-[11px] font-semibold text-slate-400">
+                  {formatNumber(displayed.length)} παραλλαγές · κατά {sortLabel.toLowerCase()}
                 </span>
               )}
             </div>
@@ -564,64 +648,94 @@ function TopVariantsModalBody({
               }}
             />
           ) : (
-          <div ref={listParentRef} className="relative min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4">
-            {isStale && (
-              <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-[10px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-100">
-                  <Loader2 size={12} className="animate-spin text-emerald-500" />
-                  Ενημέρωση…
-                </span>
-              </div>
-            )}
+            <div ref={listParentRef} className="relative min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
+              {isStale && (
+                <div className="pointer-events-none sticky top-0 z-10 flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-[10px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-200">
+                    <Loader2 size={12} className="animate-spin text-emerald-500" />
+                    Ενημέρωση…
+                  </span>
+                </div>
+              )}
 
-            {displayed.length === 0 ? (
-              <div className="py-16 text-center text-sm text-slate-400">
-                Δεν βρέθηκαν αποτελέσματα με τα τρέχοντα φίλτρα.
-              </div>
-            ) : (
-              <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
-                {virtualizer.getVirtualItems().map((virtualRow) => {
-                  const row = displayed[virtualRow.index];
-                  const rowKey = row.key;
-                  return (
-                    <div
-                      key={rowKey}
-                      ref={virtualizer.measureElement}
-                      data-index={virtualRow.index}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        transform: `translateY(${virtualRow.start}px)`,
-                        paddingBottom: 12,
-                      }}
-                    >
-                      <VariantListRow
-                        row={row}
-                        isSelected={selectedKey === rowKey}
-                        isCopied={copiedSku === row.fullSku}
-                        onSelect={() => handleSelectRow(row)}
-                        onCopy={() => handleCopy(row.fullSku)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {displayed.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-16 text-center">
+                  <Search size={20} className="text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-400">Δεν βρέθηκαν αποτελέσματα με τα τρέχοντα φίλτρα.</p>
+                </div>
+              ) : (
+                <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = displayed[virtualRow.index];
+                    const rowKey = row.key;
+                    return (
+                      <div
+                        key={rowKey}
+                        ref={virtualizer.measureElement}
+                        data-index={virtualRow.index}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                          paddingBottom: 8,
+                        }}
+                      >
+                        <VariantListRow
+                          row={row}
+                          sort={sort}
+                          share={(Math.abs(metricValue(row, sort)) / metricMax) * 100}
+                          isSelected={selectedKey === rowKey}
+                          isCopied={copiedSku === row.fullSku}
+                          onSelect={() => handleSelectRow(row)}
+                          onCopy={() => handleCopy(row.fullSku)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
-        </div>
 
-        <div className="flex min-h-[280px] min-w-0 flex-col border-l border-slate-100 bg-gradient-to-b from-slate-50/40 to-white lg:w-[55%] lg:min-h-0">
+          {inspectDetail && (
+            <button
+              type="button"
+              onClick={() => setMobileView('detail')}
+              className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200/70 bg-white px-4 py-3 text-left lg:hidden"
+            >
+              <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Ανάλυση</span>
+                <span className="block truncate text-sm font-black text-slate-900">{inspectDetail.sku}{inspectDetail.variantSuffix}</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">
+                Προβολή <ChevronRight size={14} />
+              </span>
+            </button>
+          )}
+        </section>
+
+        <section
+          className={`min-h-0 min-w-0 flex-1 flex-col bg-white lg:flex ${mobileView === 'detail' ? 'flex' : 'hidden'}`}
+          aria-label="Ανάλυση κωδικού"
+        >
+          <button
+            type="button"
+            onClick={() => setMobileView('list')}
+            className="flex shrink-0 items-center gap-1.5 border-b border-slate-200/70 px-4 py-2.5 text-xs font-bold text-slate-600 lg:hidden"
+          >
+            <ChevronLeft size={15} />
+            Πίσω στην κατάταξη
+          </button>
           <SkuVariantDetailPanel
             detail={inspectDetail}
             gender={inspectGender as Gender | undefined}
             onSelectVariant={handleSelectVariant}
           />
-        </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -643,11 +757,11 @@ export default function TopVariantsAnalyticsModal(props: Props) {
       {contentReady ? (
         <TopVariantsModalBody {...props} onPrintReady={bindPrint} />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="min-h-[320px] flex-1 border-b border-slate-100 lg:w-[45%] lg:border-b-0 lg:border-r">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          <div className="min-h-0 flex-1 overflow-hidden lg:max-w-[46%] lg:border-r lg:border-slate-200/70">
             <ModalListSkeleton />
           </div>
-          <div className="min-h-[280px] flex-1 bg-gradient-to-b from-slate-50/40 to-white lg:w-[55%]">
+          <div className="hidden min-h-0 flex-1 bg-white lg:block">
             <ModalDetailSkeleton />
           </div>
         </div>
