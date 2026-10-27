@@ -1,64 +1,49 @@
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { productDraftSnapshot } from '../lib/editorSnapshots';
-import { formatNumber } from '../utils/numberFormat';
-import { getPricingRules } from '../utils/pricingRules';
 
 import './ProductDetails/productDetails.css';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
-import { calculateProductCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../utils/pricingEngine';
-import {
-    applyFormulaRateChange,
-    applyFormulaTotalChange,
-    computeAutoLaborCosts,
-    getCastingFormulaLine,
-    getPlatingDFormulaLine,
-    getPlatingDWeightBasis,
-    getPlatingXFormulaLine,
-    syncPrimaryWeightFromTotalBasis,
-    syncSecondaryWeightFromPlatingDBasis,
-    getTechnicianFormulaLine,
-    type LaborFormulaField,
-} from '../utils/laborFormula';
-import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
-import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborFormulaRow';
-import { FINISH_CODES } from '../constants';
-import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale, Factory } from 'lucide-react';
-import { R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
+import { Product, Material, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
+import { calculateProductCost } from '../utils/pricingEngine';
+import { Info, Layers, ScanBarcode, Factory, Box, Hammer } from 'lucide-react';
+import { AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { prepareUploadSource } from '../utils/imageHelpers';
 import { uploadCatalogPhotoWithChoice } from '../utils/catalogPhotoUpload';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshErpProducts, removeProductsFromCache } from '../features/erpCatalog';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
-import SkuColorizedText from './SkuColorizedText';
-import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
 import DetailsHeader from './ProductDetails/DetailsHeader';
-import ProductionTypeBadge from './ProductDetails/ProductionTypeBadge';
+import DetailsKpiStrip from './ProductDetails/DetailsKpiStrip';
 import DetailsSidebar from './ProductDetails/DetailsSidebar';
 import DetailsTabBar, { type DetailsTab } from './ProductDetails/DetailsTabBar';
 import DetailsFooter from './ProductDetails/DetailsFooter';
-import InvoiceTotalWeightField from './ProductDetails/InvoiceTotalWeightField';
-import { DetailsField, DetailsSection, DetailsSubTabs, detailsInputClass, detailsMonoInputClass } from './ProductDetails/detailsUi';
+import RecipeItemSelectorModal, { type RecipeSelection } from './ProductDetails/RecipeItemSelectorModal';
+import OverviewInHousePanel from './ProductDetails/OverviewInHousePanel';
+import OverviewImportedPanel from './ProductDetails/OverviewImportedPanel';
+import MoldsSection, { EMPTY_MOLD_DRAFT, type MoldDraft } from './ProductDetails/MoldsSection';
+import RecipeSection from './ProductDetails/RecipeSection';
+import LaborSection from './ProductDetails/LaborSection';
+import VariantsPanel from './ProductDetails/VariantsPanel';
+import { DetailsSection, DetailsSubTabs } from './ProductDetails/detailsUi';
+import { useAutoCostSync } from './ProductDetails/useAutoCostSync';
+import { useSkuPricing } from './ProductDetails/useSkuPricing';
+import { useLaborFormulas } from './ProductDetails/useLaborFormulas';
 import { useSuppliers } from '../hooks/api/useSuppliers';
 import {
-    applySkipCasting,
     buildEditableProduct,
     buildVariantFinishGroups,
     getAnalyticalCostingItems,
     getImportedCostAnalysisDisplay,
-    getAvailableMolds,
-    getMaterialTypeLabel,
-    getRecipeMaterialSubtitle,
     getSortedFinishCodes,
     getSortedProductVariants,
     getVariantIndexBySuffix,
+    PLATING_LABELS,
     productsRepository,
     saveProductGraph,
 } from '../features/products';
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
-import { createMoldEntry } from '../features/products/repository';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
 import ConvertToImportedModal from './ConvertToImportedModal';
 import BarcodeGallery from './ProductRegistry/BarcodeGallery';
@@ -83,443 +68,11 @@ interface Props {
     zIndex?: number;
 }
 
-const SmartQuantityInput = React.memo(({
-    value,
-    onChange,
-    stonesPerStrand
-}: {
-    value: number,
-    onChange: (val: number) => void,
-    stonesPerStrand?: number
-}) => {
-    const [strandInput, setStrandInput] = useState<string>('');
-    const [showStrandInput, setShowStrandInput] = useState(false);
-
-    const applyStrands = () => {
-        const strands = parseFloat(strandInput);
-        if (!isNaN(strands) && stonesPerStrand) {
-            onChange(Math.round(strands * stonesPerStrand));
-        }
-        setShowStrandInput(false);
-        setStrandInput('');
-    };
-
-    return (
-        <div className="flex items-center gap-2 relative">
-            <input
-                type="number"
-                value={value}
-                onChange={(e) => onChange(parseFloat(e.target.value))}
-                className="w-16 p-1 text-center font-bold bg-white rounded border border-slate-200 outline-none focus:border-blue-400"
-            />
-            {stonesPerStrand && stonesPerStrand > 1 && (
-                <div className="relative">
-                    <button
-                        onClick={() => setShowStrandInput(!showStrandInput)}
-                        className="p-1 bg-blue-50 text-blue-600 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
-                        title="Εισαγωγή ως Κορδόνια"
-                    >
-                        <RefreshCcw size={14} />
-                    </button>
-                    {showStrandInput && (
-                        <div className="absolute top-full right-0 mt-2 z-50 bg-white p-3 rounded-xl shadow-xl border border-slate-100 w-48 animate-in zoom-in-95">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Κορδόνια ({formatNumber(stonesPerStrand)} πέτρες)</div>
-                            <div className="flex gap-2">
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    placeholder="1,5"
-                                    value={strandInput}
-                                    onChange={e => setStrandInput(e.target.value)}
-                                    className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"
-                                    autoFocus
-                                    onKeyDown={e => e.key === 'Enter' && applyStrands()}
-                                />
-                                <button onClick={applyStrands} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700">
-                                    <Check size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-});
-
-// --- RECIPE ITEM SELECTOR MODAL ---
-const RecipeItemSelectorModal = React.memo(({
-    type, productCategory, allMaterials, allProducts, onClose, onSelect
-}: {
-    type: 'raw' | 'component',
-    productCategory: string,
-    allMaterials: Material[],
-    allProducts: Product[],
-    onClose: () => void,
-    onSelect: (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => void
-}) => {
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
-        'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
-        'Σκουλαρίκια': { types: [MaterialType.Stone], names: ['ζιργκόν', 'πεταλούδα', 'καρφωτάκι'] },
-        'Βραχιόλι': { types: [MaterialType.Cord, MaterialType.Leather], names: ['κούμπωμα', 'δέρμα'] },
-        'Μενταγιόν': { types: [MaterialType.Leather], names: ['κρίκος', 'κρικάκι', 'κορδόνι'] },
-        'Σταυρός': { types: [], names: ['κρίκος', 'κρικάκι'] }
-    };
-
-    const { suggestions, others } = useMemo(() => {
-        const keywords = Object.entries(suggestionKeywords).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
-
-        let allItems: any[] = [];
-        if (type === 'raw') {
-            allItems = [...allMaterials];
-        } else {
-            // Filter components only
-            allItems = allProducts.filter(p => p.is_component);
-        }
-
-        const suggestedItems: any[] = [];
-        const otherItems: any[] = [];
-
-        allItems.forEach(item => {
-            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = (item.description || '').toLowerCase();
-
-            const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
-            if (isSuggested) {
-                suggestedItems.push(item);
-            } else {
-                otherItems.push(item);
-            }
-        });
-
-        const filterFn = (item: any) => {
-            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = (item.description || '').toLowerCase();
-            const search = searchTerm.toLowerCase();
-            return name.includes(search) || description.includes(search);
-        };
-
-        return {
-            suggestions: suggestedItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
-            others: otherItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
-        };
-    }, [type, productCategory, allMaterials, allProducts, searchTerm]);
-
-    const handleSelect = (item: any) => {
-        if (type === 'raw') {
-            onSelect({ type: 'raw', id: item.id });
-        } else {
-            onSelect({ type: 'component', sku: item.sku });
-        }
-    };
-
-    const renderListItem = (item: any) => {
-        const isComponent = type === 'component';
-        const name = isComponent ? item.sku : item.name;
-        const description = item.description;
-        const imageUrl = isComponent ? item.image_url : null;
-        // Cost formatting
-        const cost = isComponent
-            ? `${formatDecimal((item.active_price || 0), 2)}€`
-            : `${formatDecimal(item.cost_per_unit, 2)}€ / ${item.unit}`;
-
-        const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;
-
-        return (
-            <div
-                key={item.id || item.sku}
-                onClick={() => handleSelect(item)}
-                className="flex items-center gap-4 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors border border-transparent hover:border-emerald-100 group"
-            >
-                <div className="w-12 h-12 shrink-0 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center relative">
-                    {imageUrl ? (
-                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="text-slate-400">{icon}</div>
-                    )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <div className="flex shrink-0 items-center gap-2 self-start">
-                        <div className="font-bold text-slate-800 text-sm truncate">{name}</div>
-                        {isComponent && item.category && (
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[100px]">{item.category}</span>
-                        )}
-                        {!isComponent && item.stones_per_strand && (
-                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold whitespace-nowrap">
-                                {item.stones_per_strand} πέτρες/σειρά
-                            </span>
-                        )}
-                    </div>
-
-                    {description ? (
-                        <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
-                    ) : (
-                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : getMaterialTypeLabel(item.type)}</div>
-                    )}
-
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
-                </div>
-
-                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
-                    <Plus size={16} />
-                </div>
-            </div>
-        );
-    };
-
-    return (
-        <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col h-[70vh] animate-in zoom-in-95">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"><X size={20} /></button>
-                </div>
-                <div className="p-4 border-b border-slate-100">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder={type === 'component' ? "Αναζήτηση SKU ή Περιγραφής..." : "Αναζήτηση..."}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            autoFocus
-                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        />
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    {suggestions.length > 0 && (
-                        <div className="mb-6">
-                            <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2 ml-2">Προτεινόμενα</h4>
-                            <div className="space-y-1">
-                                {suggestions.map(renderListItem)}
-                            </div>
-                        </div>
-                    )}
-                    {(suggestions.length > 0 || searchTerm) && (
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 ml-2">Όλα</h4>
-                    )}
-                    <div className="space-y-1">
-                        {others.map(renderListItem)}
-                    </div>
-                    {suggestions.length === 0 && others.length === 0 && (
-                        <div className="text-center text-slate-400 py-10">
-                            <p>Δεν βρέθηκαν αποτελέσματα.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-});
-
-const SmartAnalysisCard = React.memo(({ analysis }: { analysis: SupplierAnalysis }) => {
-    // ... (unchanged)
-    const color =
-        analysis.verdict === 'Excellent' ? 'emerald' :
-            analysis.verdict === 'Fair' ? 'blue' :
-                analysis.verdict === 'Expensive' ? 'orange' : 'rose';
-
-    const Icon =
-        analysis.verdict === 'Excellent' ? ThumbsUp :
-            analysis.verdict === 'Fair' ? CheckCircle :
-                analysis.verdict === 'Expensive' ? Info : AlertTriangle;
-
-    const hasReportedLabor = analysis.breakdown.supplierReportedTotalLabor > 0;
-
-    return (
-        <div className={`border-2 border-${color}-100 bg-${color}-50/50 rounded-2xl p-5 space-y-4`}>
-            <div className="flex items-center gap-3 border-b border-${color}-200 pb-3">
-                <div className={`p-2 bg-${color}-100 text-${color}-600 rounded-lg`}>
-                    <Icon size={20} />
-                </div>
-                <div>
-                    <h4 className={`text-sm font-bold uppercase text-${color}-800`}>Έξυπνη Ανάλυση</h4>
-                    <p className={`text-xs font-medium text-${color}-600`}>Αξιολόγηση Τιμής Προμηθευτή</p>
-                </div>
-                <div className={`ml-auto px-3 py-1 bg-${color}-100 text-${color}-700 rounded-full text-xs font-black uppercase tracking-wide`}>
-                    {analysis.verdict === 'Excellent' && 'Εξαιρετική Τιμή'}
-                    {analysis.verdict === 'Fair' && 'Δίκαιη Τιμή'}
-                    {analysis.verdict === 'Expensive' && 'Ακριβό'}
-                    {analysis.verdict === 'Overpriced' && 'Υπερκοστολογημένο'}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Θεωρητικό Κόστος (Make)</div>
-                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.theoreticalMakeCost)}</div>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Αξία Υλικών (Melt)</div>
-                    <div className="text-xl font-bold text-slate-700">{formatCurrency(analysis.intrinsicValue)}</div>
-                </div>
-            </div>
-
-            {hasReportedLabor && (
-                <div className="bg-white/60 p-3 rounded-xl border border-slate-100 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-100 pb-1 mb-2">Ανάλυση Εργατικών (Forensics)</h5>
-
-                    <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-500">Κόστος Εργασίας Προμηθευτή:</span>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold">{formatCurrency(analysis.breakdown.supplierReportedTotalLabor)}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${analysis.laborEfficiency === 'Cheaper' ? 'bg-emerald-100 text-emerald-700' :
-                                analysis.laborEfficiency === 'More Expensive' ? 'bg-orange-100 text-orange-700' :
-                                    'bg-slate-100 text-slate-600'
-                                }`}>
-                                {analysis.laborEfficiency === 'Cheaper' ? 'Φθηνότερο' : analysis.laborEfficiency === 'More Expensive' ? 'Ακριβότερο' : 'Παρόμοιο'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {analysis.effectiveSilverPrice > 0 && (
-                        <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100/50">
-                            <span className="text-slate-500">Πραγματική Χρέωση Ασημιού:</span>
-                            <div className="flex items-center gap-2">
-                                <span className={`font-mono font-bold ${analysis.hasHiddenMarkup ? 'text-red-600' : 'text-slate-700'}`}>
-                                    {formatDecimal(analysis.effectiveSilverPrice, 2)}€/g
-                                </span>
-                                {analysis.hasHiddenMarkup && <span title="Κρυφή χρέωση στο μέταλλο"><AlertTriangle size={12} className="text-red-500" /></span>}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="space-y-2 pt-1">
-                <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-500">Επιπλέον Χρέωση</span>
-                    <span className="font-bold text-slate-700">{analysis.supplierPremium > 0 ? '+' : ''}{formatCurrency(analysis.supplierPremium)}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
-                    <div className="h-full bg-slate-400" style={{ width: `${(analysis.intrinsicValue / analysis.theoreticalMakeCost) * 100}%` }} title="Υλικά" />
-                    <div className={`h-full bg-${color}-500`} style={{ width: `${Math.min(100, (Math.max(0, analysis.supplierPremium) / analysis.theoreticalMakeCost) * 100)}%` }} title="Premium" />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400">
-                    <span>{formatCurrency(analysis.intrinsicValue)} Υλικά</span>
-                    <span>Περιθώριο: {formatNumber(analysis.premiumPercent)}%</span>
-                </div>
-            </div>
-        </div>
-    );
-});
-
-const AnalysisExplainerModal = React.memo(({ onClose }: { onClose: () => void }) => (
-    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-xl shadow-sm text-blue-600">
-                        <BookOpen size={24} />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-800">Πώς λειτουργεί ο Έλεγχos Τιμής;</h2>
-                        <p className="text-sm text-slate-500">Οδηγός Ανάλυσης Κόστους Προμηθευτή</p>
-                    </div>
-                </div>
-                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm transition-all"><X size={20} /></button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                <div className="space-y-4">
-                    <p className="text-slate-600 leading-relaxed">
-                        Το σύστημα χρησιμοποιεί μια μέθοδο <strong>Reverse Engineering</strong> (Αντίστροφης Μηχανικής) για να αναλύσει την τιμή που σας δίνει ο προμηθευτής. Συγκρίνει την τιμή αγοράς με το πραγματικό κόστος των υλικών και της εργασίας.
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Coins size={18} className="text-amber-500" /> Melt Value (Αξία Υλικών)</h3>
-                        <p className="text-sm text-slate-500">
-                            Είναι η "σκληρή" αξία του προϊόντος αν το λιώναμε. Υπολογίζεται από το Βάρος x Τιμή Ασημιού + Κόστος Πετρών. Αυτό είναι το ελάχιστο δυνατό κόστος.
-                        </p>
-                    </div>
-                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Hammer size={18} className="text-blue-500" /> Make Cost (Θεωρητικό)</h3>
-                        <p className="text-sm text-slate-500">
-                            Πόσο θα κόστιζε να το φτιάξουμε εμείς; Υπολογίζεται προσθέτοντας στην Αξία Υλικών τα τυπικά κοστολόγια εργαστηρίου (Χύτευση, Τεχνίτης, Καρφωτής).
-                        </p>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Forensics (Ιατροδικαστική Ανάλυση)</h3>
-                    <p className="text-sm text-slate-600">
-                        Εδώ γίνεται ο έλεγχos για "κρυφές χρεώσεις". Ζητώντας σας να συμπληρώσετε τα επιμέρους εργατικά που ισχυρίζεται ο προμηθευτής, το σύστημα κάνει τα εξής:
-                    </p>
-                    <ul className="space-y-3">
-                        <li className="flex gap-3 text-sm text-slate-700 bg-red-50 p-3 rounded-xl border border-red-100">
-                            <AlertTriangle className="text-red-500 shrink-0" size={20} />
-                            <span>
-                                <strong>Effective Silver Price:</strong> Αφαιρώντας τα εργατικά και τις πέτρες από την Τιμή Αγοράς, βρίσκουμε πόσο σας χρεώνει τελικά το γραμμάριο το μέταλλο. Αν βγει π.χ. 1.20€/g ενώ η αγορά είναι 0.85€/g, υπάρχει κρυφό "καπέλο" στο μέταλλο.
-                            </span>
-                        </li>
-                        <li className="flex gap-3 text-sm text-slate-700 bg-blue-50 p-3 rounded-xl border border-blue-100">
-                            <Activity className="text-blue-500 shrink-0" size={20} />
-                            <span>
-                                <strong>Labor Efficiency:</strong> Συγκρίνει τα εργατικά του προμηθευτή με τα δικά μας. Αν είναι πολύ υψηλότερα, ίσως είναι υπερκοστολογημένα.
-                            </span>
-                        </li>
-                    </ul>
-                </div>
-
-                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 text-center">
-                    <h3 className="font-bold text-emerald-800 mb-2">Η Ετυμηγορία (Verdict)</h3>
-                    <p className="text-sm text-emerald-700">
-                        Το σύστημα χαρακτηρίζει την τιμή ως <strong>Excellent</strong>, <strong>Fair</strong>, ή <strong>Overpriced</strong> βασιζόμενο στο πόσο απέχει η Τιμή Αγοράς από το Θεωρητικό Κόστος Παραγωγής.
-                    </p>
-                </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 bg-slate-50 text-center">
-                <button onClick={onClose} className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg">
-                    Κατάλαβα
-                </button>
-            </div>
-        </div>
-    </div>
-));
-
-const LaborCostInput = React.memo(({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14} /> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
-    <div className="group flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2 transition-colors hover:border-slate-200 hover:bg-slate-50">
-        <span className="flex items-center gap-2 text-sm text-slate-600">
-            <span className="text-slate-400 transition-colors group-hover:text-slate-500">{icon}</span>
-            {label}
-        </span>
-        <div className="flex items-center gap-2">
-            <input
-                type="number" step="0.01"
-                value={value}
-                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                readOnly={readOnly || (onToggleOverride && !override)}
-                className={`w-20 rounded-md border border-slate-200 bg-white p-1.5 text-right font-mono text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'font-bold text-slate-800'}`}
-            />
-            {onToggleOverride && (
-                <button onClick={onToggleOverride} className={`rounded-md p-1 transition-all ${override ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'text-slate-300 hover:bg-amber-50 hover:text-amber-500'}`}>
-                    {override ? <Unlock size={14} /> : <Lock size={14} />}
-                </button>
-            )}
-            <span className="text-xs font-medium text-slate-400">€</span>
-        </div>
-    </div>
-));
-
-const SummaryRow = React.memo(({ label, value, sub, color }: { label: string, value: string, sub?: string, color: string }) => (
-    <div className="flex items-center justify-between py-1">
-        <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${color}`}></div>
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</span>
-        </div>
-        <div className="text-right">
-            <div className="font-mono font-bold text-slate-800 text-sm">{value}</div>
-            {sub && <div className="text-[10px] text-slate-400 font-medium">{sub}</div>}
-        </div>
-    </div>
-));
+const GENDER_LABELS: Record<Gender, string> = {
+    [Gender.Women]: 'Γυναικείο',
+    [Gender.Men]: 'Ανδρικό',
+    [Gender.Unisex]: 'Ουδέτερο',
+};
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix, zIndex = 100 }: Props) {
     const queryClient = useQueryClient();
@@ -527,7 +80,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const { profile } = useAuth();
     const { data: suppliers } = useSuppliers();
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'production' | 'variants' | 'barcodes'>('overview');
+    const [activeTab, setActiveTab] = useState<DetailsTab['id']>('overview');
     const [productionSection, setProductionSection] = useState<'recipe' | 'labor'>('recipe');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -543,46 +96,28 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [tempSku, setTempSku] = useState(product.sku);
     const [isRenaming, setIsRenaming] = useState(false);
 
-    // Modal State
     const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
-
-    const [editedProduct, setEditedProduct] = useState<Product>(() => {
-        return buildEditableProduct(product);
-    });
-
-    const [showRepriceTool, setShowRepriceTool] = useState(false);
-    const [targetMargin, setTargetMargin] = useState(50);
-    const [calculatedPrice, setCalculatedPrice] = useState(0);
-
-    const [isAddingMold, setIsAddingMold] = useState(false);
-    const [moldSearch, setMoldSearch] = useState('');
-    const [newMoldCode, setNewMoldCode] = useState('L');
-    const [newMoldLoc, setNewMoldLoc] = useState('');
-    const [newMoldDesc, setNewMoldDesc] = useState('');
+    const [editedProduct, setEditedProduct] = useState<Product>(() => buildEditableProduct(product));
+    const [moldDraft, setMoldDraft] = useState<MoldDraft>(EMPTY_MOLD_DRAFT);
     const [isCreatingMold, setIsCreatingMold] = useState(false);
-    const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
 
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isDeletingImage, setIsDeletingImage] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
-    const productRestart = useRestartDraft('Καρτέλα SKU', { product: productDraftSnapshot(editedProduct), tempSku, newMoldCode: isAddingMold ? newMoldCode : '', newMoldLoc: isAddingMold ? newMoldLoc : '', newMoldDesc: isAddingMold ? newMoldDesc : '' }, { identity: product.sku, busy: isSaving || isRenaming || isDeleting || isUploadingImage || isDeletingImage || isCreatingMold });
+    const productRestart = useRestartDraft('Καρτέλα SKU', { product: productDraftSnapshot(editedProduct), tempSku, newMoldCode: moldDraft.open ? moldDraft.code : '', newMoldLoc: moldDraft.open ? moldDraft.location : '', newMoldDesc: moldDraft.open ? moldDraft.description : '' }, { identity: product.sku, busy: isSaving || isRenaming || isDeleting || isUploadingImage || isDeletingImage || isCreatingMold });
+
+    const isInHouse = editedProduct.production_type === ProductionType.InHouse;
 
     const TABS = useMemo((): DetailsTab[] => {
-        const baseTabs: DetailsTab[] = [
-            { id: 'overview', label: 'Στοιχεία', icon: Info },
-        ];
-        if (editedProduct.production_type === ProductionType.InHouse) {
-            baseTabs.push({ id: 'production', label: 'Παραγωγή', icon: Factory });
-        }
+        const baseTabs: DetailsTab[] = [{ id: 'overview', label: 'Στοιχεία', icon: Info }];
+        if (isInHouse) baseTabs.push({ id: 'production', label: 'Παραγωγή', icon: Factory });
         baseTabs.push({ id: 'variants', label: 'Παραλλαγές', icon: Layers, count: editedProduct.variants?.length || 0 });
         baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
         return baseTabs;
-    }, [editedProduct.production_type, editedProduct.variants?.length]);
+    }, [isInHouse, editedProduct.variants?.length]);
 
     useEffect(() => {
-        if (!TABS.some((tab) => tab.id === activeTab)) {
-            setActiveTab('overview');
-        }
+        if (!TABS.some((tab) => tab.id === activeTab)) setActiveTab('overview');
     }, [TABS, activeTab]);
 
     useEffect(() => {
@@ -600,127 +135,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         ));
     }, [product, initialVariantSuffix]);
 
-    useEffect(() => {
-        setEditedProduct(prev => {
-            let labor = { ...prev.labor };
-            let changed = false;
-
-            const mergeLabor = (updates: Partial<LaborCost>) => {
-                for (const [key, val] of Object.entries(updates)) {
-                    const k = key as keyof LaborCost;
-                    if (labor[k] !== val) {
-                        (labor as Record<string, unknown>)[k] = val;
-                        changed = true;
-                    }
-                }
-            };
-
-            if (prev.production_type === ProductionType.InHouse) {
-                mergeLabor(computeAutoLaborCosts(prev, allProducts, shouldUseSplitTechnicianCost(prev), settings));
-            } else if (prev.production_type === ProductionType.Imported) {
-                if (!prev.labor.plating_cost_x_manual_override && prev.labor.plating_cost_x === 0) {
-                    mergeLabor({ plating_cost_x: getPricingRules(settings).plating_rate });
-                }
-                if (!prev.labor.plating_cost_d_manual_override) {
-                    const dWeight = getPlatingDWeightBasis(prev, allProducts);
-                    mergeLabor({ plating_cost_d: parseFloat((dWeight * getPricingRules(settings).plating_rate).toFixed(2)) });
-                }
-            }
-
-            return changed ? { ...prev, labor } : prev;
-        });
-    }, [
-        editedProduct.weight_g,
-        editedProduct.secondary_weight_g,
-        editedProduct.recipe,
-        editedProduct.production_type,
-        editedProduct.is_component,
-        editedProduct.plating_type,
-        editedProduct.gender,
-        editedProduct.variants?.length,
-        editedProduct.variants,
-        editedProduct.labor.casting_cost_manual_override,
-        editedProduct.labor.technician_cost_manual_override,
-        editedProduct.labor.plating_cost_x_manual_override,
-        editedProduct.labor.plating_cost_d_manual_override,
-        allProducts,
-        settings,
-    ]);
-
-    useEffect(() => {
-        setEditedProduct(prev => {
-            if (!prev.variants || prev.variants.length === 0) return prev;
-
-            let hasChanges = false;
-            const updatedVariants = prev.variants.map(v => {
-                const { total: estimated } = estimateVariantCost(
-                    prev,
-                    v.suffix,
-                    settings,
-                    allMaterials,
-                    allProducts
-                );
-
-                if (Math.abs((v.active_price || 0) - estimated) > 0.005) {
-                    hasChanges = true;
-                    return { ...v, active_price: estimated };
-                }
-                return v;
-            });
-
-            if (hasChanges) {
-                return { ...prev, variants: updatedVariants };
-            }
-            return prev;
-        });
-    }, [
-        editedProduct.weight_g,
-        editedProduct.secondary_weight_g,
-        editedProduct.labor.casting_cost,
-        editedProduct.labor.setter_cost,
-        editedProduct.labor.technician_cost,
-        editedProduct.labor.stone_setting_cost,
-        editedProduct.labor.plating_cost_x,
-        editedProduct.labor.plating_cost_d,
-        editedProduct.labor.subcontract_cost,
-        editedProduct.plating_type,
-        editedProduct.recipe,
-        editedProduct.variants?.length,
-        editedProduct.supplier_cost,
-        settings, allMaterials, allProducts
-    ]);
+    useAutoCostSync(editedProduct, setEditedProduct, settings, allMaterials, allProducts);
 
     const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
     const masterCost = currentCostCalc.total;
     const importedCostAnalysis = getImportedCostAnalysisDisplay(currentCostCalc);
-
-    const updateCalculatedPrice = (margin: number) => {
-        const marginDecimal = margin / 100;
-        if (marginDecimal >= 1) {
-            setCalculatedPrice(0);
-            return;
-        }
-        const price = masterCost / (1 - marginDecimal);
-        setCalculatedPrice(roundPrice(price, settings));
-    };
-
-    const handleStandardFormula = () => {
-        const suggested = getIliosSuggestedPriceForProduct(editedProduct, null, settings, allMaterials, allProducts);
-        setCalculatedPrice(suggested);
-
-        if (suggested > 0 && suggested > masterCost) {
-            const impliedMargin = ((suggested - masterCost) / suggested) * 100;
-            setTargetMargin(parseFloat(impliedMargin.toFixed(1)));
-        }
-    };
-
-    const applyReprice = () => {
-        setEditedProduct(prev => ({
-            ...prev,
-            selling_price: calculatedPrice,
-            selling_price_manual_override: false,
-        }));
-    };
 
     const variants = editedProduct.variants || [];
     const hasVariants = variants.length > 0;
@@ -731,20 +150,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [variants, editedProduct.gender]);
 
     const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
-    const showPager = hasVariants;
+
     useEffect(() => {
         setIsVariantPickerOpen(false);
     }, [product.sku, viewIndex]);
 
     useEffect(() => {
         if (!isVariantPickerOpen) return;
-
         const handlePointerDown = (event: MouseEvent) => {
             if (variantPickerRef.current && !variantPickerRef.current.contains(event.target as Node)) {
                 setIsVariantPickerOpen(false);
             }
         };
-
         document.addEventListener('mousedown', handlePointerDown);
         return () => document.removeEventListener('mousedown', handlePointerDown);
     }, [isVariantPickerOpen]);
@@ -759,12 +176,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     let displayedLabel = 'Βασικό';
     let displayedCost = masterCost;
     let displayedPrice = editedProduct.selling_price;
-    let isVariantView = !!currentViewVariant;
 
     if (currentViewVariant) {
         displayedSku = `${editedProduct.sku}${currentViewVariant.suffix}`;
         displayedLabel = currentViewVariant.description || currentViewVariant.suffix;
-
         if (currentViewVariant.active_price != null) displayedCost = currentViewVariant.active_price;
         if (currentViewVariant.selling_price != null) displayedPrice = currentViewVariant.selling_price;
     }
@@ -772,128 +187,65 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const displayedProfit = displayedPrice - displayedCost;
     const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
 
-    // Group variants by finish code for the pricing section
     const finishGroups = useMemo(() => {
         if (!hasVariants) return {};
         return buildVariantFinishGroups(editedProduct, sortedVariantsList);
     }, [sortedVariantsList, editedProduct.gender, hasVariants]);
 
-    const sortedFinishCodes = useMemo(() => {
-        return getSortedFinishCodes(finishGroups);
-    }, [finishGroups]);
+    const sortedFinishCodes = useMemo(() => getSortedFinishCodes(finishGroups), [finishGroups]);
 
-    // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
-    const getSuggestedPriceForVariant = (suffix: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
-        const est = estimateVariantCost(editedProduct, suffix, settings, allMaterials, allProducts);
-        const hasVariants = (editedProduct.variants?.length ?? 0) > 0;
+    const pricing = useSkuPricing({ editedProduct, setEditedProduct, settings, allMaterials, allProducts, finishGroups, masterCost, showToast });
+    const laborFormulas = useLaborFormulas(editedProduct, setEditedProduct, settings, allProducts);
 
-        if (mode === 'formula') {
-            return getIliosSuggestedPriceForProduct(editedProduct, hasVariants ? suffix : null, settings, allMaterials, allProducts);
+    const secondaryWeightLabel = useMemo(
+        () => getSecondaryWeightLabel(editedProduct.gender, editedProduct.category),
+        [editedProduct.gender, editedProduct.category],
+    );
+
+    const invoiceTotalWeightResult = useMemo(
+        () => resolveInvoiceTotalWeight(editedProduct, allProducts, allMaterials),
+        [editedProduct, allProducts, allMaterials],
+    );
+
+    const analyticalCostingItems = useMemo(() => {
+        return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
+    }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
+
+    const displayedComposition = useMemo(() => {
+        const item = currentViewVariant ? analyticalCostingItems.find(i => i.suffix === currentViewVariant.suffix) : null;
+        const breakdown = (item?.costResult ?? currentCostCalc).breakdown || {};
+        return { silver: breakdown.silver || 0, materials: breakdown.materials || 0, labor: breakdown.labor || 0 };
+    }, [analyticalCostingItems, currentViewVariant, currentCostCalc]);
+
+    const componentUsageCount = useMemo(() => {
+        if (!editedProduct.is_component) return 0;
+        return allProducts.filter(p => p.recipe?.some(r => r.type === 'component' && r.sku === editedProduct.sku)).length;
+    }, [allProducts, editedProduct.is_component, editedProduct.sku]);
+
+    const recordFacts = useMemo(() => {
+        const supplier = suppliers?.find(s => s.id === editedProduct.supplier_id);
+        const facts: { label: string; value: React.ReactNode }[] = [
+            { label: 'Κωδικός', value: <span className="font-mono">{editedProduct.sku}</span> },
+            { label: 'Κατηγορία', value: editedProduct.category || '—' },
+            { label: 'Φύλο', value: GENDER_LABELS[editedProduct.gender] || editedProduct.gender },
+            { label: 'Επιμετάλλωση', value: hasVariants ? 'Ανά παραλλαγή' : (PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type) },
+        ];
+        if (isInHouse) {
+            facts.push({ label: 'Συνταγή', value: `${editedProduct.recipe.length} είδη` });
+            facts.push({ label: 'Λάστιχα', value: editedProduct.molds.length ? <span className="font-mono">{editedProduct.molds.map(m => m.quantity > 1 ? `${m.code}×${m.quantity}` : m.code).join(', ')}</span> : '—' });
         } else {
-            // Margin Mode
-            const totalCost = est.total;
-            const marginDecimal = margin / 100;
-            if (marginDecimal >= 1) return 0;
-            return roundPrice(totalCost / (1 - marginDecimal), settings);
+            facts.push({ label: 'Προμηθευτής', value: supplier?.name || '—' });
+            facts.push({ label: 'Κωδ. προμηθευτή', value: editedProduct.supplier_sku ? <span className="font-mono">{editedProduct.supplier_sku}</span> : '—' });
         }
-    };
+        return facts;
+    }, [editedProduct, hasVariants, isInHouse, suppliers]);
 
-    // Helper for Group Suggestions (keeping it for the overview hint, using representative)
-    const getSuggestedPriceForFinishGroup = (finishCode: string, mode: 'formula' | 'margin' = 'formula', margin: number = 0) => {
-        const groupVariants = finishGroups[finishCode] || [];
-        const representative = groupVariants.length > 0 ? groupVariants[0] : null;
-        if (representative) return getSuggestedPriceForVariant(representative.suffix, mode, margin);
-        // Fallback to master if no variants
-        return getSuggestedPriceForVariant('', mode, margin);
-    };
-
-    const handleApplyAllSuggestions = (mode: 'formula' | 'margin') => {
-        const updates = [...(editedProduct.variants || [])];
-        let masterPriceUpdate = editedProduct.selling_price;
-        let updateCount = 0;
-
-        // Update Variants Individually to capture stone/material diffs
-        updates.forEach((variant, idx) => {
-            const suggested = getSuggestedPriceForVariant(variant.suffix, mode, targetMargin);
-            if (Math.abs((variant.selling_price || 0) - suggested) > 0.01) {
-                updates[idx] = { ...variant, selling_price: suggested, selling_price_manual_override: false };
-                updateCount++;
-            }
-        });
-
-        // Update Master if needed (Simple Product)
-        if (!hasVariants) {
-            const suggested = getSuggestedPriceForVariant('', mode, targetMargin);
-            if (Math.abs(masterPriceUpdate - suggested) > 0.01) {
-                masterPriceUpdate = suggested;
-                updateCount++;
-            }
-        }
-
+    const handleSelectRecipeItem = (item: RecipeSelection) => {
         setEditedProduct(prev => ({
             ...prev,
-            variants: updates,
-            selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price,
-            selling_price_manual_override: !hasVariants ? false : prev.selling_price_manual_override,
-        }));
-
-        if (updateCount > 0) {
-            showToast(`Ενημερώθηκαν ${formatNumber(updateCount)} τιμές (με ανάλυση υλικών/πετρών).`, 'success');
-        } else {
-            showToast('Οι τιμές είναι ήδη ενημερωμένες.', 'info');
-        }
-    };
-
-    const applyFormulaToSingleVariant = (index: number) => {
-        const variant = sortedVariantsList[index];
-        const realIndex = (editedProduct.variants || []).findIndex(v => v.suffix === variant.suffix);
-        if (realIndex === -1) return;
-
-        const suggested = getSuggestedPriceForVariant(variant.suffix, 'formula');
-
-        const newVariants = [...(editedProduct.variants || [])];
-        newVariants[realIndex] = {
-            ...newVariants[realIndex],
-            selling_price: suggested,
-            selling_price_manual_override: false,
-        };
-        setEditedProduct(prev => ({ ...prev, variants: newVariants }));
-        showToast(`Τιμή για ${variant.suffix}: ${formatNumber(suggested)}€`, 'success');
-    };
-
-    const handleSelectRecipeItem = (item: { type: 'raw', id: string } | { type: 'component', sku: string }) => {
-        let newItem: RecipeItem;
-        if (item.type === 'raw') {
-            newItem = { type: 'raw', id: item.id, quantity: 1 };
-        } else {
-            newItem = { type: 'component', sku: item.sku, quantity: 1 };
-        }
-        setEditedProduct(prev => ({
-            ...prev,
-            recipe: [...prev.recipe, newItem]
+            recipe: [...prev.recipe, item.type === 'raw' ? { type: 'raw', id: item.id, quantity: 1 } : { type: 'component', sku: item.sku, quantity: 1 }],
         }));
         setIsRecipeModalOpen(false);
-    };
-
-    const updateRecipeItem = (index: number, field: string, value: any) => {
-        const newRecipe = [...editedProduct.recipe];
-        const item = { ...newRecipe[index] };
-        if (field === 'quantity') {
-            item.quantity = parseFloat(value) || 0;
-        } else if (field === 'id' && item.type === 'raw') {
-            item.id = value;
-        } else if (field === 'sku' && item.type === 'component') {
-            item.sku = value;
-        }
-        newRecipe[index] = item;
-        setEditedProduct(prev => ({ ...prev, recipe: newRecipe }));
-    };
-
-    const removeRecipeItem = (index: number) => {
-        setEditedProduct(prev => ({
-            ...prev,
-            recipe: prev.recipe.filter((_, i) => i !== index)
-        }));
     };
 
     const handleSave = async () => {
@@ -993,6 +345,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
+    // Ctrl/Cmd+S saves while this card is the top-most editor.
+    const saveShortcutRef = useRef(handleSave);
+    saveShortcutRef.current = handleSave;
+    const shortcutBlocked = !!isRecipeModalOpen || showConvertModal;
+    useEffect(() => {
+        if (shortcutBlocked) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                void saveShortcutRef.current();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [shortcutBlocked]);
+
     const requestDelete = async () => {
         const confirmed = await confirm({
             title: 'Διαγραφή Προϊόντος',
@@ -1040,43 +408,35 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const handleDeleteImage = async () => {
         if (!editedProduct.image_url) return;
-        
+
         const confirmed = await confirm({
             title: 'Διαγραφή Φωτογραφίας',
             message: `Είστε σίγουροι ότι θέλετε να διαγράψετε τη φωτογραφία; Η εικόνα θα διαγραφεί και από τον αποθηκευτικό χώρο.`,
             confirmText: 'Διαγραφή',
             isDestructive: true
         });
-        
         if (!confirmed) return;
-        
+
         setIsDeletingImage(true);
         try {
             // Extract filename from URL to delete from R2
-            const imageUrl = editedProduct.image_url;
-            const urlParts = imageUrl.split('/');
+            const urlParts = editedProduct.image_url.split('/');
             const fileName = urlParts[urlParts.length - 1];
-            
-            // Send DELETE request to Cloudflare Worker
+
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${fileName}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': AUTH_KEY_SECRET }
             });
-            
             if (!response.ok) {
                 throw new Error(`Failed to delete image: ${response.status}`);
             }
-            
-            // Update product record to remove image URL
+
             const updatedProduct = { ...editedProduct, image_url: null };
             setEditedProduct(updatedProduct);
-            
-            // Save to database
             await productsRepository.saveProduct(updatedProduct);
-            
             // Bring in the updated SKU without a full catalogue download
             await refreshErpProducts(queryClient, [editedProduct.sku]);
-            
+
             showToast("Η φωτογραφία διαγράφηκε επιτυχώς.", "success");
         } catch (error) {
             console.error('Error deleting image:', error);
@@ -1084,206 +444,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         } finally {
             setIsDeletingImage(false);
         }
-    };
-
-    const handleSmartAddVariants = (newVariants: ProductVariant[]) => {
-        if (!newVariants.length) return;
-        setEditedProduct(prev => ({
-            ...prev,
-            variants: [...(prev.variants || []), ...newVariants],
-        }));
-    };
-
-    const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
-        const variantToUpdate = sortedVariantsList[index];
-        const realIndex = (editedProduct.variants || []).findIndex(v => v.suffix === variantToUpdate.suffix);
-        if (realIndex === -1) return;
-        const newVariants = [...(editedProduct.variants || [])];
-        newVariants[realIndex] = {
-            ...newVariants[realIndex],
-            [field]: value,
-            ...(field === 'selling_price' ? { selling_price_manual_override: true } : {}),
-        };
-        setEditedProduct(prev => ({ ...prev, variants: newVariants }));
-    };
-
-    const deleteVariant = (index: number) => {
-        const variantToDelete = sortedVariantsList[index];
-        setEditedProduct(prev => ({
-            ...prev,
-            variants: (prev.variants || []).filter(v => v.suffix !== variantToDelete.suffix)
-        }));
-    };
-
-    const addMold = (code: string) => {
-        if (editedProduct.molds.some(m => m.code === code)) return;
-        setEditedProduct(prev => ({
-            ...prev,
-            molds: [...prev.molds, { code, quantity: 1 }]
-        }));
-    };
-
-    const updateMoldQuantity = (code: string, delta: number) => {
-        setEditedProduct(prev => ({
-            ...prev,
-            molds: prev.molds.map(m => m.code === code ? { ...m, quantity: Math.max(1, m.quantity + delta) } : m)
-        }));
-    };
-
-    const removeMold = (code: string) => {
-        setEditedProduct(prev => ({
-            ...prev,
-            molds: prev.molds.filter(m => m.code !== code)
-        }));
-    };
-
-    const availableMolds = useMemo(() => {
-        return getAvailableMolds(allMolds, editedProduct.molds, moldSearch);
-    }, [allMolds, editedProduct.molds, moldSearch]);
-
-    const handleQuickCreateMold = async () => {
-        const code = newMoldCode.trim().toUpperCase();
-        if (!code || code === 'L') {
-            showToast('Ο Κωδικός είναι υποχρεωτικός.', 'error');
-            return;
-        }
-
-        setIsCreatingMold(true);
-        try {
-            await createMoldEntry({
-                code,
-                location: newMoldLoc.trim(),
-                description: newMoldDesc.trim(),
-                weight_g: 0,
-            });
-
-            await queryClient.invalidateQueries({ queryKey: ['molds'] });
-
-            setEditedProduct((prev) => {
-                if (prev.molds.some((m) => m.code === code)) return prev;
-                return { ...prev, molds: [...prev.molds, { code, quantity: 1 }] };
-            });
-
-            setNewMoldCode('L');
-            setNewMoldLoc('');
-            setNewMoldDesc('');
-            setIsAddingMold(false);
-            setMoldSearch('');
-            showToast(`Το λάστιχο ${code} επιλέχθηκε!`, 'success');
-        } catch (err: any) {
-            showToast('Σφάλμα δημιουργίας. Πιθανώς ο κωδικός υπάρχει ήδη.', 'error');
-        } finally {
-            setIsCreatingMold(false);
-        }
-    };
-
-    const secondaryWeightLabel = useMemo(() => {
-        return getSecondaryWeightLabel(editedProduct.gender, editedProduct.category);
-    }, [editedProduct.gender, editedProduct.category]);
-
-    const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
-    const invoiceTotalWeightResult = useMemo(
-        () => resolveInvoiceTotalWeight(editedProduct, allProducts, allMaterials),
-        [editedProduct, allProducts, allMaterials],
-    );
-
-    const analyticalCostingItems = useMemo(() => {
-        return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
-    }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
-
-    const useSplitTechnician = useMemo(
-        () => shouldUseSplitTechnicianCost(editedProduct),
-        [editedProduct.plating_type, editedProduct.gender, editedProduct.variants],
-    );
-    const hasMixedTechnician = useMemo(
-        () => hasMixedTechnicianVariants(editedProduct),
-        [editedProduct.plating_type, editedProduct.gender, editedProduct.variants],
-    );
-
-    const castingFormula = useMemo(
-        () => getCastingFormulaLine(editedProduct.labor, editedProduct, settings),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, settings, editedProduct.skip_casting],
-    );
-    const technicianFormula = useMemo(
-        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct, useSplitTechnician, settings),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, useSplitTechnician, settings, editedProduct.skip_casting],
-    );
-    const platingXFormula = useMemo(
-        () => getPlatingXFormulaLine(editedProduct.labor, editedProduct, allProducts, settings),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.recipe, allProducts, settings, editedProduct.skip_casting],
-    );
-    const platingDFormula = useMemo(
-        () => getPlatingDFormulaLine(editedProduct.labor, editedProduct, allProducts, settings),
-        [editedProduct.labor, editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, settings, editedProduct.skip_casting],
-    );
-
-    const patchLaborFormula = (
-        field: LaborFormulaField,
-        patch: Partial<LaborCost>,
-        productPatch?: Partial<Product>,
-    ) => {
-        setEditedProduct(prev => ({
-            ...prev,
-            ...productPatch,
-            labor: { ...prev.labor, ...patch },
-        }));
-    };
-
-    const handleFormulaRateChange = (field: LaborFormulaField, rate: number, weightBasis: number) => {
-        patchLaborFormula(field, applyFormulaRateChange(field, rate, weightBasis));
-    };
-
-    const handleFormulaTotalChange = (field: LaborFormulaField, total: number) => {
-        patchLaborFormula(field, applyFormulaTotalChange(field, total));
-    };
-
-    const handleFormulaToggleOverride = (field: LaborFormulaField) => {
-        const overrideKeys: Record<LaborFormulaField, keyof LaborCost> = {
-            casting: 'casting_cost_manual_override',
-            technician: 'technician_cost_manual_override',
-            plating_x: 'plating_cost_x_manual_override',
-            plating_d: 'plating_cost_d_manual_override',
-        };
-        const key = overrideKeys[field];
-        patchLaborFormula(field, { [key]: !editedProduct.labor[key] } as Partial<LaborCost>);
-    };
-
-    const handleCastingWeightChange = (newBasis: number) => {
-        const weight_g = syncPrimaryWeightFromTotalBasis(editedProduct, newBasis);
-        const rate = castingFormula.rate;
-        patchLaborFormula(
-            'casting',
-            applyFormulaRateChange('casting', rate, newBasis),
-            { weight_g },
-        );
-    };
-
-    const handleTechnicianWeightChange = (newBasis: number) => {
-        if (editedProduct.is_component) {
-            patchLaborFormula(
-                'technician',
-                applyFormulaRateChange('technician', technicianFormula.rate, newBasis),
-                { weight_g: newBasis },
-            );
-        } else {
-            const weight_g = syncPrimaryWeightFromTotalBasis(editedProduct, newBasis);
-            patchLaborFormula(
-                'technician',
-                applyFormulaRateChange('technician', technicianFormula.rate, newBasis),
-                { weight_g },
-            );
-        }
-    };
-
-    const handlePlatingXWeightChange = (_newBasis: number) => { /* weight basis includes recipe — read-only */ };
-
-    const handlePlatingDWeightChange = (newBasis: number) => {
-        const secondary_weight_g = syncSecondaryWeightFromPlatingDBasis(editedProduct, allProducts, newBasis);
-        patchLaborFormula(
-            'plating_d',
-            applyFormulaRateChange('plating_d', platingDFormula.rate, newBasis),
-            { secondary_weight_g },
-        );
     };
 
     const handleRenameSku = async () => {
@@ -1297,8 +457,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             showToast("Το SKU πρέπει να έχει τουλάχιστον 3 χαρακτήρες.", "error");
             return;
         }
-
-        // Check existence
         if (allProducts.some(p => p.sku === newSku)) {
             showToast(`Το SKU ${newSku} υπάρχει ήδη.`, "error");
             return;
@@ -1310,7 +468,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             confirmText: 'Μετονομασία',
             isDestructive: true
         });
-
         if (!confirmed) {
             setTempSku(product.sku);
             setIsEditingSku(false);
@@ -1320,11 +477,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         setIsRenaming(true);
         try {
             await productsRepository.renameProduct(product.sku, newSku);
-
-            // Update local state to reflect change immediately without full reload if possible, 
-            // but react-query invalidation will handle it best.
             setEditedProduct(prev => ({ ...prev, sku: newSku }));
-
             removeProductsFromCache(queryClient, [product.sku]);
             await refreshErpProducts(queryClient, [newSku]);
             dispatchLiveActivity({ type: 'product_renamed', userName: profile?.full_name || 'Κάποιος', sku: newSku, oldSku: product.sku, newSku });
@@ -1339,8 +492,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
+    const scopeLabel = currentViewVariant ? `${displayedSku} · ${displayedLabel}` : `${editedProduct.sku} · Βασικό`;
+
     const mainPortal = createPortal(
-        <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6 print:hidden" style={{ zIndex }}>
+        <div className="fixed inset-0 flex items-center justify-center p-3 sm:p-5 print:hidden" style={{ zIndex }}>
             {isRecipeModalOpen && (
                 <RecipeItemSelectorModal
                     type={isRecipeModalOpen}
@@ -1351,14 +506,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onSelect={handleSelectRecipeItem}
                 />
             )}
-            {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="sku-details bg-white w-full max-w-7xl h-[92vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div role="dialog" aria-modal="true" aria-label={`Καρτέλα SKU ${displayedSku}`} className="sku-details relative flex h-[94vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
 
                 <DetailsHeader
                     displayedSku={displayedSku}
                     displayedLabel={displayedLabel}
                     gender={editedProduct.gender}
+                    category={editedProduct.category}
+                    imageUrl={editedProduct.image_url}
                     productionType={editedProduct.production_type}
                     isComponent={!!editedProduct.is_component}
                     skipCasting={!!editedProduct.skip_casting}
@@ -1366,7 +522,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     isEditingSku={isEditingSku}
                     tempSku={tempSku}
                     isRenaming={isRenaming}
-                    showPager={showPager}
+                    showPager={hasVariants}
                     variantPickerRef={variantPickerRef}
                     isVariantPickerOpen={isVariantPickerOpen}
                     sortedVariants={sortedVariantsList}
@@ -1391,822 +547,130 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     isDeleting={isDeleting}
                 />
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/80">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                        <div className="lg:col-span-3 min-w-0">
+                <DetailsKpiStrip
+                    isComponent={!!editedProduct.is_component}
+                    scopeLabel={currentViewVariant ? displayedLabel : 'Βασικό'}
+                    cost={displayedCost}
+                    price={displayedPrice}
+                    margin={displayedMargin}
+                    totalWeight={editedProduct.weight_g + (editedProduct.secondary_weight_g || 0)}
+                    secondaryWeight={editedProduct.secondary_weight_g || 0}
+                    variantCount={variants.length}
+                    moldCount={editedProduct.molds.length}
+                    usageCount={componentUsageCount}
+                />
+
+                <div className="flex-1 overflow-y-auto bg-slate-50/80 p-4 md:p-6">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]">
+                        <aside className="min-w-0">
                             <DetailsSidebar
                                 sku={editedProduct.sku}
                                 imageUrl={editedProduct.image_url}
                                 isUploadingImage={isUploadingImage}
                                 isDeletingImage={isDeletingImage}
-                                isComponent={!!editedProduct.is_component}
-                                displayedCost={displayedCost}
-                                displayedPrice={displayedPrice}
-                                displayedMargin={displayedMargin}
                                 onImageUpdate={handleImageUpdate}
                                 onDeleteImage={handleDeleteImage}
+                                composition={displayedComposition}
+                                cost={displayedCost}
+                                scopeLabel={scopeLabel}
+                                facts={recordFacts}
                             />
-                        </div>
+                        </aside>
 
-                        <div className="lg:col-span-9 min-w-0 space-y-5">
-
+                        <div className="min-w-0 space-y-5">
                             <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
                             <div className="min-h-[400px]">
-                                {activeTab === 'overview' && (
-                                    <div className="space-y-5 animate-in fade-in">
-                                        {editedProduct.production_type === ProductionType.InHouse ? (
-                                            <>
-                                                <DetailsSection
-                                                    tone="identity"
-                                                    icon={Info}
-                                                    title="Ταυτότητα"
-                                                    actions={(
-                                                        <label className="flex cursor-pointer items-center gap-2 normal-case tracking-normal">
-                                                            <span className="text-[10px] font-bold uppercase text-purple-600">Χωρίς χύτευση</span>
-                                                            <input
-                                                                type="checkbox"
-                                                                className="h-4 w-4 accent-purple-600"
-                                                                checked={!!editedProduct.skip_casting}
-                                                                onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
-                                                            />
-                                                        </label>
-                                                    )}
-                                                >
-                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <DetailsField label="Κατηγορία" icon={Tag}>
-                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
-                                                        </DetailsField>
-                                                        <DetailsField label="Προέλευση">
-                                                            <ProductionTypeBadge productionType={editedProduct.production_type} />
-                                                        </DetailsField>
-                                                        <DetailsField label="Φύλο" icon={Users}>
-                                                            <select className={detailsInputClass} value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
-                                                                <option value={Gender.Women}>Γυναικείο</option>
-                                                                <option value={Gender.Men}>Ανδρικό</option>
-                                                                <option value={Gender.Unisex}>Ουδέτερο</option>
-                                                            </select>
-                                                        </DetailsField>
-                                                        {editedProduct.is_component && (
-                                                            <DetailsField label="Περιγραφή STX" icon={Edit3}>
-                                                                <input className={detailsInputClass} value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
-                                                            </DetailsField>
-                                                        )}
-                                                        {!hasVariants && (
-                                                            <DetailsField label="Βασική Επιμετάλλωση" icon={Palette}>
-                                                                <select className={detailsInputClass} value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
-                                                                    <option value={PlatingType.None}>Λουστρέ</option>
-                                                                    <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                                    <option value={PlatingType.TwoTone}>Δίχρωμο</option>
-                                                                    <option value={PlatingType.Platinum}>Πλατίνα</option>
-                                                                </select>
-                                                            </DetailsField>
-                                                        )}
-                                                    </div>
-                                                </DetailsSection>
-
-                                                <DetailsSection tone="weight" icon={Weight} title="Βάρη">
-                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <DetailsField
-                                                            label={`Βάρος (g)${editedProduct.skip_casting ? ' — 0' : ''}`}
-                                                            icon={Weight}
-                                                            action={editedProduct.molds.length > 0 && !editedProduct.skip_casting ? (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const total = editedProduct.molds.reduce((sum, pm) => {
-                                                                            const mold = allMolds.find(m => m.code === pm.code);
-                                                                            return sum + ((mold?.weight_g || 0) * pm.quantity);
-                                                                        }, 0);
-                                                                        if (total > 0) {
-                                                                            const rounded = parseFloat(total.toFixed(1));
-                                                                            setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
-                                                                            showToast(`Βάρος ενημερώθηκε: ${formatNumber(rounded)}g`, 'success');
-                                                                        } else {
-                                                                            showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
-                                                                        }
-                                                                    }}
-                                                                    className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 transition-colors hover:bg-amber-100"
-                                                                    title="Υπολογισμός από Λάστιχα"
-                                                                    type="button"
-                                                                >
-                                                                    <Scale size={10} /> Auto
-                                                                </button>
-                                                            ) : undefined}
-                                                        >
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </DetailsField>
-                                                        <DetailsField label={secondaryWeightLabel} icon={Scale}>
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </DetailsField>
-                                                        <div className="col-span-2">
-                                                            <InvoiceTotalWeightField
-                                                                value={editedProduct.invoice_total_weight_g}
-                                                                result={invoiceTotalWeightResult}
-                                                                onChange={(next) => setEditedProduct({ ...editedProduct, invoice_total_weight_g: next })}
-                                                                onClear={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </DetailsSection>
-
-                                                {/* ── Section: Τιμές Πώλησης ανά Φινίρισμα (Color-Coded) ── */}
-                                                {!editedProduct.is_component && (
-                                                    <DetailsSection
-                                                        tone="commerce"
-                                                        icon={Coins}
-                                                        title="Εμπορικά"
-                                                        actions={(
-                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-emerald-100 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title="Εργαλείο ανατιμολόγησης">
-                                                                <Calculator size={16} />
-                                                            </button>
-                                                        )}
-                                                    >
-
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            {/* CASE 1: NO VARIANTS (Simple Product) */}
-                                                            {!hasVariants && (
-                                                                <div className="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200 transition-all hover:shadow-md group">
-                                                                    <label className="text-[10px] font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1.5">
-                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-300" /> Λουστρέ
-                                                                    </label>
-                                                                    <div className="relative">
-                                                                        <input
-                                                                            type="number" step="0.01"
-                                                                            className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-400/30 outline-none text-sm shadow-sm"
-                                                                            value={editedProduct.selling_price}
-                                                                            onChange={e => setEditedProduct({
-                                                                                ...editedProduct,
-                                                                                selling_price: parseFloat(e.target.value) || 0,
-                                                                                selling_price_manual_override: true,
-                                                                            })}
-                                                                        />
-                                                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-semibold">€</span>
-                                                                    </div>
-                                                                    {showRepriceTool && (
-                                                                        <div className="text-[10px] font-bold text-emerald-500/70 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                            <ArrowUpRight size={10} className="text-blue-400" /> {formatDecimal(getSuggestedPriceForFinishGroup('', 'formula', targetMargin), 2)}€
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {/* CASE 2: VARIANTS EXIST (Grouped by Finish, Color-Coded) */}
-                                                            {hasVariants && sortedFinishCodes.map(code => {
-                                                                const group = finishGroups[code];
-                                                                const price = group[0]?.selling_price || 0;
-                                                                const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
-                                                                const suggested = getSuggestedPriceForFinishGroup(code, 'formula', targetMargin);
-
-                                                                const finishColors: Record<string, { bg: string, border: string, label: string, input: string, euro: string, dot: string, dotShadow: string }> = {
-                                                                    '':  { bg: 'bg-slate-50/80',  border: 'border-slate-200',  label: 'text-slate-600',  input: 'bg-white border-slate-200 text-slate-800 focus:ring-slate-400/20',  euro: 'text-slate-400',  dot: 'bg-gradient-to-br from-slate-300 to-slate-500', dotShadow: 'shadow-slate-300' },
-                                                                    'P': { bg: 'bg-stone-50/80',  border: 'border-stone-200',  label: 'text-stone-700',  input: 'bg-white border-stone-200 text-stone-800 focus:ring-stone-400/20',  euro: 'text-stone-400',  dot: 'bg-gradient-to-br from-stone-400 to-stone-600', dotShadow: 'shadow-stone-300' },
-                                                                    'X': { bg: 'bg-amber-50/80',  border: 'border-amber-200',  label: 'text-amber-700',  input: 'bg-white border-amber-200 text-amber-900 focus:ring-amber-400/20',  euro: 'text-amber-400',  dot: 'bg-gradient-to-br from-amber-400 to-yellow-600', dotShadow: 'shadow-amber-300' },
-                                                                    'D': { bg: 'bg-orange-50/80', border: 'border-orange-200', label: 'text-orange-700', input: 'bg-white border-orange-200 text-orange-900 focus:ring-orange-400/20', euro: 'text-orange-400', dot: 'bg-gradient-to-br from-orange-400 to-rose-500', dotShadow: 'shadow-orange-300' },
-                                                                    'H': { bg: 'bg-cyan-50/80',   border: 'border-cyan-200',   label: 'text-cyan-700',   input: 'bg-white border-cyan-200 text-cyan-900 focus:ring-cyan-400/20',   euro: 'text-cyan-400',   dot: 'bg-gradient-to-br from-cyan-300 to-sky-500', dotShadow: 'shadow-cyan-300' },
-                                                                };
-                                                                const fc = finishColors[code] || finishColors[''];
-
-                                                                return (
-                                                                    <div key={code} className={`${fc.bg} p-3.5 rounded-xl border ${fc.border} transition-all hover:shadow-md group`}>
-                                                                        <label className={`text-[10px] font-bold ${fc.label} uppercase mb-2 flex items-center gap-1.5`}>
-                                                                            <span className={`w-2.5 h-2.5 rounded-full ${fc.dot} shadow-sm ${fc.dotShadow}`} /> {label}
-                                                                        </label>
-                                                                        <div className="relative">
-                                                                            <input
-                                                                                type="number" step="0.01"
-                                                                                className={`w-full p-2.5 ${fc.input} rounded-lg font-bold font-mono focus:ring-2 outline-none text-sm shadow-sm`}
-                                                                                value={price}
-                                                                                onChange={e => {
-                                                                                    const val = parseFloat(e.target.value) || 0;
-                                                                                    const currentVariants = editedProduct.variants || [];
-                                                                                    const newVars = [...currentVariants];
-                                                                                    group.forEach(gVar => {
-                                                                                        const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
-                                                                                        if (idx !== -1) {
-                                                                                            newVars[idx] = {
-                                                                                                ...newVars[idx],
-                                                                                                selling_price: val,
-                                                                                                selling_price_manual_override: true,
-                                                                                            };
-                                                                                        }
-                                                                                    });
-                                                                                    setEditedProduct({ ...editedProduct, variants: newVars });
-                                                                                }}
-                                                                            />
-                                                                            <span className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs ${fc.euro} font-semibold`}>€</span>
-                                                                        </div>
-                                                                        {showRepriceTool && (
-                                                                            <div className={`text-[10px] font-bold ${fc.label} opacity-60 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1`}>
-                                                                                <ArrowUpRight size={10} className="text-blue-400" /> {formatDecimal(suggested, 2)}€
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {/* Bulk Re-pricing Tool */}
-                                                        {showRepriceTool && (
-                                                            <div className="mt-4 pt-4 border-t border-emerald-200/50 animate-in slide-in-from-top-2">
-                                                                <h4 className="font-bold text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2.5 py-1.5 rounded-lg text-blue-700 border border-blue-100">
-                                                                    <Wand2 size={12} /> Μαζική Ανατιμολόγηση
-                                                                </h4>
-
-                                                                <div className="flex items-center gap-4 mb-4">
-                                                                    <div className="flex-1">
-                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Στόχος Margin</label>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <input
-                                                                                type="range" min="10" max="90" step="5"
-                                                                                value={targetMargin}
-                                                                                onChange={e => setTargetMargin(parseInt(e.target.value))}
-                                                                                className="w-full accent-emerald-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                                                                            />
-                                                                            <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm w-14 text-center">{formatNumber(targetMargin)}%</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-white hover:bg-slate-50 text-slate-600 font-bold px-3 py-2 rounded-xl transition-colors whitespace-nowrap border border-slate-200 shadow-sm">
-                                                                        Εφαρμογή Margin
-                                                                    </button>
-                                                                </div>
-
-                                                                <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2 active:scale-[0.98]">
-                                                                    <Calculator size={16} /> Εφαρμογή Τύπου Ilios (Smart)
-                                                                </button>
-                                                                <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
-                                                            </div>
-                                                        )}
-                                                    </DetailsSection>
-                                                )}
-
-                                            </>
-                                        ) : (
-                                            <div className="space-y-5">
-                                                <DetailsSection tone="identity" icon={Info} title="Ταυτότητα">
-                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <DetailsField label="Κατηγορία" icon={Tag}>
-                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
-                                                        </DetailsField>
-                                                        <DetailsField label="Προέλευση">
-                                                            <ProductionTypeBadge productionType={editedProduct.production_type} />
-                                                        </DetailsField>
-                                                    </div>
-                                                </DetailsSection>
-
-                                                <DetailsSection tone="supplier" icon={Globe} title="Προμηθευτής">
-                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <DetailsField label="Προμηθευτής" icon={ShoppingBag}>
-                                                            <select
-                                                                value={editedProduct.supplier_id || ''}
-                                                                onChange={(e) => setEditedProduct({ ...editedProduct, supplier_id: e.target.value || undefined })}
-                                                                className={detailsInputClass}
-                                                            >
-                                                                <option value="">Επιλογή...</option>
-                                                                {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                            </select>
-                                                        </DetailsField>
-                                                        <DetailsField label="Κωδικός Προμηθευτή" icon={Tag}>
-                                                            <input type="text" className={detailsMonoInputClass} value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({ ...editedProduct, supplier_sku: e.target.value })} placeholder="π.χ. ITEM-123" />
-                                                        </DetailsField>
-                                                    </div>
-                                                </DetailsSection>
-
-                                                <DetailsSection
-                                                    tone="weight"
-                                                    icon={Weight}
-                                                    title="Βάρη"
-                                                    actions={(
-                                                        <label className="flex cursor-pointer items-center gap-2 normal-case tracking-normal">
-                                                            <span className="text-[10px] font-bold uppercase text-purple-600">Χωρίς χύτευση</span>
-                                                            <input
-                                                                type="checkbox"
-                                                                className="h-4 w-4 accent-purple-600"
-                                                                checked={!!editedProduct.skip_casting}
-                                                                onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
-                                                            />
-                                                        </label>
-                                                    )}
-                                                >
-                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <DetailsField label={`Βάρος (g)${editedProduct.skip_casting ? ' — 0' : ''}`} icon={Weight}>
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </DetailsField>
-                                                        <div className="col-span-2">
-                                                            <InvoiceTotalWeightField
-                                                                value={editedProduct.invoice_total_weight_g}
-                                                                result={invoiceTotalWeightResult}
-                                                                onChange={(next) => setEditedProduct({ ...editedProduct, invoice_total_weight_g: next })}
-                                                                onClear={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })}
-                                                                focusClass="focus:border-purple-400 focus:ring-purple-500/10"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </DetailsSection>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                                    <DetailsSection tone="costing" icon={Calculator} title="Κοστολόγηση εισαγωγής">
-                                                        <div className="space-y-2">
-                                                            <LaborCostInput icon={<Hammer size={14} />} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, technician_cost: val } }))} />
-                                                            <LaborCostInput icon={<Coins size={14} />} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_x: val } }))} />
-                                                            <LaborCostInput icon={<Gem size={14} />} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, stone_setting_cost: val } }))} />
-                                                        </div>
-                                                    </DetailsSection>
-
-                                                    <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση κόστους">
-                                                        <div className="flex flex-col">
-                                                            <div className="space-y-1.5 flex-1">
-                                                                <SummaryRow label="Ασήμι" value={formatCurrency(importedCostAnalysis.silver)} sub={`${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-slate-400" />
-                                                                <SummaryRow label="Εργατικά" value={formatCurrency(importedCostAnalysis.technician)} sub={`/ ${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-blue-400" />
-                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(importedCostAnalysis.plating)} sub={`/ ${formatNumber(importedCostAnalysis.weightG)}g`} color="bg-amber-400" />
-                                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(importedCostAnalysis.stoneSetting)} sub="Σταθερό" color="bg-purple-400" />
-                                                            </div>
-                                                            <div className="pt-3 mt-3 border-t border-emerald-200/60 flex justify-between items-center">
-                                                                <span className="font-bold text-emerald-700 text-sm uppercase">Τελικό Κόστος</span>
-                                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(importedCostAnalysis.total)}</span>
-                                                            </div>
-                                                        </div>
-                                                    </DetailsSection>
-                                                </div>
-
-                                                <DetailsSection
-                                                    tone="policy"
-                                                    icon={DollarSign}
-                                                    title="Εμπορική πολιτική"
-                                                    actions={(
-                                                        <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-amber-100 text-amber-600 shadow-sm ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`} title="Εργαλείο ανατιμολόγησης">
-                                                            <Calculator size={16} />
-                                                        </button>
-                                                    )}
-                                                >
-                                                    <div className="grid grid-cols-2 gap-5 items-end">
-                                                        <DetailsField label="Τιμή Πώλησης (€)" icon={Coins}>
-                                                            <div className="relative">
-                                                                <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-amber-200 text-amber-900 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 transition-all shadow-sm" value={editedProduct.selling_price} onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true })} />
-                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-semibold">€</span>
-                                                            </div>
-                                                        </DetailsField>
-                                                        {masterCost > 0 && editedProduct.selling_price > 0 && (
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                                                    <Percent size={14} className="text-slate-400" />
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Περιθώριο</div>
-                                                                    <div className={`font-mono font-black text-lg ${((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 40 ? 'text-emerald-600' : ((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
-                                                                        {formatDecimal(((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100), 1)}%
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {showRepriceTool && (
-                                                        <div className="bg-amber-100/30 p-4 rounded-xl border border-amber-200/60 animate-in slide-in-from-top-2 mt-4">
-                                                            <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16} /> Εργαλείο Ανατιμολόγησης</h4>
-                                                            <div className="flex items-end gap-4">
-                                                                <div>
-                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Περιθωρίου (%)</label>
-                                                                    <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white" />
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <button onClick={handleStandardFormula} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
-                                                                        <Calculator size={12} /> Βασικός τύπος
-                                                                    </button>
-                                                                </div>
-                                                                <div>
-                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Προτεινόμενη Τιμή</label>
-                                                                    <div className="font-mono font-black text-xl text-amber-900">{formatNumber(calculatedPrice)}€</div>
-                                                                </div>
-                                                                <button onClick={applyReprice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors">Εφαρμογή</button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </DetailsSection>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                {activeTab === 'overview' && (isInHouse ? (
+                                    <OverviewInHousePanel
+                                        product={editedProduct}
+                                        setProduct={setEditedProduct}
+                                        hasVariants={hasVariants}
+                                        allMolds={allMolds}
+                                        secondaryWeightLabel={secondaryWeightLabel}
+                                        invoiceTotalWeightResult={invoiceTotalWeightResult}
+                                        finishGroups={finishGroups}
+                                        sortedFinishCodes={sortedFinishCodes}
+                                        masterCost={masterCost}
+                                        pricing={pricing}
+                                        showToast={showToast}
+                                    />
+                                ) : (
+                                    <OverviewImportedPanel
+                                        product={editedProduct}
+                                        setProduct={setEditedProduct}
+                                        suppliers={suppliers || []}
+                                        invoiceTotalWeightResult={invoiceTotalWeightResult}
+                                        importedCostAnalysis={importedCostAnalysis}
+                                        masterCost={masterCost}
+                                        pricing={pricing}
+                                    />
+                                ))}
 
                                 {activeTab === 'production' && (
                                     <div className="space-y-5 animate-in fade-in">
                                         <DetailsSubTabs<'recipe' | 'labor'>
                                             tabs={[
-                                                { id: 'recipe', label: 'Συνταγή', icon: Box },
-                                                { id: 'labor', label: 'Εργατικά', icon: Hammer },
+                                                { id: 'recipe', label: 'Συνταγή & Λάστιχα', icon: Box },
+                                                { id: 'labor', label: 'Εργατικά & Ανάλυση', icon: Hammer },
                                             ]}
                                             active={productionSection}
                                             onChange={setProductionSection}
                                         />
-                                        {productionSection === 'recipe' && (
-                                            <div className="space-y-5">
-                                            <DetailsSection
-                                                    tone="molds"
-                                                    icon={MapPin}
-                                                    title="Λάστιχα"
-                                                    actions={(
-                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isAddingMold ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
-                                                            {isAddingMold ? 'Ακύρωση' : '+ Προσθήκη'}
-                                                        </button>
-                                                    )}
-                                                >
-                                                    <div className="flex flex-wrap gap-2 min-h-[36px]">
-                                                        {editedProduct.molds.map(m => {
-                                                            const moldDetails = allMolds.find(mold => mold.code === m.code);
-                                                            const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
-                                                            return (
-                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-sm font-bold flex flex-col gap-2 max-w-full shadow-sm hover:shadow-md transition-shadow">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <MapPin size={12} className="text-amber-400 shrink-0" />
-                                                                        <span className="min-w-0 break-words">{m.code}</span>
-                                                                        <div className="flex shrink-0 items-center bg-amber-100/60 rounded-lg border border-amber-200/80">
-                                                                            <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-200/60 text-amber-600 rounded-l-lg transition-colors ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
-                                                                                <Minus size={12} />
-                                                                            </button>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="1"
-                                                                                value={m.quantity}
-                                                                                onChange={(e) => {
-                                                                                    const val = parseInt(e.target.value) || 1;
-                                                                                    setEditedProduct(prev => ({
-                                                                                        ...prev,
-                                                                                        molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
-                                                                                    }));
-                                                                                }}
-                                                                                className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
-                                                                            />
-                                                                            <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-200/60 text-amber-600 rounded-r-lg transition-colors">
-                                                                                <Plus size={12} />
-                                                                            </button>
-                                                                        </div>
-                                                                        <button onClick={() => removeMold(m.code)} className="p-1 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><X size={14} /></button>
-                                                                    </div>
-                                                                    {moldDetails?.description?.trim() ? (
-                                                                        <p className="border-t border-amber-200/70 pt-2 text-xs font-medium leading-relaxed text-slate-600 whitespace-pre-wrap break-words max-w-sm">
-                                                                            {moldDetails.description}
-                                                                        </p>
-                                                                    ) : null}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic py-1.5">Κανένα λάστιχο.</span>}
-                                                    </div>
-                                                    {isAddingMold && (
-                                                        <div className="border border-slate-200 rounded-xl p-3 bg-white/80 space-y-2 animate-in fade-in mt-3">
-                                                            <div className="relative">
-                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Αναζήτηση λάστιχου..."
-                                                                    value={moldSearch}
-                                                                    onChange={e => setMoldSearch(e.target.value)}
-                                                                    className="w-full pl-9 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all"
-                                                                    autoFocus
-                                                                />
-                                                            </div>
-                                                            <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                                                {availableMolds.map(m => (
-                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2.5 hover:bg-amber-50 rounded-xl flex justify-between items-center group text-sm transition-colors">
-                                                                        <span className="font-bold text-slate-700 group-hover:text-amber-800">{m.code}</span>
-                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600 transition-colors">{m.description}</span>
-                                                                    </button>
-                                                                ))}
-                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-3">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
-                                                            </div>
-
-                                                            <div className="pt-3 mt-2 border-t border-slate-200/70">
-                                                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                                    <Plus size={12} /> Νέο Λάστιχο
-                                                                </div>
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Κωδικός *"
-                                                                        value={newMoldCode}
-                                                                        onChange={(e) => setNewMoldCode(e.target.value.toUpperCase())}
-                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all uppercase placeholder-slate-400"
-                                                                    />
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Τοποθεσία"
-                                                                        value={newMoldLoc}
-                                                                        onChange={(e) => setNewMoldLoc(e.target.value)}
-                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
-                                                                    />
-                                                                </div>
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Περιγραφή"
-                                                                    value={newMoldDesc}
-                                                                    onChange={(e) => setNewMoldDesc(e.target.value)}
-                                                                    className="mt-2 w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={handleQuickCreateMold}
-                                                                    disabled={isCreatingMold}
-                                                                    className="mt-2.5 w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                                >
-                                                                    {isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Δημιουργία & Επιλογή</>}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </DetailsSection>
-
-                                    <div className="space-y-4 animate-in fade-in">
-                                        <DetailsSection tone="recipe" icon={Box} title="Συνταγή">
-
-                                            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                                                <div className="rounded-md border border-slate-100 bg-white p-2 text-slate-500">
-                                                    <Coins size={16} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-bold text-slate-800">Ασήμι 925 (Βάση)</div>
-                                                    <div className="font-mono text-xs text-slate-400">
-                                                        {totalWeightForSilver > editedProduct.weight_g
-                                                            ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
-                                                            : `${formatDecimal(totalWeightForSilver)}g`
-                                                        } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="font-mono text-lg font-bold text-slate-800">
-                                                        {formatCurrency(currentCostCalc.breakdown.silver)}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* ── Recipe Items ── */}
-                                            <div className="space-y-2 mt-3">
-                                                {editedProduct.recipe.map((item, idx) => {
-                                                    const isRaw = item.type === 'raw';
-                                                    const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
-
-                                                    let itemCost = 0;
-                                                    if (isRaw) {
-                                                        const mat = details as Material | undefined;
-                                                        if (mat) {
-                                                            let unitCost = mat.cost_per_unit;
-                                                            if (currentViewVariant?.suffix) {
-                                                                const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
-                                                                if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
-                                                                    unitCost = mat.variant_prices[stone.code];
-                                                                }
-                                                            }
-                                                            itemCost = unitCost * item.quantity;
-                                                        }
-                                                    } else {
-                                                        const subProduct = details as Product | undefined;
-                                                        if (subProduct) {
-                                                            itemCost = (subProduct.active_price || 0) * item.quantity;
-                                                        }
-                                                    }
-
-                                                    const materialDetails = isRaw ? details as Material | undefined : undefined;
-                                                    const stonesPerStrand = materialDetails?.stones_per_strand;
-                                                    const materialSubtitle = getRecipeMaterialSubtitle(materialDetails);
-
-                                                    const stxImageUrl = !isRaw ? (details as Product | undefined)?.image_url : null;
-                                                    const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
-
-                                                    return (
-                                                        <div key={idx} className="group flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 transition-colors hover:border-slate-200 hover:bg-slate-50">
-                                                            <div className="w-10 h-10 shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center">
-                                                                {isRaw ? (
-                                                                    <Gem size={16} className="text-emerald-500" />
-                                                                ) : stxImageUrl ? (
-                                                                    <img src={stxImageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <Puzzle size={16} className="text-blue-500" />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                {isRaw ? (
-                                                                    <>
-                                                                        <select
-                                                                            className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
-                                                                            value={item.id}
-                                                                            onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
-                                                                        >
-                                                                            {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                                                        </select>
-                                                                        {materialSubtitle && (
-                                                                            <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{materialSubtitle}</div>
-                                                                        )}
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <select
-                                                                            className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
-                                                                            value={item.sku}
-                                                                            onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
-                                                                        >
-                                                                            {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
-                                                                        </select>
-                                                                        {stxDescription && (
-                                                                            <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{stxDescription}</div>
-                                                                        )}
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                            <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
-                                                            <div className="flex items-center gap-2">
-                                                                <SmartQuantityInput
-                                                                    value={item.quantity}
-                                                                    onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
-                                                                    stonesPerStrand={stonesPerStrand}
-                                                                />
-                                                                <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
-                                                            </div>
-                                                            <button onClick={() => removeRecipeItem(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* ── Add Buttons ── */}
-                                            <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
-                                                <button onClick={() => setIsRecipeModalOpen('raw')} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2 text-xs font-bold text-slate-600 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><Plus size={14} /> Υλικό</button>
-                                                <button onClick={() => setIsRecipeModalOpen('component')} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2 text-xs font-bold text-slate-600 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Plus size={14} /> Εξάρτημα</button>
-                                            </div>
-                                        </DetailsSection>
-                                    </div>
-                                </div>
-                                )}
-
-                                {productionSection === 'labor' && (
-                                    <div className="space-y-5 animate-in fade-in">
-                                        <DetailsSection tone="labor" icon={Hammer} title="Εισαγωγή κόστους">
-                                            <div className="space-y-2">
-                                                <LaborCostFormulaRow
-                                                    icon={<Flame size={14} />}
-                                                    label="Χυτήριο (€)"
-                                                    rate={castingFormula.rate}
-                                                    weightBasis={castingFormula.weightBasis}
-                                                    total={castingFormula.total}
-                                                    isOverridden={castingFormula.isOverridden}
-                                                    onRateChange={(r) => handleFormulaRateChange('casting', r, castingFormula.weightBasis)}
-                                                    onWeightChange={handleCastingWeightChange}
-                                                    onTotalChange={(t) => handleFormulaTotalChange('casting', t)}
-                                                    onToggleOverride={() => handleFormulaToggleOverride('casting')}
-                                                    hint={editedProduct.is_component ? 'Εξάρτημα STX — χωρίς χυτήριο' : 'Από συνολικό βάρος (βασικό + δευτερεύον)'}
-                                                />
-                                                <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
-                                                <TechnicianLaborFormulaRow
-                                                    settings={settings}
-                                                    icon={<Hammer size={14} />}
-                                                    labor={editedProduct.labor}
+                                        {productionSection === 'recipe' ? (
+                                            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+                                                <RecipeSection
                                                     product={editedProduct}
-                                                    useSplitTechnician={useSplitTechnician}
-                                                    hasMixedTechnician={hasMixedTechnician}
-                                                    selectedVariantSuffix={currentViewVariant?.suffix ?? null}
-                                                    onRateChange={(r, basis) => handleFormulaRateChange('technician', r, basis)}
-                                                    onWeightChange={handleTechnicianWeightChange}
-                                                    onTotalChange={(t) => handleFormulaTotalChange('technician', t)}
-                                                    onToggleOverride={() => handleFormulaToggleOverride('technician')}
+                                                    setProduct={setEditedProduct}
+                                                    allMaterials={allMaterials}
+                                                    allProducts={allProducts}
+                                                    settings={settings}
+                                                    silverCost={currentCostCalc.breakdown.silver}
+                                                    variantSuffix={currentViewVariant?.suffix}
+                                                    onOpenSelector={setIsRecipeModalOpen}
                                                 />
-                                                <LaborCostFormulaRow
-                                                    icon={<Coins size={14} />}
-                                                    label="Επιμετάλλωση X/H (€)"
-                                                    rate={platingXFormula.rate}
-                                                    weightBasis={platingXFormula.weightBasis}
-                                                    total={platingXFormula.total}
-                                                    isOverridden={platingXFormula.isOverridden}
-                                                    onRateChange={(r) => handleFormulaRateChange('plating_x', r, platingXFormula.weightBasis)}
-                                                    onWeightChange={handlePlatingXWeightChange}
-                                                    onTotalChange={(t) => handleFormulaTotalChange('plating_x', t)}
-                                                    onToggleOverride={() => handleFormulaToggleOverride('plating_x')}
-                                                    weightReadOnly
-                                                    hint="Από συνολικό βάρος (βασικό + εξαρτήματα συνταγής)"
+                                                <MoldsSection
+                                                    product={editedProduct}
+                                                    setProduct={setEditedProduct}
+                                                    allMolds={allMolds}
+                                                    draft={moldDraft}
+                                                    setDraft={setMoldDraft}
+                                                    isCreating={isCreatingMold}
+                                                    setIsCreating={setIsCreatingMold}
+                                                    showToast={showToast}
                                                 />
-                                                <LaborCostFormulaRow
-                                                    icon={<Coins size={14} />}
-                                                    label="Επιμετάλλωση D (€)"
-                                                    rate={platingDFormula.rate}
-                                                    weightBasis={platingDFormula.weightBasis}
-                                                    total={platingDFormula.total}
-                                                    isOverridden={platingDFormula.isOverridden}
-                                                    onRateChange={(r) => handleFormulaRateChange('plating_d', r, platingDFormula.weightBasis)}
-                                                    onWeightChange={handlePlatingDWeightChange}
-                                                    onTotalChange={(t) => handleFormulaTotalChange('plating_d', t)}
-                                                    onToggleOverride={() => handleFormulaToggleOverride('plating_d')}
-                                                    hint="Από δευτερεύον βάρος (+ εξαρτήματα συνταγής)"
-                                                />
-                                                <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, subcontract_cost: v } })} icon={<Users size={14} />} />
                                             </div>
-                                        </DetailsSection>
-
-                                        <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση παραλλαγών">
-                                            <div className="space-y-3">
-                                                {analyticalCostingItems.map(item => {
-                                                    const { key, suffix: itemSuffix, description: itemDesc, costResult } = item;
-                                                    return (
-                                                        <div key={key} className="bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all">
-                                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-                                                                <span className="font-bold text-sm flex items-center gap-2">
-                                                                    <SkuColorizedText sku={editedProduct.sku} suffix={itemSuffix} gender={editedProduct.gender} />
-                                                                    <span className="text-slate-400 font-normal text-xs">({itemDesc})</span>
-                                                                </span>
-                                                                <span className="font-black text-lg text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-lg">{formatCurrency(costResult.total)}</span>
-                                                            </div>
-                                                            <div className="grid grid-cols-3 gap-2">
-                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Ασήμι</div>
-                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.silver)}</div>
-                                                                </div>
-                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Υλικά</div>
-                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.materials)}</div>
-                                                                </div>
-                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εργατικά</div>
-                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.labor)}</div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="mt-2.5 text-xs text-slate-500 font-mono bg-slate-50/60 rounded-lg p-2.5 border border-slate-100 flex flex-wrap gap-x-3 gap-y-1">
-                                                                <span>Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)}</span>
-                                                                <span>Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)}</span>
-                                                                <span>Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)}</span>
-                                                                <span>Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)}</span>
-                                                                <span>Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </DetailsSection>
-                                    </div>
-                                )}
+                                        ) : (
+                                            <LaborSection
+                                                product={editedProduct}
+                                                setProduct={setEditedProduct}
+                                                settings={settings}
+                                                formulas={laborFormulas}
+                                                variantSuffix={currentViewVariant?.suffix ?? null}
+                                                costingItems={analyticalCostingItems}
+                                            />
+                                        )}
                                     </div>
                                 )}
 
                                 {activeTab === 'variants' && (
-                                    <div className="space-y-5 animate-in fade-in">
-                                        <SmartVariantAddPanel
-                                            product={editedProduct}
-                                            settings={settings}
-                                            allMaterials={allMaterials}
-                                            allProducts={allProducts}
-                                            existingVariants={editedProduct.variants || []}
-                                            onAddVariants={handleSmartAddVariants}
-                                            showToast={showToast}
-                                        />
-
-                                        <DetailsSection
-                                            tone="variants"
-                                            icon={Layers}
-                                            title={<>Παραλλαγές <span className="ml-1 text-slate-400">({formatNumber(sortedVariantsList.length)})</span></>}
-                                            actions={(
-                                                <button
-                                                    onClick={() => handleApplyAllSuggestions('formula')}
-                                                    className="flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-600 shadow-sm transition-colors hover:bg-emerald-100"
-                                                >
-                                                    <Calculator size={10} /> Αυτόματη τιμολόγηση
-                                                </button>
-                                            )}
-                                        >
-                                            <div className="space-y-2">
-                                                {sortedVariantsList.map((v, index) => (
-                                                    <div key={v.suffix} className="group flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 transition-colors hover:border-slate-200 hover:bg-slate-50">
-                                                        <div className="shrink-0 rounded-md border border-slate-100 bg-white px-2.5 py-1">
-                                                            <SkuColorizedText sku={editedProduct.sku} suffix={v.suffix} gender={editedProduct.gender} className="text-sm" />
-                                                        </div>
-                                                        <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder-slate-300" />
-                                                        <div className="text-right">
-                                                            <div className="text-[10px] font-bold uppercase text-slate-400">Κόστος</div>
-                                                            <div className="font-mono text-xs font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
-                                                        </div>
-                                                        {!editedProduct.is_component && (
-                                                            <div className="flex items-center gap-1">
-                                                                <input
-                                                                    type="number" step="0.1"
-                                                                    value={v.selling_price || ''}
-                                                                    onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))}
-                                                                    className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200 transition-all"
-                                                                />
-                                                                <button
-                                                                    onClick={() => applyFormulaToSingleVariant(index)}
-                                                                    className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                                    title="Υπολογισμός Τιμής"
-                                                                >
-                                                                    <Wand2 size={14} />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                        <button onClick={() => deleteVariant(index)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
-                                                    </div>
-                                                ))}
-                                                {sortedVariantsList.length === 0 && (
-                                                    <div className="text-center py-6 text-slate-400 text-sm italic">Δεν υπάρχουν παραλλαγές. Χρησιμοποιήστε τα εργαλεία παραπάνω για να προσθέσετε.</div>
-                                                )}
-                                            </div>
-                                        </DetailsSection>
-                                    </div>
+                                    <VariantsPanel
+                                        product={editedProduct}
+                                        setProduct={setEditedProduct}
+                                        sortedVariants={sortedVariantsList}
+                                        activeSuffix={currentViewVariant?.suffix ?? null}
+                                        settings={settings}
+                                        allMaterials={allMaterials}
+                                        allProducts={allProducts}
+                                        pricing={pricing}
+                                        onViewVariant={setViewIndex}
+                                        showToast={showToast}
+                                    />
                                 )}
 
                                 {activeTab === 'barcodes' && (
                                     <div className="h-full animate-in fade-in">
-                                        <DetailsSection tone="barcodes" icon={ScanBarcode} title="Barcodes">
+                                        <DetailsSection tone="barcodes" icon={ScanBarcode} title="Barcodes" subtitle="Προεπισκόπηση & εκτύπωση ετικετών">
                                             <BarcodeGallery product={editedProduct} variants={sortedVariantsList} activeSuffix={currentViewVariant?.suffix ?? null} onPrint={setPrintItems} settings={settings} />
                                         </DetailsSection>
                                     </div>
@@ -2216,7 +680,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
                 </div>
 
-                <DetailsFooter isSaving={isSaving} onSave={handleSave} />
+                <DetailsFooter isSaving={isSaving} isDirty={productRestart.dirty} onSave={handleSave} onClose={onClose} />
             </div>
         </div>,
         document.body

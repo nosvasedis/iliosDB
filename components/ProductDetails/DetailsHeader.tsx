@@ -9,7 +9,9 @@ import {
     Edit,
     Factory,
     Globe,
+    ImageIcon,
     Loader2,
+    Puzzle,
     Trash2,
     X,
 } from 'lucide-react';
@@ -20,7 +22,7 @@ import { getVariantComponents } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import { DetailsActionButton } from './detailsUi';
 
-const FINISH_DOTS: Record<string, string> = {
+export const FINISH_DOTS: Record<string, string> = {
     '': 'bg-gradient-to-br from-slate-300 to-slate-500',
     P: 'bg-gradient-to-br from-stone-400 to-stone-600',
     X: 'bg-gradient-to-br from-amber-400 to-yellow-600',
@@ -28,10 +30,26 @@ const FINISH_DOTS: Record<string, string> = {
     H: 'bg-gradient-to-br from-cyan-300 to-sky-500',
 };
 
+const GENDER_LABELS: Record<Gender, string> = {
+    [Gender.Women]: 'Γυναικείο',
+    [Gender.Men]: 'Ανδρικό',
+    [Gender.Unisex]: 'Ουδέτερο',
+};
+
+function Chip({ className, children }: { className: string; children: React.ReactNode }) {
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${className}`}>
+            {children}
+        </span>
+    );
+}
+
 export default function DetailsHeader({
     displayedSku,
     displayedLabel,
     gender,
+    category,
+    imageUrl,
     productionType,
     isComponent,
     skipCasting,
@@ -63,6 +81,8 @@ export default function DetailsHeader({
     displayedSku: string;
     displayedLabel: string;
     gender: Gender;
+    category: string;
+    imageUrl?: string | null;
     productionType: ProductionType;
     isComponent: boolean;
     skipCasting: boolean;
@@ -98,9 +118,10 @@ export default function DetailsHeader({
     const finishCode = currentVariant ? getVariantComponents(currentVariant.suffix, gender).finish.code : '';
     const finishDot = FINISH_DOTS[finishCode] || FINISH_DOTS[''];
     const finishName = FINISH_CODES[finishCode] || FINISH_CODES[''];
+    const hasRecordActions = showConvertToImported || isImported || !!onDuplicate || viewMode === 'registry';
 
     const variantPicker = showPager ? (
-        <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 shadow-sm">
+        <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5">
             {canStep && (
                 <button
                     type="button"
@@ -117,12 +138,16 @@ export default function DetailsHeader({
                     type="button"
                     onClick={onToggleVariantPicker}
                     title={finishName}
-                    className="flex max-w-[16rem] items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
+                    aria-expanded={isVariantPickerOpen}
+                    className="flex max-w-[17rem] items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
                 >
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${finishDot}`} />
-                    <span className="min-w-0 truncate text-[12px] font-bold text-slate-700">{displayedLabel}</span>
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${finishDot}`} />
+                    <span className="min-w-0">
+                        <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Παραλλαγή</span>
+                        <span className="block truncate text-[12px] font-bold leading-tight text-slate-800">{displayedLabel}</span>
+                    </span>
                     {canStep && (
-                        <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">
                             {formatNumber(normalizedViewIndex + 1)}/{formatNumber(maxViews)}
                         </span>
                     )}
@@ -130,7 +155,10 @@ export default function DetailsHeader({
                 </button>
 
                 {isVariantPickerOpen && (
-                    <div className="absolute left-1/2 top-full z-[140] mt-2 w-64 -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="absolute right-0 top-full z-[140] mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                        <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            {formatNumber(sortedVariants.length)} παραλλαγές
+                        </div>
                         <div className="max-h-80 overflow-y-auto p-2">
                             {sortedVariants.map((variant, index) => {
                                 const variantSku = `${masterSku}${variant.suffix}`;
@@ -158,9 +186,7 @@ export default function DetailsHeader({
                                                 </div>
                                             </div>
                                         </div>
-                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {formatNumber(index + 1)}
-                                        </span>
+                                        {isActive ? <Check size={14} className="shrink-0 text-emerald-600" /> : null}
                                     </button>
                                 );
                             })}
@@ -183,9 +209,18 @@ export default function DetailsHeader({
     ) : null;
 
     return (
-        <div className="z-10 shrink-0 border-b border-slate-100 bg-white px-6 py-3">
-            <div className="flex flex-wrap items-center gap-3">
+        <header className="z-10 shrink-0 border-b border-slate-200 bg-white px-5 py-3.5 md:px-6">
+            <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-contain" /> : <ImageIcon size={20} className="text-slate-300" />}
+                </div>
+
                 <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <span>{viewMode === 'registry' ? 'Μητρώο Κωδικών' : 'Αποθήκη'}</span>
+                        <ChevronRight size={10} />
+                        <span className="text-slate-500">Καρτέλα SKU</span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {isEditingSku ? (
                             <div className="flex items-center gap-2">
@@ -194,22 +229,21 @@ export default function DetailsHeader({
                                     onChange={(e) => onTempSkuChange(e.target.value.toUpperCase())}
                                     className="w-48 border-b-2 border-emerald-500 text-2xl font-black uppercase tracking-tight text-slate-900 outline-none"
                                     autoFocus
-                                    onKeyDown={(e) => e.key === 'Enter' && onRenameSku()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') onRenameSku();
+                                        if (e.key === 'Escape') onCancelRename();
+                                    }}
                                 />
-                                <button type="button" onClick={onRenameSku} disabled={isRenaming} className="rounded-lg bg-emerald-100 p-1.5 text-emerald-700 hover:bg-emerald-200">
+                                <button type="button" onClick={onRenameSku} disabled={isRenaming} title="Επιβεβαίωση" className="rounded-lg bg-emerald-100 p-1.5 text-emerald-700 hover:bg-emerald-200">
                                     {isRenaming ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                                 </button>
-                                <button type="button" onClick={onCancelRename} className="rounded-lg bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200">
+                                <button type="button" onClick={onCancelRename} title="Ακύρωση" className="rounded-lg bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200">
                                     <X size={18} />
                                 </button>
                             </div>
                         ) : (
-                            <h2 className="group flex items-center gap-2 text-2xl font-black tracking-tight">
-                                <SkuColorizedText
-                                    sku={displayedSku}
-                                    gender={gender}
-                                    masterClassName="text-slate-900"
-                                />
+                            <h2 className="group flex items-center gap-1.5 text-2xl font-black leading-tight tracking-tight">
+                                <SkuColorizedText sku={displayedSku} gender={gender} masterClassName="text-slate-900" />
                                 {viewMode === 'registry' && (
                                     <button
                                         type="button"
@@ -217,53 +251,74 @@ export default function DetailsHeader({
                                         className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100 focus-visible:opacity-100"
                                         title="Μετονομασία SKU"
                                     >
-                                        <Edit size={16} />
+                                        <Edit size={15} />
                                     </button>
                                 )}
                             </h2>
                         )}
 
+                        <Chip className={isImported ? 'bg-violet-50 text-violet-700 ring-violet-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}>
+                            {isImported ? <Globe size={10} /> : <Factory size={10} />}
+                            {isImported ? 'Εισαγόμενο' : 'Ιδιοπαραγωγή'}
+                        </Chip>
                         {isComponent && (
-                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Εξάρτημα</span>
+                            <Chip className="bg-blue-50 text-blue-700 ring-blue-200"><Puzzle size={10} /> Εξάρτημα</Chip>
                         )}
                         {skipCasting && (
-                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-700">{SKIP_CASTING_LABEL}</span>
+                            <Chip className="bg-purple-50 text-purple-700 ring-purple-200">{SKIP_CASTING_LABEL}</Chip>
+                        )}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs font-medium text-slate-500">
+                        <span>{category || 'Χωρίς κατηγορία'}</span>
+                        <span className="text-slate-300">•</span>
+                        <span>{GENDER_LABELS[gender] || gender}</span>
+                        {showPager && (
+                            <>
+                                <span className="text-slate-300">•</span>
+                                <span>{formatNumber(sortedVariants.length)} παραλλαγές</span>
+                            </>
                         )}
                     </div>
                 </div>
 
-                {variantPicker && (
-                    <div className="flex shrink-0 justify-center">
-                        {variantPicker}
-                    </div>
-                )}
+                {variantPicker && <div className="flex shrink-0 justify-center">{variantPicker}</div>}
 
                 <div className="flex shrink-0 items-center gap-2">
-                    {showConvertToImported && (
-                        <DetailsActionButton title="Σε εισαγωγή" onClick={onConvert} tone="violet">
-                            <Globe size={20} />
-                        </DetailsActionButton>
+                    {hasRecordActions && (
+                        <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                            {showConvertToImported && (
+                                <DetailsActionButton title="Μετατροπή σε εισαγωγή" label="Σε εισαγωγή" onClick={onConvert} tone="violet">
+                                    <Globe size={16} />
+                                </DetailsActionButton>
+                            )}
+                            {isImported && (
+                                <DetailsActionButton title="Μετατροπή σε ιδιοπαραγωγή" label="Σε ιδιοπαραγωγή" onClick={onConvert} tone="success">
+                                    <Factory size={16} />
+                                </DetailsActionButton>
+                            )}
+                            {onDuplicate && (
+                                <DetailsActionButton title="Κλωνοποίηση" label="Κλωνοποίηση" onClick={onDuplicate} tone="info">
+                                    <Copy size={16} />
+                                </DetailsActionButton>
+                            )}
+                            {viewMode === 'registry' && (
+                                <DetailsActionButton title="Διαγραφή" label="Διαγραφή" onClick={onDelete} disabled={isDeleting} tone="danger">
+                                    {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                </DetailsActionButton>
+                            )}
+                        </div>
                     )}
-                    {isImported && (
-                        <DetailsActionButton title="Σε ιδιοπαραγωγή" onClick={onConvert} tone="success">
-                            <Factory size={20} />
-                        </DetailsActionButton>
-                    )}
-                    {onDuplicate && (
-                        <DetailsActionButton title="Κλωνοποίηση" onClick={onDuplicate} tone="info">
-                            <Copy size={20} />
-                        </DetailsActionButton>
-                    )}
-                    {viewMode === 'registry' && (
-                        <DetailsActionButton title="Διαγραφή" onClick={onDelete} disabled={isDeleting} tone="danger">
-                            <Trash2 size={20} />
-                        </DetailsActionButton>
-                    )}
-                    <DetailsActionButton title="Κλείσιμο" onClick={onClose}>
-                        <X size={20} />
-                    </DetailsActionButton>
+                    <button
+                        type="button"
+                        title="Κλείσιμο"
+                        aria-label="Κλείσιμο"
+                        onClick={onClose}
+                        className="rounded-xl bg-slate-100 p-2.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+                    >
+                        <X size={18} />
+                    </button>
                 </div>
             </div>
-        </div>
+        </header>
     );
 }
