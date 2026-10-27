@@ -21,8 +21,10 @@ import {
   Trophy,
   UserCheck,
   Users,
+  Wand2,
   Warehouse,
 } from 'lucide-react';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { Gender, Product } from '../../types';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import type { FinanceAnalytics } from '../../utils/financeAnalytics';
@@ -99,6 +101,10 @@ export const SalesTab = memo(function SalesTab({
   const listValue = (totals?.realizedNet ?? 0) + (totals?.discount ?? 0);
   const discountShare = listValue > 0 ? ((totals?.discount ?? 0) / listValue) * 100 : 0;
   const sellers = (finance?.topSellers ?? []).filter((seller) => seller.revenue > 0 || seller.pendingRevenue > 0);
+  const specialRows = useMemo(
+    () => (finance?.topProducts ?? []).filter((row) => isSpecialCreationSku(row.sku)).sort((a, b) => b.revenue - a.revenue),
+    [finance?.topProducts],
+  );
 
   return (
     <div className={TAB_ANIMATION}>
@@ -221,6 +227,53 @@ export const SalesTab = memo(function SalesTab({
           )}
         </Panel>
       </div>
+
+      <Panel
+        title="Ειδικές κατασκευές (SP)"
+        subtitle={`Μοναδικά κομμάτια για πελάτες · ${periodLabel}`}
+        icon={Wand2}
+        tone="violet"
+        isLoading={isLoading}
+        hint={DASHBOARD_TERM_HINTS.specialCreations}
+        action={specialRows.length > 0 ? { label: 'Ανάλυση', onClick: onOpenTopVariants } : undefined}
+      >
+        {!totals || totals.specialPieces === 0 ? (
+          <EmptyNote message={`Καμία ειδική κατασκευή δεν στάλθηκε ${periodLabel.toLowerCase()}.`} icon={Wand2} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="grid grid-cols-2 gap-3 self-start">
+              <MiniStat
+                label="Έσοδα SP"
+                value={<Money value={totals.specialNet} />}
+                sub={`${formatDecimal(totals.realizedNet > 0 ? (totals.specialNet / totals.realizedNet) * 100 : 0, 1)}% των εσόδων`}
+                tone="violet"
+              />
+              <MiniStat label="Δημιουργίες" value={formatNumber(totals.specialCreations)} sub={`${formatNumber(totals.specialPieces)} τεμάχια`} />
+              <MiniStat label="Μέση τιμή τεμαχίου" value={<Money value={totals.specialPieces > 0 ? totals.specialNet / totals.specialPieces : 0} />} />
+              <MiniStat
+                label="Περιθώριο (εκτίμηση)"
+                value={`${formatDecimal(totals.specialNet > 0 ? (totals.specialProfit / totals.specialNet) * 100 : 0, 1)}%`}
+                sub={<span>κόστος ≈ <Money value={totals.specialEstimatedCost} decimals={false} /></span>}
+              />
+            </div>
+            <div className="-mx-3 min-w-0">
+              {specialRows.slice(0, 5).map((row, index) => (
+                <RankRow
+                  key={row.key}
+                  rank={index + 1}
+                  onClick={onOpenTopVariants}
+                  title={<SpecialCreationNote sku={row.sku} note={row.itemNote} compact />}
+                  subtitle={`${formatNumber(row.quantity)} τεμ.`}
+                  value={<Money value={row.revenue} />}
+                />
+              ))}
+              {specialRows.length > 5 ? (
+                <p className="px-3 pt-1 text-[11px] font-bold text-slate-400">+{formatNumber(specialRows.length - 5)} ακόμη δημιουργίες</p>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </Panel>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <Panel
@@ -409,6 +462,15 @@ export const FinanceTab = memo(function FinanceTab({
                 <MiniStat label="ΦΠΑ περιόδου" value={<Money value={totals.vat} />} />
                 <MiniStat label="Μικτή αξία" value={<Money value={totals.realizedGross} />} sub="με ΦΠΑ" />
               </div>
+              {totals.specialNet > 0 ? (
+                <div className="mt-3 flex items-start gap-2 rounded-xl bg-violet-50 px-3 py-2 text-[11px] font-medium leading-relaxed text-violet-900 ring-1 ring-violet-100">
+                  <Wand2 size={13} className="mt-0.5 shrink-0 text-violet-500" />
+                  <span>
+                    Περιλαμβάνει <b>ειδικές κατασκευές (SP)</b>: <Money value={totals.specialNet} className="font-bold" /> έσοδα με εκτιμώμενο
+                    κόστος <Money value={totals.specialEstimatedCost} className="font-bold" /> (μέσο ποσοστό κόστους καταλόγου, αφού δεν έχουν συνταγή).
+                  </span>
+                </div>
+              ) : null}
               {missingCostCount > 0 ? (
                 <button
                   type="button"

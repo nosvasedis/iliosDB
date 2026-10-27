@@ -8,7 +8,9 @@ import {
   Hash,
   Truck,
   User,
+  Wand2,
 } from 'lucide-react';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { Gender } from '../../types';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
@@ -101,6 +103,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
   const stoneColor = getSkuStoneTextColor(stone.code);
   const { summary } = detail;
   const costTotal = summary.costBreakdown.silver + summary.costBreakdown.labor + summary.costBreakdown.materials;
+  const isSpecial = isSpecialCreationSku(detail.sku);
 
   const tabs: { id: DetailTab; label: string; count?: number }[] = [
     { id: 'summary', label: 'Σύνοψη' },
@@ -173,6 +176,13 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
               <Kpi label="Αποστολές" value={formatNumber(summary.shipmentCount)} />
               <Kpi label="Ασήμι" value={`${formatDecimal(summary.silverWeightGrams, 1)} g`} />
             </div>
+
+            {isSpecial && (
+              <div className="flex items-start gap-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-medium leading-relaxed text-violet-900 ring-1 ring-violet-100">
+                <Wand2 size={14} className="mt-0.5 shrink-0 text-violet-500" />
+                Ειδική κατασκευή: τα έσοδα είναι πραγματικά, το κόστος και το κέρδος είναι εκτίμηση με το μέσο ποσοστό κόστους του καταλόγου.
+              </div>
+            )}
 
             {(summary.priceOverrideCount > 0 || summary.giftQuantity > 0 || summary.profit < 0) && (
               <div className="space-y-2">
@@ -343,8 +353,9 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                           <p className={`text-[10px] font-bold ${line.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(line.profit)}</p>
                         </div>
                       </div>
-                      {(line.priceOverride || line.costWarning || isGift) && (
+                      {(line.priceOverride || line.costWarning || isGift || line.costSource === 'special_estimate') && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
+                          {line.costSource === 'special_estimate' && <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700">Εκτιμώμενο κόστος</span>}
                           {isGift && <span className="rounded-md bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700">Δώρο (0 €)</span>}
                           {line.priceOverride && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Χειροκίνητη τιμή</span>}
                           {line.costWarning && <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">{line.costWarning}</span>}

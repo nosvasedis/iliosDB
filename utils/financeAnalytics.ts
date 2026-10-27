@@ -13,7 +13,7 @@ import {
 } from '../types';
 import { calculateProductCost, estimateVariantCost } from './pricingEngine';
 import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
-import { cleanSpecialCreationNote, isSpecialCreationSku } from './specialCreationSku';
+import { cleanSpecialCreationNote, isSpecialCreationSku, normalizeSpecialCreationNote } from './specialCreationSku';
 import { productRankingKey, resolveFinanceLineSku, variantRankingKey, normalizeVariantSuffix } from './financeLineSku';
 import { resolveOrderSeller } from './orderSeller';
 import { buildItemIdentityKey } from './itemIdentity';
@@ -85,6 +85,11 @@ export interface FinanceLineEvent {
   };
   priceOverride: boolean;
   costWarning?: string;
+  /**
+   * Where the cost comes from: the product recipe, an estimate for SP special creations
+   * (no recipe exists — costed at the catalogue cost/revenue ratio), or missing (no product).
+   */
+  costSource?: 'catalog' | 'special_estimate' | 'missing';
   /** Note from the originating order line; required to identify SP creations. */
   itemNote?: string | null;
   /** Order line id when sourced from shipment/order item (helps distinguish twin lines). */
@@ -110,6 +115,13 @@ export interface FinanceTotals {
   averageBasketSize: number;
   silverWeightGrams: number;
   silverWeightKg: number;
+  /** SP special creations shipped in the period (already included in the totals above). */
+  specialNet: number;
+  specialPieces: number;
+  specialEstimatedCost: number;
+  specialProfit: number;
+  /** Distinct creations (by order line / note) shipped in the period. */
+  specialCreations: number;
 }
 
 export interface FinanceRankingBase {
@@ -407,6 +419,7 @@ function buildLineEvent(params: {
   const gross = net + vat;
 
   const resolvedSku = resolveFinanceLineSku(item, products, productsMap);
+  const isSpecialLine = isSpecialCreationSku(resolvedSku.masterSku);
   const effectiveProduct = resolvedSku.product ?? product;
   const effectiveVariantSuffix = resolvedSku.variantSuffix || null;
 
@@ -469,7 +482,9 @@ function buildLineEvent(params: {
       materials: unitCost.breakdown.materials * quantity,
     },
     priceOverride: Boolean(item.price_override),
-    costWarning: unitCost.warning ? `${resolvedSku.masterSku}: ${unitCost.warning}` : undefined,
+    // SP is a custom creation, never a registry product: its cost is estimated later, not "missing".
+    costWarning: unitCost.warning && !isSpecialLine ? `${resolvedSku.masterSku}: ${unitCost.warning}` : undefined,
+    costSource: isSpecialLine ? 'special_estimate' : unitCost.warning ? 'missing' : 'catalog',
     itemNote: cleanedItemNote,
     lineId: item.line_id || null,
   };
@@ -667,7 +682,51 @@ export function buildFinanceLineEvents(
       });
     });
 
-  return { realized: allRealizedEvents, backlog: backlogEvents };
+  return applySpecialCreationCostEstimate({ realized: allRealizedEvents, backlog: backlogEvents });
+}
+
+/**
+ * SP special creations have no recipe, so their true cost is unknown. Costing them at 0 €
+ * would report every SP sale as 100% profit; instead they take the catalogue's average
+ * cost/revenue ratio (and its silver/labour/materials split) across all known-cost lines.
+ */
+export function applySpecialCreationCostEstimate(bundle: FinanceLineEventBundle): FinanceLineEventBundle {
+  let catalogNet = 0;
+  let catalogCost = 0;
+  const catalogBreakdown = { silver: 0, labor: 0, materials: 0 };
+  [...bundle.realized, ...bundle.backlog].forEach((event) => {
+    if (event.costSource !== 'catalog' || event.net <= 0) return;
+    catalogNet += event.net;
+    catalogCost += event.estimatedCost;
+    catalogBreakdown.silver += event.costBreakdown.silver;
+    catalogBreakdown.labor += event.costBreakdown.labor;
+    catalogBreakdown.materials += event.costBreakdown.materials;
+  });
+  if (catalogNet <= 0 || catalogCost <= 0) return bundle;
+
+  const ratio = catalogCost / catalogNet;
+  const breakdownTotal = catalogBreakdown.silver + catalogBreakdown.labor + catalogBreakdown.materials;
+  const share = (part: number) => (breakdownTotal > 0 ? part / breakdownTotal : 0);
+
+  const estimate = (event: FinanceLineEvent): FinanceLineEvent => {
+    if (event.costSource !== 'special_estimate') return event;
+    const estimatedCost = Math.max(0, event.net) * ratio;
+    const profit = event.net - estimatedCost;
+    return {
+      ...event,
+      estimatedCost,
+      estimatedUnitCost: event.quantity > 0 ? estimatedCost / event.quantity : 0,
+      profit,
+      margin: event.net > 0 ? (profit / event.net) * 100 : 0,
+      costBreakdown: {
+        silver: estimatedCost * share(catalogBreakdown.silver),
+        labor: estimatedCost * share(catalogBreakdown.labor),
+        materials: estimatedCost * share(catalogBreakdown.materials),
+      },
+    };
+  };
+
+  return { realized: bundle.realized.map(estimate), backlog: bundle.backlog.map(estimate) };
 }
 
 export function rankFinanceAnalyticsFromEvents(
@@ -695,6 +754,12 @@ export function rankFinanceAnalyticsFromEvents(
       acc.estimatedProfit += event.profit;
       acc.shippedPieces += event.quantity;
       acc.silverWeightGrams += event.silverWeight;
+      if (isSpecialCreationSku(event.sku)) {
+        acc.specialNet += event.net;
+        acc.specialPieces += event.quantity;
+        acc.specialEstimatedCost += event.estimatedCost;
+        acc.specialProfit += event.profit;
+      }
       return acc;
     },
     {
@@ -716,8 +781,18 @@ export function rankFinanceAnalyticsFromEvents(
       averageBasketSize: 0,
       silverWeightGrams: 0,
       silverWeightKg: 0,
+      specialNet: 0,
+      specialPieces: 0,
+      specialEstimatedCost: 0,
+      specialProfit: 0,
+      specialCreations: 0,
     },
   );
+  totals.specialCreations = new Set(
+    dedupedRealizedEvents
+      .filter((event) => isSpecialCreationSku(event.sku))
+      .map((event) => `${event.orderId}::${event.lineId ?? ''}::${normalizeSpecialCreationNote(event.itemNote)}`),
+  ).size;
 
   const backlogOrderIds = new Set<string>();
   backlogEvents.forEach((event) => {
@@ -913,6 +988,9 @@ export function rankFinanceAnalyticsFromEvents(
     averageOrderValue: roundMoney(totals.averageOrderValue),
     silverWeightGrams: roundMoney(totals.silverWeightGrams),
     silverWeightKg: totals.silverWeightKg,
+    specialNet: roundMoney(totals.specialNet),
+    specialEstimatedCost: roundMoney(totals.specialEstimatedCost),
+    specialProfit: roundMoney(totals.specialProfit),
   };
 
   const costWarnings = Array.from(new Set([...dedupedRealizedEvents, ...backlogEvents].map((event) => event.costWarning).filter((warning): warning is string => Boolean(warning))));

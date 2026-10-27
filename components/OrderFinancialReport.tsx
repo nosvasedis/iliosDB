@@ -64,7 +64,9 @@ function LineTable({ title, rows, empty, backlog = false }: { title: string; row
                                 </td>
                                 <td className="py-1.5 text-center">{formatNumber(item.quantity)}</td>
                                 <td className="py-1.5 text-right font-mono">{formatCurrency(item.net)}</td>
-                                <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost)}</td>
+                                <td className="py-1.5 text-right font-mono text-slate-500" title={item.costSource === 'special_estimate' ? 'Ειδική κατασκευή: εκτίμηση με το μέσο ποσοστό κόστους καταλόγου' : undefined}>
+                                    {item.costSource === 'special_estimate' ? '≈ ' : ''}{formatCurrency(item.estimatedCost)}
+                                </td>
                                 <td className="py-1.5 text-right font-mono font-bold text-emerald-600">{formatCurrency(item.profit)}</td>
                                 <td className="py-1.5 text-right font-black">{percent(item.margin)}</td>
                             </tr>

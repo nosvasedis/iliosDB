@@ -7,6 +7,7 @@ import {
 } from '../../utils/financeAnalytics';
 import { PRODUCTION_STAGES } from '../../utils/productionStages';
 import { isInternalOrder } from '../../utils/orderCustomer';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import type { DeliveryAttentionEntry } from '../../utils/deliveryScheduling';
 import type { InventoryAvailability } from '../inventory';
 import type { ReadyOrdersSummary } from './dashboardMosaicViewModels';
@@ -495,7 +496,8 @@ export interface MissingCostRow {
 export function buildMissingCostRows(realized: FinanceLineEvent[], backlog: FinanceLineEvent[]): MissingCostRow[] {
   const bySku = new Map<string, MissingCostRow & { orderIndex: Map<string, MissingCostOrderRef> }>();
   const add = (event: FinanceLineEvent, stage: MissingCostOrderRef['stage']) => {
-    if (!event.costWarning) return;
+    // SP special creations are costed by estimate, never "missing".
+    if (!event.costWarning || isSpecialCreationSku(event.sku)) return;
     const separator = event.costWarning.indexOf(': ');
     const reason = separator >= 0 ? event.costWarning.slice(separator + 2) : event.costWarning;
     const row = bySku.get(event.sku) ?? {

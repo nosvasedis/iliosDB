@@ -29,6 +29,8 @@ export function buildCategoryChartData(
   const counts: Record<string, number> = {};
 
   events.forEach((event) => {
+    // SP special creations have their own dashboard panel, not a catalogue category.
+    if (isSpecialCreationSku(event.sku)) return;
     const product = bySku.get(event.sku);
     if (product?.is_component) return;
     if (genderFilter !== 'All' && product && product.gender !== genderFilter) return;
