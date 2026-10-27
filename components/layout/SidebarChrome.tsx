@@ -1,7 +1,7 @@
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronsLeft, ChevronsRight, Cloud, CloudOff, HardDrive, LogOut, RefreshCw, X } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, LogOut, X } from 'lucide-react';
 import {
   APP_VERSION_LABEL,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
@@ -86,9 +86,12 @@ export function SidebarOverlayScrim({
 export function SidebarHoverTooltip({
   label,
   children,
+  className = 'w-full',
 }: {
   label: string;
   children: React.ReactNode;
+  /** Wrapper sizing; defaults to filling the row. Pass e.g. 'shrink-0' when the trigger sits beside other content. */
+  className?: string;
 }) {
   const triggerRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<number>();
@@ -125,7 +128,7 @@ export function SidebarHoverTooltip({
   return (
     <div
       ref={triggerRef}
-      className="w-full"
+      className={className}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}
@@ -213,13 +216,11 @@ export function SidebarStatusIndicator({
   tone,
   shortLabel,
   label,
-  icon,
   railMode,
 }: {
   tone: SidebarStatusTone;
   shortLabel: string;
   label: string;
-  icon?: React.ReactNode;
   railMode: boolean;
 }) {
   const style = STATUS_TONE[tone];
@@ -238,12 +239,7 @@ export function SidebarStatusIndicator({
         className={`flex min-w-0 select-none items-center ${railMode ? 'h-7 justify-center' : 'h-8 gap-2 px-3'}`}
       >
         {dot}
-        {!railMode && (
-          <>
-            <span className={`truncate text-[11.5px] font-medium ${style.text}`}>{shortLabel}</span>
-            {icon && <span className={`shrink-0 opacity-70 ${style.text}`}>{icon}</span>}
-          </>
-        )}
+        {!railMode && <span className={`truncate text-[11.5px] font-medium ${style.text}`}>{shortLabel}</span>}
       </span>
     </SidebarHoverTooltip>
   );
@@ -252,15 +248,15 @@ export function SidebarStatusIndicator({
 export function SidebarConnectionBadge({ railMode, ...input }: SidebarConnectionInput & { railMode: boolean }) {
   const status = resolveSidebarConnection(input);
   const pending = input.pendingCount > 99 ? '99+' : formatNumber(input.pendingCount);
-  const view: Record<typeof status.kind, { tone: SidebarStatusTone; shortLabel: string; icon: React.ReactNode }> = {
-    online: { tone: 'ok', shortLabel: 'Συνδεδεμένο', icon: <Cloud size={12} strokeWidth={2.2} /> },
-    syncing: { tone: 'busy', shortLabel: 'Συγχρονισμός…', icon: <RefreshCw size={12} strokeWidth={2.2} className="animate-spin" /> },
-    pending: { tone: 'warn', shortLabel: `${pending} σε αναμονή`, icon: <RefreshCw size={12} strokeWidth={2.2} /> },
-    offline: { tone: 'error', shortLabel: 'Εκτός σύνδεσης', icon: <CloudOff size={12} strokeWidth={2.2} /> },
-    local: { tone: 'warn', shortLabel: 'Τοπική βάση', icon: <HardDrive size={12} strokeWidth={2.2} /> },
+  const view: Record<typeof status.kind, { tone: SidebarStatusTone; shortLabel: string }> = {
+    online: { tone: 'ok', shortLabel: 'Συνδεδεμένο' },
+    syncing: { tone: 'busy', shortLabel: 'Συγχρονισμός…' },
+    pending: { tone: 'warn', shortLabel: `${pending} σε αναμονή` },
+    offline: { tone: 'error', shortLabel: 'Εκτός σύνδεσης' },
+    local: { tone: 'warn', shortLabel: 'Τοπική βάση' },
   };
-  const { tone, shortLabel, icon } = view[status.kind];
-  return <SidebarStatusIndicator tone={tone} shortLabel={shortLabel} label={status.label} icon={icon} railMode={railMode} />;
+  const { tone, shortLabel } = view[status.kind];
+  return <SidebarStatusIndicator tone={tone} shortLabel={shortLabel} label={status.label} railMode={railMode} />;
 }
 
 export function SidebarCollapseButton({
@@ -272,7 +268,7 @@ export function SidebarCollapseButton({
 }) {
   const label = isCollapsed ? 'Ανάπτυξη μενού' : 'Σύμπτυξη μενού';
   return (
-    <SidebarHoverTooltip label={label}>
+    <SidebarHoverTooltip label={label} className={isCollapsed ? 'w-full' : 'shrink-0'}>
       <button
         type="button"
         onClick={onToggle}
