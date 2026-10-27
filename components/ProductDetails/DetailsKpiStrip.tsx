@@ -1,6 +1,6 @@
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React from 'react';
-import { Coins, Layers, LucideIcon, MapPin, Percent, Puzzle, Receipt, TrendingUp, Weight } from 'lucide-react';
+import { Coins, Layers, LucideIcon, MapPin, Percent, Puzzle, Receipt, ShoppingBag, TrendingUp, Weight } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getMarginTone } from './detailsUi';
 
@@ -38,6 +38,7 @@ export default function DetailsKpiStrip({
     cost,
     price,
     margin,
+    retailMultiplier,
     totalWeight,
     secondaryWeight,
     variantCount,
@@ -49,6 +50,7 @@ export default function DetailsKpiStrip({
     cost: number;
     price: number;
     margin: number;
+    retailMultiplier: number;
     totalWeight: number;
     secondaryWeight: number;
     variantCount: number;
@@ -60,7 +62,7 @@ export default function DetailsKpiStrip({
     const hasPrice = price > 0;
 
     return (
-        <div className={`grid shrink-0 grid-cols-2 divide-x divide-y divide-slate-100 border-b border-slate-200 bg-white sm:grid-cols-3 lg:divide-y-0 ${isComponent ? 'lg:grid-cols-5' : 'lg:grid-cols-6'}`}>
+        <div className={`grid shrink-0 grid-cols-2 divide-x divide-y divide-slate-100 border-b border-slate-200 bg-white lg:divide-y-0 ${isComponent ? 'sm:grid-cols-3 lg:grid-cols-5' : 'sm:grid-cols-4 lg:grid-cols-7'}`}>
             <Kpi icon={Receipt} label="Κόστος" value={formatCurrency(cost)} sub={scopeLabel} />
             {isComponent ? (
                 <>
@@ -70,6 +72,7 @@ export default function DetailsKpiStrip({
             ) : (
                 <>
                     <Kpi icon={Coins} label="Χονδρική" value={hasPrice ? formatCurrency(price) : '—'} valueClass={hasPrice ? 'text-emerald-700' : 'text-slate-300'} sub={hasPrice ? 'ανά τεμάχιο' : 'Δεν έχει οριστεί'} />
+                    <Kpi icon={ShoppingBag} label="Λιανική" value={hasPrice ? formatCurrency(price * retailMultiplier) : '—'} valueClass={hasPrice ? 'text-violet-700' : 'text-slate-300'} sub={`×${formatDecimal(retailMultiplier, 2)} χονδρικής`} />
                     <Kpi
                         icon={TrendingUp}
                         label="Μικτό κέρδος"

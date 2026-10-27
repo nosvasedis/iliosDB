@@ -21,6 +21,7 @@ function FinishPriceCard({
     cost,
     variantCount,
     suggested,
+    retailMultiplier,
     showSuggestion,
     onChange,
 }: {
@@ -29,6 +30,7 @@ function FinishPriceCard({
     cost: number;
     variantCount?: number;
     suggested: number;
+    retailMultiplier: number;
     showSuggestion: boolean;
     /** `manual` is false when the user accepts the formula suggestion. */
     onChange: (value: number, manual: boolean) => void;
@@ -62,6 +64,9 @@ function FinishPriceCard({
                 <span className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold ${fc.euro}`}>€</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Λιανική <span className="font-mono font-bold text-violet-700">{price > 0 ? formatCurrency(price * retailMultiplier) : '—'}</span></span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px]">
                 <span className="text-slate-500">Κόστος <span className="font-mono font-bold text-slate-700">{formatCurrency(cost)}</span></span>
                 {price > 0 && <span className={`rounded px-1.5 py-0.5 font-bold ${tone.bg} ${tone.text}`}>{formatDecimal(margin, 0)}%</span>}
             </div>
@@ -90,6 +95,7 @@ export default function FinishPricingSection({
     sortedFinishCodes,
     masterCost,
     pricing,
+    retailMultiplier,
 }: {
     product: Product;
     setProduct: React.Dispatch<React.SetStateAction<Product>>;
@@ -98,6 +104,7 @@ export default function FinishPricingSection({
     sortedFinishCodes: string[];
     masterCost: number;
     pricing: SkuPricing;
+    retailMultiplier: number;
 }) {
     const { showRepriceTool, toggleRepriceTool, targetMargin, setTargetMargin, getSuggestedPriceForFinishGroup, handleApplyAllSuggestions } = pricing;
 
@@ -130,6 +137,7 @@ export default function FinishPricingSection({
                         price={product.selling_price}
                         cost={masterCost}
                         suggested={getSuggestedPriceForFinishGroup('', 'formula', targetMargin)}
+                        retailMultiplier={retailMultiplier}
                         showSuggestion={showRepriceTool}
                         onChange={(value, manual) => setProduct(prev => ({ ...prev, selling_price: value, selling_price_manual_override: manual }))}
                     />
@@ -144,6 +152,7 @@ export default function FinishPricingSection({
                             cost={group[0]?.active_price || 0}
                             variantCount={group.length}
                             suggested={getSuggestedPriceForFinishGroup(code, 'formula', targetMargin)}
+                            retailMultiplier={retailMultiplier}
                             showSuggestion={showRepriceTool}
                             onChange={(value, manual) => setGroupPrice(group, value, manual)}
                         />

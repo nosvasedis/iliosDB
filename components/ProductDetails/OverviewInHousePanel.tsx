@@ -31,6 +31,7 @@ export default function OverviewInHousePanel({
     sortedFinishCodes,
     masterCost,
     pricing,
+    retailMultiplier,
     showToast,
 }: {
     product: Product;
@@ -43,6 +44,7 @@ export default function OverviewInHousePanel({
     sortedFinishCodes: string[];
     masterCost: number;
     pricing: SkuPricing;
+    retailMultiplier: number;
     showToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }) {
     const skipCasting = !!product.skip_casting;
@@ -145,6 +147,7 @@ export default function OverviewInHousePanel({
                     sortedFinishCodes={sortedFinishCodes}
                     masterCost={masterCost}
                     pricing={pricing}
+                    retailMultiplier={retailMultiplier}
                 />
             )}
         </div>

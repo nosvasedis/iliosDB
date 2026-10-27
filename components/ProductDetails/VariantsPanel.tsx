@@ -18,6 +18,7 @@ export default function VariantsPanel({
     allMaterials,
     allProducts,
     pricing,
+    retailMultiplier,
     onViewVariant,
     showToast,
 }: {
@@ -29,6 +30,7 @@ export default function VariantsPanel({
     allMaterials: Material[];
     allProducts: Product[];
     pricing: SkuPricing;
+    retailMultiplier: number;
     onViewVariant: (index: number) => void;
     showToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }) {
@@ -87,13 +89,14 @@ export default function VariantsPanel({
                     </div>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
-                        <table className="w-full min-w-[40rem] text-sm">
+                        <table className="w-full min-w-[46rem] text-sm">
                             <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Κωδικός</th>
                                     <th className="px-3 py-2 text-left">Περιγραφή</th>
                                     <th className="px-3 py-2 text-right">Κόστος</th>
                                     {!isComponent && <th className="px-3 py-2 text-right">Χονδρική</th>}
+                                    {!isComponent && <th className="px-3 py-2 text-right">Λιανική</th>}
                                     {!isComponent && <th className="px-3 py-2 text-right">Περιθώριο</th>}
                                     <th className="w-28 px-2 py-2" />
                                 </tr>
@@ -137,6 +140,11 @@ export default function VariantsPanel({
                                                         />
                                                         <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-emerald-400">€</span>
                                                     </div>
+                                                </td>
+                                            )}
+                                            {!isComponent && (
+                                                <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-bold text-violet-700">
+                                                    {price > 0 ? formatCurrency(price * retailMultiplier) : <span className="text-slate-300">—</span>}
                                                 </td>
                                             )}
                                             {!isComponent && (

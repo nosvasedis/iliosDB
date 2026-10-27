@@ -3,7 +3,7 @@ import { Gender, PlatingType, ProductionType, type GlobalSettings, type Product 
 import { INITIAL_SETTINGS } from '../../constants';
 import { DEFAULT_PRICING_RULES, getPricingRules, validatePricingRules } from '../../utils/pricingRules';
 import { calculateProductCost, estimateVariantCost, getIliosSuggestedPriceForProduct, getLabelDisplayPrice, roundPrice } from '../../utils/pricingEngine';
-import { computeAutoLaborCosts, getCastingFormulaLine, resolveTechnicianCostMaster, resolveTechnicianCostVariant } from '../../utils/laborFormula';
+import { computeAutoLaborCosts, getCastingFormulaLine, getTechnicianFormulaLine, resolveTechnicianCostMaster, resolveTechnicianCostVariant } from '../../utils/laborFormula';
 import { buildCatalogueRepricing, type PricingCatalogSnapshot } from '../../utils/catalogRepricing';
 
 const product = (patch: Partial<Product> = {}): Product => ({
@@ -118,5 +118,19 @@ describe('catalogue repricing completeness and safety', () => {
     const plan = buildCatalogueRepricing(s);
     expect(plan.rows.find(r => r.suffix === null)?.values.active_price).toBe(16.8);
     expect(JSON.stringify(s.recipes)).toBe(before);
+  });
+});
+
+describe('labor formula lines are free of float noise', () => {
+  it('shows 5.1 g × 0.70 €/g as 3.57, not 3.5699999999999994', () => {
+    const p = product({ weight_g: 5.1 });
+    const line = getTechnicianFormulaLine(p.labor, p, false, settings());
+    expect(line.weightBasis).toBe(5.1);
+    expect(line.total).toBe(3.57);
+  });
+
+  it('cleans summed weight bases (0.1 + 0.2 g)', () => {
+    const p = product({ weight_g: 0.1, secondary_weight_g: 0.2 });
+    expect(getCastingFormulaLine(p.labor, p, settings()).weightBasis).toBe(0.3);
   });
 });

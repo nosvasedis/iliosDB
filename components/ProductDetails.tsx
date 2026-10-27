@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
+import { getPricingRules } from '../utils/pricingRules';
 import { Info, Layers, ScanBarcode, Factory, Box, Hammer } from 'lucide-react';
 import { AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { prepareUploadSource } from '../utils/imageHelpers';
@@ -184,6 +185,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         if (currentViewVariant.selling_price != null) displayedPrice = currentViewVariant.selling_price;
     }
 
+    // Same rule as retail labels: wholesale × configured retail multiplier.
+    const retailMultiplier = getPricingRules(settings).retail_multiplier;
     const displayedProfit = displayedPrice - displayedCost;
     const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
 
@@ -572,6 +575,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     cost={displayedCost}
                     price={displayedPrice}
                     margin={displayedMargin}
+                    retailMultiplier={retailMultiplier}
                     totalWeight={editedProduct.weight_g + (editedProduct.secondary_weight_g || 0)}
                     secondaryWeight={editedProduct.secondary_weight_g || 0}
                     variantCount={variants.length}
@@ -614,6 +618,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         sortedFinishCodes={sortedFinishCodes}
                                         masterCost={masterCost}
                                         pricing={pricing}
+                                        retailMultiplier={retailMultiplier}
                                         showToast={showToast}
                                     />
                                 ) : (
@@ -625,6 +630,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         importedCostAnalysis={importedCostAnalysis}
                                         masterCost={masterCost}
                                         pricing={pricing}
+                                        retailMultiplier={retailMultiplier}
                                     />
                                 ))}
 
@@ -669,6 +675,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 formulas={laborFormulas}
                                                 variantSuffix={currentViewVariant?.suffix ?? null}
                                                 costingItems={analyticalCostingItems}
+                                                retailMultiplier={retailMultiplier}
+                                                onViewVariant={(suffix) => {
+                                                    const index = sortedVariantsList.findIndex(v => v.suffix === suffix);
+                                                    if (index >= 0) setViewIndex(index);
+                                                }}
                                             />
                                         )}
                                     </div>
@@ -684,6 +695,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         allMaterials={allMaterials}
                                         allProducts={allProducts}
                                         pricing={pricing}
+                                        retailMultiplier={retailMultiplier}
                                         onViewVariant={setViewIndex}
                                         showToast={showToast}
                                     />

@@ -28,6 +28,7 @@ export default function OverviewImportedPanel({
     importedCostAnalysis,
     masterCost,
     pricing,
+    retailMultiplier,
 }: {
     product: Product;
     setProduct: React.Dispatch<React.SetStateAction<Product>>;
@@ -36,6 +37,7 @@ export default function OverviewImportedPanel({
     importedCostAnalysis: ImportedCostAnalysis;
     masterCost: number;
     pricing: SkuPricing;
+    retailMultiplier: number;
 }) {
     const { showRepriceTool, toggleRepriceTool, targetMargin, setTargetMargin, calculatedPrice, updateCalculatedPrice, handleStandardFormula, applyReprice } = pricing;
     const setLabor = (patch: Partial<Product['labor']>) => setProduct(p => ({ ...p, labor: { ...p.labor, ...patch } }));
@@ -128,13 +130,17 @@ export default function OverviewImportedPanel({
                     </DetailsButton>
                 )}
             >
-                <div className="grid grid-cols-1 items-end gap-5 sm:grid-cols-3">
+                <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <DetailsField label="Τιμή Πώλησης (€)" icon={Coins}>
                         <div className="relative">
                             <input type="number" step="0.01" className="w-full rounded-xl border border-amber-200 bg-white p-2.5 pr-7 font-mono text-base font-bold text-amber-900 shadow-sm outline-none transition-all focus:border-amber-300 focus:ring-2 focus:ring-amber-400/20" value={product.selling_price} onChange={e => setProduct(prev => ({ ...prev, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true }))} />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-400">€</span>
                         </div>
                     </DetailsField>
+                    <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase text-violet-500">Λιανική ×{formatDecimal(retailMultiplier, 2)}</div>
+                        <div className="font-mono text-lg font-bold text-violet-800">{product.selling_price > 0 ? formatCurrency(product.selling_price * retailMultiplier) : '—'}</div>
+                    </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
                         <div className="text-[10px] font-bold uppercase text-slate-400">Κόστος</div>
                         <div className="font-mono text-lg font-bold text-slate-800">{formatCurrency(masterCost)}</div>
