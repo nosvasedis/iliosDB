@@ -12,11 +12,11 @@ import {
   SidebarBrand,
   SidebarEscapeListener,
   SidebarFooterMeta,
-  SidebarHoverTooltip,
   SidebarNavButton,
   SidebarOverlayScrim,
   SidebarSectionLabel,
-  SidebarUserCard,
+  SidebarLogoutButton,
+  SidebarStatusIndicator,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
@@ -69,18 +69,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         />
         <aside className={`${sidebarAsideClass(isCollapsed)} hidden md:flex`} aria-label="Κύρια πλοήγηση">
           <SidebarBackdrop />
-          <SidebarBrand
-            logoSrc={APP_LOGO}
-            iconSrc={APP_ICON_ONLY}
-            railMode={isCollapsed}
-            status={
-              <SidebarHoverTooltip label="Λειτουργία καταστήματος">
-                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-400/[0.08] ring-1 ring-inset ring-emerald-300/15" aria-label="Λειτουργία καταστήματος">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                </span>
-              </SidebarHoverTooltip>
-            }
-          />
+          <SidebarBrand logoSrc={APP_LOGO} iconSrc={APP_ICON_ONLY} railMode={isCollapsed} />
 
           <nav className={`flex flex-1 flex-col px-2 py-1.5 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {employeeDesktopNavSections.map((section, sectionIndex) => (
@@ -102,13 +91,15 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
           </nav>
 
           <div className="shrink-0 border-t border-white/[0.06] bg-black/10 px-2 py-2">
-            <SidebarUserCard
-              name={profile?.full_name || 'Κατάστημα'}
-              subtitle="Λειτουργία καταστήματος"
+            <SidebarLogoutButton name={profile?.full_name || undefined} railMode={isCollapsed} onLogout={handleLogout} />
+            <SidebarFooterMeta
               railMode={isCollapsed}
-              onLogout={handleLogout}
+              isCollapsed={isCollapsed}
+              onToggle={() => setIsCollapsed((current) => !current)}
+              status={
+                <SidebarStatusIndicator tone="ok" shortLabel="Κατάστημα" label="Λειτουργία καταστήματος" railMode={isCollapsed} />
+              }
             />
-            <SidebarFooterMeta railMode={isCollapsed} isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
           </div>
         </aside>
 

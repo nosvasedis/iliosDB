@@ -24,11 +24,10 @@ import type { LegalTab } from './LegalDocumentsPage';
 import LegalOnlyPrintManager from './LegalOnlyPrintManager';
 import IliosLoader from './ui/IliosLoader';
 import {
-  SidebarCollapseButton,
+  SidebarFooterMeta,
   SidebarConnectionBadge,
   SidebarNavButton,
   SidebarOverlayScrim,
-  SidebarVersionMark,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
@@ -135,10 +134,10 @@ const InspectionModeShell: React.FC = () => {
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={sidebarAsideClass(isCollapsed)}>
-          <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 px-1.5' : 'px-3 py-3'}`}>
+          <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-16 px-1.5' : 'px-5 py-4'}`}>
             {!isCollapsed ? (
               <>
-                <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" />
+                <img src={APP_LOGO} alt="Ilios Kosmima" className="mx-auto h-14 w-auto max-w-full object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)]" />
                 <p className="mt-1.5 text-center text-[10px] font-black uppercase tracking-[0.18em] text-amber-400/90">
                   Σύστημα Παραστατικών
                 </p>
@@ -149,11 +148,8 @@ const InspectionModeShell: React.FC = () => {
                 )}
               </>
             ) : (
-              <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
+              <img src={APP_ICON_ONLY} alt="Ilios Kosmima" className="h-9 w-9 object-contain drop-shadow-[0_2px_8px_rgba(251,191,36,0.3)]" />
             )}
-            <div className={isCollapsed ? 'mt-0.5' : 'absolute right-2 top-2'}>
-              <SidebarConnectionBadge isLocalMode={false} isOnline={isOnline} isSyncing={false} pendingCount={pendingCount} />
-            </div>
           </div>
 
           <nav className={`flex flex-1 flex-col px-1.5 py-2 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
@@ -170,13 +166,15 @@ const InspectionModeShell: React.FC = () => {
           </nav>
 
           <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
-            <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
-            <p
-              className="mb-1.5 mt-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80"
-            >
+            <p className="mb-0.5 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80">
               {isCollapsed ? (isProduction ? 'PROD' : 'TEST') : `SBZ ${environment}`}
             </p>
-            <SidebarVersionMark compact={isCollapsed} />
+            <SidebarFooterMeta
+              railMode={isCollapsed}
+              isCollapsed={isCollapsed}
+              onToggle={() => setIsCollapsed((current) => !current)}
+              status={<SidebarConnectionBadge railMode={isCollapsed} isLocalMode={false} isOnline={isOnline} isSyncing={false} pendingCount={pendingCount} />}
+            />
           </div>
         </aside>
 

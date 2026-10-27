@@ -151,84 +151,116 @@ export function SidebarHoverTooltip({
   );
 }
 
-/** Top brand block: full logo when expanded, mark-only in the rail, with a status slot and a mobile close button. */
+/** Top brand block: the full logo centred and given room when expanded, the mark alone in the rail. */
 export function SidebarBrand({
   logoSrc,
   iconSrc,
   railMode,
-  status,
   onClose,
 }: {
   logoSrc: string;
   iconSrc: string;
   railMode: boolean;
-  status?: React.ReactNode;
   onClose?: () => void;
 }) {
   return (
     <div
-      className={`relative flex shrink-0 items-center border-b border-white/[0.06] ${
-        railMode ? 'flex-col justify-center gap-1 px-1.5 py-3' : 'h-[4.25rem] gap-2 pl-4 pr-2'
+      className={`relative flex shrink-0 items-center justify-center border-b border-white/[0.06] ${
+        railMode ? 'h-16 px-1.5' : 'h-24 px-6 md:[@media(max-height:820px)]:h-20'
       }`}
     >
+      {/* Soft halo so the gold logo lifts off the dark panel. */}
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/[0.10] blur-2xl ${
+          railMode ? 'h-10 w-10' : 'h-16 w-40'
+        }`}
+      />
       {railMode ? (
-        <img src={iconSrc} alt="Ilios" className="h-8 w-8 object-contain drop-shadow-[0_2px_8px_rgba(251,191,36,0.25)]" />
+        <img src={iconSrc} alt="Ilios Kosmima" className="relative h-9 w-9 object-contain drop-shadow-[0_2px_8px_rgba(251,191,36,0.3)]" />
       ) : (
-        <img src={logoSrc} alt="Ilios" className="h-10 w-auto min-w-0 max-w-[9.5rem] object-contain object-left drop-shadow-lg" />
+        <img
+          src={logoSrc}
+          alt="Ilios Kosmima"
+          className="relative mx-auto h-16 w-auto max-w-full object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] md:[@media(max-height:820px)]:h-14"
+        />
       )}
-      <div className={`flex items-center ${railMode ? '' : 'ml-auto gap-0.5'}`}>
-        {status}
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Κλείσιμο μενού"
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white md:hidden ${FOCUS_RING_CLASS}`}
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Κλείσιμο μενού"
+          className={`absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white md:hidden ${FOCUS_RING_CLASS}`}
+        >
+          <X size={18} />
+        </button>
+      )}
     </div>
   );
 }
 
-export function SidebarConnectionBadge(input: SidebarConnectionInput) {
-  const status = resolveSidebarConnection(input);
-  const tone =
-    status.kind === 'online'
-      ? 'text-emerald-300 bg-emerald-400/[0.08] ring-emerald-300/15'
-      : status.kind === 'offline'
-        ? 'text-rose-300 bg-rose-400/[0.10] ring-rose-300/20'
-        : 'text-amber-300 bg-amber-400/[0.10] ring-amber-300/20';
+export type SidebarStatusTone = 'ok' | 'busy' | 'warn' | 'error';
 
-  const icon =
-    status.kind === 'syncing' ? (
-      <RefreshCw size={13} strokeWidth={2.2} className="animate-spin" />
-    ) : status.kind === 'pending' ? (
-      <span className="text-[9px] font-black leading-none">{input.pendingCount > 9 ? '9+' : formatNumber(input.pendingCount)}</span>
-    ) : status.kind === 'offline' ? (
-      <CloudOff size={13} strokeWidth={2.2} />
-    ) : status.kind === 'local' ? (
-      <HardDrive size={13} strokeWidth={2.2} />
-    ) : (
-      <Cloud size={13} strokeWidth={2.2} />
-    );
+const STATUS_TONE: Record<SidebarStatusTone, { dot: string; text: string; pulse: boolean }> = {
+  ok: { dot: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]', text: 'text-emerald-300/90', pulse: false },
+  busy: { dot: 'bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.7)]', text: 'text-amber-200/90', pulse: true },
+  warn: { dot: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]', text: 'text-amber-200/90', pulse: false },
+  error: { dot: 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]', text: 'text-rose-300', pulse: true },
+};
+
+/** Quiet status line for the footer: a glowing dot plus a short label; the full explanation lives in the tooltip. */
+export function SidebarStatusIndicator({
+  tone,
+  shortLabel,
+  label,
+  icon,
+  railMode,
+}: {
+  tone: SidebarStatusTone;
+  shortLabel: string;
+  label: string;
+  icon?: React.ReactNode;
+  railMode: boolean;
+}) {
+  const style = STATUS_TONE[tone];
+  const dot = (
+    <span className="relative flex h-2 w-2 shrink-0">
+      {style.pulse && <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${style.dot}`} />}
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${style.dot}`} />
+    </span>
+  );
 
   return (
-    <SidebarHoverTooltip label={status.label}>
+    <SidebarHoverTooltip label={label}>
       <span
         role="status"
-        aria-label={status.label}
-        className={`relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${tone}`}
+        aria-label={label}
+        className={`flex min-w-0 select-none items-center ${railMode ? 'h-7 justify-center' : 'h-8 gap-2 px-3'}`}
       >
-        {icon}
-        {status.kind === 'offline' && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-rose-400 ring-2 ring-[#0d1407]" />
+        {dot}
+        {!railMode && (
+          <>
+            <span className={`truncate text-[11.5px] font-medium ${style.text}`}>{shortLabel}</span>
+            {icon && <span className={`shrink-0 opacity-70 ${style.text}`}>{icon}</span>}
+          </>
         )}
       </span>
     </SidebarHoverTooltip>
   );
+}
+
+export function SidebarConnectionBadge({ railMode, ...input }: SidebarConnectionInput & { railMode: boolean }) {
+  const status = resolveSidebarConnection(input);
+  const pending = input.pendingCount > 99 ? '99+' : formatNumber(input.pendingCount);
+  const view: Record<typeof status.kind, { tone: SidebarStatusTone; shortLabel: string; icon: React.ReactNode }> = {
+    online: { tone: 'ok', shortLabel: 'Συνδεδεμένο', icon: <Cloud size={12} strokeWidth={2.2} /> },
+    syncing: { tone: 'busy', shortLabel: 'Συγχρονισμός…', icon: <RefreshCw size={12} strokeWidth={2.2} className="animate-spin" /> },
+    pending: { tone: 'warn', shortLabel: `${pending} σε αναμονή`, icon: <RefreshCw size={12} strokeWidth={2.2} /> },
+    offline: { tone: 'error', shortLabel: 'Εκτός σύνδεσης', icon: <CloudOff size={12} strokeWidth={2.2} /> },
+    local: { tone: 'warn', shortLabel: 'Τοπική βάση', icon: <HardDrive size={12} strokeWidth={2.2} /> },
+  };
+  const { tone, shortLabel, icon } = view[status.kind];
+  return <SidebarStatusIndicator tone={tone} shortLabel={shortLabel} label={status.label} icon={icon} railMode={railMode} />;
 }
 
 export function SidebarCollapseButton({
@@ -345,69 +377,37 @@ export function SidebarNavButton({
   return isCollapsed ? <SidebarHoverTooltip label={hasBadge ? `${label} · ${badgeText}` : label}>{button}</SidebarHoverTooltip> : button;
 }
 
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '·';
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toLocaleUpperCase('el-GR');
-}
-
-/** Footer identity card with sign-out. Collapses to a single sign-out icon in the rail. */
-export function SidebarUserCard({
+/** Sign-out row styled like a nav item, with the signed-in name as a quiet trailing hint. */
+export function SidebarLogoutButton({
   name,
-  subtitle,
   railMode,
   onLogout,
 }: {
-  name: string;
-  subtitle?: string;
+  name?: string;
   railMode: boolean;
   onLogout: () => void;
 }) {
-  if (railMode) {
-    return (
-      <SidebarHoverTooltip label={`Αποσύνδεση · ${name}`}>
-        <button
-          type="button"
-          onClick={onLogout}
-          aria-label={`Αποσύνδεση · ${name}`}
-          className={`group relative mx-auto mt-1 flex h-10 w-10 items-center justify-center rounded-full ${FOCUS_RING_CLASS}`}
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-600 text-[12px] font-black text-[#060b00] shadow-[0_4px_14px_rgba(251,191,36,0.25)] transition-opacity group-hover:opacity-0">
-            {initialsOf(name)}
-          </span>
-          <span className="absolute inset-0.5 flex items-center justify-center rounded-full bg-rose-500/15 text-rose-300 opacity-0 ring-1 ring-inset ring-rose-300/30 transition-opacity group-hover:opacity-100">
-            <LogOut size={15} />
-          </span>
-        </button>
-      </SidebarHoverTooltip>
-    );
-  }
-
-  return (
-    <div className="mt-1 flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.03] p-2">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-600 text-[12px] font-black text-[#060b00] shadow-[0_4px_14px_rgba(251,191,36,0.2)]">
-        {initialsOf(name)}
-      </span>
-      <div className="min-w-0 flex-1 leading-tight">
-        <p className="truncate text-[13px] font-semibold text-slate-100">{name}</p>
-        {subtitle && <p className="truncate text-[11px] text-slate-500">{subtitle}</p>}
-      </div>
-      <SidebarHoverTooltip label="Αποσύνδεση">
-        <button
-          type="button"
-          onClick={onLogout}
-          aria-label="Αποσύνδεση"
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-500/15 hover:text-rose-300 ${FOCUS_RING_CLASS}`}
-        >
-          <LogOut size={16} />
-        </button>
-      </SidebarHoverTooltip>
-    </div>
+  const label = name ? `Αποσύνδεση · ${name}` : 'Αποσύνδεση';
+  const button = (
+    <button
+      type="button"
+      onClick={onLogout}
+      aria-label={label}
+      className={`group relative my-px flex w-full items-center rounded-xl text-slate-400 transition-colors duration-150 hover:bg-rose-500/[0.10] hover:text-rose-200
+        ${NAV_ROW_HEIGHT_CLASS}
+        ${railMode ? 'justify-center px-0' : 'justify-start gap-3 px-3'}
+        ${FOCUS_RING_CLASS}`}
+    >
+      <LogOut size={18} strokeWidth={2} className="shrink-0 text-slate-500 transition-colors group-hover:text-rose-300" />
+      {!railMode && (
+        <>
+          <span className="shrink-0 text-[13px] font-medium tracking-wide">Αποσύνδεση</span>
+          {name && <span className="ml-auto min-w-0 truncate text-[11px] text-slate-600 group-hover:text-rose-200/60">{name}</span>}
+        </>
+      )}
+    </button>
   );
+  return railMode ? <SidebarHoverTooltip label={label}>{button}</SidebarHoverTooltip> : button;
 }
 
 export function SidebarVersionMark({ compact = false }: { compact?: boolean }) {
@@ -419,28 +419,36 @@ export function SidebarVersionMark({ compact = false }: { compact?: boolean }) {
   return compact ? <SidebarHoverTooltip label={APP_VERSION_LABEL}>{mark}</SidebarHoverTooltip> : mark;
 }
 
-/** Footer row: version mark beside the collapse toggle when expanded; stacked in the rail. */
+/** Footer meta: connection status beside the collapse toggle, version underneath; stacked in the rail. */
 export function SidebarFooterMeta({
   railMode,
   isCollapsed,
   onToggle,
+  status,
 }: {
   railMode: boolean;
   isCollapsed: boolean;
   onToggle: () => void;
+  status?: React.ReactNode;
 }) {
   if (railMode) {
     return (
-      <div className="mt-2 flex flex-col items-center gap-1">
+      <div className="mt-1.5 flex flex-col items-center gap-1 border-t border-white/[0.05] pt-1.5">
+        {status}
         <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={onToggle} />
         <SidebarVersionMark compact />
       </div>
     );
   }
   return (
-    <div className="mt-2 flex items-center justify-between gap-2 pl-2">
-      <SidebarVersionMark />
-      <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={onToggle} />
+    <div className="mt-1.5 border-t border-white/[0.05] pt-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">{status}</div>
+        <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={onToggle} />
+      </div>
+      <div className="mt-1">
+        <SidebarVersionMark />
+      </div>
     </div>
   );
 }

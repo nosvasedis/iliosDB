@@ -50,7 +50,7 @@ import {
   SidebarNavButton,
   SidebarOverlayScrim,
   SidebarSectionLabel,
-  SidebarUserCard,
+  SidebarLogoutButton,
   SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
@@ -506,14 +506,6 @@ function ErpAppContent() {
             iconSrc={APP_ICON_ONLY}
             railMode={railMode}
             onClose={() => setIsSidebarOpen(false)}
-            status={
-              <SidebarConnectionBadge
-                isLocalMode={isLocalMode}
-                isOnline={isOnline}
-                isSyncing={isSyncing}
-                pendingCount={pendingCount}
-              />
-            }
           />
           <nav className={`flex flex-1 flex-col px-2 py-1.5 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {adminNavSections.map((section, sectionIndex) => {
@@ -548,13 +540,21 @@ function ErpAppContent() {
                 onClick={() => handleNav(item.id)}
               />
             ))}
-            <SidebarUserCard
-              name={profile?.full_name || 'User'}
-              subtitle={isLocalMode ? 'Τοπική λειτουργία' : 'Διαχειριστής'}
+            <SidebarLogoutButton name={profile?.full_name || undefined} railMode={railMode} onLogout={handleLogout} />
+            <SidebarFooterMeta
               railMode={railMode}
-              onLogout={handleLogout}
+              isCollapsed={isCollapsed}
+              onToggle={toggleCollapse}
+              status={
+                <SidebarConnectionBadge
+                  railMode={railMode}
+                  isLocalMode={isLocalMode}
+                  isOnline={isOnline}
+                  isSyncing={isSyncing}
+                  pendingCount={pendingCount}
+                />
+              }
             />
-            <SidebarFooterMeta railMode={railMode} isCollapsed={isCollapsed} onToggle={toggleCollapse} />
           </div>
         </aside>
         <main className={sidebarMainClass(isCollapsed)}>
