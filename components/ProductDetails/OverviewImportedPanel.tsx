@@ -7,7 +7,7 @@ import { InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
 import InvoiceTotalWeightField from './InvoiceTotalWeightField';
 import ProductionTypeBadge from './ProductionTypeBadge';
 import { LaborCostInput, SummaryRow } from './detailsInputs';
-import { DetailsField, DetailsSection, detailsInputClass, detailsMonoInputClass, getMarginTone } from './detailsUi';
+import { DetailsButton, DetailsField, DetailsSection, detailsInputClass, detailsMonoInputClass, getMarginTone } from './detailsUi';
 import { SkipCastingToggle } from './OverviewInHousePanel';
 import type { SkuPricing } from './useSkuPricing';
 
@@ -123,14 +123,9 @@ export default function OverviewImportedPanel({
                 icon={DollarSign}
                 title="Εμπορική πολιτική"
                 actions={(
-                    <button
-                        type="button"
-                        onClick={toggleRepriceTool}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all ${showRepriceTool ? 'border-amber-200 bg-amber-100 text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700'}`}
-                        title="Εργαλείο ανατιμολόγησης"
-                    >
-                        <Calculator size={14} /> Ανατιμολόγηση
-                    </button>
+                    <DetailsButton icon={Calculator} pressed={showRepriceTool} onClick={toggleRepriceTool} title="Εργαλείο ανατιμολόγησης">
+                        Ανατιμολόγηση
+                    </DetailsButton>
                 )}
             >
                 <div className="grid grid-cols-1 items-end gap-5 sm:grid-cols-3">
@@ -159,14 +154,14 @@ export default function OverviewImportedPanel({
                                 <label className="text-[10px] font-bold uppercase text-amber-700">Στόχος Περιθωρίου (%)</label>
                                 <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="block w-24 rounded-lg border border-amber-300 bg-white p-2 text-center font-bold" />
                             </div>
-                            <button type="button" onClick={handleStandardFormula} className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700">
-                                <Calculator size={12} /> Βασικός τύπος
-                            </button>
+                            <DetailsButton size="md" icon={Calculator} onClick={handleStandardFormula}>
+                                Βασικός τύπος
+                            </DetailsButton>
                             <div>
                                 <label className="text-[10px] font-bold uppercase text-amber-700">Προτεινόμενη Τιμή</label>
                                 <div className="font-mono text-xl font-black text-amber-900">{formatNumber(calculatedPrice)}€</div>
                             </div>
-                            <button type="button" onClick={applyReprice} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-blue-700">Εφαρμογή</button>
+                            <DetailsButton size="md" variant="success" onClick={applyReprice} disabled={calculatedPrice <= 0}>Εφαρμογή τιμής</DetailsButton>
                         </div>
                     </div>
                 )}

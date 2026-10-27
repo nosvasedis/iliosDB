@@ -4,7 +4,7 @@ import { ArrowUpRight, Calculator, Coins, Wand2 } from 'lucide-react';
 import { Product, ProductVariant } from '../../types';
 import { FINISH_CODES } from '../../constants';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
-import { DetailsSection, getMarginTone } from './detailsUi';
+import { DetailsButton, DetailsSection, getMarginTone } from './detailsUi';
 import type { SkuPricing } from './useSkuPricing';
 
 const FINISH_COLORS: Record<string, { bg: string, border: string, label: string, input: string, euro: string, dot: string }> = {
@@ -37,6 +37,7 @@ function FinishPriceCard({
     const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
     const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
     const tone = getMarginTone(margin);
+    const matchesSuggestion = Math.abs(suggested - price) < 0.005;
 
     return (
         <div className={`${fc.bg} rounded-xl border ${fc.border} p-3.5 transition-shadow hover:shadow-md`}>
@@ -68,11 +69,12 @@ function FinishPriceCard({
                 <button
                     type="button"
                     onClick={() => onChange(suggested, false)}
-                    className="mt-2 flex w-full items-center justify-between rounded-lg border border-dashed border-blue-200 bg-white/70 px-2 py-1 text-[11px] font-bold text-blue-600 transition-colors hover:bg-blue-50 animate-in fade-in slide-in-from-top-1"
+                    disabled={matchesSuggestion}
+                    className="mt-2 flex h-7 w-full items-center justify-between rounded-md bg-white/80 px-2 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200 transition-colors hover:bg-sky-50 hover:ring-sky-300 disabled:text-slate-400 disabled:ring-slate-200 animate-in fade-in slide-in-from-top-1"
                     title="Εφαρμογή προτεινόμενης τιμής"
                 >
-                    <span className="flex items-center gap-1"><ArrowUpRight size={11} /> Πρόταση</span>
-                    <span className="font-mono">{formatDecimal(suggested, 2)}€</span>
+                    <span className="flex items-center gap-1"><ArrowUpRight size={12} /> {matchesSuggestion ? 'Ίδια με πρόταση' : 'Εφαρμογή πρότασης'}</span>
+                    <span className="font-mono font-bold">{formatDecimal(suggested, 2)}€</span>
                 </button>
             )}
         </div>
@@ -116,14 +118,9 @@ export default function FinishPricingSection({
             title="Τιμές χονδρικής"
             subtitle={hasVariants ? 'Ανά φινίρισμα — εφαρμόζεται σε όλες τις παραλλαγές της ομάδας' : 'Βασική τιμή πώλησης'}
             actions={(
-                <button
-                    type="button"
-                    onClick={toggleRepriceTool}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all ${showRepriceTool ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'}`}
-                    title="Εργαλείο ανατιμολόγησης"
-                >
-                    <Calculator size={14} /> Ανατιμολόγηση
-                </button>
+                <DetailsButton icon={Calculator} pressed={showRepriceTool} onClick={toggleRepriceTool} title="Εργαλείο ανατιμολόγησης">
+                    Ανατιμολόγηση
+                </DetailsButton>
             )}
         >
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-5">
@@ -172,12 +169,12 @@ export default function FinishPricingSection({
                         </div>
                     </div>
                     <div className="flex flex-col justify-end gap-2 md:w-64">
-                        <button type="button" onClick={() => handleApplyAllSuggestions('margin')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
+                        <DetailsButton size="md" onClick={() => handleApplyAllSuggestions('margin')}>
                             Εφαρμογή περιθωρίου {formatNumber(targetMargin)}%
-                        </button>
-                        <button type="button" onClick={() => handleApplyAllSuggestions('formula')} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-200/50 transition-all hover:bg-emerald-700 active:scale-[0.98]">
-                            <Calculator size={14} /> Τύπος Ilios (Smart)
-                        </button>
+                        </DetailsButton>
+                        <DetailsButton size="md" variant="success" icon={Calculator} onClick={() => handleApplyAllSuggestions('formula')}>
+                            Τύπος Ilios (Smart)
+                        </DetailsButton>
                     </div>
                     <p className="text-[10px] text-slate-500 md:col-span-2">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους. Οι αλλαγές ισχύουν μετά την αποθήκευση.</p>
                 </div>

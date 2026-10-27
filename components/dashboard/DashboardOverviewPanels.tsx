@@ -37,11 +37,11 @@ type Navigate = (page: AdminPage) => void;
 
 // ─── Attention strip ───────────────────────────────────────────────────────────
 
-const SEVERITY_STYLE: Record<AttentionSeverity, { card: string; count: string; icon: LucideIcon; iconClass: string }> = {
-  critical: { card: 'border-rose-200 bg-rose-50/70 hover:border-rose-300', count: 'text-rose-700', icon: AlertOctagon, iconClass: 'text-rose-500' },
-  warning: { card: 'border-amber-200 bg-amber-50/60 hover:border-amber-300', count: 'text-amber-700', icon: AlertTriangle, iconClass: 'text-amber-500' },
-  action: { card: 'border-emerald-200 bg-emerald-50/70 hover:border-emerald-300', count: 'text-emerald-700', icon: PackageCheck, iconClass: 'text-emerald-500' },
-  info: { card: 'border-slate-200 bg-white hover:border-slate-300', count: 'text-slate-700', icon: Info, iconClass: 'text-slate-400' },
+const SEVERITY_STYLE: Record<AttentionSeverity, { card: string; badge: string; icon: LucideIcon; iconClass: string }> = {
+  critical: { card: 'border-rose-200 bg-rose-50/70 hover:border-rose-300', badge: 'bg-rose-100 text-rose-700', icon: AlertOctagon, iconClass: 'text-rose-500' },
+  warning: { card: 'border-amber-200 bg-amber-50/60 hover:border-amber-300', badge: 'bg-amber-100 text-amber-800', icon: AlertTriangle, iconClass: 'text-amber-500' },
+  action: { card: 'border-emerald-200 bg-emerald-50/70 hover:border-emerald-300', badge: 'bg-emerald-100 text-emerald-700', icon: PackageCheck, iconClass: 'text-emerald-500' },
+  info: { card: 'border-slate-200 bg-white hover:border-slate-300', badge: 'bg-slate-100 text-slate-700', icon: Info, iconClass: 'text-slate-400' },
 };
 
 export const AttentionStrip = memo(function AttentionStrip({
@@ -55,9 +55,9 @@ export const AttentionStrip = memo(function AttentionStrip({
 }) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3">
         {Array.from({ length: 4 }, (_, index) => (
-          <Shimmer key={index} className="h-[4.5rem] rounded-2xl" />
+          <Shimmer key={index} className="h-[4.25rem] rounded-2xl" />
         ))}
       </div>
     );
@@ -76,7 +76,7 @@ export const AttentionStrip = memo(function AttentionStrip({
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-3" role="list" aria-label="Χρειάζονται προσοχή">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3" role="list" aria-label="Χρειάζονται προσοχή">
       {items.map((item) => {
         const style = SEVERITY_STYLE[item.severity];
         const Icon = style.icon;
@@ -86,19 +86,19 @@ export const AttentionStrip = memo(function AttentionStrip({
             type="button"
             role="listitem"
             onClick={() => onSelect(item)}
-            className={`group flex min-w-0 items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${style.card}`}
+            className={`group flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${style.card}`}
           >
-            <Icon size={16} className={`mt-1 shrink-0 ${style.iconClass}`} />
+            <span className={`flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-xl px-2 text-lg font-black tabular-nums leading-none ${style.badge}`}>
+              {item.id === 'legal' ? <Icon size={18} /> : formatNumber(item.count)}
+            </span>
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-1.5">
-                <span className={`text-xl font-black tabular-nums leading-none ${style.count}`}>
-                  {item.id === 'legal' ? '!' : formatNumber(item.count)}
-                </span>
-                <span className="truncate text-xs font-bold text-slate-800">{item.title}</span>
-              </div>
-              <p className="mt-1 truncate text-[11px] font-medium text-slate-500">{item.detail}</p>
+              <p className="flex items-center gap-1.5 text-[13px] font-bold leading-tight text-slate-800">
+                <Icon size={13} className={`shrink-0 ${style.iconClass}`} />
+                <span className="truncate">{item.title}</span>
+              </p>
+              <p className="mt-1 truncate text-[11px] font-medium leading-tight text-slate-500">{item.detail}</p>
             </div>
-            <ArrowRight size={14} className="mt-1 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
+            <ArrowRight size={15} className="shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
           </button>
         );
       })}

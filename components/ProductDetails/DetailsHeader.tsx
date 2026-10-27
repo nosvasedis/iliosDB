@@ -20,7 +20,7 @@ import { FINISH_CODES } from '../../constants';
 import { SKIP_CASTING_LABEL, canConvertToImported } from '../../features/products/productCardPresentation';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
-import { DetailsActionButton } from './detailsUi';
+import { DetailsButton, DetailsIconButton } from './detailsUi';
 
 export const FINISH_DOTS: Record<string, string> = {
     '': 'bg-gradient-to-br from-slate-300 to-slate-500',
@@ -234,12 +234,10 @@ export default function DetailsHeader({
                                         if (e.key === 'Escape') onCancelRename();
                                     }}
                                 />
-                                <button type="button" onClick={onRenameSku} disabled={isRenaming} title="Επιβεβαίωση" className="rounded-lg bg-emerald-100 p-1.5 text-emerald-700 hover:bg-emerald-200">
-                                    {isRenaming ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                </button>
-                                <button type="button" onClick={onCancelRename} title="Ακύρωση" className="rounded-lg bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200">
-                                    <X size={18} />
-                                </button>
+                                <DetailsButton variant="success" icon={isRenaming ? Loader2 : Check} onClick={onRenameSku} disabled={isRenaming} className={isRenaming ? '[&>svg]:animate-spin' : ''}>
+                                    Μετονομασία
+                                </DetailsButton>
+                                <DetailsButton variant="ghost" onClick={onCancelRename}>Ακύρωση</DetailsButton>
                             </div>
                         ) : (
                             <h2 className="group flex items-center gap-1.5 text-2xl font-black leading-tight tracking-tight">
@@ -283,40 +281,35 @@ export default function DetailsHeader({
 
                 {variantPicker && <div className="flex shrink-0 justify-center">{variantPicker}</div>}
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5">
                     {hasRecordActions && (
-                        <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                        <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 p-1">
                             {showConvertToImported && (
-                                <DetailsActionButton title="Μετατροπή σε εισαγωγή" label="Σε εισαγωγή" onClick={onConvert} tone="violet">
-                                    <Globe size={16} />
-                                </DetailsActionButton>
+                                <DetailsButton variant="ghost" icon={Globe} onClick={onConvert} title="Μετατροπή σε εισαγωγή" aria-label="Μετατροπή σε εισαγωγή">
+                                    <span className="hidden xl:inline">Σε εισαγωγή</span>
+                                </DetailsButton>
                             )}
                             {isImported && (
-                                <DetailsActionButton title="Μετατροπή σε ιδιοπαραγωγή" label="Σε ιδιοπαραγωγή" onClick={onConvert} tone="success">
-                                    <Factory size={16} />
-                                </DetailsActionButton>
+                                <DetailsButton variant="ghost" icon={Factory} onClick={onConvert} title="Μετατροπή σε ιδιοπαραγωγή" aria-label="Μετατροπή σε ιδιοπαραγωγή">
+                                    <span className="hidden xl:inline">Σε ιδιοπαραγωγή</span>
+                                </DetailsButton>
                             )}
                             {onDuplicate && (
-                                <DetailsActionButton title="Κλωνοποίηση" label="Κλωνοποίηση" onClick={onDuplicate} tone="info">
-                                    <Copy size={16} />
-                                </DetailsActionButton>
+                                <DetailsButton variant="ghost" icon={Copy} onClick={onDuplicate} title="Κλωνοποίηση" aria-label="Κλωνοποίηση">
+                                    <span className="hidden xl:inline">Κλωνοποίηση</span>
+                                </DetailsButton>
                             )}
                             {viewMode === 'registry' && (
-                                <DetailsActionButton title="Διαγραφή" label="Διαγραφή" onClick={onDelete} disabled={isDeleting} tone="danger">
-                                    {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                                </DetailsActionButton>
+                                <>
+                                    {(showConvertToImported || isImported || onDuplicate) && <span className="mx-0.5 h-5 w-px bg-slate-200" aria-hidden="true" />}
+                                    <DetailsButton variant="danger" icon={isDeleting ? Loader2 : Trash2} onClick={onDelete} disabled={isDeleting} title="Διαγραφή" aria-label="Διαγραφή" className={isDeleting ? '[&>svg]:animate-spin' : ''}>
+                                        <span className="hidden xl:inline">Διαγραφή</span>
+                                    </DetailsButton>
+                                </>
                             )}
                         </div>
                     )}
-                    <button
-                        type="button"
-                        title="Κλείσιμο"
-                        aria-label="Κλείσιμο"
-                        onClick={onClose}
-                        className="rounded-xl bg-slate-100 p-2.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
-                    >
-                        <X size={18} />
-                    </button>
+                    <DetailsIconButton icon={X} label="Κλείσιμο" size="md" variant="ghost" onClick={onClose} className="text-slate-400" />
                 </div>
             </div>
         </header>

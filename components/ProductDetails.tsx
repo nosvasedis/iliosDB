@@ -361,6 +361,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [shortcutBlocked]);
 
+    /** Closing never silently drops edits: ask first when the card has unsaved changes. */
+    const requestClose = async () => {
+        if (isSaving) return;
+        if (productRestart.dirty) {
+            const discard = await confirm({
+                title: 'Μη αποθηκευμένες αλλαγές',
+                message: `Η καρτέλα ${editedProduct.sku} έχει αλλαγές που δεν έχουν αποθηκευτεί. Κλείσιμο χωρίς αποθήκευση;`,
+                confirmText: 'Κλείσιμο χωρίς αποθήκευση',
+                cancelText: 'Επιστροφή',
+                isDestructive: true,
+            });
+            if (!discard) return;
+        }
+        onClose();
+    };
+
     const requestDelete = async () => {
         const confirmed = await confirm({
             title: 'Διαγραφή Προϊόντος',
@@ -393,6 +409,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 if (publicUrl) {
                     setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
                     await productsRepository.saveProduct({ ...editedProduct, image_url: publicUrl });
+                    productRestart.markSaved((saved: any) => ({ ...saved, product: { ...saved.product, image_url: publicUrl } }));
                     await refreshErpProducts(queryClient, [editedProduct.sku]);
                     showToast("Η φωτογραφία ενημερώθηκε.", "success");
                 }
@@ -434,6 +451,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             const updatedProduct = { ...editedProduct, image_url: null };
             setEditedProduct(updatedProduct);
             await productsRepository.saveProduct(updatedProduct);
+            productRestart.markSaved((saved: any) => ({ ...saved, product: { ...saved.product, image_url: null } }));
             // Bring in the updated SKU without a full catalogue download
             await refreshErpProducts(queryClient, [editedProduct.sku]);
 
@@ -478,6 +496,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         try {
             await productsRepository.renameProduct(product.sku, newSku);
             setEditedProduct(prev => ({ ...prev, sku: newSku }));
+            productRestart.markSaved((saved: any) => ({ ...saved, tempSku: newSku, product: { ...saved.product, sku: newSku } }));
             removeProductsFromCache(queryClient, [product.sku]);
             await refreshErpProducts(queryClient, [newSku]);
             dispatchLiveActivity({ type: 'product_renamed', userName: profile?.full_name || 'Κάποιος', sku: newSku, oldSku: product.sku, newSku });
@@ -506,7 +525,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onSelect={handleSelectRecipeItem}
                 />
             )}
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={requestClose} />
             <div role="dialog" aria-modal="true" aria-label={`Καρτέλα SKU ${displayedSku}`} className="sku-details relative flex h-[94vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
 
                 <DetailsHeader
@@ -543,7 +562,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onConvert={() => setShowConvertModal(true)}
                     onDuplicate={onDuplicate ? () => onDuplicate(product) : undefined}
                     onDelete={requestDelete}
-                    onClose={onClose}
+                    onClose={requestClose}
                     isDeleting={isDeleting}
                 />
 
@@ -560,9 +579,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     usageCount={componentUsageCount}
                 />
 
-                <div className="flex-1 overflow-y-auto bg-slate-50/80 p-4 md:p-6">
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]">
-                        <aside className="min-w-0">
+                {/* Below lg the whole body scrolls; from lg the sidebar and the tab content scroll independently under a fixed tab bar. */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50 lg:flex-row lg:overflow-hidden">
+                        <aside className="shrink-0 border-slate-200 bg-white/70 p-4 md:p-5 lg:w-[17.5rem] lg:overflow-y-auto lg:border-r xl:w-[19.5rem]">
                             <DetailsSidebar
                                 sku={editedProduct.sku}
                                 imageUrl={editedProduct.image_url}
@@ -577,10 +596,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             />
                         </aside>
 
-                        <div className="min-w-0 space-y-5">
-                            <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+                        <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+                            <div className="sticky top-0 z-[5] shrink-0 border-b border-slate-200 bg-white/95 px-3 backdrop-blur-sm md:px-5">
+                                <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+                            </div>
 
-                            <div className="min-h-[400px]">
+                            <div className="flex-1 p-4 md:p-6 lg:overflow-y-auto">
                                 {activeTab === 'overview' && (isInHouse ? (
                                     <OverviewInHousePanel
                                         product={editedProduct}
@@ -677,10 +698,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 )}
                             </div>
                         </div>
-                    </div>
                 </div>
 
-                <DetailsFooter isSaving={isSaving} isDirty={productRestart.dirty} onSave={handleSave} onClose={onClose} />
+                <DetailsFooter isSaving={isSaving} isDirty={productRestart.dirty} onSave={handleSave} onClose={requestClose} />
             </div>
         </div>,
         document.body

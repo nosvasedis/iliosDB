@@ -13,11 +13,32 @@
 .sku-details input,
 .sku-details select { transition-duration: 150ms; }
 .sku-details button:focus-visible,
-.sku-details input:focus-visible,
-.sku-details select:focus-visible {
-    outline: 2px solid #0284c7;
-    outline-offset: 3px;
+.sku-details [role="switch"]:focus-visible {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
 }
+/* Fields already show a focus ring of their own. */
+.sku-details input:focus-visible,
+.sku-details select:focus-visible { outline: none; }
+
+/* Thin, quiet scrollbars for the card's scroll areas. */
+.sku-details,
+.sku-details * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+.sku-details ::-webkit-scrollbar { width: 10px; height: 10px; }
+.sku-details ::-webkit-scrollbar-track { background: transparent; }
+.sku-details ::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+}
+.sku-details ::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+.sku-details ::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.sku-details .sku-no-scrollbar { scrollbar-width: none; }
+.sku-details .sku-no-scrollbar::-webkit-scrollbar { display: none; }
 .sku-details button:disabled { cursor: not-allowed; }
 .sku-section { --section-color: #475569; --section-tint: #f8fafc; }
 .sku-section[data-tone="identity"] { --section-color: #1d4ed8; --section-tint: #eff6ff; }
@@ -51,11 +72,11 @@
 }
 .sku-section-heading h4 { color: var(--section-color); }
 .sku-details table { border-collapse: collapse; }
+/* Numeric fields are typed, not spun: hide the native steppers. */
+.sku-details input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .sku-details input[type="number"]::-webkit-inner-spin-button,
-.sku-details input[type="number"]::-webkit-outer-spin-button { opacity: .35; }
-@media (hover: none) {
-    .sku-details .sku-image-action { opacity: 1; }
-}
+.sku-details input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sku-details select { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
     .sku-details *, .sku-details *::before, .sku-details *::after {
         animation-duration: .01ms !important;

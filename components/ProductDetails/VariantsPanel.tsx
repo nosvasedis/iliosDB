@@ -6,7 +6,7 @@ import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils
 import SkuColorizedText from '../SkuColorizedText';
 import SmartVariantAddPanel from './SmartVariantAddPanel';
 import { FINISH_DOTS } from './DetailsHeader';
-import { DetailsSection, getMarginTone } from './detailsUi';
+import { DetailsButton, DetailsIconButton, DetailsSection, getMarginTone } from './detailsUi';
 import type { SkuPricing } from './useSkuPricing';
 
 export default function VariantsPanel({
@@ -76,13 +76,9 @@ export default function VariantsPanel({
                     ? `Μ.Ο. περιθωρίου ${formatDecimal(averageMargin, 1)}%${unpricedCount > 0 ? ` · ${formatNumber(unpricedCount)} χωρίς τιμή` : ''}`
                     : undefined}
                 actions={!isComponent && sortedVariants.length > 0 ? (
-                    <button
-                        type="button"
-                        onClick={() => pricing.handleApplyAllSuggestions('formula')}
-                        className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                    >
-                        <Calculator size={13} /> Αυτόματη τιμολόγηση
-                    </button>
+                    <DetailsButton icon={Calculator} onClick={() => pricing.handleApplyAllSuggestions('formula')}>
+                        Αυτόματη τιμολόγηση
+                    </DetailsButton>
                 ) : undefined}
             >
                 {sortedVariants.length === 0 ? (
@@ -152,17 +148,11 @@ export default function VariantsPanel({
                                             )}
                                             <td className="px-2 py-2">
                                                 <div className="flex items-center justify-end gap-0.5">
-                                                    <button type="button" onClick={() => onViewVariant(index)} title="Προβολή στην καρτέλα" className={`rounded-lg p-1.5 transition-colors ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}>
-                                                        <Eye size={15} />
-                                                    </button>
+                                                    <DetailsIconButton icon={Eye} label={isActive ? 'Σε προβολή στην καρτέλα' : 'Προβολή στην καρτέλα'} active={isActive} onClick={() => onViewVariant(index)} />
                                                     {!isComponent && (
-                                                        <button type="button" onClick={() => pricing.applyFormulaToVariant(v.suffix)} title="Υπολογισμός Τιμής" className="rounded-lg p-1.5 text-emerald-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700">
-                                                            <Wand2 size={15} />
-                                                        </button>
+                                                        <DetailsIconButton icon={Wand2} label="Υπολογισμός τιμής με τον τύπο" onClick={() => pricing.applyFormulaToVariant(v.suffix)} />
                                                     )}
-                                                    <button type="button" onClick={() => deleteVariant(v.suffix)} title="Διαγραφή παραλλαγής" className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500">
-                                                        <Trash2 size={15} />
-                                                    </button>
+                                                    <DetailsIconButton icon={Trash2} label="Διαγραφή παραλλαγής" variant="danger" onClick={() => deleteVariant(v.suffix)} />
                                                 </div>
                                             </td>
                                         </tr>

@@ -1,11 +1,11 @@
 import { formatDecimal } from '../../utils/numberFormat';
 import React, { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, MapPin, Minus, Plus, Search, X } from 'lucide-react';
+import { Check, Loader2, MapPin, Minus, Plus, Search, Trash2, X } from 'lucide-react';
 import { Mold, Product } from '../../types';
 import { getAvailableMolds } from '../../features/products';
 import { createMoldEntry } from '../../features/products/repository';
-import { DetailsSection } from './detailsUi';
+import { DetailsButton, DetailsIconButton, DetailsSection } from './detailsUi';
 
 export interface MoldDraft {
     open: boolean;
@@ -83,13 +83,9 @@ export default function MoldsSection({
             title="Λάστιχα"
             subtitle={product.molds.length > 0 ? `Σύνολο βάρους λάστιχων: ${formatDecimal(totalMoldWeight, 2)} g` : undefined}
             actions={(
-                <button
-                    type="button"
-                    onClick={() => setDraft(prev => ({ ...prev, open: !prev.open }))}
-                    className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all ${draft.open ? 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100' : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
-                >
-                    {draft.open ? <><X size={13} /> Ακύρωση</> : <><Plus size={13} /> Προσθήκη</>}
-                </button>
+                <DetailsButton icon={draft.open ? X : Plus} pressed={draft.open} onClick={() => setDraft(prev => ({ ...prev, open: !prev.open }))}>
+                    {draft.open ? 'Κλείσιμο' : 'Προσθήκη λάστιχου'}
+                </DetailsButton>
             )}
         >
             {product.molds.length > 0 ? (
@@ -118,7 +114,7 @@ export default function MoldsSection({
                                         <td className="px-3 py-2 text-right font-mono text-xs text-slate-600">{details?.weight_g ? `${formatDecimal(details.weight_g, 2)} g` : '—'}</td>
                                         <td className="px-3 py-2">
                                             <div className="mx-auto flex w-fit items-center rounded-lg border border-slate-200 bg-white">
-                                                <button type="button" onClick={() => setQuantity(m.code, m.quantity - 1)} disabled={m.quantity <= 1} className="rounded-l-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-30" aria-label="Μείωση">
+                                                <button type="button" onClick={() => setQuantity(m.code, m.quantity - 1)} disabled={m.quantity <= 1} className="flex h-7 w-7 items-center justify-center rounded-l-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30" aria-label="Μείωση">
                                                     <Minus size={12} />
                                                 </button>
                                                 <input
@@ -128,13 +124,13 @@ export default function MoldsSection({
                                                     onChange={(e) => setQuantity(m.code, parseInt(e.target.value) || 1)}
                                                     className="w-9 bg-transparent text-center text-xs font-bold text-slate-800 outline-none"
                                                 />
-                                                <button type="button" onClick={() => setQuantity(m.code, m.quantity + 1)} className="rounded-r-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100" aria-label="Αύξηση">
+                                                <button type="button" onClick={() => setQuantity(m.code, m.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-r-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" aria-label="Αύξηση">
                                                     <Plus size={12} />
                                                 </button>
                                             </div>
                                         </td>
                                         <td className="px-2 py-2 text-right">
-                                            <button type="button" onClick={() => removeMold(m.code)} title="Αφαίρεση" className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500"><X size={14} /></button>
+                                            <DetailsIconButton icon={Trash2} label={`Αφαίρεση ${m.code}`} variant="danger" onClick={() => removeMold(m.code)} />
                                         </td>
                                     </tr>
                                 );
@@ -199,14 +195,16 @@ export default function MoldsSection({
                             onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value }))}
                             className={draftInputClass}
                         />
-                        <button
-                            type="button"
+                        <DetailsButton
+                            variant="primary"
+                            size="md"
+                            icon={isCreating ? Loader2 : Check}
                             onClick={handleQuickCreate}
                             disabled={isCreating}
-                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+                            className={`w-full ${isCreating ? '[&>svg]:animate-spin' : ''}`}
                         >
-                            {isCreating ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Δημιουργία & Επιλογή</>}
-                        </button>
+                            Δημιουργία & επιλογή
+                        </DetailsButton>
                     </div>
                 </div>
             )}

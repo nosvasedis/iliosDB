@@ -112,7 +112,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
 
       {/* Custom Confirm Modal - Added print:hidden */}
       {confirmState.isOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
             <div className={`flex items-center gap-3 mb-4 ${confirmState.options.isDestructive ? 'text-red-600' : 'text-slate-800'}`}>
               <div className={`p-3 rounded-full ${confirmState.options.isDestructive ? 'bg-red-100' : 'bg-slate-100'}`}>

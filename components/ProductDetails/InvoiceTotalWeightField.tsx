@@ -47,9 +47,9 @@ export default function InvoiceTotalWeightField({
                     <button
                         type="button"
                         onClick={onClear}
-                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                     >
-                        <RefreshCw size={13} /> Επιστροφή σε αυτόματο
+                        <RefreshCw size={14} /> Επιστροφή σε αυτόματο
                     </button>
                 )}
             </div>

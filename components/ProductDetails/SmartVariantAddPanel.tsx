@@ -2,7 +2,8 @@ import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Gem, Info, Plus, Wand2 } from 'lucide-react';
+import { Check, Gem, Info, Plus, Wand2 } from 'lucide-react';
+import { DetailsButton, detailsInputClass, detailsMonoInputClass } from './detailsUi';
 import { Gender, Product, ProductVariant } from '../../types';
 import { FINISH_CODES } from '../../constants';
 import { analyzeSuffix, estimateVariantCost, formatCurrency } from '../../utils/pricingEngine';
@@ -234,21 +235,20 @@ export default function SmartVariantAddPanel({
         : 'Όλες';
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-      <div className="pointer-events-none absolute right-0 top-0 p-8 opacity-[0.03]">
-        <Wand2 size={100} />
+    <section data-tone="molds" className="sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+      <div className="sku-section-heading mb-4 flex items-center gap-2.5 border-b border-slate-100 pb-3">
+        <span className="shrink-0 rounded-lg bg-amber-50 p-1.5 ring-1 ring-amber-100">
+          <Wand2 size={15} className="text-amber-700" />
+        </span>
+        <div className="min-w-0">
+          <h4 className="text-[13px] font-bold uppercase tracking-wide">Έξυπνη προσθήκη</h4>
+          <p className="truncate text-[11px] font-medium normal-case text-slate-500">Επιλέξτε φινιρίσματα και πέτρα — δημιουργούνται μόνο οι συνδυασμοί που λείπουν</p>
+        </div>
       </div>
 
-      <h4 className="relative z-10 mb-3 flex items-center gap-2 border-b border-slate-200 pb-2.5 text-[13px] font-semibold text-slate-800">
-        <div className="rounded-md bg-amber-100 p-1">
-          <Wand2 size={13} className="text-amber-600" />
-        </div>
-        Έξυπνη Προσθήκη
-      </h4>
-
-      <div className="space-y-4 relative z-10">
+      <div className="space-y-5">
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 block">
+          <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Φινίρισμα
           </label>
           <div className="flex flex-wrap gap-2">
@@ -261,12 +261,13 @@ export default function SmartVariantAddPanel({
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => toggleFinish(finish.code)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  className={`inline-flex h-8 select-none items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-all duration-150 ${
                     isSelected
-                      ? `${colorCls} shadow-sm ring-2 ring-offset-1 ring-slate-200`
-                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                      ? `${colorCls} shadow-sm`
+                      : 'border-slate-200 bg-white text-slate-600 shadow-sm shadow-slate-200/60 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
+                  {isSelected ? <Check size={13} strokeWidth={2.5} /> : null}
                   {finish.label}
                 </button>
               );
@@ -275,8 +276,8 @@ export default function SmartVariantAddPanel({
               <p className="text-xs text-slate-500">Όλοι οι συνδυασμοί φινιρίσματος υπάρχουν ήδη.</p>
             )}
           </div>
-          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-            <Info size={10} />
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-500">
+            <Info size={11} />
             Θα δημιουργηθούν:{' '}
             <strong>
               {selectedFinishes.map((code) => FINISH_CODES[code] || 'Λουστρέ').join(', ') || '—'}
@@ -285,7 +286,7 @@ export default function SmartVariantAddPanel({
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+          <label className="mb-2 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             <Gem size={11} /> Πέτρα <span className="font-normal normal-case">({genderLabel})</span>
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px] gap-2 mb-2">
@@ -294,12 +295,12 @@ export default function SmartVariantAddPanel({
               placeholder="Κωδικός πέτρας (π.χ. PR, TG) ή κενό για σκέτο μέταλλο"
               value={stoneSuffix}
               onChange={(e) => setStoneSuffix(e.target.value.toUpperCase())}
-              className="w-full p-3 border border-slate-200 rounded-xl font-mono text-sm font-black uppercase bg-white shadow-sm focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 outline-none transition-all"
+              className={`${detailsMonoInputClass} uppercase`}
             />
             <select
               value={availableStones.some((s) => s.code === stoneSuffix) ? stoneSuffix : ''}
               onChange={(e) => handleStoneSelect(e.target.value)}
-              className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold bg-white text-slate-700 outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300"
+              className={detailsInputClass}
             >
               <option value="">— Επιλογή —</option>
               {availableStones.map((stone) => (
@@ -319,13 +320,14 @@ export default function SmartVariantAddPanel({
                   key={stone.code}
                   type="button"
                   onClick={() => handleStoneSelect(stone.code)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                  aria-label={`Πέτρα ${stone.name}`}
+                  className={`inline-flex h-7 select-none items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition-all duration-150 ${
                     isActive
-                      ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow`
-                      : `${style.bg} ${style.text} border-transparent hover:border-current/40 opacity-85 hover:opacity-100`
+                      ? `${style.bg} ${style.text} border-current shadow-sm`
+                      : `${style.bg} ${style.text} border-transparent opacity-80 hover:border-current/30 hover:opacity-100`
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`} />
+                  {isActive ? <Check size={12} strokeWidth={2.5} className="shrink-0" /> : <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`} />}
                   {stone.name}
                   <span className="opacity-50 text-[10px] font-mono"><StoneCodeText code={stone.code} /></span>
                 </button>
@@ -351,7 +353,7 @@ export default function SmartVariantAddPanel({
         )}
 
         {smartPreview && (
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm animate-in slide-in-from-top-2 fade-in">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 animate-in slide-in-from-top-2 fade-in">
             <div className="flex justify-between items-start mb-2 gap-4">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">
@@ -362,7 +364,7 @@ export default function SmartVariantAddPanel({
                   value={descriptionOverride}
                   onChange={(e) => setDescriptionOverride(e.target.value)}
                   placeholder={smartPreview.description}
-                  className="w-full font-bold text-slate-800 text-sm bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300"
+                  className={detailsInputClass}
                 />
               </div>
               <div className="text-right shrink-0">
@@ -404,29 +406,19 @@ export default function SmartVariantAddPanel({
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={!canCreate}
-            className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Plus size={20} />
+        <div className="flex flex-col items-stretch gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <DetailsButton variant="ghost" size="sm" onClick={() => setShowAdvanced((prev) => !prev)} className="text-slate-500">
+            {showAdvanced ? 'Απόκρυψη προχωρημένου' : 'Προχωρημένο: πλήρες suffix'}
+          </DetailsButton>
+          <DetailsButton variant="primary" size="md" icon={Plus} onClick={handleCreate} disabled={!canCreate} className="min-w-[10rem]">
             Δημιουργία
             {pendingSuffixes.length > 1 ? ` (${pendingSuffixes.length})` : ''}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((prev) => !prev)}
-            className="text-[11px] font-bold text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition-all"
-          >
-            {showAdvanced ? 'Απόκρυψη προχωρημένου' : 'Προχωρημένο: πλήρες suffix'}
-          </button>
+          </DetailsButton>
         </div>
 
         {showAdvanced && (
-          <div className="pt-2 border-t border-slate-200/80">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5 block">
+          <div>
+            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Πλήρες Suffix (πληκτρολόγηση)
             </label>
             <input
@@ -434,11 +426,11 @@ export default function SmartVariantAddPanel({
               placeholder="π.χ. P, X, BSU, ή κενό για Λουστρέ"
               value={advancedSuffix}
               onChange={(e) => setAdvancedSuffix(e.target.value.toUpperCase())}
-              className="w-full p-3 border border-slate-200 rounded-xl font-mono text-sm font-black uppercase bg-white shadow-sm focus:ring-2 focus:ring-slate-400/20 outline-none"
+              className={`${detailsMonoInputClass} uppercase`}
             />
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

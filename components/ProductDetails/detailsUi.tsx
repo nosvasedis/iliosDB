@@ -117,40 +117,117 @@ export function DetailsFact({ label, children }: { label: string; children: Reac
     );
 }
 
-export function DetailsActionButton({
-    title,
-    onClick,
-    disabled,
-    tone = 'neutral',
-    label,
+type ButtonVariant = 'primary' | 'success' | 'secondary' | 'ghost' | 'danger' | 'subtle';
+type ButtonSize = 'sm' | 'md' | 'lg';
+
+const BUTTON_BASE =
+    'inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-[background-color,border-color,color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-50';
+
+const BUTTON_SIZES: Record<ButtonSize, string> = {
+    sm: 'h-8 px-3 text-xs',
+    md: 'h-9 px-3.5 text-[13px]',
+    lg: 'h-10 px-5 text-sm',
+};
+
+const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
+    primary: 'bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:bg-black',
+    success: 'bg-emerald-600 text-white shadow-sm shadow-emerald-700/20 hover:bg-emerald-700 active:bg-emerald-800',
+    secondary: 'border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-200/60 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100',
+    subtle: 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 active:bg-slate-200',
+    ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200/70',
+    danger: 'text-rose-600 hover:bg-rose-50 hover:text-rose-700 active:bg-rose-100',
+};
+
+/** Selected look for toggle buttons (`pressed`), shared by every variant. */
+const BUTTON_PRESSED = 'border border-sky-200 bg-sky-50 text-sky-800 shadow-none hover:border-sky-300 hover:bg-sky-100/70 hover:text-sky-900';
+
+export function DetailsButton({
+    variant = 'secondary',
+    size = 'sm',
+    icon: Icon,
+    pressed,
+    className = '',
     children,
-}: {
-    title: string;
-    onClick: () => void;
-    disabled?: boolean;
-    tone?: 'neutral' | 'danger' | 'info' | 'violet' | 'success';
-    /** Visible text shown next to the icon on wide screens. */
-    label?: string;
-    children: React.ReactNode;
+    type = 'button',
+    ...rest
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    icon?: LucideIcon;
+    /** Renders as a toggle (aria-pressed) with the shared selected style when true. */
+    pressed?: boolean;
+    children?: React.ReactNode;
 }) {
-    const tones = {
-        neutral: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-        danger: 'text-rose-600 hover:bg-rose-50',
-        info: 'text-blue-600 hover:bg-blue-50',
-        violet: 'text-violet-600 hover:bg-violet-50',
-        success: 'text-emerald-600 hover:bg-emerald-50',
-    };
+    const iconSize = size === 'lg' ? 16 : size === 'md' ? 15 : 14;
+    return (
+        <button
+            type={type}
+            {...(pressed === undefined ? {} : { 'aria-pressed': pressed })}
+            className={`${BUTTON_BASE} ${BUTTON_SIZES[size]} ${pressed ? BUTTON_PRESSED : BUTTON_VARIANTS[variant]} ${className}`}
+            {...rest}
+        >
+            {Icon ? <Icon size={iconSize} className="shrink-0" /> : null}
+            {children}
+        </button>
+    );
+}
+
+const ICON_BUTTON_SIZES: Record<'sm' | 'md', string> = { sm: 'h-7 w-7', md: 'h-9 w-9' };
+
+export function DetailsIconButton({
+    icon: Icon,
+    label,
+    variant = 'ghost',
+    size = 'sm',
+    active,
+    className = '',
+    ...rest
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+    icon: LucideIcon;
+    /** Accessible name and tooltip. */
+    label: string;
+    variant?: 'ghost' | 'danger' | 'subtle';
+    size?: 'sm' | 'md';
+    active?: boolean;
+}) {
     return (
         <button
             type="button"
-            title={title}
-            aria-label={title}
-            onClick={onClick}
-            disabled={disabled}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${tones[tone]}`}
+            title={label}
+            aria-label={label}
+            className={`${BUTTON_BASE} ${ICON_BUTTON_SIZES[size]} ${active ? 'bg-emerald-50 text-emerald-700' : variant === 'danger' ? 'text-slate-400 hover:bg-rose-50 hover:text-rose-600 active:bg-rose-100' : BUTTON_VARIANTS[variant]} ${className}`}
+            {...rest}
         >
-            {children}
-            {label ? <span className="hidden xl:inline">{label}</span> : null}
+            <Icon size={size === 'md' ? 18 : 15} />
+        </button>
+    );
+}
+
+/** On/off switch with a visible label (used for flags such as "Χωρίς χύτευση"). */
+export function DetailsSwitch({
+    checked,
+    onChange,
+    label,
+    tone = 'violet',
+}: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    label: string;
+    tone?: 'violet' | 'emerald';
+}) {
+    const on = tone === 'violet' ? 'bg-violet-600' : 'bg-emerald-600';
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className={`inline-flex h-8 select-none items-center gap-2 rounded-lg px-2 text-xs font-semibold normal-case tracking-normal transition-colors ${checked ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'} hover:bg-slate-100/80`}
+        >
+            <span className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors duration-200 ${checked ? on : 'bg-slate-300'}`}>
+                <span className={`h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[15px]' : 'translate-x-0.5'}`} />
+            </span>
+            {label}
         </button>
     );
 }
@@ -165,7 +242,7 @@ export function DetailsSubTabs<T extends string>({
     onChange: (id: T) => void;
 }) {
     return (
-        <div className="inline-flex w-full gap-1 rounded-xl border border-slate-200 bg-slate-100/80 p-1 sm:w-auto">
+        <div role="tablist" className="inline-flex w-full gap-1 rounded-xl bg-slate-200/60 p-1 sm:w-auto">
             {tabs.map((tab) => {
                 const isActive = active === tab.id;
                 const Icon = tab.icon;
@@ -173,13 +250,14 @@ export function DetailsSubTabs<T extends string>({
                     <button
                         key={tab.id}
                         type="button"
+                        role="tab"
+                        aria-selected={isActive}
                         onClick={() => onChange(tab.id)}
-                        aria-pressed={isActive}
-                        className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition-all sm:flex-none ${
-                            isActive ? 'bg-white text-sky-800 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-500 hover:text-slate-700'
+                        className={`flex h-8 min-w-0 flex-1 select-none items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-150 sm:flex-none ${
+                            isActive ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:bg-white/50 hover:text-slate-800'
                         }`}
                     >
-                        {Icon ? <Icon size={14} className={isActive ? 'text-sky-600' : ''} /> : null}
+                        {Icon ? <Icon size={14} className={isActive ? 'text-sky-600' : 'text-slate-400'} /> : null}
                         <span className="truncate">{tab.label}</span>
                         {tab.hint ? <span className={`font-mono text-[10px] ${isActive ? 'text-sky-500' : 'text-slate-400'}`}>{tab.hint}</span> : null}
                     </button>

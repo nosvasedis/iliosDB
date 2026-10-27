@@ -4,7 +4,7 @@ import { GlobalSettings, Material, Product, RecipeItem } from '../../types';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { getRecipeMaterialSubtitle } from '../../features/products';
 import { SmartQuantityInput } from './detailsInputs';
-import { DetailsSection } from './detailsUi';
+import { DetailsButton, DetailsIconButton, DetailsSection } from './detailsUi';
 
 function getRecipeItemCost(item: RecipeItem, product: Product, allMaterials: Material[], allProducts: Product[], variantSuffix?: string | null) {
     if (item.type === 'raw') {
@@ -71,8 +71,8 @@ export default function RecipeSection({
             subtitle={variantSuffix ? `Τιμές υλικών για την παραλλαγή ${variantSuffix}` : 'Υλικά & εξαρτήματα ανά τεμάχιο'}
             actions={(
                 <div className="flex gap-1.5">
-                    <button type="button" onClick={() => onOpenSelector('raw')} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><Plus size={13} /> Υλικό</button>
-                    <button type="button" onClick={() => onOpenSelector('component')} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Plus size={13} /> Εξάρτημα</button>
+                    <DetailsButton icon={Plus} onClick={() => onOpenSelector('raw')}>Υλικό</DetailsButton>
+                    <DetailsButton icon={Plus} onClick={() => onOpenSelector('component')}>Εξάρτημα</DetailsButton>
                 </div>
             )}
         >
@@ -139,7 +139,7 @@ export default function RecipeSection({
                                     <span className="w-8 text-xs font-bold text-slate-400">{isRaw ? material?.unit : 'τεμ'}</span>
                                 </div>
                                 <div className="text-right font-mono text-sm font-bold text-slate-700">{formatCurrency(itemCosts[idx])}</div>
-                                <button type="button" onClick={() => removeItem(idx)} title="Αφαίρεση" className="rounded-lg p-1.5 text-slate-300 opacity-0 transition-colors hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100 focus-visible:opacity-100"><Trash2 size={15} /></button>
+                                <DetailsIconButton icon={Trash2} label="Αφαίρεση από τη συνταγή" variant="danger" onClick={() => removeItem(idx)} />
                             </div>
                         );
                     })}

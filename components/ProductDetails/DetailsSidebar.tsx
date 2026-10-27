@@ -3,7 +3,7 @@ import React from 'react';
 import { Camera, ImageIcon, Loader2, PieChart, ScrollText, Trash2 } from 'lucide-react';
 import { ACCEPTED_IMAGE_INPUT_TYPES } from '../../utils/imageHelpers';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { DetailsFact } from './detailsUi';
+import { DetailsFact, DetailsIconButton } from './detailsUi';
 
 export interface CostComposition {
     silver: number;
@@ -43,36 +43,40 @@ export default function DetailsSidebar({
     const compositionTotal = COMPOSITION_PARTS.reduce((sum, part) => sum + Math.max(0, composition[part.key] || 0), 0);
 
     return (
-        <div className="space-y-4 lg:sticky lg:top-0">
-            <div className="group relative rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-                <div className="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-b from-slate-50 to-white">
+        <div className="space-y-4">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                <label className="group relative block aspect-square cursor-pointer overflow-hidden rounded-xl bg-gradient-to-b from-slate-50 to-white">
                     {imageUrl ? (
-                        <img src={imageUrl} className="h-full w-full object-contain" alt={sku} />
+                        <img src={imageUrl} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]" alt={sku} />
                     ) : (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-300">
-                            <ImageIcon size={44} />
-                            <span className="text-[11px] font-semibold text-slate-400">Χωρίς φωτογραφία</span>
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-300 transition-colors group-hover:text-slate-400">
+                            <ImageIcon size={40} strokeWidth={1.5} />
+                            <span className="text-[11px] font-semibold text-slate-400">Πατήστε για προσθήκη φωτογραφίας</span>
                         </div>
                     )}
-
-                    <label className="sku-image-action absolute inset-0 flex cursor-pointer items-center justify-center bg-slate-900/25 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                        <div className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/20 px-4 py-2 font-bold text-white backdrop-blur-md">
-                            {isUploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-                            {isUploadingImage ? 'Μεταφόρτωση...' : imageUrl ? 'Αλλαγή' : 'Προσθήκη'}
+                    {isUploadingImage && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-[2px]">
+                            <Loader2 size={24} className="animate-spin text-slate-500" />
                         </div>
-                        <input type="file" aria-label="Αλλαγή φωτογραφίας SKU" className="sr-only" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
+                    )}
+                    <input type="file" aria-label="Αλλαγή φωτογραφίας SKU" className="sr-only" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
+                </label>
+                <div className="flex items-center gap-1 px-1 pb-0.5 pt-1.5">
+                    <label className={`inline-flex h-8 flex-1 cursor-pointer select-none items-center justify-center gap-1.5 rounded-lg text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${isUploadingImage ? 'pointer-events-none opacity-50' : ''}`}>
+                        <Camera size={14} />
+                        {isUploadingImage ? 'Μεταφόρτωση…' : imageUrl ? 'Αλλαγή φωτογραφίας' : 'Προσθήκη φωτογραφίας'}
+                        <input type="file" aria-label="Μεταφόρτωση φωτογραφίας SKU" className="sr-only" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
                     </label>
-
                     {imageUrl && (
-                        <button
-                            type="button"
+                        <DetailsIconButton
+                            icon={isDeletingImage ? Loader2 : Trash2}
+                            label="Διαγραφή φωτογραφίας"
+                            variant="danger"
+                            size="sm"
                             onClick={onDeleteImage}
                             disabled={isDeletingImage}
-                            className="absolute right-2 top-2 z-[1] rounded-lg bg-white/90 p-1.5 text-rose-600 shadow-md ring-1 ring-slate-200 transition-colors hover:bg-rose-50"
-                            title="Διαγραφή Φωτογραφίας" aria-label="Διαγραφή φωτογραφίας"
-                        >
-                            {isDeletingImage ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
+                            className={`h-8 w-8 ${isDeletingImage ? '[&>svg]:animate-spin' : ''}`}
+                        />
                     )}
                 </div>
             </div>

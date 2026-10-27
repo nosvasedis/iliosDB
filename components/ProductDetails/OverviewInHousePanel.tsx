@@ -7,20 +7,16 @@ import { InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
 import InvoiceTotalWeightField from './InvoiceTotalWeightField';
 import ProductionTypeBadge from './ProductionTypeBadge';
 import FinishPricingSection from './FinishPricingSection';
-import { DetailsField, DetailsSection, detailsInputClass, detailsMonoInputClass } from './detailsUi';
+import { DetailsField, DetailsSection, DetailsSwitch, detailsInputClass, detailsMonoInputClass } from './detailsUi';
 import type { SkuPricing } from './useSkuPricing';
 
 export function SkipCastingToggle({ product, setProduct }: { product: Product; setProduct: React.Dispatch<React.SetStateAction<Product>> }) {
     return (
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-purple-200 bg-purple-50/60 px-2.5 py-1 normal-case tracking-normal">
-            <input
-                type="checkbox"
-                className="h-3.5 w-3.5 accent-purple-600"
-                checked={!!product.skip_casting}
-                onChange={e => setProduct(prev => applySkipCasting(prev, e.target.checked))}
-            />
-            <span className="text-[10px] font-bold uppercase text-purple-700">Χωρίς χύτευση</span>
-        </label>
+        <DetailsSwitch
+            label="Χωρίς χύτευση"
+            checked={!!product.skip_casting}
+            onChange={checked => setProduct(prev => applySkipCasting(prev, checked))}
+        />
     );
 }
 
@@ -115,11 +111,11 @@ export default function OverviewInHousePanel({
                             action={product.molds.length > 0 && !skipCasting ? (
                                 <button
                                     onClick={applyWeightFromMolds}
-                                    className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold normal-case text-amber-600 transition-colors hover:bg-amber-100"
-                                    title="Υπολογισμός από Λάστιχα"
+                                    className="-my-1 inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold normal-case tracking-normal text-sky-700 transition-colors hover:bg-sky-50 hover:text-sky-800"
+                                    title="Υπολογισμός βάρους από τα λάστιχα"
                                     type="button"
                                 >
-                                    <Scale size={10} /> Από λάστιχα
+                                    <Scale size={12} /> Από λάστιχα
                                 </button>
                             ) : undefined}
                         >
