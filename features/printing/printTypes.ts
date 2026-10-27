@@ -9,5 +9,6 @@ export interface PrintLabelItem {
   format?: 'standard' | 'simple' | 'retail';
   showPrice?: boolean;
   priceTier?: 'wholesale' | 'retail';
+  codifiedPrice?: boolean;
   labelOverrides?: LabelTextOverrides;
 }

@@ -37,12 +37,14 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
   const [format, setFormat] = useState<LabelPrintFormat>(initialSettings.format);
   const [showPrice, setShowPrice] = useState(initialSettings.showPrice);
   const [priceTier, setPriceTier] = useState<LabelPriceTier>(initialSettings.priceTier);
+  const [codifiedPrice, setCodifiedPrice] = useState(initialSettings.codifiedPrice);
   const [labelOverrideDrafts, setLabelOverrideDrafts] = useState<Record<string, LabelTextOverrides>>({});
   const [editingLabelKey, setEditingLabelKey] = useState<string | null>(null);
 
   useEffect(() => { persistLabelSetting(LABEL_PRINT_STORAGE_KEYS.format, format); }, [format]);
   useEffect(() => { persistLabelSetting(LABEL_PRINT_STORAGE_KEYS.showPrice, String(showPrice)); }, [showPrice]);
   useEffect(() => { persistLabelSetting(LABEL_PRINT_STORAGE_KEYS.priceTier, priceTier); }, [priceTier]);
+  useEffect(() => { persistLabelSetting(LABEL_PRINT_STORAGE_KEYS.codifiedPrice, String(codifiedPrice)); }, [codifiedPrice]);
 
   const previewWidth = format === 'retail'
     ? (settings.retail_barcode_width_mm || 72)
@@ -62,6 +64,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
       format,
       showPrice,
       priceTier,
+      codifiedPrice,
       labelOverrides: labelOverrideDrafts,
       variantKey,
     }));
@@ -103,6 +106,8 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
           onFormatChange={setFormat}
           onShowPriceChange={setShowPrice}
           onPriceTierChange={setPriceTier}
+          codifiedPrice={codifiedPrice}
+          onCodifiedPriceChange={setCodifiedPrice}
         />
         <button
           type="button"
@@ -131,6 +136,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
                     format={format}
                     showPrice={showPrice}
                     priceTier={priceTier}
+                    codifiedPrice={codifiedPrice}
                     labelOverrides={labelOverrideDrafts[key]}
                   />
                 </div>
@@ -173,6 +179,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
           format={format}
           showPrice={showPrice}
           priceTier={priceTier}
+          codifiedPrice={codifiedPrice}
           width={previewWidth}
           height={previewHeight}
           overrides={editingOverrides}

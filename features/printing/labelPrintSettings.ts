@@ -8,12 +8,14 @@ export const LABEL_PRINT_STORAGE_KEYS = {
   format: 'batch_print_format',
   showPrice: 'batch_print_show_price',
   priceTier: 'batch_print_price_tier',
+  codifiedPrice: 'batch_print_codified_price',
 } as const;
 
 export interface LabelPrintSettings {
   format: LabelPrintFormat;
   showPrice: boolean;
   priceTier: LabelPriceTier;
+  codifiedPrice: boolean;
 }
 
 export const LABEL_TEXT_OVERRIDE_FIELDS: Array<[keyof LabelTextOverrides, string]> = [
@@ -49,6 +51,7 @@ export function readLabelPrintSettings(storage: StorageReader = getDefaultStorag
     format,
     showPrice: savedShowPrice !== null ? savedShowPrice === 'true' : format === 'standard',
     priceTier: readStoredPriceTier(storage.getItem(LABEL_PRINT_STORAGE_KEYS.priceTier)),
+    codifiedPrice: storage.getItem(LABEL_PRINT_STORAGE_KEYS.codifiedPrice) === 'true',
   };
 }
 
@@ -66,6 +69,7 @@ interface BuildRegistryBarcodePrintItemsInput {
   format: LabelPrintFormat;
   showPrice: boolean;
   priceTier: LabelPriceTier;
+  codifiedPrice?: boolean;
   labelOverrides?: Record<string, LabelTextOverrides>;
   quantity?: number;
   variantKey?: string;
@@ -77,6 +81,7 @@ export function buildRegistryBarcodePrintItems({
   format,
   showPrice,
   priceTier,
+  codifiedPrice = false,
   labelOverrides = {},
   quantity = 1,
   variantKey,
@@ -96,6 +101,7 @@ export function buildRegistryBarcodePrintItems({
         format,
         showPrice,
         priceTier,
+        ...(codifiedPrice ? { codifiedPrice } : {}),
         ...(hasLabelTextOverrides(overrides) ? { labelOverrides: overrides } : {}),
       };
     });

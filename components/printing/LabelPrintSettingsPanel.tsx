@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Tag } from 'lucide-react';
+import { Hash, ShoppingBag, Tag } from 'lucide-react';
 import { LabelPriceTier } from '../../features/printing/labelText';
 import { LabelPrintFormat } from '../../features/printing/labelPrintSettings';
 
@@ -10,6 +10,9 @@ interface LabelPrintSettingsPanelProps {
   onFormatChange: (format: LabelPrintFormat) => void;
   onShowPriceChange: (showPrice: boolean) => void;
   onPriceTierChange: (priceTier: LabelPriceTier) => void;
+  /** Codified price (1 + cents + 9). The toggle renders only when a handler is given. */
+  codifiedPrice?: boolean;
+  onCodifiedPriceChange?: (codifiedPrice: boolean) => void;
   layout?: 'stack' | 'inline' | 'toolbar';
 }
 
@@ -25,8 +28,12 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
   onFormatChange,
   onShowPriceChange,
   onPriceTierChange,
+  codifiedPrice = false,
+  onCodifiedPriceChange,
   layout = 'stack',
 }) => {
+  const canCodify = Boolean(onCodifiedPriceChange);
+
   const formatToggle = (
     <div className={segmented}>
       <button
@@ -90,6 +97,29 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
     </div>
   );
 
+  const codifiedPriceToggle = canCodify ? (
+    <div className={!showPrice ? 'opacity-40 pointer-events-none' : ''}>
+      <label className={fieldLabel}>Μορφή τιμής</label>
+      <div className={segmented}>
+        <button
+          type="button"
+          onClick={() => onCodifiedPriceChange?.(false)}
+          className={`${segmentButton(!codifiedPrice)} flex items-center justify-center gap-1`}
+        >
+          32,20€
+        </button>
+        <button
+          type="button"
+          onClick={() => onCodifiedPriceChange?.(true)}
+          title="Κωδικοποιημένη τιμή: 1 + τιμή χωρίς υποδιαστολή + 9"
+          className={`${segmentButton(codifiedPrice, 'bg-white text-violet-700 shadow-sm')} flex items-center justify-center gap-1`}
+        >
+          <Hash size={12} /> Κωδικοπ. 132209
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   if (layout === 'toolbar') {
     const selectClass = 'rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-40';
     return (
@@ -109,6 +139,15 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
           <option value="wholesale">Χονδρική</option>
           <option value="retail">Λιανική ×3</option>
         </select>
+        {canCodify && (
+          <label
+            className={`flex shrink-0 cursor-pointer items-center gap-2 border-l border-slate-200 pl-3 text-xs font-medium text-slate-600 ${!showPrice ? 'pointer-events-none opacity-40' : ''}`}
+            title="Κωδικοποιημένη τιμή: 1 + τιμή χωρίς υποδιαστολή + 9 (π.χ. 32,20€ → 132209)"
+          >
+            <input type="checkbox" checked={codifiedPrice} disabled={!showPrice} onChange={e => onCodifiedPriceChange?.(e.target.checked)} className="h-4 w-4 rounded accent-violet-600" />
+            <Hash size={13} /> Κωδικοποιημένη
+          </label>
+        )}
       </div>
     );
   }
@@ -122,6 +161,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
         </div>
         <div className="min-w-[140px] flex-1">{showPriceToggle}</div>
         <div className="min-w-[200px] flex-1">{priceTierToggle}</div>
+        {codifiedPriceToggle && <div className="min-w-[220px] flex-1">{codifiedPriceToggle}</div>}
       </div>
     );
   }
@@ -132,6 +172,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
       <div className="mt-4 space-y-3">
         {showPriceToggle}
         {priceTierToggle}
+        {codifiedPriceToggle}
       </div>
     </div>
   );

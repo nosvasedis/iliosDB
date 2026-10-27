@@ -1,7 +1,7 @@
 import type { PricingSettings } from '../../utils/pricingRules';
 import { Product, ProductVariant } from '../../types';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../../constants';
-import { formatCurrency, getLabelDisplayPrice } from '../../utils/pricingEngine';
+import { codifyPrice, formatCurrency, getLabelDisplayPrice } from '../../utils/pricingEngine';
 import { SIZE_TYPE_LENGTH, type ProductSizingInfo } from '../../utils/sizing';
 
 export type LabelFormat = 'standard' | 'simple' | 'retail';
@@ -64,6 +64,8 @@ interface BuildLabelTextInput {
   size?: string;
   showPrice?: boolean;
   priceTier?: LabelPriceTier;
+  /** Print the codified price (1 + cents + 9, e.g. 32,20€ → 132209) instead of the plain amount. */
+  codifiedPrice?: boolean;
   overrides?: LabelTextOverrides;
 }
 
@@ -109,11 +111,13 @@ export function getDefaultLabelPrice(
   showPrice: boolean,
   priceTier: LabelPriceTier,
   settings?: PricingSettings,
+  codifiedPrice = false,
 ): string {
   if (!showPrice) return '';
   const wholesalePrice = variant?.selling_price ?? product?.selling_price ?? 0;
   const displayPrice = getLabelDisplayPrice(wholesalePrice, priceTier, settings);
-  return displayPrice > 0 ? formatCurrency(displayPrice) : '';
+  if (displayPrice <= 0) return '';
+  return codifiedPrice ? codifyPrice(displayPrice) : formatCurrency(displayPrice);
 }
 
 export function buildLabelText({
@@ -124,6 +128,7 @@ export function buildLabelText({
   size,
   showPrice: showPriceProp,
   priceTier = 'wholesale',
+  codifiedPrice = false,
   overrides,
 }: BuildLabelTextInput): BuiltLabelText {
   const sourceSku = getLabelSourceSku(product, variant);
@@ -135,7 +140,7 @@ export function buildLabelText({
     suffix: variant?.suffix || '',
     stone: getDefaultLabelStone(product, variant),
     brand: 'ILIOS',
-    price: getDefaultLabelPrice(product, variant, showPrice, priceTier, settings),
+    price: getDefaultLabelPrice(product, variant, showPrice, priceTier, settings, codifiedPrice),
     metal: '925°',
     size: size || '',
   };

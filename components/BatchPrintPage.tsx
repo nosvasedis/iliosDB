@@ -15,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import DesktopPageHeader from './DesktopPageHeader';
 import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
-import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLabelItem, readLabelPrintSettings } from '../features/printing';
+import { buildBatchLabelOverrideKey, buildLabelText, LABEL_PRINT_STORAGE_KEYS, LabelTextOverrides, PrintLabelItem, readLabelPrintSettings } from '../features/printing';
 import LabelPrintSettingsPanel from './printing/LabelPrintSettingsPanel';
 import LabelPreviewEditModal from './printing/LabelPreviewEditModal';
 import { getSizingInfo } from '../utils/sizing';
@@ -104,6 +104,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     const [labelFormat, setLabelFormat] = useState(() => readLabelPrintSettings().format);
     const [showPrice, setShowPrice] = useState(() => readLabelPrintSettings().showPrice);
     const [priceTier, setPriceTier] = useState(() => readLabelPrintSettings().priceTier);
+    const [codifiedPrice, setCodifiedPrice] = useState(() => readLabelPrintSettings().codifiedPrice);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast } = useUI();
@@ -179,6 +180,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     useEffect(() => { localStorage.setItem('batch_print_format', labelFormat); }, [labelFormat]);
     useEffect(() => { localStorage.setItem('batch_print_show_price', String(showPrice)); }, [showPrice]);
     useEffect(() => { localStorage.setItem('batch_print_price_tier', priceTier); }, [priceTier]);
+    useEffect(() => { localStorage.setItem(LABEL_PRINT_STORAGE_KEYS.codifiedPrice, String(codifiedPrice)); }, [codifiedPrice]);
     useEffect(() => { localStorage.setItem('batch_print_logs', JSON.stringify(actionLogs)); }, [actionLogs]);
     useEffect(() => {
         if (!showHistoryModal) return;
@@ -299,6 +301,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             format: labelFormat,
             showPrice,
             priceTier,
+            codifiedPrice,
             labelOverrides: labelOverrideDrafts[i.key],
         }));
         const totalPieces = printPayload.reduce((sum, item) => sum + item.quantity, 0);
@@ -893,6 +896,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                 size: item.size,
                                                 showPrice,
                                                 priceTier,
+                                                codifiedPrice,
                                                 overrides: labelOverrideDrafts[item.key],
                                             });
                                             const edited = hasLabelOverrides(item.key);
@@ -960,6 +964,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 onFormatChange={setLabelFormat}
                                 onShowPriceChange={setShowPrice}
                                 onPriceTierChange={setPriceTier}
+                                codifiedPrice={codifiedPrice}
+                                onCodifiedPriceChange={setCodifiedPrice}
                             />
                         </div>
 
@@ -1281,6 +1287,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     format={labelFormat}
                     showPrice={showPrice}
                     priceTier={priceTier}
+                    codifiedPrice={codifiedPrice}
                     width={labelPreviewWidth}
                     height={labelPreviewHeight}
                     overrides={editingLabelOverrides}

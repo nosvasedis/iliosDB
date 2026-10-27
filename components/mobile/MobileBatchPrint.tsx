@@ -68,6 +68,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     const [priceTier, setPriceTier] = useState<'wholesale' | 'retail'>(() => {
         return (localStorage.getItem('batch_print_price_tier') as 'wholesale' | 'retail') || 'wholesale';
     });
+    const [codifiedPrice, setCodifiedPrice] = useState(() => localStorage.getItem('batch_print_codified_price') === 'true');
     const [activeTab, setActiveTab] = useState<'labels' | 'catalog'>('labels');
     const [catalogSearch, setCatalogSearch] = useState('');
     const [catalogOnlyWithImage, setCatalogOnlyWithImage] = useState(false);
@@ -83,6 +84,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     useEffect(() => { localStorage.setItem('batch_print_format', printFormat); }, [printFormat]);
     useEffect(() => { localStorage.setItem('batch_print_show_price', String(showPrice)); }, [showPrice]);
     useEffect(() => { localStorage.setItem('batch_print_price_tier', priceTier); }, [priceTier]);
+    useEffect(() => { localStorage.setItem('batch_print_codified_price', String(codifiedPrice)); }, [codifiedPrice]);
 
     const catalogProducts = useMemo(() => {
         return (products || [])
@@ -413,6 +415,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                     format={printFormat}
                                     showPrice={showPrice}
                                     priceTier={priceTier}
+                                    codifiedPrice={codifiedPrice}
                                 />
                             </div>
                         ))}
@@ -726,6 +729,21 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                             className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
                         >
                             Λιανική ×3
+                        </button>
+                    </div>
+
+                    <div className={`flex gap-2 bg-slate-100 p-1 rounded-xl ${!showPrice ? 'opacity-40 pointer-events-none' : ''}`}>
+                        <button
+                            onClick={() => setCodifiedPrice(false)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!codifiedPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            32,20€
+                        </button>
+                        <button
+                            onClick={() => setCodifiedPrice(true)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${codifiedPrice ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Κωδ. 132209
                         </button>
                     </div>
                 </div>

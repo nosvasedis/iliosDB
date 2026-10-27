@@ -30,6 +30,7 @@ interface Props {
     size?: string;
     showPrice?: boolean;
     priceTier?: 'wholesale' | 'retail';
+    codifiedPrice?: boolean;
     labelOverrides?: LabelTextOverrides;
 }
 
@@ -43,6 +44,7 @@ const BarcodeView: React.FC<Props> = ({
     size,
     showPrice: showPriceProp,
     priceTier: priceTierProp,
+    codifiedPrice = false,
     labelOverrides,
 }) => {
     const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -63,8 +65,9 @@ const BarcodeView: React.FC<Props> = ({
         size,
         showPrice,
         priceTier,
+        codifiedPrice,
         overrides: labelOverrides,
-    }), [product, variant, format, size, showPrice, priceTier, labelOverrides, settings]);
+    }), [product, variant, format, size, showPrice, priceTier, codifiedPrice, labelOverrides, settings]);
 
     useEffect(() => {
         let cancelled = false;

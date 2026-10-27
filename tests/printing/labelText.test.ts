@@ -134,3 +134,27 @@ describe('label text helpers', () => {
     expect(text.price).toBe('');
   });
 });
+
+describe('codified label price', () => {
+  it('prints 1 + price digits + 9 instead of the amount', () => {
+    const text = buildLabelText({
+      product: makeProduct({ selling_price: 32.2 }),
+      format: 'retail',
+      showPrice: true,
+      codifiedPrice: true,
+    });
+    expect(text.price).toBe('132209');
+  });
+
+  it('codifies the tier price that would otherwise be shown', () => {
+    const plain = buildLabelText({ product: makeProduct({ selling_price: 10 }), showPrice: true, priceTier: 'retail' });
+    const coded = buildLabelText({ product: makeProduct({ selling_price: 10 }), showPrice: true, priceTier: 'retail', codifiedPrice: true });
+    expect(plain.price).toContain('30');
+    expect(coded.price).toBe('130009');
+  });
+
+  it('prints nothing when the price is hidden or missing', () => {
+    expect(buildLabelText({ product: makeProduct({ selling_price: 32.2 }), showPrice: false, codifiedPrice: true }).price).toBe('');
+    expect(buildLabelText({ product: makeProduct({ selling_price: 0 }), showPrice: true, codifiedPrice: true }).price).toBe('');
+  });
+});

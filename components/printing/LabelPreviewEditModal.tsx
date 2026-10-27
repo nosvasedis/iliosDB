@@ -22,6 +22,7 @@ interface LabelPreviewEditModalProps {
   format: LabelPrintFormat;
   showPrice: boolean;
   priceTier: LabelPriceTier;
+  codifiedPrice?: boolean;
   width: number;
   height: number;
   overrides: LabelTextOverrides;
@@ -38,6 +39,7 @@ const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
   format,
   showPrice,
   priceTier,
+  codifiedPrice = false,
   width,
   height,
   overrides,
@@ -52,6 +54,7 @@ const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
     size,
     showPrice,
     priceTier,
+    codifiedPrice,
     overrides,
   });
 
@@ -87,6 +90,7 @@ const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
                 size={size}
                 showPrice={showPrice}
                 priceTier={priceTier}
+                codifiedPrice={codifiedPrice}
                 labelOverrides={overrides}
               />
             </div>

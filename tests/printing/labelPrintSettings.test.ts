@@ -62,6 +62,7 @@ describe('label print settings persistence', () => {
       format: 'standard',
       showPrice: true,
       priceTier: 'wholesale',
+      codifiedPrice: false,
     });
   });
 
@@ -73,6 +74,7 @@ describe('label print settings persistence', () => {
       format: 'retail',
       showPrice: false,
       priceTier: 'wholesale',
+      codifiedPrice: false,
     });
   });
 
@@ -86,7 +88,15 @@ describe('label print settings persistence', () => {
       format: 'retail',
       showPrice: true,
       priceTier: 'retail',
+      codifiedPrice: false,
     });
+  });
+
+  it('remembers the codified price preference', () => {
+    const storage = new MemoryStorage();
+    storage.setItem('batch_print_codified_price', 'true');
+
+    expect(readLabelPrintSettings(storage).codifiedPrice).toBe(true);
   });
 });
 
@@ -116,6 +126,19 @@ describe('registry barcode print payload', () => {
       priceTier: 'retail',
     });
     expect(items[1].labelOverrides).toEqual({ brand: 'ILI' });
+  });
+
+  it('carries the codified price choice onto every print item', () => {
+    const items = buildRegistryBarcodePrintItems({
+      product: makeProduct(),
+      variants: [makeVariant(), makeVariant({ suffix: 'P' })],
+      format: 'retail',
+      showPrice: true,
+      priceTier: 'retail',
+      codifiedPrice: true,
+    });
+
+    expect(items.every(item => item.codifiedPrice === true)).toBe(true);
   });
 
   it('prints a single selected variant or the master SKU when there are no variants', () => {

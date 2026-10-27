@@ -389,7 +389,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 )}
                 {printItems.length > 0 && (
                     <div className="print-area">
-                        {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard', showPrice: item.showPrice, priceTier: item.priceTier, labelOverrides: item.labelOverrides }))).map((item, idx) => (
+                        {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard', showPrice: item.showPrice, priceTier: item.priceTier, codifiedPrice: item.codifiedPrice, labelOverrides: item.labelOverrides }))).map((item, idx) => (
                             <BarcodeView
                                 settings={settings}
                                 key={`${idx}`}
@@ -401,6 +401,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                                 size={item.size}
                                 showPrice={item.showPrice}
                                 priceTier={item.priceTier}
+                                codifiedPrice={item.codifiedPrice}
                                 labelOverrides={item.labelOverrides}
                             />
                         ))}
