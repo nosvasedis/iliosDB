@@ -600,6 +600,16 @@ const iconToneClass: Record<Tone, string> = {
   indigo: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100',
 };
 
+const iconTextToneClass: Record<Tone, string> = {
+  slate: 'text-slate-400',
+  emerald: 'text-emerald-600',
+  sky: 'text-sky-600',
+  amber: 'text-amber-600',
+  red: 'text-red-600',
+  violet: 'text-violet-600',
+  indigo: 'text-indigo-600',
+};
+
 const Chip = ({ tone = 'slate', className = '', children }: { tone?: Tone | null; className?: string; children: React.ReactNode }) => (
   <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-black ${tone ? chipToneClass[tone] : ''} ${className}`}>
     {children}
@@ -781,10 +791,10 @@ const KpiTile = ({
   tone: Tone;
   layout: 'chip' | 'tile';
 }) => layout === 'chip' ? (
-  <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/80 py-1.5 pl-1.5 pr-3 shadow-sm backdrop-blur">
-    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${iconToneClass[tone]}`}><Icon size={14} /></span>
-    <span className="text-[11px] font-bold text-slate-500">{label}</span>
-    <span className="text-sm font-black tabular-nums text-slate-900">{value}</span>
+  <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5" title={`${label}: ${value}`}>
+    <Icon size={13} className={iconTextToneClass[tone]} />
+    <span className="text-[11px] font-semibold text-slate-500">{label}</span>
+    <span className="text-xs font-black tabular-nums text-slate-900">{value}</span>
   </div>
 ) : (
   <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm">
@@ -4860,7 +4870,7 @@ export default function LegalDocumentsPage({
     { label: 'Περιβάλλον', value: statsEnvironmentLabel, icon: ShieldCheck, tone: statsEnvironmentLabel === 'Δοκιμές' ? 'amber' : 'emerald' },
   ];
   const renderStats = (layout: 'chip' | 'tile') => (
-    <div className={layout === 'chip' ? 'flex flex-wrap items-center gap-2 lg:justify-end' : 'grid grid-cols-2 gap-2 md:grid-cols-5'}>
+    <div className={layout === 'chip' ? 'flex min-w-0 max-w-full items-center divide-x divide-slate-200/80 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-sm backdrop-blur' : 'grid grid-cols-2 gap-2 md:grid-cols-5'}>
       {kpis.map((kpi) => <KpiTile key={kpi.label} layout={layout} {...kpi} />)}
     </div>
   );
@@ -4900,7 +4910,7 @@ export default function LegalDocumentsPage({
           title="Παραστατικά"
           subtitle="Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο"
           roundedClassName="rounded-2xl"
-          tailClassName="flex w-full min-w-0 flex-wrap items-center gap-3 lg:ml-auto lg:flex-1 lg:justify-end"
+          tailClassName="flex w-full min-w-0 flex-wrap items-center gap-3 lg:ml-auto lg:flex-1 lg:flex-nowrap lg:justify-end"
           tail={(
             <>
               {renderStats('chip')}
