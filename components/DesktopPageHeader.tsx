@@ -25,8 +25,9 @@ export interface DesktopPageHeaderProps {
   className?: string;
 }
 
+// lg:flex-1 (basis 0) lets the title keep its natural width; a 100% basis made the title shrink and truncate while free space remained.
 const DEFAULT_TAIL =
-  'flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end';
+  'flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:flex-1 lg:justify-end';
 
 const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProps>(function DesktopPageHeader(
   {
