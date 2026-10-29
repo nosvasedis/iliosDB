@@ -3,7 +3,7 @@ import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Layers, Database, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight, Plus, ScanLine, SlidersHorizontal, Sparkles } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
@@ -110,15 +110,64 @@ const SubFilterButton: React.FC<{
 }> = React.memo(({ label, value, activeValue, onClick }) => (
     <button
         onClick={() => onClick(value)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border
+        type="button"
+        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border active:scale-95
             ${activeValue === value
-                ? 'bg-[#060b00] text-white border-[#060b00] shadow-md'
-                : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'}
+                ? 'bg-[#060b00] text-white border-[#060b00] shadow-md shadow-[#060b00]/15'
+                : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 border-slate-200'}
         `}
     >
         {label}
     </button>
 ));
+
+const RegistryPagination: React.FC<{
+    page: number;
+    totalPages: number;
+    summary: string;
+    onPageChange: (page: number) => void;
+}> = ({ page, totalPages, summary, onPageChange }) => (
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 pr-52 shadow-sm backdrop-blur">
+        <span className="text-xs font-bold text-slate-400">
+            {summary} · σελίδα <span className="text-slate-700">{formatNumber(page + 1)}</span> / {formatNumber(totalPages)}
+        </span>
+        <div className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1">
+            <button
+                type="button"
+                onClick={() => onPageChange(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                aria-label="Προηγούμενη σελίδα"
+            >
+                <ChevronLeft size={16} />
+            </button>
+            {getPaginationRange(page, totalPages).map((val, idx) => (
+                val === '...' ? (
+                    <span key={`sep-${idx}`} className="select-none px-1 text-xs font-bold text-slate-300">…</span>
+                ) : (
+                    <button
+                        type="button"
+                        key={val}
+                        onClick={() => onPageChange(val as number)}
+                        aria-current={val === page ? 'page' : undefined}
+                        className={`h-8 min-w-8 rounded-lg px-2 text-xs font-black tabular-nums transition-all ${val === page ? 'bg-[#060b00] text-white shadow-md shadow-[#060b00]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
+                    >
+                        {formatNumber((val as number) + 1)}
+                    </button>
+                )
+            ))}
+            <button
+                type="button"
+                onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                disabled={page >= totalPages - 1}
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                aria-label="Επόμενη σελίδα"
+            >
+                <ChevronRight size={16} />
+            </button>
+        </div>
+    </div>
+);
 
 export default function ProductRegistry({ setPrintItems }: Props) {
     const queryClient = useQueryClient();
@@ -362,6 +411,27 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         }
     };
 
+    // "/" focuses the search box from anywhere on the page (unless typing elsewhere).
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            const target = e.target as HTMLElement | null;
+            if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+            if (selectedProduct || isCreating) return;
+            e.preventDefault();
+            searchInputRef.current?.focus();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedProduct, isCreating]);
+
+    const registryStats = useMemo(() => ({
+        codes: baseProducts.length,
+        variants: baseProducts.reduce((sum, p) => sum + (p.variants?.length || 0), 0),
+        withImage: baseProducts.filter(p => !!p.image_url).length,
+    }), [baseProducts]);
+
     if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
         return null;
     }
@@ -486,62 +556,148 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         />;
     }
 
+    const activeFilterChips: { key: string; label: string; clear: () => void }[] = [];
+    if (filterGender !== 'All') activeFilterChips.push({ key: 'gender', label: genderFilters.find(f => f.value === filterGender)?.label || filterGender, clear: () => setFilterGender('All') });
+    if (filterCategory !== 'All') activeFilterChips.push({ key: 'category', label: filterCategory, clear: () => setFilterCategory('All') });
+    if (subFilters.stone !== 'all') activeFilterChips.push({
+        key: 'stone',
+        label: stoneFilters.find(f => f.value === subFilters.stone)?.label || availableStones.find(st => st.id === subFilters.stone)?.name || subFilters.stone,
+        clear: () => setSubFilters(p => ({ ...p, stone: 'all' })),
+    });
+    if (subFilters.plating !== 'all') activeFilterChips.push({ key: 'plating', label: platingFilters.find(f => f.value === subFilters.plating)?.label || subFilters.plating, clear: () => setSubFilters(p => ({ ...p, plating: 'all' })) });
+    if (subFilters.productionType !== 'all') activeFilterChips.push({ key: 'productionType', label: subFilters.productionType === 'InHouse' ? 'Ιδιοπαραγωγή' : 'Εισαγωγή', clear: () => setSubFilters(p => ({ ...p, productionType: 'all' })) });
+    if (subFilters.collection !== 'all') activeFilterChips.push({ key: 'collection', label: collections.find(c => String(c.id) === subFilters.collection)?.name || 'Συλλογή', clear: () => setSubFilters(p => ({ ...p, collection: 'all' })) });
+    const clearAllFilters = () => {
+        setFilterGender('All');
+        setFilterCategory('All');
+        setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+    };
+
+    const segmentBase = 'relative flex items-center justify-center gap-2 rounded-[10px] text-sm font-bold transition-all duration-200';
+    const segmentOn = 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.08),0_4px_12px_-4px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/5';
+    const segmentOff = 'text-slate-500 hover:bg-white/60 hover:text-slate-800';
+
     return (
-        <div className="flex flex-col space-y-6">
+        <div className="flex flex-col space-y-5">
             <DesktopPageHeader
                 ref={headerRef}
-                icon={Database}
+                icon={showStxOnly ? Puzzle : Database}
                 title="Μητρώο Κωδικών"
                 subtitle={showStxOnly ? 'Προβολή εξαρτημάτων (STX).' : 'Διαχείριση προδιαγραφών και κοστολόγησης.'}
-                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
+                backdrop={(
+                    <>
+                        <div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl"></div>
+                        <div className="absolute -top-20 right-1/3 h-56 w-56 rounded-full bg-amber-100/50 blur-3xl"></div>
+                        <div className="absolute inset-0 opacity-[0.35] [background-image:radial-gradient(rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"></div>
+                        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300"></div>
+                    </>
+                )}
+                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2.5 lg:ml-auto lg:max-w-none lg:justify-end"
                 tail={(
                     <>
-                        <div className="flex rounded-xl bg-slate-100 p-1">
-                            <button type="button" onClick={() => setViewMode('grid')} className={`flex items-center justify-center rounded-lg p-2.5 transition-all ${viewMode === 'grid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                                <LayoutGrid size={20} />
+                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur" role="tablist" aria-label="Τύπος κωδικών">
+                            <button type="button" role="tab" aria-selected={!showStxOnly} onClick={() => setShowStxOnly(false)} className={`${segmentBase} px-3.5 py-2 ${!showStxOnly ? segmentOn : segmentOff}`}>
+                                <Database size={15} className={!showStxOnly ? 'text-emerald-600' : ''} /> Προϊόντα
                             </button>
-                            <button type="button" onClick={() => setViewMode('table')} className={`flex items-center justify-center rounded-lg p-2.5 transition-all ${viewMode === 'table' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                                <List size={20} />
+                            <button type="button" role="tab" aria-selected={showStxOnly} onClick={() => setShowStxOnly(true)} className={`${segmentBase} px-3.5 py-2 ${showStxOnly ? segmentOn : segmentOff}`}>
+                                <Puzzle size={15} className={showStxOnly ? 'text-indigo-600' : ''} /> Εξαρτήματα
+                            </button>
+                        </div>
+                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur" role="tablist" aria-label="Προβολή">
+                            <button type="button" role="tab" aria-selected={viewMode === 'grid'} title="Κάρτες" onClick={() => setViewMode('grid')} className={`${segmentBase} h-9 w-10 ${viewMode === 'grid' ? `${segmentOn} !text-emerald-600` : segmentOff}`}>
+                                <LayoutGrid size={17} />
+                            </button>
+                            <button type="button" role="tab" aria-selected={viewMode === 'table'} title="Λίστα παραλλαγών" onClick={() => setViewMode('table')} className={`${segmentBase} h-9 w-10 ${viewMode === 'table' ? `${segmentOn} !text-emerald-600` : segmentOff}`}>
+                                <List size={17} />
                             </button>
                         </div>
                         <div className="hidden h-8 w-px bg-slate-200 md:block" aria-hidden />
-                        <div className="flex rounded-xl bg-slate-100 p-1">
-                            <button type="button" onClick={() => setShowStxOnly(false)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                <Database size={16} /> Προϊόντα
-                            </button>
-                            <button type="button" onClick={() => setShowStxOnly(true)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                <Puzzle size={16} /> Εξαρτήματα
-                            </button>
-                        </div>
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50">
-                                <Camera size={20} /> <span className="hidden sm:inline">Σάρωση</span>
-                            </button>
-                            <button type="button" onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-md transition-all hover:bg-black hover:shadow-lg">
-                                <PackagePlus size={20} /> <span className="whitespace-nowrap">Νέο</span>
-                            </button>
-                        </div>
+                        <button type="button" onClick={() => setShowScanner(true)} className="group flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 pl-1.5 pr-4 text-sm font-bold text-slate-700 shadow-sm transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-md active:translate-y-0">
+                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-600"><ScanLine size={17} /></span>
+                            <span className="hidden sm:inline">Σάρωση</span>
+                        </button>
+                        <button type="button" onClick={() => setIsCreating(true)} className="group relative flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] pl-1.5 pr-4 text-sm font-bold text-white shadow-lg shadow-[#060b00]/25 ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-px hover:shadow-xl hover:shadow-emerald-900/25 active:translate-y-0">
+                            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]"></span>
+                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-inner shadow-white/20"><Plus size={18} strokeWidth={2.75} /></span>
+                            <span className="whitespace-nowrap">Νέο Προϊόν</span>
+                        </button>
                     </>
                 )}
                 below={(
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                        <div className="group relative w-full flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" size={20} />
-                            <input type="text" placeholder="Αναζήτηση Κωδικού (π.χ. K14300) ή Κατηγορίας..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 font-medium text-slate-900 outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20" />
-                        </div>
-                        <div className="flex w-full gap-2 md:w-auto">
-                            <RegistrySortSelect
-                                value={sortBy}
-                                onChange={setSortBy}
-                                className="flex-1 md:w-44"
-                            />
-                            <button type="button" onClick={() => setShowFiltersSidebar(true)} className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-bold transition-all md:flex-none ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'border-black bg-[#060b00] text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                                <Filter size={18} />
-                                <span>Φίλτρα</span>
-                                {(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') && (
-                                    <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">!</span>
+                    <div className="space-y-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                            <div className="group relative w-full flex-1">
+                                <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" size={19} />
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    placeholder="Αναζήτηση κωδικού (π.χ. K14300) ή κατηγορίας..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Escape') { setSearchTerm(''); e.currentTarget.blur(); } }}
+                                    className="w-full rounded-xl border border-slate-200 bg-white/80 py-3 pl-12 pr-12 font-medium text-slate-900 shadow-inner shadow-slate-100 outline-none backdrop-blur transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/15"
+                                />
+                                {searchTerm ? (
+                                    <button type="button" onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Καθαρισμός αναζήτησης">
+                                        <X size={15} />
+                                    </button>
+                                ) : (
+                                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-400 shadow-sm md:block">/</kbd>
                                 )}
-                            </button>
+                            </div>
+                            <div className="flex w-full gap-2 md:w-auto">
+                                <RegistrySortSelect
+                                    value={sortBy}
+                                    onChange={setSortBy}
+                                    className="flex-1 md:w-44"
+                                />
+                                <button type="button" onClick={() => setShowFiltersSidebar(true)} className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all md:flex-none ${activeFilterChips.length > 0 ? 'border-[#060b00] bg-[#060b00] text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}>
+                                    <SlidersHorizontal size={17} />
+                                    <span>Φίλτρα</span>
+                                    {activeFilterChips.length > 0 && (
+                                        <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-emerald-400 px-1 text-[11px] font-black text-[#060b00]">{formatNumber(activeFilterChips.length)}</span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                                <Sparkles size={12} className="text-emerald-500" />
+                                <span className="font-mono tabular-nums">{formatNumber(filteredProducts.length)}</span>
+                                <span className="font-medium text-emerald-700/70">/ {formatNumber(registryStats.codes)} {showStxOnly ? 'εξαρτήματα' : 'κωδικοί'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-600">
+                                <Layers size={12} className="text-amber-500" />
+                                <span className="font-mono tabular-nums">{formatNumber(registryStats.variants)}</span>
+                                <span className="font-medium text-slate-400">παραλλαγές</span>
+                            </div>
+                            <div className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-600 sm:flex">
+                                <ImageIcon size={12} className="text-sky-500" />
+                                <span className="font-mono tabular-nums">{formatNumber(registryStats.withImage)}</span>
+                                <span className="font-medium text-slate-400">με φωτογραφία</span>
+                            </div>
+
+                            {activeFilterChips.length > 0 && (
+                                <>
+                                    <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" aria-hidden />
+                                    {activeFilterChips.map(chip => (
+                                        <button
+                                            key={chip.key}
+                                            type="button"
+                                            onClick={chip.clear}
+                                            className="group inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white py-1 pl-3 pr-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                            title="Αφαίρεση φίλτρου"
+                                        >
+                                            {chip.label}
+                                            <span className="grid h-4 w-4 place-items-center rounded-full bg-slate-100 text-slate-400 group-hover:bg-rose-100 group-hover:text-rose-600"><X size={10} strokeWidth={3} /></span>
+                                        </button>
+                                    ))}
+                                    <button type="button" onClick={clearAllFilters} className="text-xs font-bold text-slate-400 underline-offset-2 transition-colors hover:text-slate-700 hover:underline">
+                                        Καθαρισμός όλων
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -594,7 +750,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
                                 return (
                                     <div key={item.variantSku} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
-                                        <div className={`flex items-center justify-between p-4 bg-white border-b border-slate-100 hover:bg-slate-50 transition-colors h-[72px] ${isSelected ? 'bg-emerald-50/50' : ''}`}>
+                                        <div className={`flex items-center justify-between p-4 border-b border-slate-100 transition-colors h-[72px] ${isSelected ? 'bg-emerald-50/60 shadow-[inset_3px_0_0_0_rgb(16,185,129)]' : `${isFirstInTeam ? 'bg-white' : 'bg-slate-50/40'} hover:bg-slate-50`}`}>
                                             <div className="flex items-center gap-4 flex-1">
                                                 <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.variantSku); }} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSelected ? 'text-emerald-600' : ''}`}>
                                                     <CheckSquare size={20} className={isSelected ? 'fill-emerald-100' : ''} />
@@ -768,79 +924,22 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
             {/* Grid Pagination Controls */}
             {viewMode === 'grid' && totalGridPages > 1 && (
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
-                    <span className="text-xs font-bold text-slate-400">
-                        {formatNumber(filteredProducts.length)} προϊόντα · σελίδα {formatNumber(gridPage + 1)} / {formatNumber(totalGridPages)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => { setGridPage(p => Math.max(0, p - 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                            disabled={gridPage === 0}
-                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        {getPaginationRange(gridPage, totalGridPages).map((val, idx) => (
-                            val === '...' ? (
-                                <span key={`sep-${idx}`} className="px-1 text-slate-300 font-bold text-xs select-none">...</span>
-                            ) : (
-                                <button
-                                    key={val}
-                                    onClick={() => { setGridPage(val as number); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === gridPage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'}`}
-                                >
-                                    {formatNumber((val as number) + 1)}
-                                </button>
-                            )
-                        ))}
-                        <button
-                            onClick={() => { setGridPage(p => Math.min(totalGridPages - 1, p + 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                            disabled={gridPage >= totalGridPages - 1}
-                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                </div>
+                <RegistryPagination
+                    page={gridPage}
+                    totalPages={totalGridPages}
+                    summary={`${formatNumber(filteredProducts.length)} προϊόντα`}
+                    onPageChange={(page) => { setGridPage(page); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                />
             )}
 
             {/* Table Pagination Controls */}
             {viewMode === 'table' && totalTablePages > 1 && (
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm pr-52">
-                    <span className="text-xs font-bold text-slate-400">
-                        {formatNumber(allTableVariants.length)} παραλλαγές · σελίδα {formatNumber(tablePage + 1)} / {formatNumber(totalTablePages)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => { setTablePage(p => Math.max(0, p - 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                            disabled={tablePage === 0}
-                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        {getPaginationRange(tablePage, totalTablePages).map((val, idx) => (
-                            val === '...' ? (
-                                <span key={`sep-${idx}`} className="px-1 text-slate-300 font-bold text-xs select-none">...</span>
-                            ) : (
-                                <button
-                                    key={val}
-                                    onClick={() => { setTablePage(val as number); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${val === tablePage ? 'bg-[#060b00] text-white shadow' : 'hover:bg-slate-100 text-slate-500'
-                                        }`}
-                                >
-                                    {formatNumber((val as number) + 1)}
-                                </button>
-                            )
-                        ))}
-                        <button
-                            onClick={() => { setTablePage(p => Math.min(totalTablePages - 1, p + 1)); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
-                            disabled={tablePage >= totalTablePages - 1}
-                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                </div>
+                <RegistryPagination
+                    page={tablePage}
+                    totalPages={totalTablePages}
+                    summary={`${formatNumber(allTableVariants.length)} παραλλαγές`}
+                    onPageChange={(page) => { setTablePage(page); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                />
             )}
 
             {selectedProduct && (
@@ -891,8 +990,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             )}
 
             <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab && selectedSkus.size === 0 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4">
-                    <PackagePlus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
+                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white rounded-full font-bold shadow-2xl shadow-[#060b00]/30 ring-1 ring-inset ring-white/10 transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:py-2.5 sm:pl-2.5 sm:pr-6">
+                    <span className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500"><Plus size={22} strokeWidth={2.75} /></span> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
                 </button>
             </div>
 
@@ -932,15 +1031,22 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             {showFiltersSidebar && (
                 <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setShowFiltersSidebar(false)}>
                     <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                            <h2 className="text-xl font-bold flex items-center gap-2"><Filter size={20} /> Προηγμένα Φίλτρα</h2>
-                            <button onClick={() => setShowFiltersSidebar(false)} className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full transition-colors"><X size={16} /></button>
+                        <div className="relative flex items-center justify-between overflow-hidden border-b border-slate-100 bg-gradient-to-br from-white to-emerald-50/50 p-6">
+                            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300"></div>
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-[#1c2812] to-[#060b00] text-white shadow-md"><SlidersHorizontal size={18} /></span>
+                                <div>
+                                    <h2 className="text-lg font-black tracking-tight text-slate-900">Προηγμένα Φίλτρα</h2>
+                                    <p className="text-xs font-medium text-slate-500">{formatNumber(filteredProducts.length)} αποτελέσματα{activeFilterChips.length > 0 ? ` · ${formatNumber(activeFilterChips.length)} ενεργά φίλτρα` : ''}</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setShowFiltersSidebar(false)} className="rounded-full bg-white p-2 text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:text-slate-700" aria-label="Κλείσιμο"><X size={16} /></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                             {!showStxOnly && (
                                 <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο / Είδος</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Φύλο / Είδος</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {genderFilters.map(f => (
                                             <button
@@ -956,7 +1062,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             )}
 
                             <div className="space-y-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Κατηγορία</label>
                                 <div className="space-y-1 border border-slate-200 rounded-xl overflow-hidden bg-white max-h-60 overflow-y-auto custom-scrollbar">
                                     <div
                                         className={`px-4 py-3 text-sm font-bold cursor-pointer transition-colors ${filterCategory === 'All' ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-slate-50 text-slate-700'}`}
@@ -986,7 +1092,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
                             {/* ── Πέτρες ── */}
                             <div className="space-y-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Gem size={14} /> Πέτρες</label>
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><Gem size={14} /> Πέτρες</label>
                                 {/* Quick toggles */}
                                 <div className="flex gap-2 flex-wrap">
                                     {stoneFilters.map(f => (
@@ -1024,7 +1130,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
                             {/* ── Φινίρισμα ── */}
                             <div className="space-y-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Palette size={14} /> Φινίρισμα</label>
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><Palette size={14} /> Φινίρισμα</label>
                                 <div className="flex flex-wrap gap-2">
                                     {platingFilters.map(f => (
                                         <SubFilterButton key={f.value} label={f.label} value={f.value} activeValue={subFilters.plating} onClick={(v) => setSubFilters(p => ({ ...p, plating: v }))} />
@@ -1035,7 +1141,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             {/* ── Τύπος Παραγωγής ── */}
                             {!showStxOnly && (
                                 <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><Factory size={14} /> Τύπος Παραγωγής</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><Factory size={14} /> Τύπος Παραγωγής</label>
                                     <div className="flex gap-2">
                                         {[
                                             { label: 'Όλα', value: 'all', icon: null },
@@ -1060,7 +1166,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             {/* ── Συλλογή ── */}
                             {!showStxOnly && collections && collections.length > 0 && (
                                 <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><FolderOpen size={14} /> Συλλογή</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><FolderOpen size={14} /> Συλλογή</label>
                                     <div className="flex flex-wrap gap-2">
                                         <SubFilterButton label="Όλες" value="all" activeValue={subFilters.collection} onClick={(v) => setSubFilters(p => ({ ...p, collection: v }))} />
                                         {collections.map(col => (
@@ -1079,18 +1185,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
                         <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
                             <button
-                                onClick={() => {
-                                    setFilterGender('All');
-                                    setFilterCategory('All');
-                                    setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
-                                }}
-                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                                type="button"
+                                onClick={clearAllFilters}
+                                disabled={activeFilterChips.length === 0}
+                                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40"
                             >
                                 Καθαρισμός
                             </button>
                             <button
                                 onClick={() => setShowFiltersSidebar(false)}
-                                className="flex-[2] px-4 py-3 rounded-xl font-bold text-white bg-[#060b00] hover:bg-black transition-colors shadow-md"
+                                className="flex-[2] px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-br from-[#1c2812] to-[#060b00] hover:to-black transition-all shadow-md shadow-[#060b00]/20 active:scale-[0.98]"
                             >
                                 Εφαρμογή ({formatNumber(filteredProducts.length)})
                             </button>

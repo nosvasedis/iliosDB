@@ -422,24 +422,31 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         showToast("Η τιμή Master εφαρμόστηκε σε όλες τις παραλλαγές.", "success");
     };
 
-    const handleAddVariant = () => {
-        if (!newVariantSuffix) { showToast("Η κατάληξη είναι υποχρεωτική.", "error"); return; }
-        const upperSuffix = newVariantSuffix.toUpperCase();
-        if (variants.some(v => v.suffix === upperSuffix)) { showToast("Αυτή η παραλλαγή υπάρχει ήδη.", "error"); return; }
+    /** Adds one variant from a fully typed suffix; an empty description is generated from the suffix. */
+    const addManualVariant = (suffix: string, description: string): boolean => {
+        if (!suffix) { showToast("Η κατάληξη είναι υποχρεωτική.", "error"); return false; }
+        const upperSuffix = suffix.toUpperCase();
+        if (variants.some(v => v.suffix === upperSuffix)) { showToast("Αυτή η παραλλαγή υπάρχει ήδη.", "error"); return false; }
 
         const { total: estimatedCost } = estimateVariantCost(currentTempProduct, upperSuffix, settings!, materials, products);
 
         const newV: ProductVariant = {
             suffix: upperSuffix,
-            description: newVariantDesc,
+            description: description || createVariantDescription(upperSuffix, gender as Gender, plating) || upperSuffix,
             stock_qty: 0,
             active_price: parseFloat(estimatedCost.toFixed(2)),
             selling_price: isSTX ? 0 : (newVariantPrice > 0 ? newVariantPrice : sellingPrice)
         };
         setVariants([...variants, newV]);
-        setNewVariantSuffix(''); setNewVariantDesc('');
         showToast(`Προστέθηκε η παραλλαγή ${upperSuffix}`, "success");
-        if (suffixInputRef.current) suffixInputRef.current.focus();
+        return true;
+    };
+
+    const handleAddVariant = () => {
+        if (addManualVariant(newVariantSuffix, newVariantDesc)) {
+            setNewVariantSuffix(''); setNewVariantDesc('');
+            if (suffixInputRef.current) suffixInputRef.current.focus();
+        }
     };
 
     /**
@@ -771,7 +778,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             handleImageSelect, toggleFinish, handleSubmit,
             handleSelectRecipeItem, updateRecipeItem, removeRecipeItem,
             addMold, updateMoldQuantity, removeMold, handleQuickCreateMold, calculateWeightFromMolds,
-            handleAddVariant, handleSmartAddBatch, planVariantBatch, addVariantsBatch, updateVariant, removeVariant, clearVariants, handleApplyIliosFormula, applyManualPriceToVariants,
+            handleAddVariant, addManualVariant, handleSmartAddBatch, planVariantBatch, addVariantsBatch, updateVariant, removeVariant, clearVariants, handleApplyIliosFormula, applyManualPriceToVariants,
             getVariantTypeInfo
         },
         refs: {

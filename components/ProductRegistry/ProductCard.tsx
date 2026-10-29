@@ -170,7 +170,7 @@ const ProductCard: React.FC<Props> = React.memo(({
     return (
         <div
             onClick={() => onSelectProduct(product)}
-            className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'}`}
+            className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border bg-white shadow-sm shadow-slate-200/50 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200/80 hover:shadow-xl hover:shadow-emerald-900/10 ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200/70'}`}
         >
             <div className="relative aspect-square shrink-0 overflow-hidden bg-slate-50">
                 {product.image_url ? (
@@ -182,10 +182,11 @@ const ProductCard: React.FC<Props> = React.memo(({
                         className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center text-slate-300">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
                         <ImageIcon size={40} />
                     </div>
                 )}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
 
                 {hasVariants && (
                     <span
@@ -222,6 +223,13 @@ const ProductCard: React.FC<Props> = React.memo(({
                         <div className="mt-1 flex items-center gap-1 truncate text-xs font-bold text-slate-400">
                             {hasVariants && <Tag size={10} />} {displayLabel}
                         </div>
+                        {hasVariants && variantCount > 1 && variantCount <= 10 && (
+                            <div className="mt-1.5 flex items-center gap-1" aria-hidden>
+                                {sortedVariants.map((variant, index) => (
+                                    <span key={variant.suffix || 'base'} className={`h-1 rounded-full transition-all duration-300 ${index === viewIndex % variantCount ? 'w-4 bg-emerald-500' : 'w-1.5 bg-slate-200'}`} />
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {hasVariants && variantCount > 1 && (
@@ -281,9 +289,9 @@ const ProductCard: React.FC<Props> = React.memo(({
                             {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                         </div>
                     </div>
-                    <div className="text-right">
-                        <div className="mb-0.5 text-[9px] font-bold uppercase text-slate-400">Περιθώριο</div>
-                        <div className={`flex items-center justify-end gap-1 text-sm font-bold ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    <div className="flex flex-col items-end">
+                        <div className="mb-1 text-[9px] font-bold uppercase text-slate-400">Περιθώριο</div>
+                        <div className={`inline-flex items-center justify-end gap-1 rounded-full px-2 py-0.5 text-xs font-black ${displayPrice <= 0 ? 'text-slate-300' : margin < 30 ? 'bg-rose-50 text-rose-600 ring-1 ring-rose-100' : margin < 50 ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-100' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'}`}>
                             {displayPrice > 0 ? (
                                 <>
                                     <TrendingUp size={12} />

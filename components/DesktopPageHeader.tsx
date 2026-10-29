@@ -23,6 +23,8 @@ export interface DesktopPageHeaderProps {
   /** Override rounded corner (e.g. rounded-[2rem]) */
   roundedClassName?: string;
   className?: string;
+  /** Decorative layer rendered behind the content (absolutely positioned, non-interactive). */
+  backdrop?: React.ReactNode;
 }
 
 // lg:flex-1 (basis 0) lets the title keep its natural width; a 100% basis made the title shrink and truncate while free space remained.
@@ -43,6 +45,7 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
     padding = 'comfortable',
     roundedClassName = 'rounded-3xl',
     className = '',
+    backdrop,
   },
   ref
 ) {
@@ -51,8 +54,9 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
   return (
     <div
       ref={ref}
-      className={`shrink-0 border border-slate-100 bg-white shadow-sm ${roundedClassName} ${p} ${className}`}
+      className={`shrink-0 border border-slate-100 bg-white shadow-sm ${backdrop ? 'relative isolate overflow-hidden' : ''} ${roundedClassName} ${p} ${className}`}
     >
+      {backdrop ? <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>{backdrop}</div> : null}
       <div
         className={`flex flex-col gap-4 ${tail ? 'lg:flex-row lg:items-center lg:justify-between lg:gap-4' : ''}`}
       >

@@ -6,7 +6,7 @@ import StoneCodeText from '../../components/StoneCodeText';
 import { Gender, PlatingType, ProductionType, type Product } from '../../types';
 
 const product = {
-  sku: 'DA100', prefix: 'DA', category: 'Δαχτυλίδι', gender: Gender.Unisex,
+  sku: 'DA100', prefix: 'DA', category: 'Δαχτυλίδι', gender: Gender.Men,
   production_type: ProductionType.InHouse, plating_type: PlatingType.None,
   weight_g: 1, recipe: [], labor: {}, selling_price: 10,
 } as Product;
@@ -24,80 +24,75 @@ function mount(suffixes: string[] = []) {
   return props;
 }
 
-const finishButtons = () => renderer.root.findAllByType('button').filter((button) => 'aria-pressed' in button.props);
-const finish = (label: string) => finishButtons().find((button) => button.children.includes(label));
-const createButton = () => renderer.root.findAllByType('button').find((button) => button.children.includes('Δημιουργία'))!;
-const stoneInput = () => renderer.root.findAllByType('input')[0];
-const stoneOptions = () => renderer.root.findAllByType('option').map((option) => option.props.value);
-const chooseStone = (code: string) => act(() => renderer.root.findByType('select').props.onChange({ target: { value: code } }));
+const textOf = (node: any): string =>
+  (node.children || []).map((child: any) => (typeof child === 'string' ? child : textOf(child))).join('');
+const buttons = () => renderer.root.findAllByType('button');
+const finish = (label: string) => buttons().find((b) => 'aria-pressed' in b.props && textOf(b).startsWith(label) && !b.props['aria-label']);
+const stone = (name: string) => buttons().find((b) => b.props['aria-label'] === `Πέτρα ${name}`);
+const plain = () => buttons().find((b) => textOf(b).includes('Σκέτο μέταλλο'))!;
+const createButton = () => buttons().find((b) => textOf(b).includes('Δημιουργία'))!;
+const selectAllButton = () => buttons().find((b) => typeof b.props.title === 'string' && b.props.title.startsWith('Επιλογή όλων'))!;
+const created = (props: ReturnType<typeof mount>, call = 0) => props.onAddVariants.mock.calls[call][0].map((v: any) => v.suffix);
+const visibleStoneCodes = () => renderer.root.findAllByType(StoneCodeText).map((s) => s.props.code);
 
 describe('registry smart variant add', () => {
-  it('starts without a finish and still allows manually selecting lustre', () => {
+  it('starts without a finish and creates plain lustre once one is picked', () => {
     const props = mount();
-    expect(finishButtons().every((button) => button.props['aria-pressed'] === false)).toBe(true);
     expect(createButton().props.disabled).toBe(true);
     act(() => finish('Λουστρέ')!.props.onClick());
     expect(createButton().props.disabled).toBe(false);
     act(() => createButton().props.onClick());
-    expect(props.onAddVariants.mock.calls[0][0].map((variant) => variant.suffix)).toEqual(['']);
+    expect(created(props)).toEqual(['']);
   });
 
-  it('hides existing plain finishes and filters by the full finish/stone combination', () => {
-    mount(['', 'X', 'PTG']);
-    expect(finish('Λουστρέ')).toBeUndefined();
-    expect(finish('Επίχρυσο')).toBeUndefined();
-    expect(finish('Πατίνα')).toBeDefined();
-    chooseStone('TG');
-    expect(finish('Πατίνα')).toBeUndefined();
-    expect(finish('Λουστρέ')).toBeDefined();
-    expect(finish('Επίχρυσο')).toBeDefined();
-    expect(createButton().props.disabled).toBe(true);
-  });
-
-  it('offers a stone while any selected finish is missing and only creates that missing variant', () => {
-    const props = mount(['XTG']);
-    act(() => finish('Επίχρυσο')!.props.onClick());
-    expect(stoneOptions()).not.toContain('TG');
-    act(() => finish('Πατίνα')!.props.onClick());
-    expect(stoneOptions()).toContain('TG');
-    chooseStone('TG');
-    expect(finish('Επίχρυσο')).toBeUndefined();
-    expect(finish('Πατίνα')!.props['aria-pressed']).toBe(true);
-    act(() => createButton().props.onClick());
-    expect(props.onAddVariants.mock.calls[0][0].map((variant) => variant.suffix)).toEqual(['PTG']);
-  });
-
-  it('hides fully exhausted stones in both the dropdown and chips with no finish selected', () => {
-    mount(['TG', 'PTG', 'DTG', 'XTG', 'HTG']);
-    expect(stoneOptions()).not.toContain('TG');
-    expect(renderer.root.findAllByType(StoneCodeText).some((stone) => stone.props.code === 'TG')).toBe(false);
-    act(() => stoneInput().props.onChange({ target: { value: 'TG' } }));
-    expect(finishButtons()).toHaveLength(0);
-    expect(createButton().props.disabled).toBe(true);
-  });
-
-  it('refreshes the available combinations after a newly added variant reaches the modal', () => {
+  it('creates every finish × stone combination for several stones at once', () => {
     const props = mount();
+    act(() => finish('Πατίνα')!.props.onClick());
     act(() => finish('Επίχρυσο')!.props.onClick());
-    chooseStone('TG');
+    act(() => plain().props.onClick());
+    act(() => stone('Μάτι Τίγρης')!.props.onClick());
+    act(() => stone('Όνυχας')!.props.onClick());
     act(() => createButton().props.onClick());
-    act(() => renderer.update(<SmartVariantAddPanel {...props} existingVariants={props.onAddVariants.mock.calls[0][0]} />));
-    expect(stoneOptions()).not.toContain('TG');
-    act(() => stoneInput().props.onChange({ target: { value: 'TG' } }));
-    expect(finish('Επίχρυσο')).toBeUndefined();
-    expect(finish('Πατίνα')).toBeDefined();
-    expect(createButton().props.disabled).toBe(true);
+    expect(created(props).sort()).toEqual(['PQN', 'PTG', 'XQN', 'XTG']);
   });
 
-  it('allows advanced suffix entry without a selected finish and prevents existing suffixes', () => {
+  it('skips combinations that already exist', () => {
     const props = mount(['XTG']);
-    act(() => renderer.root.findAllByType('button').find((button) => button.children.includes('Προχωρημένο: πλήρες suffix'))!.props.onClick());
-    const advancedInput = () => renderer.root.findAllByType('input').at(-1)!;
-    act(() => advancedInput().props.onChange({ target: { value: 'XTG' } }));
-    expect(createButton().props.disabled).toBe(true);
-    act(() => advancedInput().props.onChange({ target: { value: 'PTG' } }));
-    expect(createButton().props.disabled).toBe(false);
+    act(() => finish('Πατίνα')!.props.onClick());
+    act(() => finish('Επίχρυσο')!.props.onClick());
+    act(() => plain().props.onClick());
+    act(() => stone('Μάτι Τίγρης')!.props.onClick());
     act(() => createButton().props.onClick());
-    expect(props.onAddVariants.mock.calls[0][0].map((variant) => variant.suffix)).toEqual(['PTG']);
+    expect(created(props)).toEqual(['PTG']);
+  });
+
+  it('selects all stones of the active group with one click', () => {
+    const props = mount();
+    act(() => finish('Λουστρέ')!.props.onClick());
+    act(() => plain().props.onClick());
+    const suleman = buttons().find((b) => textOf(b).startsWith('Σουλεμάνηδες'))!;
+    act(() => suleman.props.onClick());
+    act(() => selectAllButton().props.onClick());
+    act(() => createButton().props.onClick());
+    expect(created(props).sort()).toEqual(['BSU', 'GSU', 'RSU']);
+  });
+
+  it('hides stones whose every finish already exists', () => {
+    mount(['TG', 'PTG', 'DTG', 'XTG', 'HTG']);
+    expect(visibleStoneCodes()).not.toContain('TG');
+    expect(visibleStoneCodes()).toContain('QN');
+  });
+
+  it('adds a fully typed suffix and rejects an existing one', () => {
+    const props = mount(['XTG']);
+    act(() => buttons().find((b) => textOf(b).includes('Χειροκίνητη προσθήκη'))!.props.onClick());
+    const suffixInput = () => renderer.root.findAll((n) => n.type === 'input' && n.props['aria-label'] === 'Πλήρες suffix')[0];
+    const form = () => renderer.root.findByType('form');
+    act(() => suffixInput().props.onChange({ target: { value: 'XTG' } }));
+    act(() => form().props.onSubmit({ preventDefault() {} }));
+    expect(props.onAddVariants).not.toHaveBeenCalled();
+    act(() => suffixInput().props.onChange({ target: { value: 'PTG' } }));
+    act(() => form().props.onSubmit({ preventDefault() {} }));
+    expect(created(props)).toEqual(['PTG']);
   });
 });
