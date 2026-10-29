@@ -20,7 +20,6 @@ import {
   ChevronRight,
   Hash,
   ChevronDown,
-  ChevronUp,
   ClipboardCheck,
   Copy,
   Edit3,
@@ -33,7 +32,6 @@ import {
   LayoutList,
   Loader2,
   Lock,
-  MapPin,
   Package,
   Percent,
   Plus,
@@ -361,6 +359,9 @@ const money = (value: number | null | undefined) =>
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** `YYYY-MM-DD` → `DD/MM/YYYY` without going through Date (no timezone shift). */
+const formatIsoDate = (value?: string | null) => value ? value.slice(0, 10).split('-').reverse().join('/') : '—';
+
 const InfoTip = ({ text }: { text: string }) => (
   <span
     title={text}
@@ -679,6 +680,48 @@ const EditorSection = ({
       {action ? <div className="min-w-0">{action}</div> : null}
     </header>
     {children ? <div className={bodyClassName}>{children}</div> : null}
+  </section>
+);
+
+type DocumentHeaderTab = 'customer' | 'document' | 'delivery';
+
+/** Tabbed card holding the draft's header fields, so they sit side by side instead of stacking. */
+const TabbedCard = ({
+  tabs,
+  active,
+  onChange,
+  children,
+}: {
+  tabs: Array<{ id: DocumentHeaderTab; label: string; icon: LucideIcon; hint?: React.ReactNode; attention?: boolean }>;
+  active: DocumentHeaderTab;
+  onChange: (tab: DocumentHeaderTab) => void;
+  children: React.ReactNode;
+}) => (
+  <section className="min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-slate-100 px-2 pt-2 sm:px-3">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const selected = tab.id === active;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(tab.id)}
+            className={`-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-left transition ${selected ? 'border-emerald-600 bg-emerald-50/40 text-slate-950' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+          >
+            <Icon size={15} className={selected ? 'text-emerald-700' : ''} />
+            <span className="min-w-0">
+              <span className="block text-sm font-black leading-tight">{tab.label}</span>
+              {tab.hint ? <span className="block max-w-[14rem] truncate text-[11px] font-medium leading-tight text-slate-400">{tab.hint}</span> : null}
+            </span>
+            {tab.attention ? <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-100" aria-label="Χρειάζεται συμπλήρωση" /> : null}
+          </button>
+        );
+      })}
+    </div>
+    <div role="tabpanel" className="p-4 sm:p-5">{children}</div>
   </section>
 );
 
@@ -1159,7 +1202,7 @@ export default function LegalDocumentsPage({
     verified: false,
   });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
-  const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
+  const [headerTab, setHeaderTab] = useState<DocumentHeaderTab>('customer');
   const [showInspectionPinSection, setShowInspectionPinSection] = useState(false);
   const [inspectionPinDraft, setInspectionPinDraft] = useState('');
   const [inspectionPinConfirm, setInspectionPinConfirm] = useState('');
@@ -1303,14 +1346,10 @@ export default function LegalDocumentsPage({
     setCredentialEnvironment(settingsDraft.environment);
   }, [settingsDraft.environment]);
 
+  // Every newly opened draft starts on its customer tab.
   useEffect(() => {
-    if (!draftBundle) {
-      setDeliveryPaneOpen(false);
-      return;
-    }
-    const kind = draftBundle.document.document_kind;
-    setDeliveryPaneOpen(kind === 'delivery_note' || kind === 'invoice_delivery');
-  }, [draftBundle?.document.id, draftBundle?.document.document_kind]);
+    setHeaderTab('customer');
+  }, [draftBundle?.document.id, proformaBundle?.document.id]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) || null,
@@ -2472,6 +2511,8 @@ export default function LegalDocumentsPage({
       || lines.some((line) => line.vat_category === 7)
       || (document.vat_exemption_category !== null && document.vat_exemption_category !== undefined);
     const issueCount = validationIssues.length;
+    const hasDeliveryTab = isStandaloneDeliveryNote || canToggleDelivery;
+    const activeHeaderTab: DocumentHeaderTab = headerTab === 'delivery' && !hasDeliveryTab ? 'customer' : headerTab;
     const updateCounterpart = (updates: Partial<LegalDocument['counterpart']>) => updateDraftDocument((current) => ({
       ...current,
       counterpart: { ...current.counterpart, ...updates },
@@ -2586,192 +2627,203 @@ export default function LegalDocumentsPage({
           </Notice>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start">
-          <EditorSection icon={UserRound} tone="indigo" title="Πελάτης" subtitle="Στοιχεία λήπτη όπως θα τυπωθούν και θα διαβιβαστούν">
-            <fieldset disabled={!editable} className={`min-w-0 space-y-4 ${!editable ? 'opacity-60' : ''}`}>
-              <div className="grid gap-3 sm:grid-cols-12">
-                <div className="sm:col-span-7">
-                  <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
-                    <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
-                    {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
-                  </SelectInput>
-                </div>
-                <div className="sm:col-span-5">
-                  <VatLookupField
-                    value={document.counterpart.vat_number || ''}
-                    onChange={(value) => updateCounterpart({ vat_number: normalizeVatNumber(value) })}
-                    onLookup={() => void handleDraftVatLookup('legal')}
-                    loading={draftVatLookupTarget === 'legal'}
-                    lookupDisabled={draftVatLookupTarget !== null}
-                  />
-                </div>
-                <div className="sm:col-span-8">
-                  <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateCounterpart({ name: value })} />
-                </div>
-                <div className="sm:col-span-4">
-                  <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateCounterpart({ customer_code: value })} />
-                </div>
-                <div className="sm:col-span-5">
-                  <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateCounterpart({ profession: value })} />
-                </div>
-                <div className="sm:col-span-4">
-                  <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateCounterpart({ tax_office: value })} />
-                </div>
-                <div className="sm:col-span-3">
-                  <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateCounterpart({ phone: value })} />
-                </div>
+        <TabbedCard
+          active={activeHeaderTab}
+          onChange={setHeaderTab}
+          tabs={[
+            {
+              id: 'customer',
+              label: 'Πελάτης',
+              icon: UserRound,
+              hint: document.counterpart.name || 'Χωρίς στοιχεία',
+              attention: editable && (!document.counterpart.name || !document.counterpart.vat_number),
+            },
+            {
+              id: 'document',
+              label: 'Παραστατικό & ΦΠΑ',
+              icon: FileText,
+              hint: `${formatIsoDate(document.issue_date)} · ${PAYMENT_METHOD_LABELS[document.payment_method_code] || 'Πληρωμή'}`,
+              attention: editable && needsVatExemption && !document.vat_exemption_category,
+            },
+            ...(hasDeliveryTab ? [{
+              id: 'delivery' as const,
+              label: 'Διακίνηση',
+              icon: Truck,
+              hint: includesDelivery ? (document.delivery?.carrier_name || 'Ίδια μέσα') : 'Χωρίς δελτίο διακίνησης',
+            }] : []),
+          ]}
+        >
+          {activeHeaderTab === 'customer' && (
+            <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12 ${!editable ? 'opacity-60' : ''}`}>
+              <div className="sm:col-span-6 lg:col-span-5">
+                <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
+                  <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
+                  {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+                </SelectInput>
               </div>
-              <FieldGroupLabel icon={MapPin}>Διεύθυνση</FieldGroupLabel>
-              <div className="grid gap-3 sm:grid-cols-12">
-                <div className="sm:col-span-5">
-                  <TextInput label="Οδός Πελάτη" value={document.counterpart.address?.street || ''} onChange={(value) => updateCounterpartAddress({ street: value })} />
-                </div>
-                <div className="sm:col-span-2">
-                  <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateCounterpartAddress({ number: value })} />
-                </div>
-                <div className="sm:col-span-2">
-                  <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateCounterpartAddress({ postal_code: value })} />
-                </div>
-                <div className="sm:col-span-3">
-                  <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateCounterpartAddress({ city: value })} />
-                </div>
-                <div className="sm:col-span-5">
-                  <SelectInput label="Χώρα" value={normalizeLegalCountryCode(document.counterpart.country)} onChange={(value) => updateCounterpart({ country: value })}>
-                    {listLegalCountryOptions(document.counterpart.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </SelectInput>
-                </div>
+              <div className="sm:col-span-4 lg:col-span-4">
+                <VatLookupField
+                  value={document.counterpart.vat_number || ''}
+                  onChange={(value) => updateCounterpart({ vat_number: normalizeVatNumber(value) })}
+                  onLookup={() => void handleDraftVatLookup('legal')}
+                  loading={draftVatLookupTarget === 'legal'}
+                  lookupDisabled={draftVatLookupTarget !== null}
+                />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateCounterpart({ customer_code: value })} />
+              </div>
+              <div className="sm:col-span-6 lg:col-span-5">
+                <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateCounterpart({ name: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-3">
+                <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateCounterpart({ profession: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateCounterpart({ tax_office: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <TextInput label="Τηλέφωνο" value={document.counterpart.phone || ''} onChange={(value) => updateCounterpart({ phone: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-4">
+                <TextInput label="Οδός" value={document.counterpart.address?.street || ''} onChange={(value) => updateCounterpartAddress({ street: value })} />
+              </div>
+              <div className="sm:col-span-1 lg:col-span-1">
+                <TextInput label="Αρ." value={document.counterpart.address?.number || ''} onChange={(value) => updateCounterpartAddress({ number: value })} />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-2">
+                <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateCounterpartAddress({ postal_code: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-3">
+                <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateCounterpartAddress({ city: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <SelectInput label="Χώρα" value={normalizeLegalCountryCode(document.counterpart.country)} onChange={(value) => updateCounterpart({ country: value })}>
+                  {listLegalCountryOptions(document.counterpart.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectInput>
               </div>
             </fieldset>
-          </EditorSection>
+          )}
 
-          <EditorSection icon={FileText} tone="emerald" title="Στοιχεία παραστατικού" subtitle="Ημερομηνία, πληρωμή, αποστολή και ΦΠΑ">
-            <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 ${!editable ? 'opacity-60' : ''}`}>
-              <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
-              <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
-                {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
-              </SelectInput>
-              <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value } }))}>
-                {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
-              </SelectInput>
-              {(document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery' || document.document_kind === 'delivery_note') && (
-                <SelectInput
-                  label="Σκοπός διακίνησης"
-                  value={document.delivery?.move_purpose || resolveLegalMovePurpose(null, settingsDraft, document.aade_document_type)}
-                  onChange={(value) => updateDraftDocument((current) => ({
-                    ...current,
-                    delivery: {
-                      ...(current.delivery || {}),
-                      move_purpose: Number(value) || 1,
-                    },
-                  }))}
-                >
-                  {Object.entries(SBZ_MOVE_PURPOSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          {activeHeaderTab === 'document' && (
+            <fieldset disabled={!editable} className={`min-w-0 space-y-4 ${!editable ? 'opacity-60' : ''}`}>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
+                <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
+                  {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
                 </SelectInput>
-              )}
-              <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
-                {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
-              </SelectInput>
+                <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value } }))}>
+                  {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
+                </SelectInput>
+                {(document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery' || document.document_kind === 'delivery_note') && (
+                  <SelectInput
+                    label="Σκοπός διακίνησης"
+                    value={document.delivery?.move_purpose || resolveLegalMovePurpose(null, settingsDraft, document.aade_document_type)}
+                    onChange={(value) => updateDraftDocument((current) => ({
+                      ...current,
+                      delivery: {
+                        ...(current.delivery || {}),
+                        move_purpose: Number(value) || 1,
+                      },
+                    }))}
+                  >
+                    {Object.entries(SBZ_MOVE_PURPOSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </SelectInput>
+                )}
+                <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
+                  {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                </SelectInput>
+              </div>
               {needsVatExemption && (
-                <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
                   <VatExemptionCategorySelect
                     value={document.vat_exemption_category}
                     onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
                   />
-                </div>
-              )}
-              {document.vat_rate === 0 && (
-                <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-                  <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_legal_note: value || null }))} />
+                  {document.vat_rate === 0 && (
+                    <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_legal_note: value || null }))} />
+                  )}
                 </div>
               )}
             </fieldset>
-          </EditorSection>
-        </div>
+          )}
 
-        {(isStandaloneDeliveryNote || canToggleDelivery) && (
-          <EditorSection
-            icon={Truck}
-            tone={includesDelivery ? 'sky' : 'slate'}
-            title="Διακίνηση"
-            subtitle={isStandaloneDeliveryNote
-              ? 'Υποχρεωτικά για δελτίο αποστολής 9.3.'
-              : includesDelivery
-                ? 'Προαιρετικό συνδυασμένο τιμολόγιο–διακίνηση (Α 1170/2023).'
-                : 'Το απλό τιμολόγιο 1.1 δεν απαιτεί στοιχεία διακίνησης.'}
-            action={(
-              <div className="flex flex-wrap items-center gap-2">
+          {activeHeaderTab === 'delivery' && (
+            <div className="min-w-0 space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-medium leading-relaxed text-slate-500">
+                  {isStandaloneDeliveryNote
+                    ? 'Υποχρεωτικά για δελτίο αποστολής 9.3.'
+                    : includesDelivery
+                      ? 'Προαιρετικό συνδυασμένο τιμολόγιο–διακίνηση (Α 1170/2023).'
+                      : 'Το απλό τιμολόγιο 1.1 δεν απαιτεί στοιχεία διακίνησης.'}
+                </p>
                 {canToggleDelivery ? (
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-800">
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-800 sm:self-auto">
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-emerald-600"
                       checked={includesDelivery}
                       disabled={!editable}
-                      onChange={(event) => {
-                        updateDraftDocument((current) => applyLegalDocumentDeliveryToggle(
-                          current,
-                          event.target.checked,
-                          settingsDraft,
-                          selectedCustomer,
-                        ));
-                        if (event.target.checked) setDeliveryPaneOpen(true);
-                      }}
+                      onChange={(event) => updateDraftDocument((current) => applyLegalDocumentDeliveryToggle(
+                        current,
+                        event.target.checked,
+                        settingsDraft,
+                        selectedCustomer,
+                      ))}
                     />
                     Με δελτίο διακίνησης
                   </label>
                 ) : null}
-                {includesDelivery && (
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryPaneOpen((open) => !open)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-600 transition hover:bg-slate-100"
-                    aria-expanded={deliveryPaneOpen}
-                  >
-                    {deliveryPaneOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                    {deliveryPaneOpen ? 'Απόκρυψη' : 'Στοιχεία'}
-                  </button>
-                )}
               </div>
-            )}
-          >
-            {deliveryPaneOpen && includesDelivery ? (
-              <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${!editable ? 'opacity-60' : ''}`}>
-                <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
-                <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
-                <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
-                <SelectInput label="Μεταφορέας" value={document.delivery?.carrier_id || ''} onChange={(value) => {
-                  const carrier = carriers.find((item) => item.id === value);
-                  updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
-                }}>
-                  <option value="">Ίδια μέσα</option>
-                  {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
-                </SelectInput>
-                <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
-                {selectedCustomer && customerBranches(selectedCustomer).length > 0 ? (
-                  <SelectInput
-                    label="Τόπος παράδοσης"
-                    value={deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address)}
-                    onChange={(value) => updateDraftDocument((current) => ({
-                      ...current,
-                      delivery: {
-                        ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)),
-                        delivery_address: resolveCustomerDeliveryAddress(selectedCustomer, value === 'fiscal' ? null : value)
-                          ?? (value === 'fiscal' && selectedCustomer.address ? parseLegalPartyAddress(selectedCustomer.address) : null),
-                      },
-                    }))}
-                  >
-                    {deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address) === 'custom' && <option value="custom">Χειροκίνητη διεύθυνση</option>}
-                    {customerBranches(selectedCustomer).map((branch) => (
-                      <option key={branch.id} value={branch.id}>Κατάστημα: {branch.label}{branch.city ? ` (${branch.city})` : ''}</option>
-                    ))}
-                    <option value="fiscal">Φορολογική έδρα</option>
+              {includesDelivery ? (
+                <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4 ${!editable ? 'opacity-60' : ''}`}>
+                  <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
+                  <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
+                  <SelectInput label="Μεταφορέας" value={document.delivery?.carrier_id || ''} onChange={(value) => {
+                    const carrier = carriers.find((item) => item.id === value);
+                    updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
+                  }}>
+                    <option value="">Ίδια μέσα</option>
+                    {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
                   </SelectInput>
-                ) : null}
-                <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
-              </fieldset>
-            ) : null}
-          </EditorSection>
-        )}
+                  <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
+                  <div className="sm:col-span-2">
+                    <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
+                  </div>
+                  {selectedCustomer && customerBranches(selectedCustomer).length > 0 ? (
+                    <SelectInput
+                      label="Τόπος παράδοσης"
+                      value={deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address)}
+                      onChange={(value) => updateDraftDocument((current) => ({
+                        ...current,
+                        delivery: {
+                          ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)),
+                          delivery_address: resolveCustomerDeliveryAddress(selectedCustomer, value === 'fiscal' ? null : value)
+                            ?? (value === 'fiscal' && selectedCustomer.address ? parseLegalPartyAddress(selectedCustomer.address) : null),
+                        },
+                      }))}
+                    >
+                      {deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address) === 'custom' && <option value="custom">Χειροκίνητη διεύθυνση</option>}
+                      {customerBranches(selectedCustomer).map((branch) => (
+                        <option key={branch.id} value={branch.id}>Κατάστημα: {branch.label}{branch.city ? ` (${branch.city})` : ''}</option>
+                      ))}
+                      <option value="fiscal">Φορολογική έδρα</option>
+                    </SelectInput>
+                  ) : null}
+                  <div className={selectedCustomer && customerBranches(selectedCustomer).length > 0 ? '' : 'sm:col-span-2'}>
+                    <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
+                  </div>
+                </fieldset>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm font-medium text-slate-500">
+                  <Truck size={18} className="shrink-0 text-slate-400" />
+                  Ενεργοποιήστε «Με δελτίο διακίνησης» για να συμπληρώσετε έναρξη, μεταφορέα και τόπους φόρτωσης/παράδοσης.
+                </div>
+              )}
+            </div>
+          )}
+        </TabbedCard>
 
         <EditorSection
           icon={Package}
@@ -2999,7 +3051,7 @@ export default function LegalDocumentsPage({
   const renderCreationSetup = () => {
     const selectedCreationType = creationTypeItems.find((item) => item.id === creationDocumentType) || creationTypeItems[0];
     const sourceTitle = creationSource === 'order' ? 'Από παραγγελία' : 'Χειροκίνητη καταχώριση';
-    const primaryActionLabel = creationSource === 'order' ? 'Σύνθεση πρόχειρου' : 'Έναρξη καταχώρισης';
+    const primaryActionLabel = creationSource === 'order' ? 'Σύνθεση' : 'Έναρξη καταχώρισης';
     const generateDisabled = (creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders;
     const orderItemCount = selectedOrder ? (selectedOrder.items?.length ?? selectedOrder.item_count ?? 0) : 0;
     const summaryRows: Array<[string, React.ReactNode]> = [
@@ -3357,89 +3409,101 @@ export default function LegalDocumentsPage({
           Προτιμολόγιο: εμπορικό/ενημερωτικό έγγραφο μόνο. Δεν είναι νόμιμο φορολογικό παραστατικό, δεν παίρνει MARK και δεν αποστέλλεται στη myDATA.
         </Notice>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start">
-          <EditorSection icon={UserRound} tone="indigo" title="Πελάτης" subtitle="Όλα τα στοιχεία μένουν χειροκίνητα επεξεργάσιμα">
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-12">
-                <div className="sm:col-span-7">
-                  <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'proforma')} help="Γεμίζει αυτόματα τα στοιχεία πελάτη από το ERP, αλλά όλα μένουν χειροκίνητα επεξεργάσιμα.">
-                    <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
-                    {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
-                  </SelectInput>
-                </div>
-                <div className="sm:col-span-5">
-                  <VatLookupField
-                    value={document.counterpart.vat_number || ''}
-                    onChange={(value) => updateProformaCounterpart({ vat_number: normalizeVatNumber(value) })}
-                    onLookup={() => void handleDraftVatLookup('proforma')}
-                    loading={draftVatLookupTarget === 'proforma'}
-                    lookupDisabled={draftVatLookupTarget !== null}
-                  />
-                </div>
-                <div className="sm:col-span-8">
-                  <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateProformaCounterpart({ name: value })} />
-                </div>
-                <div className="sm:col-span-4">
-                  <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateProformaCounterpart({ customer_code: value })} />
-                </div>
-                <div className="sm:col-span-5">
-                  <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateProformaCounterpart({ profession: value })} />
-                </div>
-                <div className="sm:col-span-4">
-                  <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateProformaCounterpart({ tax_office: value })} />
-                </div>
-                <div className="sm:col-span-3">
-                  <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateProformaCounterpart({ phone: value })} />
-                </div>
+        <TabbedCard
+          active={headerTab === 'document' ? 'document' : 'customer'}
+          onChange={setHeaderTab}
+          tabs={[
+            {
+              id: 'customer',
+              label: 'Πελάτης',
+              icon: UserRound,
+              hint: document.counterpart.name || 'Χωρίς στοιχεία',
+              attention: !document.counterpart.name,
+            },
+            {
+              id: 'document',
+              label: 'Προτιμολόγιο & ΦΠΑ',
+              icon: FileText,
+              hint: document.valid_until ? `Ισχύει έως ${formatIsoDate(document.valid_until)}` : formatIsoDate(document.issue_date),
+              attention: needsVatExemption && !document.vat_exemption_category,
+            },
+          ]}
+        >
+          {headerTab !== 'document' ? (
+            <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12">
+              <div className="sm:col-span-6 lg:col-span-5">
+                <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'proforma')} help="Γεμίζει αυτόματα τα στοιχεία πελάτη από το ERP, αλλά όλα μένουν χειροκίνητα επεξεργάσιμα.">
+                  <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
+                  {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+                </SelectInput>
               </div>
-              <FieldGroupLabel icon={MapPin}>Διεύθυνση</FieldGroupLabel>
-              <div className="grid gap-3 sm:grid-cols-12">
-                <div className="sm:col-span-5">
-                  <TextInput label="Οδός" value={document.counterpart.address?.street || ''} onChange={(value) => updateProformaAddress({ street: value })} />
-                </div>
-                <div className="sm:col-span-2">
-                  <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateProformaAddress({ number: value })} />
-                </div>
-                <div className="sm:col-span-2">
-                  <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateProformaAddress({ postal_code: value })} />
-                </div>
-                <div className="sm:col-span-3">
-                  <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateProformaAddress({ city: value })} />
-                </div>
+              <div className="sm:col-span-4 lg:col-span-4">
+                <VatLookupField
+                  value={document.counterpart.vat_number || ''}
+                  onChange={(value) => updateProformaCounterpart({ vat_number: normalizeVatNumber(value) })}
+                  onLookup={() => void handleDraftVatLookup('proforma')}
+                  loading={draftVatLookupTarget === 'proforma'}
+                  lookupDisabled={draftVatLookupTarget !== null}
+                />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateProformaCounterpart({ customer_code: value })} />
+              </div>
+              <div className="sm:col-span-6 lg:col-span-5">
+                <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateProformaCounterpart({ name: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-3">
+                <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateProformaCounterpart({ profession: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateProformaCounterpart({ tax_office: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <TextInput label="Τηλέφωνο" value={document.counterpart.phone || ''} onChange={(value) => updateProformaCounterpart({ phone: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-5">
+                <TextInput label="Οδός" value={document.counterpart.address?.street || ''} onChange={(value) => updateProformaAddress({ street: value })} />
+              </div>
+              <div className="sm:col-span-1 lg:col-span-2">
+                <TextInput label="Αρ." value={document.counterpart.address?.number || ''} onChange={(value) => updateProformaAddress({ number: value })} />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-2">
+                <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateProformaAddress({ postal_code: value })} />
+              </div>
+              <div className="sm:col-span-3 lg:col-span-3">
+                <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateProformaAddress({ city: value })} />
               </div>
             </div>
-          </EditorSection>
-
-          <EditorSection icon={FileText} tone="sky" title="Στοιχεία προτιμολογίου" subtitle="Ισχύς, πληρωμή, ΦΠΑ και σημειώσεις">
-            <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, issue_date: value }, lines, settingsDraft))} />
-              <TextInput label="Ισχύει έως" type="date" value={document.valid_until || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, valid_until: value || null }, lines, settingsDraft))} />
-              <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, payment_method_code: Number(value) }, lines, settingsDraft))}>
-                {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
-              </SelectInput>
-              <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyProformaVatProfile(Number(value))} help="Το προφίλ ΦΠΑ του προτιμολογίου. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Κάθε γραμμή μπορεί να αλλαχθεί ξεχωριστά.">
-                {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
-              </SelectInput>
+          ) : (
+            <div className="min-w-0 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, issue_date: value }, lines, settingsDraft))} />
+                <TextInput label="Ισχύει έως" type="date" value={document.valid_until || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, valid_until: value || null }, lines, settingsDraft))} />
+                <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, payment_method_code: Number(value) }, lines, settingsDraft))}>
+                  {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+                </SelectInput>
+                <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyProformaVatProfile(Number(value))} help="Το προφίλ ΦΠΑ του προτιμολογίου. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Κάθε γραμμή μπορεί να αλλαχθεί ξεχωριστά.">
+                  {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                </SelectInput>
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <TextInput label="Σημειώσεις" value={document.notes || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, notes: value }, lines, settingsDraft))} />
+                </div>
+              </div>
               {needsVatExemption && (
-                <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
                   <VatExemptionCategorySelect
                     label="Αιτία απαλλαγής ΦΠΑ"
                     value={document.vat_exemption_category}
                     onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_category: value }, lines, settingsDraft))}
                   />
+                  {document.vat_rate === 0 && (
+                    <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_legal_note: value || null }, lines, settingsDraft))} />
+                  )}
                 </div>
               )}
-              {document.vat_rate === 0 && (
-                <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-                  <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_legal_note: value || null }, lines, settingsDraft))} />
-                </div>
-              )}
-              <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-                <TextInput label="Σημειώσεις" value={document.notes || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, notes: value }, lines, settingsDraft))} />
-              </div>
             </div>
-          </EditorSection>
-        </div>
+          )}
+        </TabbedCard>
 
         <EditorSection
           icon={Package}
