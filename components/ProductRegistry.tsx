@@ -1,7 +1,7 @@
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
 import { Search, Layers, Database, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight, Plus, ScanLine, SlidersHorizontal, Sparkles } from 'lucide-react';
 import ProductDetails from './ProductDetails';
@@ -121,51 +121,68 @@ const SubFilterButton: React.FC<{
     </button>
 ));
 
+/**
+ * Floating pagination pill. It is sticky to the bottom of the page scroller, so it is always
+ * reachable while browsing and settles into the normal flow once the end of the list is reached.
+ */
 const RegistryPagination: React.FC<{
     page: number;
     totalPages: number;
     summary: string;
     onPageChange: (page: number) => void;
-}> = ({ page, totalPages, summary, onPageChange }) => (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 pr-52 shadow-sm backdrop-blur">
-        <span className="text-xs font-bold text-slate-400">
-            {summary} · σελίδα <span className="text-slate-700">{formatNumber(page + 1)}</span> / {formatNumber(totalPages)}
-        </span>
-        <div className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1">
-            <button
-                type="button"
-                onClick={() => onPageChange(Math.max(0, page - 1))}
-                disabled={page === 0}
-                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
-                aria-label="Προηγούμενη σελίδα"
-            >
-                <ChevronLeft size={16} />
-            </button>
-            {getPaginationRange(page, totalPages).map((val, idx) => (
-                val === '...' ? (
-                    <span key={`sep-${idx}`} className="select-none px-1 text-xs font-bold text-slate-300">…</span>
-                ) : (
-                    <button
-                        type="button"
-                        key={val}
-                        onClick={() => onPageChange(val as number)}
-                        aria-current={val === page ? 'page' : undefined}
-                        className={`h-8 min-w-8 rounded-lg px-2 text-xs font-black tabular-nums transition-all ${val === page ? 'bg-[#060b00] text-white shadow-md shadow-[#060b00]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
-                    >
-                        {formatNumber((val as number) + 1)}
-                    </button>
-                )
-            ))}
-            <button
-                type="button"
-                onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
-                disabled={page >= totalPages - 1}
-                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
-                aria-label="Επόμενη σελίδα"
-            >
-                <ChevronRight size={16} />
-            </button>
-        </div>
+    /** Lift the pill above the fixed bulk-selection bar. */
+    raised?: boolean;
+}> = ({ page, totalPages, summary, onPageChange, raised }) => (
+    <div className={`pointer-events-none sticky z-30 flex justify-center pt-2 transition-[bottom] duration-300 ${raised ? 'bottom-28' : 'bottom-4'}`}>
+        <nav
+            aria-label="Σελίδες"
+            className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-white/60 backdrop-blur-xl sm:gap-3 sm:pl-4"
+        >
+            <span className="hidden whitespace-nowrap text-xs font-bold text-slate-400 sm:inline">
+                {summary}
+            </span>
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1">
+                <button
+                    type="button"
+                    onClick={() => onPageChange(Math.max(0, page - 1))}
+                    disabled={page === 0}
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                    aria-label="Προηγούμενη σελίδα"
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                {/* Small screens: compact "3 / 38" indicator instead of the number strip. */}
+                <span className="px-2 text-xs font-black tabular-nums text-slate-700 md:hidden">
+                    {formatNumber(page + 1)} <span className="font-bold text-slate-400">/ {formatNumber(totalPages)}</span>
+                </span>
+                <div className="hidden items-center gap-1 md:flex">
+                    {getPaginationRange(page, totalPages).map((val, idx) => (
+                        val === '...' ? (
+                            <span key={`sep-${idx}`} className="select-none px-1 text-xs font-bold text-slate-300">…</span>
+                        ) : (
+                            <button
+                                type="button"
+                                key={val}
+                                onClick={() => onPageChange(val as number)}
+                                aria-current={val === page ? 'page' : undefined}
+                                className={`h-8 min-w-8 rounded-lg px-2 text-xs font-black tabular-nums transition-all ${val === page ? 'bg-[#060b00] text-white shadow-md shadow-[#060b00]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
+                            >
+                                {formatNumber((val as number) + 1)}
+                            </button>
+                        )
+                    ))}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                    aria-label="Επόμενη σελίδα"
+                >
+                    <ChevronRight size={16} />
+                </button>
+            </div>
+        </nav>
     </div>
 );
 
@@ -212,7 +229,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [priceEditUsedFormula, setPriceEditUsedFormula] = useState<string | null>(null);
 
     const [showFab, setShowFab] = useState(false);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    // The registry has a single scrollbar: the app's page scroller. The list flows inside it.
+    const listRef = useRef<HTMLDivElement>(null);
+    const getPageScroller = useCallback(
+        () => (listRef.current?.closest('main > div.overflow-y-auto') ?? document.querySelector('main > div.overflow-y-auto')) as HTMLElement | null,
+        [],
+    );
+    // Distance from the top of the page scroller's content to the list (header + toolbar height).
+    const [listOffset, setListOffset] = useState(0);
     const headerRef = useRef<HTMLDivElement>(null);
 
     // Virtualization calculations
@@ -361,19 +385,47 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const rowCount = tableVariants.length;
 
+    const measureListOffset = useCallback(() => {
+        const list = listRef.current;
+        const scroller = getPageScroller();
+        if (!list || !scroller) return;
+        const offset = Math.round(list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+        setListOffset(prev => (Math.abs(prev - offset) > 1 ? offset : prev));
+    }, [getPageScroller]);
+
+    // Re-measure after every render (filter chips wrapping, view switches) and on header/viewport resizes.
+    useLayoutEffect(() => { measureListOffset(); });
+    useEffect(() => {
+        const header = headerRef.current;
+        if (!header || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(() => measureListOffset());
+        observer.observe(header);
+        window.addEventListener('resize', measureListOffset);
+        return () => { observer.disconnect(); window.removeEventListener('resize', measureListOffset); };
+    });
+
     const rowVirtualizer = useVirtualizer({
         count: rowCount,
-        getScrollElement: () => scrollContainerRef.current,
+        getScrollElement: getPageScroller,
         estimateSize: () => 72,
-        overscan: 5,
+        overscan: 8,
+        scrollMargin: listOffset,
     });
+
+    /** On page change, bring the first row into view (only if the user scrolled past it). */
+    const scrollListToTop = () => {
+        const scroller = getPageScroller();
+        if (!scroller) return;
+        const target = Math.max(0, listOffset - 16);
+        if (scroller.scrollTop > target) scroller.scrollTo({ top: target });
+    };
 
     useEffect(() => {
         setSelectedSkus(new Set());
     }, [viewMode, showStxOnly]);
 
     useEffect(() => {
-        const scrollContainer = document.querySelector('main > div.overflow-y-auto');
+        const scrollContainer = getPageScroller();
         if (!scrollContainer) return;
         const handleScroll = () => {
             if (headerRef.current) {
@@ -381,9 +433,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 setShowFab(headerBottomPosition < 20);
             }
         };
-        scrollContainer.addEventListener('scroll', handleScroll);
+        scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
         return () => scrollContainer.removeEventListener('scroll', handleScroll);
-    }, []);
+    }, [getPageScroller]);
 
     // Dashboard / other pages can hand over a SKU: open it straight away when it exists.
     const handoffResolved = useRef(false);
@@ -729,7 +781,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 )}
             />
 
-            <div ref={scrollContainerRef} className="overflow-y-auto custom-scrollbar pr-1 relative" style={{ maxHeight: 'calc(100dvh - 16rem)' }}>
+            <div ref={listRef} className="relative">
                 {viewMode === 'grid' ? (
                     /* ── GRID (PAGINATED) ── */
                     filteredProducts.length > 0 ? (
@@ -775,7 +827,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 const isFirstInTeam = !prevItem || prevItem.masterSku !== item.masterSku;
 
                                 return (
-                                    <div key={item.variantSku} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+                                    <div key={item.variantSku} className="absolute top-0 left-0 w-full" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)` }}>
                                         <div className={`flex items-center justify-between p-4 border-b border-slate-100 transition-colors h-[72px] ${isSelected ? 'bg-emerald-50/60 shadow-[inset_3px_0_0_0_rgb(16,185,129)]' : `${isFirstInTeam ? 'bg-white' : 'bg-slate-50/40'} hover:bg-slate-50`}`}>
                                             <div className="flex items-center gap-4 flex-1">
                                                 <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.variantSku); }} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSelected ? 'text-emerald-600' : ''}`}>
@@ -954,7 +1006,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     page={gridPage}
                     totalPages={totalGridPages}
                     summary={`${formatNumber(filteredProducts.length)} προϊόντα`}
-                    onPageChange={(page) => { setGridPage(page); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                    onPageChange={(page) => { setGridPage(page); scrollListToTop(); }}
                 />
             )}
 
@@ -964,7 +1016,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     page={tablePage}
                     totalPages={totalTablePages}
                     summary={`${formatNumber(allTableVariants.length)} παραλλαγές`}
-                    onPageChange={(page) => { setTablePage(page); scrollContainerRef.current?.scrollTo({ top: 0 }); }}
+                    raised={selectedSkus.size > 0}
+                    onPageChange={(page) => { setTablePage(page); scrollListToTop(); }}
                 />
             )}
 
