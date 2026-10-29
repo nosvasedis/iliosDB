@@ -20,7 +20,7 @@ import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProdu
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import IliosLoader from './ui/IliosLoader';
 import SpecialCreationNote from './SpecialCreationNote';
@@ -933,13 +933,9 @@ export default function OffersPage({ products, materials, settings, collections,
                 title="Προσφορές"
                 subtitle="Διαχείριση οικονομικών προσφορών."
                 tail={(
-                    <button
-                        type="button"
-                        onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setCustomerPhone(''); setOfferNotes(''); setRetailClientLabel(''); setVatRate(VatRegime.Standard); setHideSilverPriceInPdf(false); setHideOfferValidityInPdf(false); setOfferValidityDays(DEFAULT_OFFER_VALIDITY_DAYS); }}
-                        className="flex items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-black"
-                    >
-                        <Plus size={20} /> Νέα Προσφορά
-                    </button>
+                    <HeaderPrimaryButton icon={Plus} onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setCustomerPhone(''); setOfferNotes(''); setRetailClientLabel(''); setVatRate(VatRegime.Standard); setHideSilverPriceInPdf(false); setHideOfferValidityInPdf(false); setOfferValidityDays(DEFAULT_OFFER_VALIDITY_DAYS); }}>
+                        Νέα Προσφορά
+                    </HeaderPrimaryButton>
                 )}
                 below={(
               <div className="space-y-4">

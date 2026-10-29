@@ -12,7 +12,7 @@ import { useProducts } from '../hooks/api/useProducts';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { UserProfile, Order, OrderStatus } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import EmptyState from './ui/EmptyState';
 
@@ -245,9 +245,9 @@ export default function SellersPage() {
                 </button>
               )}
             </div>
-            <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-xl text-sm font-bold shadow-sm hover:bg-sky-700 active:scale-95 transition-all">
-              <Plus size={16} /> Νέος Πλασιέ
-            </button>
+            <HeaderPrimaryButton icon={Plus} onClick={openCreate}>
+              Νέος Πλασιέ
+            </HeaderPrimaryButton>
           </div>
         }
       />

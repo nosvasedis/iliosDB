@@ -23,7 +23,7 @@ import { useSettings } from '../hooks/api/useSettings';
 import { productsRepository } from '../features/products';
 import { PrintLabelItem } from '../features/printing';
 import { resolveSellingPriceManualOverride } from '../utils/bulkPricingPreview';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import { resolveInvoiceTotalWeight, type InvoiceTotalWeightResult } from '../utils/invoiceTotalWeight';
 import {
     buildPrintableSkuMap,
@@ -584,14 +584,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 icon={showStxOnly ? Puzzle : Database}
                 title="Μητρώο Κωδικών"
                 subtitle={showStxOnly ? 'Προβολή εξαρτημάτων (STX).' : 'Διαχείριση προδιαγραφών και κοστολόγησης.'}
-                backdrop={(
-                    <>
-                        <div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl"></div>
-                        <div className="absolute -top-20 right-1/3 h-56 w-56 rounded-full bg-amber-100/50 blur-3xl"></div>
-                        <div className="absolute inset-0 opacity-[0.35] [background-image:radial-gradient(rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"></div>
-                        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300"></div>
-                    </>
-                )}
                 tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2.5 lg:ml-auto lg:max-w-none lg:justify-end"
                 tail={(
                     <>
@@ -616,11 +608,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-600"><ScanLine size={17} /></span>
                             <span className="hidden sm:inline">Σάρωση</span>
                         </button>
-                        <button type="button" onClick={() => setIsCreating(true)} className="group relative flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] pl-1.5 pr-4 text-sm font-bold text-white shadow-lg shadow-[#060b00]/25 ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-px hover:shadow-xl hover:shadow-emerald-900/25 active:translate-y-0">
-                            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]"></span>
-                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-inner shadow-white/20"><Plus size={18} strokeWidth={2.75} /></span>
+                        <HeaderPrimaryButton icon={Plus} onClick={() => setIsCreating(true)}>
                             <span className="whitespace-nowrap">Νέο Προϊόν</span>
-                        </button>
+                        </HeaderPrimaryButton>
                     </>
                 )}
                 below={(

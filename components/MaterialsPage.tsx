@@ -11,7 +11,7 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { formatCurrency } from '../utils/pricingEngine';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 import EmptyState from './ui/EmptyState';
@@ -513,12 +513,9 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                         <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Αξια Αποθηκης</div>
                         <div className="text-xl font-black text-emerald-600">{formatCurrency(stats.totalValue)}</div>
                     </div>
-                    <button 
-                        onClick={handleCreate}
-                        className="bg-[#060b00] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
-                    >
-                        <Plus size={18}/> Νέο Υλικό
-                    </button>
+                    <HeaderPrimaryButton icon={Plus} onClick={handleCreate}>
+                        Νέο Υλικό
+                    </HeaderPrimaryButton>
                 </div>
             )}
             below={(

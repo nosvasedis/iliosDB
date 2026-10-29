@@ -60,7 +60,7 @@ describe('Greek inventory UI language contract', () => {
 describe('streamlined Αποθήκη & Στοκ', () => {
   it('has one screen with a single primary entry action and no tabs', () => {
     expect(workspaceSource).toContain('Αποθήκη & Στοκ');
-    expect(workspaceSource.match(/<PackagePlus size=\{16\} \/> Καταχώριση/g)).toHaveLength(1);
+    expect(workspaceSource.match(/<HeaderPrimaryButton icon=\{PackagePlus\}[^\n]*\n\s*Καταχώριση/g)).toHaveLength(1);
     expect(workspaceSource).not.toContain('role="tablist"');
     expect(workspaceSource).not.toContain('Σημείο Αναπαραγγελίας');
   });

@@ -61,7 +61,7 @@ function mount(surface: Surface, skusText = '') {
         : <OffersPage products={products} materials={[]} collections={[]} settings={INITIAL_SETTINGS} onPrintOffer={vi.fn()} />);
   });
   if (surface === 'offers') {
-    act(() => view.root.findAllByType('button').find(button => button.children.includes(' Νέα Προσφορά'))!.props.onClick());
+    act(() => view.root.findAllByType('button').find(button => button.children.includes('Νέα Προσφορά'))!.props.onClick());
   }
   return { setSkusText, setPrintItems };
 }

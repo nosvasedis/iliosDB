@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 import EmptyState from './ui/EmptyState';
@@ -351,12 +351,9 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                                 {formatNumber(categoryMolds.length)}
                             </div>
                         </div>
-                        <button
-                            onClick={openCreateModal}
-                            className={`text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all hover:-translate-y-0.5 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-slate-800'}`}
-                        >
-                            <Plus size={18} /> {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
-                        </button>
+                        <HeaderPrimaryButton icon={Plus} onClick={openCreateModal} tone={moldTab === 'lstx' ? 'blue' : 'dark'}>
+                            {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
+                        </HeaderPrimaryButton>
                     </div>
                 )}
                 below={(

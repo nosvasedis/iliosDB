@@ -32,7 +32,7 @@ import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { FinancePeriodMode } from '../utils/financeAnalytics';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import FinancePeriodSelector from './FinancePeriodSelector';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import SpecialCreationNote from './SpecialCreationNote';
 
@@ -135,14 +135,9 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
         tail={(
           <div className="flex flex-wrap items-center gap-3">
             <FinancePeriodSelector value={periodMode} onChange={setPeriodMode} />
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-sm transition-all hover:bg-black active:scale-95"
-            >
-              <Printer size={18} />
+            <HeaderPrimaryButton icon={Printer} onClick={handlePrint}>
               Εκτύπωση PDF
-            </button>
+            </HeaderPrimaryButton>
           </div>
         )}
       />

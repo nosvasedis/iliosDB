@@ -75,7 +75,6 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
 
     const [finishes, setFinishes] = useState<string[]>(initialFinishes);
     const [selectedStones, setSelectedStones] = useState<string[]>([]);
-    const [includePlain, setIncludePlain] = useState(true);
     const [groupId, setGroupId] = useState('all');
     const [search, setSearch] = useState('');
     const [customCode, setCustomCode] = useState('');
@@ -83,7 +82,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
     const [manualSuffix, setManualSuffix] = useState('');
     const [manualDesc, setManualDesc] = useState('');
 
-    useRestartDraft(draft?.label ?? '', { finishes, selectedStones, includePlain, customCode, manualSuffix, manualDesc }, { enabled: !!draft, identity: draft?.identity });
+    useRestartDraft(draft?.label ?? '', { finishes, selectedStones, customCode, manualSuffix, manualDesc }, { enabled: !!draft, identity: draft?.identity });
 
     const stoneCatalog = useMemo(() => getStoneCatalogForGender(resolvedGender), [resolvedGender]);
     const stoneNames = useMemo(() => new Map(stoneCatalog.map((s) => [s.code, s.name])), [stoneCatalog]);
@@ -117,7 +116,9 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
     const activeGroupLabel = groups.find((g) => g.id === activeGroupId)?.label ?? 'Όλες';
     const allVisibleSelected = visibleStones.length > 0 && visibleStones.every((s) => selectedStones.includes(s.code));
 
-    const stoneTargets = useMemo(() => [...(includePlain ? [''] : []), ...selectedStones], [includePlain, selectedStones]);
+    // Plain metal and stones are mutually exclusive: plain is active exactly when no stone is picked.
+    const includePlain = selectedStones.length === 0;
+    const stoneTargets = useMemo(() => (selectedStones.length === 0 ? [''] : selectedStones), [selectedStones]);
     const entries = useMemo(
         () => (finishes.length > 0 && stoneTargets.length > 0 ? plan(finishes, stoneTargets) : []),
         [finishes, stoneTargets, plan],
@@ -266,7 +267,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                     <button
                         type="button"
                         aria-pressed={includePlain}
-                        onClick={() => setIncludePlain((v) => !v)}
+                        onClick={() => setSelectedStones([])}
                         className={`inline-flex h-8 select-none items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all active:scale-95 ${includePlain
                             ? 'border-slate-400 bg-white text-slate-800 shadow-sm'
                             : 'border-dashed border-slate-300 bg-transparent text-slate-400 hover:text-slate-600'
@@ -353,7 +354,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                         ))}
                     </div>
                 ) : (
-                    <p className="text-xs font-medium text-slate-400">Επιλέξτε τουλάχιστον ένα φινίρισμα και μια πέτρα (ή «Σκέτο μέταλλο»).</p>
+                    <p className="text-xs font-medium text-slate-400">Επιλέξτε τουλάχιστον ένα φινίρισμα.</p>
                 )}
                 <button
                     type="button"

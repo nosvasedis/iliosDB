@@ -43,7 +43,7 @@ import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsFo
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, hasUnaccountedProductionQuantity, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
 import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
@@ -1740,13 +1740,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         >
                             <Search size={16} className="text-emerald-600" /> Αναζήτηση SKU
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => { setEditingOrder(null); setIsCreating(true); }}
-                            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-black"
-                        >
-                            <Plus size={20} /> Νέα Παραγγελία
-                        </button>
+                        <HeaderPrimaryButton icon={Plus} onClick={() => { setEditingOrder(null); setIsCreating(true); }}>
+                            Νέα Παραγγελία
+                        </HeaderPrimaryButton>
                     </div>
                 )}
                 below={(

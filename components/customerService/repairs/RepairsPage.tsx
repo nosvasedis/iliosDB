@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Archive, ClipboardCheck, Columns3, History, Plus, Users, Wrench } from 'lucide-react';
 import type { RepairItem } from '../../../types';
-import DesktopPageHeader from '../../DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from '../../DesktopPageHeader';
 import { BTN_PRIMARY, PAGE_CONTAINER } from '../../ui/designTokens';
 import {
   REPAIR_COLUMNS,
@@ -111,7 +111,7 @@ export default function RepairsPage() {
           icon={Wrench}
           title="Επισκευές"
           subtitle="Από την παραλαβή μέχρι την παράδοση στον πελάτη."
-          tail={<button type="button" className={BTN_PRIMARY} onClick={() => setForm({ previous: null })}><Plus size={17} /> Νέα παραλαβή</button>}
+          tail={<HeaderPrimaryButton icon={Plus} onClick={() => setForm({ previous: null })}>Νέα παραλαβή</HeaderPrimaryButton>}
         />
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

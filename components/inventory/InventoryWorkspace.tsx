@@ -37,9 +37,9 @@ import { useWarehouses, warehouseKeys } from '../../hooks/api/useWarehouses';
 import { SYSTEM_IDS } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
-import DesktopPageHeader from '../DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from '../DesktopPageHeader';
 import MobileScreenHeader from '../mobile/MobileScreenHeader';
-import { BTN_PRIMARY, BTN_SECONDARY, CARD, PAGE_CONTAINER } from '../ui/designTokens';
+import { BTN_SECONDARY, CARD, PAGE_CONTAINER } from '../ui/designTokens';
 import BarcodeScanner from '../BarcodeScanner';
 import { searchSkuProductOptions, type SkuPickerOption } from '../../utils/skuProductPicker';
 import InventoryStockList, { type InventoryVariantItem } from './InventoryStockList';
@@ -256,9 +256,9 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const actions = (
     <div className="flex items-center gap-2">
       {isAdmin && (
-        <button type="button" onClick={() => openEntry()} className={`${BTN_PRIMARY} justify-center`}>
-          <PackagePlus size={16} /> Καταχώριση
-        </button>
+        <HeaderPrimaryButton icon={PackagePlus} onClick={() => openEntry()}>
+          Καταχώριση
+        </HeaderPrimaryButton>
       )}
       <OverflowMenu
         items={[

@@ -13,7 +13,7 @@ import CustomerDetailsModal from './CustomerDetailsModal';
 import CreateCustomerModal from './CreateCustomerModal';
 import { ordersRepository } from '../features/orders';
 import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import {
   ACTIVITY_META,
   CUSTOMER_SORT_OPTIONS,
@@ -473,14 +473,9 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                 );
                             })}
                         </div>
-                        <button
-                            type="button"
-                            onClick={startCreate}
-                            title="Νέος πελάτης"
-                            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-3.5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
-                        >
-                            <Plus size={18} strokeWidth={3} /> <span className="hidden xl:inline">Νέος πελάτης</span>
-                        </button>
+                        <HeaderPrimaryButton icon={Plus} onClick={startCreate} title="Νέος πελάτης" className="!pr-1.5 xl:!pr-4">
+                            <span className="hidden xl:inline">Νέος πελάτης</span>
+                        </HeaderPrimaryButton>
                     </>
                 )}
                 below={(

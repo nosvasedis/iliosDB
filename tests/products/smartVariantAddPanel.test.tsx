@@ -56,6 +56,20 @@ describe('registry smart variant add', () => {
     expect(created(props).sort()).toEqual(['PQN', 'PTG', 'XQN', 'XTG']);
   });
 
+  it('treats plain metal and stones as mutually exclusive', () => {
+    const props = mount();
+    act(() => finish('Επίχρυσο')!.props.onClick());
+    expect(plain().props['aria-pressed']).toBe(true);
+    act(() => stone('Μάτι Τίγρης')!.props.onClick());
+    expect(plain().props['aria-pressed']).toBe(false);
+    act(() => createButton().props.onClick());
+    expect(created(props)).toEqual(['XTG']);
+    act(() => stone('Όνυχας')!.props.onClick());
+    act(() => plain().props.onClick());
+    expect(stone('Όνυχας')!.props['aria-pressed']).toBe(false);
+    expect(plain().props['aria-pressed']).toBe(true);
+  });
+
   it('skips combinations that already exist', () => {
     const props = mount(['XTG']);
     act(() => finish('Πατίνα')!.props.onClick());

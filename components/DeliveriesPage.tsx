@@ -2,7 +2,7 @@ import { formatNumber } from '../utils/numberFormat';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CalendarRange, Plus } from 'lucide-react';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
@@ -274,13 +274,9 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
         title="Ημερολόγιο"
         subtitle="Σήμερα: κλήσεις, προθεσμίες, αποστολές"
         tail={(
-          <button
-            type="button"
-            onClick={openNewPlan}
-            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
-          >
-            <Plus size={16} /> Νέο πλάνο
-          </button>
+          <HeaderPrimaryButton icon={Plus} onClick={openNewPlan}>
+            Νέο πλάνο
+          </HeaderPrimaryButton>
         )}
         below={(
           <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm space-y-3">

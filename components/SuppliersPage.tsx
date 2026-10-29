@@ -13,7 +13,7 @@ import SupplierOrderPrintView from './SupplierOrderPrintView';
 import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 import { usePrint } from './PrintContext';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
-import DesktopPageHeader from './DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SupplierReceiptModal from './suppliers/SupplierReceiptModal';
 import PageErrorState from './ui/PageErrorState';
 import EmptyState from './ui/EmptyState';
@@ -238,13 +238,9 @@ export default function SuppliersPage() {
                             />
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}
-                            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
-                        >
-                            <Plus size={18} strokeWidth={2.75} /> Νέος Προμηθευτής
-                        </button>
+                        <HeaderPrimaryButton icon={Plus} onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}>
+                            Νέος Προμηθευτής
+                        </HeaderPrimaryButton>
                     </>
                 )}
             />

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Boxes, ClipboardCheck, Columns3, HandHeart, Layers, Plus, ShieldCheck, Users } from 'lucide-react';
-import DesktopPageHeader from '../../DesktopPageHeader';
+import DesktopPageHeader, { HeaderPrimaryButton } from '../../DesktopPageHeader';
 import { BTN_PRIMARY, PAGE_CONTAINER } from '../../ui/designTokens';
 import {
   CONSIGNMENT_COLUMNS,
@@ -113,7 +113,7 @@ export default function ConsignmentsPage() {
           subtitle="Τεμάχια σε πελάτες, που πληρώνονται όταν πουληθούν."
           tail={(
             <>
-              <button type="button" className={BTN_PRIMARY} onClick={() => setShowForm(true)}><Plus size={17} /> Νέα Παρακαταθήκη</button>
+              <HeaderPrimaryButton icon={Plus} onClick={() => setShowForm(true)}>Νέα Παρακαταθήκη</HeaderPrimaryButton>
               <ActionMenu actions={[
                 { key: 'bulk', label: 'Μαζική δημιουργία (πολλοί πελάτες)', icon: <Layers size={14} />, onSelect: () => setShowBulk(true) },
                 { key: 'check', label: 'Έλεγχος συμφωνίας αποθήκης', icon: <ShieldCheck size={14} />, onSelect: () => void ctl.checkConsignmentInventory(), hidden: !ctl.canSeeCost },
