@@ -656,16 +656,29 @@ export const FinanceTab = memo(function FinanceTab({
           <button
             type="button"
             onClick={() => onNavigate('analytics')}
-            className="group flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-left text-white shadow-md transition-transform hover:-translate-y-0.5"
+            className="group relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-left text-white shadow-md ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-950/30"
           >
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10"><BarChart3 size={18} /></span>
-              <div>
-                <p className="text-sm font-bold">Προηγμένη ανάλυση</p>
-                <p className="text-xs text-white/60">Τάσεις, κερδοφορία ανά κατηγορία, εξαγωγές.</p>
+            <span className="pointer-events-none absolute -right-12 -top-16 -z-10 h-40 w-40 rounded-full bg-emerald-500/25 blur-3xl transition-opacity group-hover:opacity-90" aria-hidden />
+            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]" aria-hidden />
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-inner shadow-white/20">
+                  <BarChart3 size={19} strokeWidth={2.5} />
+                </span>
+                <div>
+                  <p className="text-[15px] font-black tracking-tight">Οικονομική ανάλυση</p>
+                  <p className="text-xs font-medium text-white/60">Κερδοφορία, πρόβλεψη και έξυπνες παρατηρήσεις</p>
+                </div>
               </div>
+              <ArrowUpRight size={18} className="shrink-0 text-white/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
             </div>
-            <ArrowUpRight size={18} className="text-white/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {['Τάσεις & πέρσι', 'Ανάλυση ABC', 'Χάρτης κερδοφορίας', 'Πελάτες', 'Παραστατικά'].map((chip) => (
+                <span key={chip} className="rounded-full bg-white/[0.08] px-2.5 py-1 text-[10px] font-bold text-white/75 ring-1 ring-inset ring-white/10">
+                  {chip}
+                </span>
+              ))}
+            </div>
           </button>
         </div>
       </div>

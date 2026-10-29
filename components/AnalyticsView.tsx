@@ -1,115 +1,232 @@
-import { formatNumber } from '../utils/numberFormat';
-import React, { useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Award,
   BarChart3,
   Boxes,
-  ChevronDown,
-  FileText,
-  HelpCircle,
+  Coins,
+  Eye,
+  EyeOff,
+  Gem,
+  LayoutDashboard,
   Package,
   Printer,
-  Scale,
+  Receipt,
+  RefreshCw,
   ShoppingBag,
   TrendingUp,
-  Truck,
-  UserCheck,
+  Users,
   Wallet,
 } from 'lucide-react';
 import { Product } from '../types';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 import { FinancePeriodMode } from '../utils/financeAnalytics';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
+import { requestRegistrySku } from '../utils/registryHandoff';
+import type { AdminPage } from '../surfaces/pageIds';
+import {
+  buildMissingCostRows,
+  buildProfitLoss,
+  percentDelta,
+  resolvePeriodComparison,
+  summarizeEventsInWindow,
+} from '../features/dashboard/dashboardCommandViewModels';
+import {
+  buildInsights,
+  buildProfitabilityRows,
+  buildTrendWithLastYear,
+  eventsInWindow,
+  forecastPeriod,
+  summarizePareto,
+  type Insight,
+  type ProfitDimension,
+} from '../features/analytics/analyticsViewModels';
+import { DASHBOARD_TERM_HINTS } from '../features/dashboard/dashboardTermHints';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
-import SpecialCreationNote from './SpecialCreationNote';
+import { DashboardPrivacyContext, KpiTile, Money } from './dashboard/DashboardKit';
+import MissingCostsModal from './dashboard/MissingCostsModal';
+import {
+  CostStructurePanel,
+  CustomersPanel,
+  InsightsPanel,
+  LegalReconciliationPanel,
+  PointsDelta,
+  ProfitBridgePanel,
+  ProfitabilityWorkspace,
+  RankedMixPanel,
+  RevenueHero,
+  RevenueQualityPanel,
+  SellersPanel,
+  TrendChartPanel,
+} from './analytics/AnalyticsPanels';
 
 interface Props {
   products: Product[];
   onBack?: () => void;
   onPrint?: (stats: any) => void;
+  onNavigate?: (page: AdminPage) => void;
 }
 
-function percent(value: number) {
-  return `${formatDecimal(value || 0, 1)}%`;
+type AnalyticsTab = 'overview' | 'profitability' | 'customers' | 'costs';
+
+const TABS: Array<{ id: AnalyticsTab; label: string; icon: typeof LayoutDashboard }> = [
+  { id: 'overview', label: 'Επισκόπηση', icon: LayoutDashboard },
+  { id: 'profitability', label: 'Κερδοφορία', icon: Receipt },
+  { id: 'customers', label: 'Πελάτες & Πλασιέ', icon: Users },
+  { id: 'costs', label: 'Κόστος & Παραστατικά', icon: Coins },
+];
+
+const STORAGE = {
+  tab: 'ilios.analytics.tab',
+  period: 'ilios.analytics.period',
+  hidden: 'ilios.analytics.hideAmounts',
+  dimension: 'ilios.analytics.dimension',
+};
+
+const PERIODS: FinancePeriodMode[] = ['current_month', 'current_quarter', 'current_year', 'all_time'];
+const DIMENSIONS: ProfitDimension[] = ['category', 'collection', 'product', 'customer'];
+
+function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const value = window.localStorage.getItem(key);
+    return allowed.includes(value as T) ? (value as T) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
-function KpiCard({
-  label,
-  value,
-  helper,
-  icon,
-  tone = 'light',
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  icon: React.ReactNode;
-  tone?: 'light' | 'dark' | 'green';
-}) {
-  const toneClass = tone === 'dark'
-    ? 'border-slate-900 bg-slate-900 text-white'
-    : tone === 'green'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
-      : 'border-slate-100 bg-white text-slate-950';
+function writeStored(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable (private mode); the preference simply won't persist.
+  }
+}
 
-  return (
-    <div className={`rounded-3xl border p-6 shadow-sm ${toneClass}`}>
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-black uppercase text-current opacity-60">{label}</div>
-          <div className="mt-2 text-3xl font-black">{value}</div>
-        </div>
-        <div className="rounded-2xl bg-white/60 p-3 text-slate-700 shadow-sm">{icon}</div>
-      </div>
-      <p className="text-xs font-semibold leading-relaxed opacity-70">{helper}</p>
-    </div>
+export default function AnalyticsView({ products, onBack, onPrint, onNavigate }: Props) {
+  const [periodMode, setPeriodMode] = useState<FinancePeriodMode>(() => readStored(STORAGE.period, PERIODS, 'current_year'));
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>(() => readStored(STORAGE.tab, TABS.map((tab) => tab.id), 'overview'));
+  const [dimension, setDimension] = useState<ProfitDimension>(() => readStored(STORAGE.dimension, DIMENSIONS, 'category'));
+  const [hideAmounts, setHideAmounts] = useState(() => readStored(STORAGE.hidden, ['true', 'false'] as const, 'false') === 'true');
+  const [missingCostsOpen, setMissingCostsOpen] = useState(false);
+
+  useEffect(() => writeStored(STORAGE.period, periodMode), [periodMode]);
+  useEffect(() => writeStored(STORAGE.tab, activeTab), [activeTab]);
+  useEffect(() => writeStored(STORAGE.dimension, dimension), [dimension]);
+  useEffect(() => writeStored(STORAGE.hidden, String(hideAmounts)), [hideAmounts]);
+
+  const period = useMemo(() => ({ mode: periodMode }), [periodMode]);
+  const { analytics: stats, allRealizedEvents, isLoading, isError, error, refetch } = useFinanceAnalytics({ products, period });
+
+  // ── Comparison with the same elapsed span of the previous period ─────────
+  const comparison = useMemo(() => (stats ? resolvePeriodComparison(stats.period) : null), [stats]);
+  const previousEvents = useMemo(
+    () => (comparison ? eventsInWindow(allRealizedEvents, comparison.previous) : null),
+    [comparison, allRealizedEvents],
   );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500">
-      {text}
-    </div>
+  const previous = useMemo(
+    () => (comparison ? summarizeEventsInWindow(allRealizedEvents, comparison.previous) : null),
+    [comparison, allRealizedEvents],
   );
-}
+  const comparisonLabel = comparison?.label ?? null;
 
-export default function AnalyticsView({ products, onBack, onPrint }: Props) {
-  const [periodMode, setPeriodMode] = useState<FinancePeriodMode>('current_year');
-  const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
-  const { analytics: stats, isLoading: loading, isError: failed, error: loadError, refetch } = useFinanceAnalytics({
-    products,
-    period: { mode: periodMode },
-  });
+  const trend = useMemo(() => buildTrendWithLastYear(allRealizedEvents), [allRealizedEvents]);
+  const forecast = useMemo(
+    () => (stats ? forecastPeriod(stats.period, stats.totals.realizedNet, stats.totals.estimatedProfit) : null),
+    [stats],
+  );
+
+  const currentEvents = stats?.events.realized;
+  const rowsFor = useCallback(
+    (dim: ProfitDimension) => (currentEvents ? buildProfitabilityRows(currentEvents, previousEvents, dim) : []),
+    [currentEvents, previousEvents],
+  );
+  const categoryRows = useMemo(() => rowsFor('category'), [rowsFor]);
+  const collectionRows = useMemo(() => rowsFor('collection'), [rowsFor]);
+  const productRows = useMemo(() => rowsFor('product'), [rowsFor]);
+  const customerRows = useMemo(() => rowsFor('customer'), [rowsFor]);
+  const dimensionRows = { category: categoryRows, collection: collectionRows, product: productRows, customer: customerRows }[dimension];
+  const pareto = useMemo(() => summarizePareto(dimensionRows), [dimensionRows]);
+
+  const missingCostRows = useMemo(
+    () => (stats ? buildMissingCostRows(stats.events.realized, stats.events.backlog) : []),
+    [stats],
+  );
+  const profitLoss = useMemo(() => (stats ? buildProfitLoss(stats) : []), [stats]);
+
+  const monthlyRunRate = useMemo(() => {
+    const first = trend.findIndex((point) => point.revenue > 0);
+    if (first < 0) return 0;
+    const active = trend.slice(first);
+    return active.reduce((sum, point) => sum + point.revenue, 0) / active.length;
+  }, [trend]);
+
+  const insights = useMemo(
+    () =>
+      stats
+        ? buildInsights({
+            finance: stats,
+            previous,
+            comparisonLabel,
+            forecast,
+            categoryRows,
+            customerRows,
+            productRows,
+            missingCostCount: missingCostRows.length,
+            monthlyRunRate,
+          })
+        : [],
+    [stats, previous, comparisonLabel, forecast, categoryRows, customerRows, productRows, missingCostRows.length, monthlyRunRate],
+  );
+
+  const deltas = useMemo(() => {
+    if (!stats || !previous) return { revenue: null, profit: null, orders: null, margin: null };
+    return {
+      revenue: percentDelta(stats.totals.realizedNet, previous.revenue),
+      profit: percentDelta(stats.totals.estimatedProfit, previous.profit),
+      orders: percentDelta(stats.totals.realizedOrderCount, previous.orders),
+      margin: previous.revenue > 0 ? stats.totals.margin - previous.margin : null,
+    };
+  }, [stats, previous]);
+
+  const openProfitability = useCallback((dim: ProfitDimension) => {
+    setDimension(dim);
+    setActiveTab('profitability');
+  }, []);
+
+  const openSku = useCallback(
+    (sku: string) => {
+      if (!onNavigate) return;
+      requestRegistrySku(sku);
+      setMissingCostsOpen(false);
+      onNavigate('registry');
+    },
+    [onNavigate],
+  );
+
+  const handleInsightAction = useCallback(
+    (action: NonNullable<Insight['action']>) => {
+      if (action === 'missing-costs') setMissingCostsOpen(true);
+      else if (action === 'legal') setActiveTab('costs');
+      else if (action === 'profitability-category') openProfitability('category');
+      else if (action === 'profitability-customer') openProfitability('customer');
+      else openProfitability('product');
+    },
+    [openProfitability],
+  );
 
   const handlePrint = () => {
     if (!stats) return;
     onPrint?.({ ...stats, title: `Οικονομική Ανάλυση - ${stats.period.label}` });
   };
 
-  if (loading || !stats) {
-    return <IliosLoader variant="section" detail="Οικονομικά" className="min-h-[420px]" />;
-  }
-
-  if (failed) {
+  if (isError && !stats) {
     return (
       <div className="mx-auto max-w-2xl rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-800">
         <h2 className="text-lg font-black">Δεν φορτώθηκαν τα οικονομικά στοιχεία</h2>
         <p className="mt-2 text-sm font-semibold">Δοκιμάστε ξανά. Αν συνεχιστεί, ελέγξτε τη σύνδεση και τα δεδομένα παραστατικών.</p>
-        <p className="mt-4 rounded-xl bg-white/70 p-3 text-xs font-mono">{(loadError as Error)?.message || 'Άγνωστο σφάλμα'}</p>
+        <p className="mt-4 rounded-xl bg-white/70 p-3 font-mono text-xs">{(error as Error)?.message || 'Άγνωστο σφάλμα'}</p>
         <button type="button" onClick={refetch} className="mt-4 rounded-xl bg-rose-700 px-4 py-2 text-sm font-bold text-white">
           Ανανέωση
         </button>
@@ -117,201 +234,229 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
     );
   }
 
-  const topProducts = stats.topProducts.slice(0, 8);
-  const topCollections = stats.topCollections.slice(0, 6);
-  const topSellers = stats.topSellers.slice(0, 6);
+  if (isLoading || !stats) {
+    return <IliosLoader variant="section" detail="Οικονομικά" className="min-h-[420px]" />;
+  }
+
+  const { totals } = stats;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-20 print:hidden">
-      <DesktopPageHeader
-        icon={BarChart3}
-        title="Οικονομικά"
-        subtitle={`Καθαρή εικόνα για ${stats.period.label.toLowerCase()}: έσοδα από αποστολές, εκκρεμότητες και κέρδος.`}
-        leading={onBack ? (
-          <button type="button" onClick={onBack} className="-ml-1 rounded-2xl p-3 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-800 active:scale-95">
-            <ArrowLeft size={20} />
-          </button>
-        ) : undefined}
-        tail={(
-          <div className="flex flex-wrap items-center gap-3">
-            <FinancePeriodSelector value={periodMode} onChange={setPeriodMode} />
-            <HeaderPrimaryButton icon={Printer} onClick={handlePrint}>
-              Εκτύπωση PDF
-            </HeaderPrimaryButton>
-          </div>
-        )}
-      />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label={stats.labels.realizedRevenue}
-          value={formatCurrency(stats.totals.realizedNet)}
-          helper="Μόνο όσα έχουν αποσταλεί ή παραδοθεί, μετά την έκπτωση και χωρίς ΦΠΑ."
-          icon={<Truck size={22} />}
-          tone="green"
-        />
-        <KpiCard
-          label={stats.labels.backlogValue}
-          value={formatCurrency(stats.totals.backlogNet)}
-          helper="Αξία τεμαχίων που υπάρχουν ακόμα σε ανοιχτές παραγγελίες."
-          icon={<Package size={22} />}
-        />
-        <KpiCard
-          label={stats.labels.grossProfit}
-          value={formatCurrency(stats.totals.estimatedProfit)}
-          helper={`Εκτιμώμενο περιθώριο ${percent(stats.totals.margin)} με βάση το καλύτερο διαθέσιμο κόστος.`}
-          icon={<TrendingUp size={22} />}
-          tone="dark"
-        />
-        <KpiCard
-          label="Τεμάχια που έφυγαν"
-          value={formatNumber(stats.totals.shippedPieces)}
-          helper={`${formatNumber(stats.totals.realizedOrderCount)} παραγγελίες με πραγματοποιημένη αξία στην περίοδο.`}
-          icon={<ShoppingBag size={22} />}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm lg:col-span-8">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-black text-slate-900">Πορεία εσόδων και κέρδους</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Με βάση την ημερομηνία αποστολής.</p>
+    <DashboardPrivacyContext.Provider value={hideAmounts}>
+      <div className="mx-auto flex max-w-[1600px] flex-col space-y-5 pb-20 print:hidden">
+        <DesktopPageHeader
+          icon={BarChart3}
+          title="Οικονομική Ανάλυση"
+          subtitle={`${stats.period.label}${comparisonLabel ? ` · σύγκριση ${comparisonLabel}` : ''}`}
+          leading={onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Πίσω στον πίνακα ελέγχου"
+              className="-ml-1 rounded-2xl p-2.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-800 active:scale-95"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          ) : undefined}
+          tail={(
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setHideAmounts((value) => !value)}
+                aria-pressed={hideAmounts}
+                title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
+                className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
+                  hideAmounts
+                    ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
+                <span className="hidden sm:inline">{hideAmounts ? 'Ποσά κρυφά' : 'Ποσά ορατά'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={refetch}
+                title="Ανανέωση δεδομένων"
+                aria-label="Ανανέωση δεδομένων"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
+              >
+                <RefreshCw size={15} />
+              </button>
+              <FinancePeriodSelector value={periodMode} onChange={setPeriodMode} />
+              <HeaderPrimaryButton icon={Printer} onClick={handlePrint}>
+                Αναφορά PDF
+              </HeaderPrimaryButton>
             </div>
-          </div>
-          {stats.timeChartData.length > 0 ? (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.timeChartData} margin={{ top: 10, right: 16, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(value) => formatCurrency(Number(value))} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                  <Bar dataKey="revenue" name="Έσοδα" fill="#059669" radius={[8, 8, 0, 0]} />
-                  <Line type="monotone" dataKey="profit" name="Κέρδος" stroke="#0f172a" strokeWidth={3} dot={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState text="Δεν υπάρχουν αποστολές για την επιλεγμένη περίοδο." />
           )}
-        </section>
-
-        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm lg:col-span-4">
-          <h3 className="text-lg font-black text-slate-900">Κόστος παραγωγής</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Εκτίμηση από μέταλλο, εργασία και υλικά.</p>
-          <div className="mt-6 space-y-4">
-            {[
-              ['Ασήμι', stats.costBreakdown.silver, 'bg-slate-500'],
-              ['Εργασία', stats.costBreakdown.labor, 'bg-blue-500'],
-              ['Υλικά', stats.costBreakdown.materials, 'bg-violet-500'],
-            ].map(([label, value, color]) => (
-              <div key={label as string}>
-                <div className="mb-1 flex items-center justify-between text-xs font-black text-slate-600">
-                  <span>{label}</span>
-                  <span>{formatCurrency(value as number)}</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100">
-                  <div
-                    className={`h-full rounded-full ${color}`}
-                    style={{ width: `${stats.totals.estimatedCost > 0 ? Math.max(4, ((value as number) / stats.totals.estimatedCost) * 100) : 0}%` }}
-                  />
-                </div>
+          tailClassName="flex min-w-0 items-center lg:shrink-0 lg:justify-end"
+          below={(
+            <nav className="flex w-full justify-center px-1" aria-label="Ενότητες ανάλυσης">
+              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+                {TABS.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  const badge = tab.id === 'costs' ? missingCostRows.length + (stats.legal.issuedCount > 0 && Math.abs(stats.legal.netGap) >= 1 ? 1 : 0) : 0;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
+                        isActive ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                      }`}
+                    >
+                      <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
+                      {tab.label}
+                      {badge > 0 ? <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-black tabular-nums text-amber-700">{badge}</span> : null}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-          {stats.costWarnings.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800">
-              <div className="mb-1 flex items-center gap-2 font-black"><HelpCircle size={14} /> Σημείωση κόστους</div>
-              {stats.costWarnings.slice(0, 3).join(' · ')}
-            </div>
+            </nav>
           )}
-        </section>
-      </div>
+        />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-900"><Award size={20} className="text-amber-500" /> Πιο δυνατά προϊόντα</h3>
-          {topProducts.length > 0 ? (
-            <div className="space-y-3">
-              {topProducts.map((item, index) => (
-                <div key={item.key} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.sku}</p>
-                    <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
-                    <p className="text-xs font-semibold text-slate-500">{formatNumber(item.quantity)} τεμ. · Κέρδος {formatCurrency(item.profit)}</p>
-                  </div>
-                  <div className="text-right text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</div>
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState text="Δεν υπάρχουν προϊόντα με πραγματοποιημένα έσοδα." />}
-        </section>
-
-        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-900"><Boxes size={20} className="text-fuchsia-600" /> Συλλογές που ξεχώρισαν</h3>
-          {topCollections.length > 0 ? (
-            <div className="space-y-3">
-              {topCollections.map((item, index) => (
-                <div key={`${item.id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.name}</p>
-                    <p className="text-xs font-semibold text-slate-500">{formatNumber(item.quantity)} τεμ. · Περιθώριο {percent(item.margin)}</p>
-                  </div>
-                  <div className="text-right text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</div>
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState text="Δεν υπάρχουν πωλήσεις συλλογών για την περίοδο." />}
-        </section>
-
-        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-900"><UserCheck size={20} className="text-sky-600" /> Πλασιέ</h3>
-          {topSellers.length > 0 ? (
-            <div className="space-y-3">
-              {topSellers.map((item, index) => (
-                <div key={item.id} className="rounded-2xl bg-slate-50 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-black text-slate-900">#{formatNumber(index + 1)} {item.name}</p>
-                    <p className="text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</p>
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Κερδισμένη προμήθεια {formatCurrency(item.earnedCommission)} · Εκκρεμεί {formatCurrency(item.pendingCommission)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState text="Δεν υπάρχουν πωλήσεις από πλασιέ για την περίοδο." />}
-        </section>
-      </div>
-
-      <section className="rounded-3xl border border-slate-100 bg-white shadow-sm">
-        <button
-          type="button"
-          onClick={() => setLegalReconciliationOpen((open) => !open)}
-          aria-expanded={legalReconciliationOpen}
-          className="flex w-full items-center justify-between gap-4 p-6 text-left transition-colors hover:bg-slate-50/80"
-        >
-          <div>
-            <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><FileText size={20} className="text-indigo-600" /> {stats.labels.legalReconciliation}</h3>
-            <p className="mt-1 text-xs font-semibold text-slate-500">Σύγκριση πραγματοποιημένων εσόδων με εκδοθέντα παραστατικά.</p>
+        {/* ── Executive summary (always visible) ─────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-5">
+            <RevenueHero
+              finance={stats}
+              revenueDelta={deltas.revenue}
+              comparisonLabel={comparisonLabel}
+              forecast={forecast}
+              sparkline={trend.map((point) => point.revenue)}
+            />
           </div>
-          <ChevronDown size={20} className={`shrink-0 text-slate-400 transition-transform ${legalReconciliationOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {legalReconciliationOpen && (
-          <div className="border-t border-slate-100 px-6 pb-6 pt-5">
-            <div className={`mb-5 inline-flex rounded-2xl px-4 py-2 text-sm font-black ${Math.abs(stats.legal.netGap) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-              Διαφορά: {formatCurrency(stats.legal.netGap)}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:col-span-7">
+            <KpiTile
+              label="Μικτό κέρδος"
+              icon={TrendingUp}
+              tone="emerald"
+              hint={DASHBOARD_TERM_HINTS.estimatedProfit}
+              value={<Money value={totals.estimatedProfit} />}
+              delta={comparisonLabel ? deltas.profit : undefined}
+              deltaLabel={comparisonLabel ?? undefined}
+              sub={<span>κόστος <Money value={totals.estimatedCost} decimals={false} /></span>}
+              sparkline={trend.map((point) => point.profit)}
+            />
+            <KpiTile
+              label="Περιθώριο"
+              icon={Wallet}
+              tone="sky"
+              value={`${formatDecimal(totals.margin, 1)}%`}
+              sub={comparisonLabel ? <><PointsDelta points={deltas.margin} /><span>{comparisonLabel}</span></> : <span>κέρδος / καθαρά έσοδα</span>}
+              sparkline={trend.map((point) => point.margin)}
+            />
+            <KpiTile
+              label="Παραγγελίες"
+              icon={ShoppingBag}
+              tone="violet"
+              hint={DASHBOARD_TERM_HINTS.orderEconomics}
+              value={formatNumber(totals.realizedOrderCount)}
+              delta={comparisonLabel ? deltas.orders : undefined}
+              deltaLabel={comparisonLabel ?? undefined}
+              sub={<span>{formatDecimal(totals.averageBasketSize, 1)} τεμ. / παραγγελία</span>}
+              sparkline={trend.map((point) => point.orders)}
+            />
+            <KpiTile
+              label="Ανοιχτές παραγγελίες"
+              icon={Package}
+              tone="amber"
+              hint={DASHBOARD_TERM_HINTS.backlogValue}
+              value={<Money value={totals.backlogNet} />}
+              sub={<span>{formatNumber(totals.activeOrderCount)} παραγγελίες · {formatNumber(totals.backlogPieces)} τεμ.</span>}
+              onClick={onNavigate ? () => onNavigate('orders') : undefined}
+            />
+          </div>
+        </div>
+
+        <InsightsPanel insights={insights} onAction={handleInsightAction} />
+
+        {/* ── Workspace ──────────────────────────────────────────────────── */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 xl:grid-cols-12">
+            <TrendChartPanel points={trend} periodStart={stats.period.start} periodEnd={stats.period.end} className="xl:col-span-8" />
+            <ProfitBridgePanel lines={profitLoss} className="xl:col-span-4" />
+            <RankedMixPanel
+              title="Κατηγορίες"
+              subtitle="Έσοδα, περιθώριο και μεταβολή"
+              icon={Gem}
+              tone="violet"
+              rows={categoryRows}
+              onOpenAll={() => openProfitability('category')}
+              className="xl:col-span-4"
+            />
+            <RankedMixPanel
+              title="Συλλογές"
+              subtitle="Έσοδα, περιθώριο και μεταβολή"
+              icon={Boxes}
+              tone="sky"
+              rows={collectionRows}
+              onOpenAll={() => openProfitability('collection')}
+              className="xl:col-span-4"
+            />
+            <RankedMixPanel
+              title="Κορυφαίοι κωδικοί"
+              subtitle="Με κατάταξη ABC"
+              icon={TrendingUp}
+              tone="emerald"
+              rows={productRows}
+              showAbc
+              onOpenAll={() => openProfitability('product')}
+              className="xl:col-span-4"
+            />
+          </div>
+        )}
+
+        {activeTab === 'profitability' && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <ProfitabilityWorkspace
+              key={dimension}
+              rows={dimensionRows}
+              dimension={dimension}
+              onDimensionChange={setDimension}
+              hasComparison={Boolean(previousEvents)}
+              avgMargin={totals.margin}
+              pareto={pareto}
+              periodLabel={stats.period.label}
+              onOpenSku={onNavigate ? openSku : undefined}
+            />
+          </div>
+        )}
+
+        {activeTab === 'customers' && (
+          <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 xl:grid-cols-12">
+            <div className="xl:col-span-7">
+              <CustomersPanel rows={customerRows} hasComparison={Boolean(previousEvents)} onOpenAll={() => openProfitability('customer')} />
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <KpiCard label="Καθαρή αξία παραστατικών" value={formatCurrency(stats.legal.issuedNet)} helper={`${formatNumber(stats.legal.issuedCount)} εκδοθέντα παραστατικά.`} icon={<FileText size={20} />} />
-              <KpiCard label="ΦΠΑ παραστατικών" value={formatCurrency(stats.legal.issuedVat)} helper="Σύνολο ΦΠΑ από τα εκδοθέντα παραστατικά." icon={<Scale size={20} />} />
-              <KpiCard label="Μικτή αξία παραστατικών" value={formatCurrency(stats.legal.issuedGross)} helper="Καθαρή αξία μαζί με ΦΠΑ." icon={<Wallet size={20} />} />
-              <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totals.realizedNet)} helper="Λειτουργική εικόνα από αποστολές." icon={<Truck size={20} />} />
+            <div className="xl:col-span-5">
+              <SellersPanel sellers={stats.topSellers} />
             </div>
           </div>
         )}
-      </section>
-    </div>
+
+        {activeTab === 'costs' && (
+          <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 lg:grid-cols-2">
+            <CostStructurePanel finance={stats} missingCostCount={missingCostRows.length} onOpenMissingCosts={() => setMissingCostsOpen(true)} />
+            <ProfitBridgePanel lines={profitLoss} />
+            <LegalReconciliationPanel finance={stats} onOpenLegal={onNavigate ? () => onNavigate('legal') : undefined} />
+            <RevenueQualityPanel finance={stats} />
+          </div>
+        )}
+
+        {missingCostsOpen && (
+          <MissingCostsModal
+            rows={missingCostRows}
+            periodLabel={stats.period.label}
+            onOpenRegistry={openSku}
+            onOpenOrders={() => {
+              setMissingCostsOpen(false);
+              onNavigate?.('orders');
+            }}
+            onClose={() => setMissingCostsOpen(false)}
+          />
+        )}
+      </div>
+    </DashboardPrivacyContext.Provider>
   );
 }
