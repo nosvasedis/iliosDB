@@ -442,69 +442,79 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         if (suffixInputRef.current) suffixInputRef.current.focus();
     };
 
-    const handleSmartAddBatch = () => {
-        let addedCount = 0;
-        let skippedCount = 0;
-        const upperStoneSuffix = smartAddStoneSuffix.toUpperCase().trim();
-
+    /**
+     * Plans finish × stone suffix combinations against the current variant list.
+     * A master SKU that already carries plating (e.g. typed with an X) only accepts
+     * its own finish and never prefixes the finish letter again.
+     */
+    const planVariantBatch = (finishCodes: string[], stoneCodes: string[]) => {
         const platingMap: Record<string, string> = {
             [PlatingType.GoldPlated]: 'X',
             [PlatingType.Platinum]: 'H',
             [PlatingType.TwoTone]: 'D',
             [PlatingType.None]: ''
         };
-
         const masterPlatingCode = platingMap[plating] || '';
+        const finishPriority = (c: string) => ({ '': 0, P: 1, D: 2, X: 3, H: 4 } as Record<string, number>)[c] ?? 5;
+        const sortedFinishes = [...finishCodes].sort((a, b) => finishPriority(a) - finishPriority(b));
+        const stones = stoneCodes.length > 0 ? stoneCodes.map(s => s.toUpperCase().trim()) : [''];
+        const existing = new Set(variants.map(v => v.suffix));
+        const seen = new Set<string>();
+        const plan: { suffix: string; finishCode: string; stoneCode: string; status: 'new' | 'exists' | 'incompatible' }[] = [];
 
-        const sortedFinishes = [...selectedFinishes].sort((a, b) => {
-            const getP = (c: string) => {
-                if (c === '') return 0;
-                if (c === 'P') return 1;
-                if (c === 'D') return 2;
-                if (c === 'X') return 3;
-                if (c === 'H') return 4;
-                return 5;
-            };
-            return getP(a) - getP(b);
+        stones.forEach(stoneCode => {
+            sortedFinishes.forEach(finishCode => {
+                if (masterPlatingCode && finishCode !== masterPlatingCode) {
+                    plan.push({ suffix: `${finishCode}${stoneCode}`, finishCode, stoneCode, status: 'incompatible' });
+                    return;
+                }
+                const suffix = `${!masterPlatingCode ? finishCode : ''}${stoneCode}`;
+                if (seen.has(suffix)) return;
+                seen.add(suffix);
+                plan.push({ suffix, finishCode, stoneCode, status: existing.has(suffix) ? 'exists' : 'new' });
+            });
         });
+        return plan;
+    };
 
-        sortedFinishes.forEach(finishCode => {
-            if (masterPlatingCode && masterPlatingCode !== '' && finishCode !== masterPlatingCode) {
-                skippedCount++;
-                return;
-            }
-            let fullSuffix = '';
-            if (!masterPlatingCode && finishCode !== '') fullSuffix += finishCode;
-            fullSuffix += upperStoneSuffix;
+    const addVariantsBatch = (finishCodes: string[], stoneCodes: string[]) => {
+        const plan = planVariantBatch(finishCodes, stoneCodes);
+        const toAdd = plan.filter(entry => entry.status === 'new');
+        const skippedCount = plan.filter(entry => entry.status === 'incompatible').length;
 
-            if (fullSuffix === '' && variants.some(v => v.suffix === '')) return;
-            if (variants.some(v => v.suffix === fullSuffix)) return;
-
-            const { total: estimatedCost } = estimateVariantCost(currentTempProduct, fullSuffix, settings!, materials, products);
-            const desc = createVariantDescription(fullSuffix, gender as Gender, plating);
-            const specificPrice = finishPrices[finishCode];
+        const newVariants: ProductVariant[] = toAdd.map(entry => {
+            const { total: estimatedCost } = estimateVariantCost(currentTempProduct, entry.suffix, settings!, materials, products);
+            const desc = createVariantDescription(entry.suffix, gender as Gender, plating);
+            const specificPrice = finishPrices[entry.finishCode];
             const finalPrice = (specificPrice !== undefined && specificPrice > 0) ? specificPrice : sellingPrice;
-
-            const newV: ProductVariant = {
-                suffix: fullSuffix,
-                description: desc || fullSuffix,
+            return {
+                suffix: entry.suffix,
+                description: desc || entry.suffix || 'Λουστρέ',
                 stock_qty: 0,
                 active_price: parseFloat(estimatedCost.toFixed(2)),
                 selling_price: isSTX ? 0 : finalPrice
             };
-
-            setVariants(prev => [...prev, newV]);
-            addedCount++;
         });
 
-        if (addedCount > 0) {
-            showToast(`Προστέθηκαν ${addedCount} παραλλαγές`, "success");
-            setSmartAddStoneSuffix('');
-            if (stoneSuffixRef.current) stoneSuffixRef.current.focus();
+        if (newVariants.length > 0) {
+            setVariants(prev => {
+                const prevSuffixes = new Set(prev.map(v => v.suffix));
+                return [...prev, ...newVariants.filter(v => !prevSuffixes.has(v.suffix))];
+            });
+            showToast(newVariants.length === 1 ? 'Προστέθηκε 1 παραλλαγή' : `Προστέθηκαν ${newVariants.length} παραλλαγές`, "success");
         } else if (skippedCount > 0) {
             showToast(`Παραλείφθηκαν ${skippedCount} μη συμβατές παραλλαγές (π.χ. Πλατίνα σε Χρυσό κωδικό).`, "info");
         } else {
             showToast("Δεν προστέθηκαν νέες παραλλαγές (ίσως υπάρχουν ήδη).", "info");
+        }
+        return newVariants.length;
+    };
+
+    const handleSmartAddBatch = () => {
+        const added = addVariantsBatch(selectedFinishes, [smartAddStoneSuffix]);
+        if (added > 0) {
+            setSmartAddStoneSuffix('');
+            if (stoneSuffixRef.current) stoneSuffixRef.current.focus();
         }
     };
 
@@ -519,6 +529,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         setVariants(updated);
     };
     const removeVariant = (index: number) => { setVariants(variants.filter((_, i) => i !== index)); };
+    const clearVariants = () => { setVariants([]); };
 
     const handleSubmit = async () => {
         if (!sku) { showToast("Το SKU είναι υποχρεωτικό", "error"); setCurrentStep(1); return; }
@@ -760,7 +771,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             handleImageSelect, toggleFinish, handleSubmit,
             handleSelectRecipeItem, updateRecipeItem, removeRecipeItem,
             addMold, updateMoldQuantity, removeMold, handleQuickCreateMold, calculateWeightFromMolds,
-            handleAddVariant, handleSmartAddBatch, updateVariant, removeVariant, handleApplyIliosFormula, applyManualPriceToVariants,
+            handleAddVariant, handleSmartAddBatch, planVariantBatch, addVariantsBatch, updateVariant, removeVariant, clearVariants, handleApplyIliosFormula, applyManualPriceToVariants,
             getVariantTypeInfo
         },
         refs: {

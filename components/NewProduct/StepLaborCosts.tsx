@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Hammer, Flame, Crown, Coins, Users } from 'lucide-react';
+import { Hammer, Flame, Crown, Coins, Users, Wrench } from 'lucide-react';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { LaborCostCard } from '../ProductRegistry/LaborCostCard';
 import { LaborCostFormulaRow } from '../ProductRegistry/LaborCostFormulaRow';
@@ -17,6 +17,8 @@ import {
 } from '../../utils/laborFormula';
 import { shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../../utils/pricingEngine';
 import { Gender, LaborCost } from '../../types';
+import { formatCurrency } from '../../utils/pricingEngine';
+import { Panel, StepHeader, StatPill } from './wizardUi';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -84,10 +86,18 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
     };
 
     return (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18} /> Κόστη Εργατικών</h4>
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <StepHeader
+                step={3}
+                icon={Wrench}
+                title="Εργατικά"
+                subtitle="Οι τιμές υπολογίζονται από τα βάρη — κλειδώστε για χειροκίνητη τιμή."
+                aside={<>
+                    <StatPill label="Εργατικά" value={formatCurrency(state.costBreakdown?.labor || 0)} tone="blue" />
+                    <StatPill label="Κόστος" value={formatCurrency(state.masterEstimatedCost)} tone="emerald" />
+                </>}
+            />
+            <Panel title="Κόστη εργατικών" icon={Hammer} tone="blue">
                 <div className="space-y-2">
                     <LaborCostFormulaRow
                         icon={<Flame size={14} />}
@@ -168,7 +178,7 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
                         onChange={val => setters.setLabor({ ...state.labor, subcontract_cost: val })}
                     />
                 </div>
-            </div>
+            </Panel>
         </div>
     );
 };

@@ -9,9 +9,19 @@ import { StepLaborCosts } from './NewProduct/StepLaborCosts';
 import { StepVariants } from './NewProduct/StepVariants';
 import { StepReview } from './NewProduct/StepReview';
 import { RecipeItemSelectorModal } from './ProductRegistry/RecipeItemSelectorModal';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Tag } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader2, Tag, Sparkles, Coins, Layers, X, Check, Circle, ClipboardList, FlaskConical, Wrench, CircleDollarSign, Calculator } from 'lucide-react';
 import { useSettings } from '../hooks/api/useSettings';
 import { useSuppliers } from '../hooks/api/useSuppliers';
+import { formatCurrency } from '../utils/pricingEngine';
+
+const STEP_ICONS: Record<string, React.ElementType> = {
+    'Στοιχεία': ClipboardList,
+    'Συνταγή': FlaskConical,
+    'Κοστολόγηση': Calculator,
+    'Εργατικά': Wrench,
+    'Παραλλαγές': Layers,
+    'Τιμολόγηση & Αποθήκευση': CircleDollarSign,
+};
 
 interface Props {
     products: Product[];
@@ -59,114 +69,129 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
         }
     };
 
+    const progress = state.STEPS.length > 1 ? ((state.currentStep - 1) / (state.STEPS.length - 1)) * 100 : 100;
+    const trimmedSku = state.sku.trim();
+    const currentStepTitle = state.STEPS.find(s => s.id === state.currentStep)?.title;
+    const nextStepTitle = state.STEPS.find(s => s.id === state.currentStep + 1)?.title;
+
     return (
         <div className="h-full flex flex-col bg-white overflow-x-hidden rounded-3xl shadow-xl border border-slate-200/60 relative isolate">
-            {/* Header — light gradient */}
-            <div className="bg-gradient-to-br from-slate-50 to-white border-b border-slate-200 p-6 shrink-0 relative overflow-hidden flex-none">
-                {/* Subtle background blobs */}
-                <div className="absolute top-0 right-0 w-56 h-56 bg-emerald-100 rounded-full filter blur-3xl opacity-40 pointer-events-none"></div>
-                <div className="absolute -bottom-8 left-24 w-40 h-40 bg-amber-100 rounded-full filter blur-3xl opacity-30 pointer-events-none"></div>
+            {/* Header */}
+            <div className="relative shrink-0 overflow-hidden border-b border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-emerald-50/40 px-6 pb-4 pt-5">
+                <div className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-emerald-200/40 blur-3xl"></div>
+                <div className="pointer-events-none absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-amber-100/50 blur-3xl"></div>
 
-                <div className="flex flex-wrap justify-between items-center gap-3 relative z-10">
-                    <div>
-                        <h2 className="text-2xl font-black tracking-tight text-slate-900">Νέο Προϊόν</h2>
-                        <p className="text-slate-400 font-medium text-sm mt-0.5">Δημιουργία νέου κωδικού στην αποθήκη</p>
-                    </div>
+                <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
+                        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20">
+                            <Sparkles size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black tracking-tight text-slate-900">Νέο Προϊόν</h2>
+                            <p className="text-xs font-medium text-slate-400">Δημιουργία νέου κωδικού στην αποθήκη</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                         <div
-                            className={`inline-flex min-w-0 max-w-[260px] items-center gap-2 rounded-xl border px-3 py-2 shadow-sm transition-colors ${state.sku.trim()
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : 'border-slate-200 bg-white/80 text-slate-400'
-                                }`}
-                            title={state.sku.trim() ? `Επιλεγμένο SKU: ${state.sku.trim()}` : 'Πληκτρολογήστε ένα SKU στο πρώτο βήμα'}
+                            className={`inline-flex min-w-0 max-w-[240px] items-center gap-2 rounded-xl border px-3 py-2 shadow-sm transition-colors ${trimmedSku ? 'border-emerald-200 bg-white text-emerald-600' : 'border-dashed border-slate-300 bg-white/70 text-slate-400'}`}
+                            title={trimmedSku ? `Επιλεγμένο SKU: ${trimmedSku}` : 'Πληκτρολογήστε ένα SKU στο πρώτο βήμα'}
                             aria-live="polite"
                         >
                             <Tag size={14} className="shrink-0" />
-                            <span className="min-w-0 truncate font-mono text-sm font-black text-slate-900">
-                                {state.sku.trim() || '—'}
-                            </span>
+                            <span className="min-w-0 truncate font-mono text-sm font-black text-slate-900">{trimmedSku || '—'}</span>
                         </div>
-                    {onCancel && (
-                        <button onClick={onCancel} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm border border-slate-200">
-                            Ακύρωση
-                        </button>
-                    )}
+                        <div className="hidden items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm sm:flex" title="Βασικό κόστος · Παραλλαγές">
+                            <span className="flex items-center gap-1.5 font-bold"><Coins size={13} className="text-emerald-500" /><span className="font-mono text-slate-900">{formatCurrency(state.masterEstimatedCost)}</span></span>
+                            <span className="h-4 w-px bg-slate-200"></span>
+                            <span className="flex items-center gap-1.5 font-bold"><Layers size={13} className="text-amber-500" /><span className="font-mono text-slate-900">{formatNumber(state.variants.length)}</span></span>
+                        </div>
+                        {onCancel && (
+                            <button onClick={onCancel} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95">
+                                <X size={15} /> Ακύρωση
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Clickable Progress Steps */}
-                <div className="flex items-center gap-1 mt-6 overflow-x-auto pb-1 pt-1 pl-1 custom-scrollbar relative z-10 w-full">
+                {/* Clickable step rail */}
+                <nav className="relative z-10 mt-5 flex items-center gap-1 overflow-x-auto pb-1 pl-0.5 pt-0.5 custom-scrollbar" aria-label="Βήματα">
                     {state.STEPS.map((step, idx) => {
                         const isPast = state.currentStep > step.id;
                         const isCurrent = state.currentStep === step.id;
+                        const Icon = STEP_ICONS[step.title] || Circle;
                         return (
                             <React.Fragment key={step.id}>
                                 <button
+                                    type="button"
                                     onClick={() => setters.setCurrentStep(step.id)}
-                                    className={`
-                                        flex flex-col gap-1.5 min-w-[110px] transition-all duration-300 rounded-xl px-3 py-2 text-left
-                                        ${isCurrent ? 'bg-emerald-50 ring-2 ring-emerald-200' : 'hover:bg-slate-100'}
-                                    `}
+                                    aria-current={isCurrent ? 'step' : undefined}
+                                    className={`group flex shrink-0 items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-3.5 text-left transition-all ${isCurrent ? 'bg-white shadow-md shadow-slate-200/70 ring-1 ring-slate-200' : 'hover:bg-white/70'}`}
                                 >
-                                    <div className={`h-1.5 rounded-full w-full transition-all duration-500 ${isCurrent ? 'bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.4)]' :
-                                        isPast ? 'bg-emerald-400' : 'bg-slate-200'
-                                        }`}></div>
-                                    <div className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${isCurrent ? 'text-emerald-700' :
-                                        isPast ? 'text-emerald-600' : 'text-slate-400'
+                                    <span className={`grid h-8 w-8 place-items-center rounded-lg transition-all ${isCurrent
+                                        ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30'
+                                        : isPast ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
                                         }`}>
-                                        {isPast
-                                            ? <CheckCircle size={12} />
-                                            : <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isCurrent ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>{formatNumber(step.id)}</span>
-                                        }
-                                        {step.title}
-                                    </div>
+                                        {isPast ? <Check size={15} strokeWidth={3} /> : <Icon size={15} />}
+                                    </span>
+                                    <span className="leading-tight">
+                                        <span className={`block text-[9px] font-black uppercase tracking-widest ${isCurrent ? 'text-emerald-600' : 'text-slate-400'}`}>Βήμα {formatNumber(step.id)}</span>
+                                        <span className={`block whitespace-nowrap text-xs font-bold ${isCurrent ? 'text-slate-900' : isPast ? 'text-slate-600' : 'text-slate-400'}`}>{step.title}</span>
+                                    </span>
                                 </button>
                                 {idx < state.STEPS.length - 1 && (
-                                    <div className={`h-px w-4 shrink-0 transition-colors ${isPast ? 'bg-emerald-300' : 'bg-slate-200'}`}></div>
+                                    <div className={`h-0.5 w-6 shrink-0 rounded-full transition-colors ${isPast ? 'bg-emerald-300' : 'bg-slate-200'}`}></div>
                                 )}
                             </React.Fragment>
                         );
                     })}
-                </div>
+                </nav>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-x-hidden overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar relative min-h-0">
-                <div className="pb-32 min-h-full">
+            <div className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/70 p-5 sm:p-8 custom-scrollbar relative min-h-0">
+                <div className="mx-auto min-h-full max-w-7xl pb-32">
                     {renderStepContent()}
                 </div>
             </div>
 
             {/* Footer Navigation */}
-            <div className="bg-white border-t border-slate-200 p-6 flex justify-between items-center absolute bottom-0 left-0 right-0 w-full z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.04)]">
-                <button
-                    onClick={setters.prevStep}
-                    disabled={state.currentStep === 1}
-                    className="px-6 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all flex items-center gap-3 w-40 justify-center h-[56px]"
-                >
-                    <ArrowLeft size={18} /> <span className="uppercase tracking-widest text-xs">Πισω</span>
-                </button>
-
-                <div className="text-xs font-bold text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                    Βήμα {formatNumber(state.currentStep)} <span className="text-slate-300 font-normal mx-1">/</span> {formatNumber(state.finalStepId)}
+            <div className="absolute bottom-0 left-0 right-0 z-20 w-full border-t border-slate-200 bg-white/90 shadow-[0_-10px_40px_rgba(15,23,42,0.06)] backdrop-blur-md">
+                <div className="h-1 w-full bg-slate-100">
+                    <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
                 </div>
+                <div className="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
+                    <button
+                        onClick={setters.prevStep}
+                        disabled={state.currentStep === 1}
+                        className="flex h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                        <ArrowLeft size={18} /> Πίσω
+                    </button>
 
-                {state.currentStep < state.finalStepId ? (
-                    <button
-                        onClick={setters.nextStep}
-                        className="px-6 py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white rounded-2xl font-black transition-all flex items-center gap-3 shadow-lg shadow-emerald-500/20 w-40 justify-center h-[56px]"
-                    >
-                        <span className="uppercase tracking-widest text-xs">Επομενο</span> <ArrowRight size={18} />
-                    </button>
-                ) : (
-                    <button
-                        onClick={actions.handleSubmit}
-                        disabled={state.isUploading}
-                        className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl font-black transition-all flex items-center gap-3 shadow-xl disabled:opacity-70 h-[56px]"
-                    >
-                        {state.isUploading ? <Loader2 className="animate-spin" size={22} /> : <><CheckCircle size={22} /> <span className="uppercase tracking-widest text-sm">Αποθηκευση</span></>}
-                    </button>
-                )}
+                    <div className="hidden text-center sm:block">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Βήμα {formatNumber(state.currentStep)} από {formatNumber(state.finalStepId)}</div>
+                        <div className="text-sm font-bold text-slate-700">{currentStepTitle}</div>
+                    </div>
+
+                    {state.currentStep < state.finalStepId ? (
+                        <button
+                            onClick={setters.nextStep}
+                            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 text-sm font-black text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-black active:scale-95"
+                        >
+                            Επόμενο
+                            {nextStepTitle && <span className="hidden font-medium text-white/50 md:inline">· {nextStepTitle}</span>}
+                            <ArrowRight size={18} />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={actions.handleSubmit}
+                            disabled={state.isUploading}
+                            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-7 text-sm font-black text-white shadow-lg shadow-emerald-500/30 transition-all hover:from-emerald-600 hover:to-teal-700 active:scale-95 disabled:opacity-70"
+                        >
+                            {state.isUploading ? <Loader2 className="animate-spin" size={20} /> : <><CheckCircle size={20} /> Αποθήκευση</>}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Modals */}

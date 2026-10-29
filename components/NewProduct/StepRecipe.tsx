@@ -1,12 +1,13 @@
 import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
-import { Plus, Trash2, PackageOpen, Calculator, Hammer, Coins, Gem } from 'lucide-react';
+import { Plus, Trash2, PackageOpen, Calculator, Hammer, Coins, Gem, FlaskConical, Boxes } from 'lucide-react';
 import { ProductionType, Material, Product } from '../../types';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { SmartQuantityInput } from '../ProductRegistry/SmartQuantityInput';
 import { LaborCostCard } from '../ProductRegistry/LaborCostCard';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { SummaryRow, getMaterialIcon } from '../ProductRegistry/utils';
+import { Panel, StepHeader, StatPill } from './wizardUi';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -20,20 +21,47 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
 
     if (state.productionType === ProductionType.InHouse) {
         return (
-            <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4 flex justify-between items-center">2. Συνταγή - Υλικά</h3>
-                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                <StepHeader
+                    step={2}
+                    icon={FlaskConical}
+                    title="Συνταγή"
+                    subtitle="Υλικά, πέτρες και εξαρτήματα STX που αποτελούν το προϊόν."
+                    aside={<>
+                        <StatPill label="Γραμμές" value={formatNumber(state.recipe.length)} />
+                        <StatPill label="Υλικά" value={formatCurrency(state.recipeTotalCost)} tone="emerald" />
+                    </>}
+                />
+
+                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('raw')} className="group flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-4 text-left transition-all hover:border-violet-300 hover:shadow-md active:scale-[0.99]">
+                        <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-500 text-white shadow-md shadow-violet-500/25 transition-transform group-hover:scale-105"><Plus size={20} /></span>
+                        <span>
+                            <span className="block text-sm font-black text-violet-900">Προσθήκη υλικού</span>
+                            <span className="block text-[11px] font-medium text-violet-600/70">Πέτρες, κορδόνια, σμάλτα…</span>
+                        </span>
+                    </button>
+                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('component')} className="group flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-md active:scale-[0.99]">
+                        <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-500 text-white shadow-md shadow-blue-500/25 transition-transform group-hover:scale-105"><PackageOpen size={20} /></span>
+                        <span>
+                            <span className="block text-sm font-black text-blue-900">Προσθήκη STX</span>
+                            <span className="block text-[11px] font-medium text-blue-600/70">Εξαρτήματα από το μητρώο</span>
+                        </span>
+                    </button>
+                </div>
+
+                <Panel bodyClassName="!p-0" className="overflow-hidden">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                        <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400">
                             <tr>
-                                <th className="p-3 pl-4">Περιγραφή</th>
+                                <th className="p-3 pl-5">Περιγραφή</th>
                                 <th className="p-3 text-right">Κόστος</th>
                                 <th className="p-3 text-center">Ποσότητα</th>
-                                <th className="p-3 text-right pr-4">Σύνολο</th>
-                                <th className="w-10"></th>
+                                <th className="p-3 pr-4 text-right">Σύνολο</th>
+                                <th className="w-12"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-slate-100">
                             {state.recipe.map((item, idx) => {
                                 const isRaw = item.type === 'raw';
                                 const itemDetails = isRaw ? materials.find(m => m.id === item.id) : products.find(p => p.sku === item.sku);
@@ -50,21 +78,17 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                                 const stonesPerStrand = isRaw ? (itemDetails as Material)?.stones_per_strand : undefined;
 
                                 return (
-                                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="p-3 pl-4">
+                                    <tr key={idx} className="group transition-colors hover:bg-slate-50/60">
+                                        <td className="p-3 pl-5">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
-                                                    {imageUrl ? (
-                                                        <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="text-slate-400">{icon}</span>
-                                                    )}
+                                                <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isRaw ? 'border-violet-100 bg-violet-50 text-violet-500' : 'border-blue-100 bg-blue-50 text-blue-500'}`}>
+                                                    {imageUrl ? <img src={imageUrl} alt={title} className="h-full w-full object-cover" /> : icon}
                                                 </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-800 text-sm">{title}</div>
-                                                    <div className="text-xs text-slate-500 font-medium">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-bold text-slate-800">{title}</div>
+                                                    <div className="truncate text-xs font-medium text-slate-500">
                                                         {subtitle}
-                                                        {extraDesc && <span className="text-slate-400 italic"> • {extraDesc}</span>}
+                                                        {extraDesc && <span className="italic text-slate-400"> • {extraDesc}</span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -77,51 +101,70 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                                                 stonesPerStrand={stonesPerStrand}
                                             />
                                         </td>
-                                        <td className="p-3 text-right font-mono font-bold text-slate-800 pr-4">{formatCurrency(lineTotal)}</td>
+                                        <td className="p-3 pr-4 text-right font-mono font-bold text-slate-800">{formatCurrency(lineTotal)}</td>
                                         <td className="p-3 text-center">
-                                            <button onClick={() => actions.removeRecipeItem(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50">
+                                            <button type="button" onClick={() => actions.removeRecipeItem(idx)} className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500">
                                                 <Trash2 size={16} />
                                             </button>
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {state.recipe.length === 0 && (<tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">Δεν έχουν προστεθεί υλικά.</td></tr>)}
+                            {state.recipe.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-10">
+                                        <div className="flex flex-col items-center gap-2 text-center">
+                                            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-50 text-slate-300"><Boxes size={28} /></div>
+                                            <p className="text-sm font-bold text-slate-500">Δεν έχουν προστεθεί υλικά</p>
+                                            <p className="text-xs text-slate-400">{state.isAssembly ? 'Ένα προϊόν συναρμολόγησης χρειάζεται τουλάχιστον ένα υλικό.' : 'Προαιρετικό — προχωρήστε αν το προϊόν είναι μόνο ασήμι.'}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
-                        <tfoot className="bg-slate-50 border-t border-slate-200">
-                            <tr><td colSpan={3} className="p-3 text-right font-bold text-slate-600 uppercase text-xs">Συνολο Υλικων:</td><td className="p-3 text-right font-black font-mono text-lg text-emerald-600 pr-4">{formatCurrency(state.recipeTotalCost)}</td><td></td></tr>
-                        </tfoot>
+                        {state.recipe.length > 0 && (
+                            <tfoot className="border-t border-slate-200 bg-slate-50">
+                                <tr>
+                                    <td colSpan={3} className="p-3 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">Σύνολο υλικών</td>
+                                    <td className="p-3 pr-4 text-right font-mono text-lg font-black text-emerald-600">{formatCurrency(state.recipeTotalCost)}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
-                </div>
-                <div className="flex gap-2 pt-2">
-                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('raw')} className="text-xs bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold border border-purple-200 flex items-center gap-2 hover:bg-purple-100 transition-all flex-1 justify-center"><Plus size={16} /> Προσθήκη Υλικού</button>
-                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('component')} className="text-xs bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold border border-blue-200 flex items-center gap-2 hover:bg-blue-100 transition-all flex-1 justify-center"><PackageOpen size={16} /> Προσθήκη STX</button>
-                </div>
+                </Panel>
             </div>
         );
     }
 
     // Imported Costing
     return (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-            <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">2. Κοστολόγηση Εισαγωγής</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg shadow-emerald-50 space-y-4">
-                    <div className="flex items-center gap-3 mb-4"><div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl"> <Calculator size={24} /> </div><div><h4 className="font-black text-lg text-slate-800">Υπολογισμός Κόστους</h4><p className="text-xs text-slate-500 font-medium">Συμπληρώστε τα παρακάτω πεδία.</p></div></div>
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <StepHeader
+                step={2}
+                icon={Calculator}
+                title="Κοστολόγηση εισαγωγής"
+                subtitle="Εργατικά, επιμετάλλωση και καρφωτικά ανά γραμμάριο."
+                aside={<StatPill label="Κόστος" value={formatCurrency(state.masterEstimatedCost)} tone="emerald" />}
+            />
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <Panel title="Υπολογισμός κόστους" subtitle="Συμπληρώστε τα παρακάτω πεδία" icon={Calculator} tone="emerald" bodyClassName="space-y-3">
                     <LaborCostCard icon={<Hammer size={14} />} label="Εργατικά (€/g)" value={state.labor.technician_cost} onChange={val => setters.setLabor({ ...state.labor, technician_cost: val })} hint="Κόστος εργασίας ανά γραμμάριο" />
                     <LaborCostCard icon={<Coins size={14} />} label="Επιμετάλλωση (€/g)" value={state.labor.plating_cost_x} onChange={val => setters.setLabor({ ...state.labor, plating_cost_x: val })} hint="Κόστος επιμετάλλωσης ανά γραμμάριο" />
                     <LaborCostCard icon={<Gem size={14} />} label="Καρφωτικά/Πέτρες (€)" value={state.labor.stone_setting_cost} onChange={val => setters.setLabor({ ...state.labor, stone_setting_cost: val })} hint="Σταθερό κόστος" />
-                </div>
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                    <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-2"><Calculator size={14} /> Ανάλυση Κόστους (Live)</h4>
-                    <div className="space-y-1 flex-1">
+                </Panel>
+                <Panel title="Ανάλυση κόστους" subtitle="Ζωντανή ενημέρωση" icon={Calculator} tone="blue" className="flex flex-col" bodyClassName="flex flex-1 flex-col">
+                    <div className="flex-1 space-y-1">
                         <SummaryRow label="Ασήμι" value={state.costBreakdown?.silver || 0} sub={`${formatNumber(state.weight)}g @ ${formatDecimal(settings?.silver_price_gram)}€`} color="bg-slate-400" />
                         <SummaryRow label="Εργατικά" value={state.costBreakdown?.details?.technician_cost || 0} sub={`${formatDecimal(state.labor.technician_cost)}€ x ${formatNumber(state.weight)}g`} color="bg-blue-400" />
                         <SummaryRow label="Επιμετάλλωση" value={state.costBreakdown?.details?.plating_cost || 0} sub={`${formatDecimal(state.labor.plating_cost_x)}€ x ${formatNumber(state.weight)}g`} color="bg-amber-400" />
                         <SummaryRow label="Καρφωτικά" value={state.costBreakdown?.details?.stone_setting_cost || 0} sub="Σταθερό" color="bg-purple-400" />
                     </div>
-                    <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-center"><span className="font-bold text-slate-600 text-sm uppercase">Συνολο Κόστους</span><span className="font-black text-2xl text-emerald-700">{formatCurrency(state.masterEstimatedCost)}</span></div>
-                </div>
+                    <div className="mt-4 flex items-center justify-between rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 text-white shadow-md shadow-emerald-500/20">
+                        <span className="text-xs font-black uppercase tracking-wider opacity-90">Σύνολο κόστους</span>
+                        <span className="font-mono text-2xl font-black">{formatCurrency(state.masterEstimatedCost)}</span>
+                    </div>
+                </Panel>
             </div>
         </div>
     );
