@@ -2,7 +2,7 @@ import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType } from '../types';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
 import { Search, Layers, Database, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight, Plus, ScanLine, SlidersHorizontal, Sparkles } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
@@ -426,11 +426,21 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         return () => window.removeEventListener('keydown', onKey);
     }, [selectedProduct, isCreating]);
 
-    const registryStats = useMemo(() => ({
-        codes: baseProducts.length,
-        variants: baseProducts.reduce((sum, p) => sum + (p.variants?.length || 0), 0),
-        withImage: baseProducts.filter(p => !!p.image_url).length,
-    }), [baseProducts]);
+    // Summary of what is currently on screen (follows search + filters).
+    const registryStats = useMemo(() => {
+        let variants = 0;
+        let inHouse = 0;
+        let imported = 0;
+        let unpriced = 0;
+        filteredProducts.forEach(p => {
+            variants += p.variants?.length || 0;
+            if (p.production_type === ProductionType.Imported) imported++;
+            else inHouse++;
+            const hasPrice = (p.selling_price || 0) > 0 || (p.variants || []).some(v => (v.selling_price || 0) > 0);
+            if (!p.is_component && !hasPrice) unpriced++;
+        });
+        return { codes: baseProducts.length, variants, inHouse, imported, unpriced };
+    }, [filteredProducts, baseProducts.length]);
 
     if (loadingProducts || loadingMaterials || loadingMolds || !settings || !products || !materials || !molds || !collections) {
         return null;
@@ -657,16 +667,42 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 <span className="font-mono tabular-nums">{formatNumber(filteredProducts.length)}</span>
                                 <span className="font-medium text-emerald-700/70">/ {formatNumber(registryStats.codes)} {showStxOnly ? 'εξαρτήματα' : 'κωδικοί'}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-600">
+                            <div className="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50/60 px-2.5 py-1 text-xs font-bold text-amber-900" title="Παραλλαγές των κωδικών που εμφανίζονται">
                                 <Layers size={12} className="text-amber-500" />
                                 <span className="font-mono tabular-nums">{formatNumber(registryStats.variants)}</span>
-                                <span className="font-medium text-slate-400">παραλλαγές</span>
+                                <span className="font-medium text-amber-800/60">παραλλαγές</span>
                             </div>
-                            <div className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-600 sm:flex">
-                                <ImageIcon size={12} className="text-sky-500" />
-                                <span className="font-mono tabular-nums">{formatNumber(registryStats.withImage)}</span>
-                                <span className="font-medium text-slate-400">με φωτογραφία</span>
-                            </div>
+                            {!showStxOnly && (
+                                <div className="flex items-center rounded-lg border border-slate-200 bg-white/70 p-0.5 text-xs font-bold" role="group" aria-label="Τύπος παραγωγής">
+                                    {[
+                                        { value: 'InHouse', label: 'Ιδιοπαραγωγή', count: registryStats.inHouse, icon: Factory, tone: 'text-slate-700', on: 'bg-slate-800 text-white' },
+                                        { value: 'Imported', label: 'Εισαγωγή', count: registryStats.imported, icon: ShoppingBag, tone: 'text-violet-700', on: 'bg-violet-600 text-white' },
+                                    ].map(({ value, label, count, icon: TypeIcon, tone, on }) => {
+                                        const isOn = subFilters.productionType === value;
+                                        return (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                aria-pressed={isOn}
+                                                onClick={() => setSubFilters(p => ({ ...p, productionType: isOn ? 'all' : value }))}
+                                                title={isOn ? 'Εμφάνιση όλων' : `Μόνο ${label}`}
+                                                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors ${isOn ? on : `${tone} hover:bg-slate-100`}`}
+                                            >
+                                                <TypeIcon size={12} className={isOn ? '' : 'opacity-60'} />
+                                                <span className="font-mono tabular-nums">{formatNumber(count)}</span>
+                                                <span className={`font-medium ${isOn ? 'text-white/70' : 'text-slate-400'}`}>{label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {registryStats.unpriced > 0 && (
+                                <div className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700" title="Κωδικοί χωρίς τιμή χονδρικής σε κανένα σημείο">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                    <span className="font-mono tabular-nums">{formatNumber(registryStats.unpriced)}</span>
+                                    <span className="font-medium text-rose-600/70">χωρίς τιμή</span>
+                                </div>
+                            )}
 
                             {activeFilterChips.length > 0 && (
                                 <>
