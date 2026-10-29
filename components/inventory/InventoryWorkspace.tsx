@@ -300,7 +300,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
       {compact ? (
         <MobileScreenHeader icon={WarehouseIcon} title="Αποθήκη & Στοκ" sticky={false} right={actions} />
       ) : (
-        <DesktopPageHeader icon={WarehouseIcon} title="Αποθήκη & Στοκ" tail={actions} />
+        <DesktopPageHeader icon={WarehouseIcon} title="Αποθήκη & Στοκ" tail={actions} className="z-30" />
       )}
 
       <div className="space-y-4 px-4 sm:px-0">

@@ -196,10 +196,13 @@ export const offlineDb = {
     clearAll: async () => {
         assertWritable();
         const db = await openDB();
-        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const tx = db.transaction([STORE_NAME, SYNC_STORE], 'readwrite');
         tx.objectStore(STORE_NAME).clear();
-        const tx2 = db.transaction(SYNC_STORE, 'readwrite');
-        tx2.objectStore(SYNC_STORE).clear();
+        tx.objectStore(SYNC_STORE).clear();
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
     },
 
     clearSyncQueue: async () => {

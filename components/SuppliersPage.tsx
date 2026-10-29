@@ -1,190 +1,184 @@
 import { protectOperation } from '../lib/appUpdates';
-import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
-import { Supplier, Product, Material, SupplierOrder } from '../types';
-import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, FileText, Printer, Pencil } from 'lucide-react';
+import { Supplier, SupplierOrder } from '../types';
+import { ArrowRight, Clock, Gem, Globe, PackageCheck, Plus, Printer, Search, Store, X } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
-import { formatCurrency } from '../utils/pricingEngine';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
 import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 import { usePrint } from './PrintContext';
-import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
 import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SupplierReceiptModal from './suppliers/SupplierReceiptModal';
+import SupplierCard from './suppliers/SupplierCard';
+import SupplierFormModal from './suppliers/SupplierFormModal';
+import SupplierDetailsModal, { type SupplierDetailsTab } from './suppliers/SupplierDetailsModal';
+import { buildSupplierStats, formatRelativeDay, getSupplierStats, orderPieces, orderShortId } from './suppliers/supplierUi';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
+import { tailTabButtonCompact, TAIL_TAB_CONTAINER } from './ui/designTokens';
 import PageErrorState from './ui/PageErrorState';
 import EmptyState from './ui/EmptyState';
 
-const MATERIAL_TYPE_LABELS: Record<string, string> = {
-    'Stone': 'Πέτρα',
-    'Cord': 'Κορδόνι',
-    'Component': 'Εξάρτημα',
-    'Enamel': 'Σμάλτο',
-    'Leather': 'Δέρμα'
-};
+type ListFilter = 'all' | 'pending' | 'unlinked';
+type ListSort = 'name' | 'activity' | 'products';
 
-// --- SUPPLIER CARD COMPONENT ---
-interface SupplierCardProps {
-    supplier: Supplier;
-    onClick: () => void;
-    latestOrderDate?: string;
-}
-
-const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, onClick, latestOrderDate }) => {
+function PrintPreview({ order, onClose, onPrint }: { order: SupplierOrder; onClose: () => void; onPrint: () => void }) {
+    const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
+    useEscapeToClose(onClose);
     return (
-        <div
-            onClick={onClick}
-            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-purple-200 transition-all cursor-pointer relative overflow-hidden flex flex-col h-full"
-        >
-            <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center font-bold text-lg group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-sm">
-                    {supplier.name.charAt(0).toUpperCase()}
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                        <h3 className="flex items-center gap-2 font-black text-slate-900"><Printer size={18} /> Προεπισκόπηση εκτύπωσης</h3>
+                        <p className="text-xs font-semibold text-slate-500">{order.supplier_name} · #{orderShortId(order.id)}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Κλείσιμο"><X size={20} /></button>
                 </div>
-                {latestOrderDate && (
-                    <div className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full flex items-center gap-1">
-                        <Clock size={10} /> {new Date(latestOrderDate).toLocaleDateString('el-GR')}
+                <div className="flex flex-1 justify-center overflow-auto bg-slate-200/70 p-8 custom-scrollbar">
+                    <div className="origin-top scale-[0.8] bg-white shadow-lg">
+                        <SupplierOrderPrintView order={order} products={products || []} />
                     </div>
-                )}
-            </div>
-
-            <div className="mb-2">
-                <h3 className="font-bold text-slate-800 text-base leading-tight line-clamp-1" title={supplier.name}>
-                    {supplier.name}
-                </h3>
-                {supplier.contact_person && (
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">{supplier.contact_person}</div>
-                )}
-            </div>
-
-            <div className="mt-auto pt-3 border-t border-slate-50 space-y-1.5">
-                {supplier.phone ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <Phone size={12} className="text-slate-400" /> {supplier.phone}
-                    </div>
-                ) : <div className="h-4" />}
-                {supplier.address ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600 truncate">
-                        <MapPin size={12} className="text-slate-400 shrink-0" /> {supplier.address}
-                    </div>
-                ) : <div className="h-4" />}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
+                    <button type="button" onClick={onClose} className="rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">Κλείσιμο</button>
+                    <button type="button" onClick={onPrint} className="inline-flex items-center gap-2 rounded-xl bg-[#060b00] px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-black">
+                        <Printer size={16} /> Εκτύπωση
+                    </button>
+                </div>
             </div>
         </div>
     );
-};
+}
 
 export default function SuppliersPage() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { setSupplierOrderToPrint } = usePrint();
 
-    // Data Fetching
     const { data: suppliers, isError: suppliersError, error: suppliersErr, refetch: refetchSuppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: supplierOrders } = useQuery({ queryKey: ['supplier_orders'], queryFn: api.getSupplierOrders });
 
-    // UI State
-    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-    const [activeTab, setActiveTab] = useState<'info' | 'products' | 'materials' | 'orders'>('info');
-    const [isEditing, setIsEditing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [listFilter, setListFilter] = useState<ListFilter>('all');
+    const [listSort, setListSort] = useState<ListSort>('name');
 
-    // Create/Edit Supplier Form
-    const [supplierForm, setSupplierForm] = useState<Partial<Supplier>>({});
+    // Details are tracked by id so edits and refetches always show fresh data.
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [detailsTab, setDetailsTab] = useState<SupplierDetailsTab>('overview');
+    const [focusOrderId, setFocusOrderId] = useState<string | null>(null);
+    const [formInitial, setFormInitial] = useState<Partial<Supplier> | null>(null);
 
-    // Product Assignment State
-    const [productSearchTerm, setProductSearchTerm] = useState('');
-
-    // Purchase Order State
-    const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-    const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
-    const [viewOrderId, setViewOrderId] = useState<string | null>(null);
+    const [builder, setBuilder] = useState<{ supplier: Supplier; order: SupplierOrder | null } | null>(null);
     const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
     const [receiptOrder, setReceiptOrder] = useState<SupplierOrder | null>(null);
-    useRestartDraft('Στοιχεία προμηθευτή', supplierForm, { enabled: isEditing, identity: selectedSupplier?.id });
 
+    const supplierList = suppliers || [];
+    const orders = supplierOrders || [];
+    const suppliersById = useMemo(() => new Map(supplierList.map((supplier) => [supplier.id, supplier])), [supplierList]);
+    const stats = useMemo(() => buildSupplierStats(supplierList, products, materials, orders), [supplierList, products, materials, orders]);
+    const selectedSupplier = selectedId ? suppliersById.get(selectedId) ?? null : null;
+
+    const pendingOrders = useMemo(
+        () => orders.filter((order) => order.status === 'Pending').sort((a, b) => a.created_at.localeCompare(b.created_at)),
+        [orders],
+    );
+    const totals = useMemo(() => ({
+        pendingPieces: pendingOrders.reduce((sum, order) => sum + orderPieces(order), 0),
+        linkedProducts: (products || []).filter((product) => product.supplier_id && suppliersById.has(product.supplier_id)).length,
+    }), [pendingOrders, products, suppliersById]);
 
     const filteredSuppliers = useMemo(() => {
-        if (!suppliers) return [];
-        return suppliers.filter(s =>
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.contact_person?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).sort((a, b) => a.name.localeCompare(b.name));
-    }, [suppliers, searchTerm]);
-
-    // Supplier Actions
-    const handleSaveSupplier = async () => {
-        if (!supplierForm.name) { showToast("Η επωνυμία είναι υποχρεωτική", 'error'); return; }
-        try {
-            await api.saveSupplier(supplierForm);
-            queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-            setIsEditing(false);
-            showToast("Αποθηκεύτηκε επιτυχώς.", 'success');
-            // Important: close modal on new supplier creation
-            if (!supplierForm.id) {
-                setSelectedSupplier(null);
-            } else if (selectedSupplier) {
-                setSelectedSupplier({ ...selectedSupplier, ...supplierForm } as Supplier);
+        const q = searchTerm.trim().toLowerCase();
+        const list = supplierList.filter((supplier) => {
+            const s = getSupplierStats(stats, supplier.id);
+            if (listFilter === 'pending' && s.pendingOrderCount === 0) return false;
+            if (listFilter === 'unlinked' && (s.productCount > 0 || s.materialCount > 0)) return false;
+            if (!q) return true;
+            return [supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address]
+                .some((value) => value?.toLowerCase().includes(q));
+        });
+        return list.sort((a, b) => {
+            if (listSort === 'activity') {
+                const diff = (getSupplierStats(stats, b.id).lastOrderAt || '').localeCompare(getSupplierStats(stats, a.id).lastOrderAt || '');
+                if (diff) return diff;
+            } else if (listSort === 'products') {
+                const diff = getSupplierStats(stats, b.id).productCount - getSupplierStats(stats, a.id).productCount;
+                if (diff) return diff;
             }
-        } catch (e) { showToast("Σφάλμα αποθήκευσης.", 'error'); }
+            return a.name.localeCompare(b.name, 'el');
+        });
+    }, [supplierList, stats, searchTerm, listFilter, listSort]);
+
+    const openSupplier = (supplier: Supplier, tab: SupplierDetailsTab = 'overview', orderId: string | null = null) => {
+        setSelectedId(supplier.id);
+        setDetailsTab(tab);
+        setFocusOrderId(orderId);
     };
 
-    const handleDeleteSupplier = async (id: string) => {
-        if (!await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) return;
+    const handleSaveSupplier = async (form: Partial<Supplier>) => {
         try {
-            await api.deleteSupplier(id);
-            queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-            if (selectedSupplier?.id === id) {
-                setSelectedSupplier(null);
-                setIsEditing(false);
-            }
-            showToast("Διαγράφηκε.", 'info');
-        } catch (e) { showToast("Σφάλμα διαγραφής.", 'error'); }
+            await api.saveSupplier(form);
+            await queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+            setFormInitial(null);
+            showToast(form.id ? 'Οι αλλαγές αποθηκεύτηκαν.' : `Ο προμηθευτής «${form.name}» δημιουργήθηκε.`, 'success');
+        } catch {
+            showToast('Σφάλμα αποθήκευσης.', 'error');
+        }
     };
 
-    const assignedProducts = useMemo(() => {
-        return (products?.filter(p => p.supplier_id === selectedSupplier?.id) || [])
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    }, [products, selectedSupplier]);
-
-    const assignedMaterials = useMemo(() => {
-        return (materials?.filter(m => m.supplier_id === selectedSupplier?.id) || [])
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [materials, selectedSupplier]);
-
-    const relatedOrders = useMemo(() => supplierOrders?.filter(o => o.supplier_id === selectedSupplier?.id) || [], [supplierOrders, selectedSupplier]);
-
-    const availableProductsForLink = useMemo(() => {
-        if (!products || !selectedSupplier) return [];
-        const lower = productSearchTerm.toLowerCase();
-        return products
-            .filter(p => p.supplier_id !== selectedSupplier.id)
-            .filter(p => p.sku.toLowerCase().includes(lower))
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }))
-            .slice(0, 20);
-    }, [products, selectedSupplier, productSearchTerm]);
+    const handleDeleteSupplier = async (supplier: Supplier) => {
+        const s = getSupplierStats(stats, supplier.id);
+        const links = [
+            s.productCount ? `${formatNumber(s.productCount)} προϊόντα` : '',
+            s.materialCount ? `${formatNumber(s.materialCount)} υλικά` : '',
+            s.orderCount ? `${formatNumber(s.orderCount)} εντολές` : '',
+        ].filter(Boolean).join(', ');
+        const yes = await confirm({
+            title: 'Διαγραφή προμηθευτή',
+            message: links
+                ? `Ο «${supplier.name}» συνδέεται με ${links}. Θέλετε σίγουρα να τον διαγράψετε;`
+                : `Θέλετε σίγουρα να διαγράψετε τον «${supplier.name}»;`,
+            isDestructive: true,
+            confirmText: 'Διαγραφή',
+        });
+        if (!yes) return;
+        try {
+            await api.deleteSupplier(supplier.id);
+            queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+            if (selectedId === supplier.id) setSelectedId(null);
+            showToast('Ο προμηθευτής διαγράφηκε.', 'info');
+        } catch {
+            showToast('Σφάλμα διαγραφής.', 'error');
+        }
+    };
 
     const handleLinkProduct = async (sku: string) => {
         if (!selectedSupplier) return;
         try {
             await protectOperation(async () => await supabase.from('products').update({ supplier_id: selectedSupplier.id }).eq('sku', sku));
-            invalidateProductsAndCatalog(queryClient);
-            showToast("Προϊόν συνδέθηκε.", "success");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+            await invalidateProductsAndCatalog(queryClient);
+            showToast(`Το ${sku} συνδέθηκε.`, 'success');
+        } catch {
+            showToast('Σφάλμα σύνδεσης.', 'error');
+        }
     };
 
     const handleUnlinkProduct = async (sku: string) => {
+        const yes = await confirm({ title: 'Αποσύνδεση προϊόντος', message: `Να αφαιρεθεί ο προμηθευτής από το ${sku};`, confirmText: 'Αποσύνδεση', isDestructive: true });
+        if (!yes) return;
         try {
             await protectOperation(async () => await supabase.from('products').update({ supplier_id: null }).eq('sku', sku));
-            invalidateProductsAndCatalog(queryClient);
-            showToast("Σύνδεση αφαιρέθηκε.", "success");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+            await invalidateProductsAndCatalog(queryClient);
+            showToast(`Το ${sku} αποσυνδέθηκε.`, 'success');
+        } catch {
+            showToast('Σφάλμα.', 'error');
+        }
     };
-
-    const handleReceiveOrder = (order: SupplierOrder) => setReceiptOrder(order);
 
     const confirmSupplierReceipt = async (warehouseId: string) => {
         if (!receiptOrder) return;
@@ -196,17 +190,24 @@ export default function SuppliersPage() {
             queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         ]);
         setReceiptOrder(null);
-        showToast("Η παραλαβή αποθέματος ολοκληρώθηκε επιτυχώς.", "success");
+        showToast('Η παραλαβή αποθέματος ολοκληρώθηκε επιτυχώς.', 'success');
     };
 
-    const handleDeleteOrder = async (orderId: string) => {
-        const yes = await confirm({ title: 'Διαγραφή Εντολής', message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εντολή αγοράς;', isDestructive: true, confirmText: 'Διαγραφή' });
+    const handleDeleteOrder = async (order: SupplierOrder) => {
+        const yes = await confirm({
+            title: 'Διαγραφή εντολής',
+            message: `Θέλετε σίγουρα να διαγράψετε την εντολή #${orderShortId(order.id)} (${formatNumber(orderPieces(order))} τεμ.);`,
+            isDestructive: true,
+            confirmText: 'Διαγραφή',
+        });
         if (!yes) return;
         try {
-            await api.deleteSupplierOrder(orderId);
+            await api.deleteSupplierOrder(order.id);
             queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            showToast("Η εντολή διαγράφηκε.", "success");
-        } catch (e) { showToast("Σφάλμα διαγραφής.", "error"); }
+            showToast('Η εντολή διαγράφηκε.', 'success');
+        } catch {
+            showToast('Σφάλμα διαγραφής.', 'error');
+        }
     };
 
     if (suppliersError) {
@@ -219,360 +220,196 @@ export default function SuppliersPage() {
         );
     }
 
-    return (
-        <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
+    const childOpen = !!formInitial || !!builder || !!orderToPrint || !!receiptOrder;
+    const filterChips: [ListFilter, string, number?][] = [
+        ['all', 'Όλοι', supplierList.length],
+        ['pending', 'Με εκκρεμείς', supplierList.filter((supplier) => getSupplierStats(stats, supplier.id).pendingOrderCount > 0).length],
+        ['unlinked', 'Χωρίς συνδέσεις'],
+    ];
 
+    return (
+        <div className="flex h-[calc(100vh-100px)] flex-col gap-6">
             <DesktopPageHeader
                 icon={Globe}
                 title="Προμηθευτές"
-                subtitle="Διαχείριση προμηθευτών και υλικών."
+                subtitle="Συνεργάτες, συνδεδεμένα είδη και εντολές αγοράς."
                 tail={(
                     <>
-                        <div className="relative group min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
+                        <div className="relative min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
                             <input
                                 type="text"
-                                placeholder="Αναζήτηση προμηθευτή..."
+                                placeholder="Όνομα, υπεύθυνος, τηλέφωνο…"
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                             />
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            {searchTerm && (
+                                <button type="button" onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Καθαρισμός αναζήτησης">
+                                    <X size={14} />
+                                </button>
+                            )}
                         </div>
-                        <HeaderPrimaryButton icon={Plus} onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}>
+                        <HeaderPrimaryButton icon={Plus} onClick={() => setFormInitial({})}>
                             Νέος Προμηθευτής
                         </HeaderPrimaryButton>
                     </>
                 )}
+                below={(
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex">
+                            {[
+                                { icon: Store, label: 'Προμηθευτές', value: supplierList.length, tone: 'text-slate-700 bg-slate-50 border-slate-100' },
+                                { icon: Clock, label: 'Εκκρεμείς εντολές', value: pendingOrders.length, tone: 'text-amber-800 bg-amber-50 border-amber-100' },
+                                { icon: PackageCheck, label: 'Τεμ. σε αναμονή', value: totals.pendingPieces, tone: 'text-emerald-800 bg-emerald-50 border-emerald-100' },
+                                { icon: Gem, label: 'Συνδεδεμένα προϊόντα', value: totals.linkedProducts, tone: 'text-violet-800 bg-violet-50 border-violet-100' },
+                            ].map(({ icon: Icon, label, value, tone }) => (
+                                <div key={label} className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 ${tone}`}>
+                                    <Icon size={18} className="shrink-0 opacity-70" />
+                                    <div>
+                                        <div className="text-lg font-black leading-none tabular-nums">{formatNumber(value)}</div>
+                                        <div className="mt-0.5 whitespace-nowrap text-[10px] font-black uppercase tracking-wide opacity-70">{label}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className={TAIL_TAB_CONTAINER}>
+                                {filterChips.map(([key, label, count]) => (
+                                    <button key={key} type="button" onClick={() => setListFilter(key)} className={tailTabButtonCompact(listFilter === key)}>
+                                        {label}{count !== undefined && <span className="tabular-nums opacity-50">{formatNumber(count)}</span>}
+                                    </button>
+                                ))}
+                            </div>
+                            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
+                                Ταξινόμηση
+                                <select value={listSort} onChange={(event) => setListSort(event.target.value as ListSort)} className="bg-transparent font-black text-slate-800 outline-none">
+                                    <option value="name">Αλφαβητικά</option>
+                                    <option value="activity">Πρόσφατη δραστηριότητα</option>
+                                    <option value="products">Περισσότερα προϊόντα</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                )}
             />
 
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pb-20 pr-2 custom-scrollbar">
+                {pendingOrders.length > 0 && listFilter !== 'unlinked' && !searchTerm && (
+                    <section className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-4 shadow-sm">
+                        <div className="mb-3 flex items-center gap-2 px-1">
+                            <PackageCheck size={17} className="text-amber-600" />
+                            <h2 className="text-sm font-black text-slate-800">Αναμένονται παραλαβές</h2>
+                            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">{formatNumber(pendingOrders.length)}</span>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto pb-1 custom-scrollbar">
+                            {pendingOrders.map((order) => {
+                                const supplier = suppliersById.get(order.supplier_id);
+                                return (
+                                    <div key={order.id} className="flex w-72 shrink-0 flex-col rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
+                                        <button type="button" onClick={() => supplier && openSupplier(supplier, 'orders', order.id)} className="min-w-0 text-left">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="truncate text-sm font-black text-slate-800">{supplier?.name || order.supplier_name}</span>
+                                                <span className="font-mono text-[11px] font-black text-slate-400">#{orderShortId(order.id)}</span>
+                                            </div>
+                                            <div className="mt-1 text-xs font-semibold text-slate-500">
+                                                {formatRelativeDay(order.created_at)} · {formatNumber(order.items.length)} γραμμές · <b className="text-slate-700">{formatNumber(orderPieces(order))}</b> τεμ.
+                                            </div>
+                                        </button>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <button type="button" onClick={() => setReceiptOrder(order)} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white transition-colors hover:bg-emerald-700">
+                                                <PackageCheck size={14} /> Παραλαβή
+                                            </button>
+                                            <button type="button" onClick={() => supplier && openSupplier(supplier, 'orders', order.id)} className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800" title="Άνοιγμα εντολής">
+                                                <ArrowRight size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
                 {filteredSuppliers.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {filteredSuppliers.map(s => {
-                            const latestOrder = supplierOrders?.filter(o => o.supplier_id === s.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-                            return (
-                                <SupplierCard
-                                    key={s.id}
-                                    supplier={s}
-                                    latestOrderDate={latestOrder?.created_at}
-                                    onClick={() => { setSelectedSupplier(s); setActiveTab('info'); setIsEditing(false); }}
-                                />
-                            );
-                        })}
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                        {filteredSuppliers.map((supplier) => (
+                            <SupplierCard
+                                key={supplier.id}
+                                supplier={supplier}
+                                stats={getSupplierStats(stats, supplier.id)}
+                                onOpen={() => openSupplier(supplier)}
+                                onNewOrder={() => setBuilder({ supplier, order: null })}
+                            />
+                        ))}
                     </div>
                 ) : (
                     <EmptyState
                         icon={Globe}
-                        title="Δεν βρέθηκαν προμηθευτές."
-                        hint={searchTerm ? 'Δοκιμάστε διαφορετική αναζήτηση.' : 'Πατήστε «Νέος Προμηθευτής» για να προσθέσετε τον πρώτο.'}
-                    />
-                )}
-
-                {/* CREATE / EDIT SUPPLIER MODAL */}
-                {isEditing && (
-                    <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                        <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] animate-in zoom-in-95">
-                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                                <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                                    <Globe className="text-purple-600" /> {supplierForm.id ? 'Επεξεργασία Προμηθευτή' : 'Νέος Προμηθευτής'}
-                                </h2>
-                                <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 p-2"><X size={20} /></button>
-                            </div>
-                            <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Επωνυμία *</label>
-                                    <input value={supplierForm.name || ''} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} placeholder="π.χ. Υλικά ΕΠΕ" className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-purple-500/20 bg-slate-50 focus:bg-white transition-colors" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Υπεύθυνος</label>
-                                    <input value={supplierForm.contact_person || ''} onChange={e => setSupplierForm({ ...supplierForm, contact_person: e.target.value })} placeholder="Ονοματεπώνυμο" className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Τηλέφωνο</label>
-                                        <input value={supplierForm.phone || ''} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+30..." className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Ηλ. ταχυδρομείο</label>
-                                        <input value={supplierForm.email || ''} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} placeholder="email@..." className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Διεύθυνση</label>
-                                    <input value={supplierForm.address || ''} onChange={e => setSupplierForm({ ...supplierForm, address: e.target.value })} placeholder="Οδός, Πόλη, ΤΚ" className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Σημειώσεις</label>
-                                    <textarea value={supplierForm.notes || ''} onChange={e => setSupplierForm({ ...supplierForm, notes: e.target.value })} placeholder="Πρόσθετες πληροφορίες..." className="w-full p-3 border border-slate-200 rounded-xl h-24 resize-none outline-none bg-slate-50 focus:bg-white transition-colors" />
-                                </div>
-                            </div>
-                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-                                <button onClick={() => setIsEditing(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Άκυρο</button>
-                                <button onClick={handleSaveSupplier} className="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-black transition-colors flex items-center gap-2"><Check size={16} /> Αποθήκευση</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* DETAILS MODAL */}
-                {selectedSupplier && !isEditing && (
-                    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 lg:p-10 animate-in fade-in">
-                        <div className="bg-white w-full max-w-6xl h-full max-h-[90vh] rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col animate-in zoom-in-95">
-                            {/* Modal Header */}
-                            <div className="p-6 md:p-8 md:pr-24 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 bg-slate-50 relative shrink-0">
-                                <button onClick={() => setSelectedSupplier(null)} className="absolute top-6 right-6 p-2 bg-white text-slate-400 hover:text-slate-700 rounded-full shadow-sm border border-slate-100 hover:bg-slate-50 transition-all z-10"><X size={20} /></button>
-                                <div className="flex items-center gap-5">
-                                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-purple-600 shadow-sm border border-purple-100 text-2xl font-black">
-                                        {selectedSupplier.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-2">{selectedSupplier.name}</h2>
-                                        <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-500">
-                                            {selectedSupplier.phone && <span className="flex items-center gap-1.5"><Phone size={14} /> {selectedSupplier.phone}</span>}
-                                            {selectedSupplier.email && <span className="flex items-center gap-1.5"><Mail size={14} /> {selectedSupplier.email}</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => { setSupplierForm(selectedSupplier); setIsEditing(true); }} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm text-sm">Επεξεργασία</button>
-                                    <button onClick={() => handleDeleteSupplier(selectedSupplier.id)} className="p-2.5 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-xl hover:bg-red-50 hover:border-red-100 transition-colors shadow-sm"><Trash2 size={18} /></button>
-                                </div>
-                            </div>
-
-                            {/* Tabs */}
-                            <div className="flex border-b border-slate-100 px-4 md:px-8 gap-4 md:gap-8 shrink-0 bg-white overflow-x-auto custom-scrollbar">
-                                {[
-                                    { id: 'info', label: 'Πληροφορίες' },
-                                    { id: 'products', label: `Προϊόντα (${formatNumber(assignedProducts.length)})` },
-                                    { id: 'materials', label: `Υλικά (${formatNumber(assignedMaterials.length)})` },
-                                    { id: 'orders', label: `Παραγγελίες (${formatNumber(relatedOrders.length)})` }
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id as any)}
-                                        className={`py-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Modal Content */}
-                            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 custom-scrollbar relative">
-                                {activeTab === 'info' && (
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
-                                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                                            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><Phone size={16} className="text-purple-500" /> Στοιχεία Επικοινωνίας</h3>
-                                            <div className="space-y-4">
-                                                <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Υπεύθυνος</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.contact_person || '-'}</div></div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Τηλέφωνο</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.phone || '-'}</div></div>
-                                                    <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Ηλ. ταχυδρομείο</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.email || '-'}</div></div>
-                                                </div>
-                                                <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Διεύθυνση</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.address || '-'}</div></div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-fit">
-                                            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4"><FileText size={16} className="text-purple-500" /> Σημειώσεις</h3>
-                                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium min-h-[100px]">{selectedSupplier.notes || 'Καμία σημείωση.'}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'products' && (
-                                    <div className="space-y-6 max-w-6xl">
-                                        <div className="bg-white p-2 pl-4 rounded-full border border-slate-200 shadow-sm flex items-center gap-3 w-full md:w-96 mb-6">
-                                            <Search className="text-slate-400" size={18} />
-                                            <input className="flex-1 outline-none text-sm font-bold bg-transparent" placeholder="Αναζήτηση προϊόντος για σύνδεση..." value={productSearchTerm} onChange={e => setProductSearchTerm(e.target.value)} />
-                                        </div>
-                                        {productSearchTerm && availableProductsForLink.length > 0 && (
-                                            <div className="bg-white rounded-2xl border border-purple-100 shadow-xl p-3 space-y-1 mb-8">
-                                                <h4 className="text-xs font-bold text-slate-500 px-3 py-2 uppercase tracking-wider">Αποτελέσματα</h4>
-                                                {availableProductsForLink.map(p => (
-                                                    <div key={p.sku} className="flex justify-between items-center px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">{p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300" />}</div>
-                                                            <span className="font-bold text-slate-800">{p.sku}</span>
-                                                        </div>
-                                                        <button onClick={() => handleLinkProduct(p.sku)} className="text-xs bg-purple-50 text-purple-700 px-4 py-2 rounded-lg font-bold hover:bg-purple-100 transition-colors">Σύνδεση</button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                            {assignedProducts.map(p => (
-                                                <div key={p.sku} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group h-full hover:border-slate-300 transition-colors">
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
-                                                            {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-slate-300" />}
-                                                        </div>
-                                                        <button onClick={() => handleUnlinkProduct(p.sku)} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-all shrink-0 bg-white rounded-md"><X size={16} /></button>
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-black text-slate-800">{p.sku}</div>
-                                                        {p.supplier_sku && (
-                                                            <div className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 uppercase inline-block mt-1 truncate max-w-full">
-                                                                Ref: {p.supplier_sku}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="mt-3 pt-3 border-t border-slate-50 text-xs font-bold text-slate-500">
-                                                        Κόστος: {formatCurrency(p.active_price || p.supplier_cost || 0)}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {assignedProducts.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 font-medium">Δεν υπάρχουν συνδεδεμένα προϊόντα.</div>}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'materials' && (
-                                    <div className="space-y-6 max-w-6xl">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            {assignedMaterials.map(m => (
-                                                <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center gap-3 hover:border-slate-300 transition-colors">
-                                                    <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mb-1">
-                                                        <Box size={24} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-slate-800">{m.name}</div>
-                                                        <div className="text-xs font-bold text-slate-500 mt-1">{MATERIAL_TYPE_LABELS[m.type] || m.type}</div>
-                                                    </div>
-                                                    <div className="mt-2 pt-2 border-t border-slate-50 text-sm font-black text-slate-700 w-full">
-                                                        {formatCurrency(m.cost_per_unit)} / <span className="text-xs text-slate-400 font-bold uppercase">{m.unit}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {assignedMaterials.length === 0 && <div className="col-span-full text-center py-20 text-slate-400 font-medium">Κανένα συνδεδεμένο υλικό. (Ορίστε τον προμηθευτή από τη σελίδα Υλικών)</div>}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'orders' && (
-                                    <div className="space-y-6 max-w-5xl">
-                                        <button onClick={() => setIsCreatingOrder(true)} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-2xl text-slate-500 font-bold hover:border-slate-400 hover:text-slate-700 hover:bg-white transition-all flex items-center justify-center gap-2">
-                                            <Plus size={20} /> Νέα Εντολή Αγοράς
-                                        </button>
-                                        <div className="grid grid-cols-1 gap-4">
-                                            {relatedOrders.map(o => (
-                                                <div key={o.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 group hover:border-slate-300 transition-all">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${o.status === 'Pending' ? 'bg-amber-100 text-amber-600' : o.status === 'Received' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                            {getSupplierOrderStatusIcon(o.status, 20)}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-black text-slate-800 text-lg flex items-center gap-2 flex-wrap">
-                                                                #{o.id.slice(0, 6).toUpperCase()}
-                                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border tracking-wide ${getSupplierOrderStatusClasses(o.status)}`}>
-                                                                    {getSupplierOrderStatusLabel(o.status)}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-xs text-slate-500 font-bold mt-1">
-                                                                {new Date(o.created_at).toLocaleDateString('el-GR')} • {formatNumber(o.items.length)} είδη
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                                                        <button onClick={() => setOrderToPrint(o)} className="p-2 text-slate-400 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"><Printer size={18} /></button>
-                                                        <button onClick={() => setViewOrderId(viewOrderId === o.id ? null : o.id)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-colors">Λεπτομέρειες</button>
-                                                        {o.status === 'Pending' && (
-                                                            <button
-                                                                onClick={() => setEditingOrder(o)}
-                                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border border-indigo-100"
-                                                            >
-                                                                <Pencil size={14} /> Επεξεργασία
-                                                            </button>
-                                                        )}
-                                                        {o.status === 'Pending' && (
-                                                            <button onClick={() => handleReceiveOrder(o)} className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition-colors shadow-md">Παραλαβή</button>
-                                                        )}
-                                                        <button onClick={() => handleDeleteOrder(o.id)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors" title="Διαγραφή"><Trash2 size={18} /></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {relatedOrders.length === 0 && <div className="text-center text-slate-400 font-medium py-10">Δεν υπάρχουν παραγγελίες.</div>}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* View Order Details Overlay */}
-                                {viewOrderId && (
-                                    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in">
-                                        <div className="bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl relative animate-in zoom-in-95">
-                                            <button onClick={() => setViewOrderId(null)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={20} /></button>
-                                            <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><FileText size={28} className="text-purple-600" /> Λεπτομέρειες Εντολής</h3>
-                                            <div className="max-h-[50vh] overflow-y-auto custom-scrollbar border rounded-2xl border-slate-100 bg-slate-50/50">
-                                                <table className="w-full text-sm text-left">
-                                                    <thead className="bg-slate-100 text-slate-500 text-xs uppercase font-bold sticky top-0">
-                                                        <tr><th className="p-4">Είδος</th><th className="p-4">Τίτλος</th><th className="p-4">Πελάτης</th><th className="p-4 text-center">Ποσ.</th></tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100 pb-2">
-                                                        {relatedOrders.find(o => o.id === viewOrderId)?.items.map((item, i) => (
-                                                            <tr key={i} className="hover:bg-white transition-colors">
-                                                                <td className="p-4 font-black text-slate-800 text-xs tracking-wider">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</td>
-                                                                <td className="p-4 font-medium text-slate-700">{item.item_name}</td>
-                                                                <td className="p-4 text-sm text-slate-600">{item.customer_reference || '—'}</td>
-                                                                <td className="p-4 text-center font-mono font-bold text-slate-900">{formatNumber(item.quantity)}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Print Overlay */}
-                {orderToPrint && products && (
-                    <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-                        <div className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95">
-                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Printer size={18} /> Προεπισκόπηση Εκτύπωσης</h3>
-                                <button onClick={() => setOrderToPrint(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
-                            </div>
-                            <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center custom-scrollbar">
-                                <div className="scale-[0.8] origin-top bg-white shadow-lg">
-                                    <SupplierOrderPrintView order={orderToPrint} products={products} />
-                                </div>
-                            </div>
-                            <div className="p-4 border-t border-slate-100 flex justify-end gap-3 bg-white">
-                                <button
-                                    onClick={() => {
-                                        setSupplierOrderToPrint(orderToPrint);
-                                        setOrderToPrint(null);
-                                    }}
-                                    className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-black shadow-lg"
-                                >
-                                    Εκτύπωση
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Create / edit purchase order */}
-                {(isCreatingOrder || editingOrder) && selectedSupplier && (
-                    <DesktopPurchaseOrderBuilder
-                        supplier={selectedSupplier}
-                        initialOrder={editingOrder}
-                        onClose={() => {
-                            setIsCreatingOrder(false);
-                            setEditingOrder(null);
-                        }}
-                    />
-                )}
-                {receiptOrder && (
-                    <SupplierReceiptModal
-                        order={receiptOrder}
-                        onClose={() => setReceiptOrder(null)}
-                        onConfirm={confirmSupplierReceipt}
+                        title={supplierList.length === 0 ? 'Δεν υπάρχουν προμηθευτές ακόμη.' : 'Δεν βρέθηκαν προμηθευτές.'}
+                        hint={supplierList.length === 0 ? 'Πατήστε «Νέος Προμηθευτής» για να προσθέσετε τον πρώτο.' : 'Δοκιμάστε διαφορετική αναζήτηση ή φίλτρο.'}
+                        action={supplierList.length > 0 && (searchTerm || listFilter !== 'all') ? (
+                            <button type="button" onClick={() => { setSearchTerm(''); setListFilter('all'); }} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Καθαρισμός φίλτρων</button>
+                        ) : undefined}
                     />
                 )}
             </div>
+
+            {selectedSupplier && (
+                <SupplierDetailsModal
+                    supplier={selectedSupplier}
+                    stats={getSupplierStats(stats, selectedSupplier.id)}
+                    products={products || []}
+                    materials={materials || []}
+                    orders={orders.filter((order) => order.supplier_id === selectedSupplier.id)}
+                    suppliersById={suppliersById}
+                    initialTab={detailsTab}
+                    focusOrderId={focusOrderId}
+                    escapeDisabled={childOpen}
+                    onClose={() => setSelectedId(null)}
+                    onEdit={() => setFormInitial(selectedSupplier)}
+                    onDelete={() => handleDeleteSupplier(selectedSupplier)}
+                    onNewOrder={() => setBuilder({ supplier: selectedSupplier, order: null })}
+                    onEditOrder={(order) => setBuilder({ supplier: selectedSupplier, order })}
+                    onReceiveOrder={setReceiptOrder}
+                    onPrintOrder={setOrderToPrint}
+                    onDeleteOrder={handleDeleteOrder}
+                    onLinkProduct={handleLinkProduct}
+                    onUnlinkProduct={handleUnlinkProduct}
+                />
+            )}
+
+            {formInitial && (
+                <SupplierFormModal
+                    initial={formInitial}
+                    existingSuppliers={supplierList}
+                    onClose={() => setFormInitial(null)}
+                    onSave={handleSaveSupplier}
+                />
+            )}
+
+            {orderToPrint && (
+                <PrintPreview
+                    order={orderToPrint}
+                    onClose={() => setOrderToPrint(null)}
+                    onPrint={() => { setSupplierOrderToPrint(orderToPrint); setOrderToPrint(null); }}
+                />
+            )}
+
+            {builder && (
+                <DesktopPurchaseOrderBuilder
+                    supplier={builder.supplier}
+                    initialOrder={builder.order}
+                    onClose={() => setBuilder(null)}
+                />
+            )}
+            {receiptOrder && (
+                <SupplierReceiptModal
+                    order={receiptOrder}
+                    onClose={() => setReceiptOrder(null)}
+                    onConfirm={confirmSupplierReceipt}
+                />
+            )}
         </div>
     );
 }

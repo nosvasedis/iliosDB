@@ -192,7 +192,6 @@ export interface GlobalSettings {
   retail_barcode_width_mm: number; // New
   retail_barcode_height_mm: number; // New
   last_calc_silver_price: number; // Historical anchor for last mass update
-  local_image_storage?: boolean;
   pricing_rules?: Partial<PricingRules>;
 }
 

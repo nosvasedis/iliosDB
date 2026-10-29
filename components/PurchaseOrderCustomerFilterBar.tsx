@@ -59,6 +59,13 @@ export default function PurchaseOrderCustomerFilterBar({
                 <span className={`font-black text-slate-800 uppercase tracking-wide min-w-0 ${isDesktop ? 'text-xs' : 'text-[10px]'}`}>
                     Φίλτρο πελατών (μαζική «Όλα»)
                 </span>
+                <span
+                    className={`ml-auto shrink-0 rounded-full px-2 py-0.5 font-black ${isDesktop ? 'text-[10px]' : 'text-[9px]'} ${
+                        tab === 'all' ? 'bg-slate-100 text-slate-500' : 'bg-slate-900 text-white'
+                    }`}
+                >
+                    {tab === 'all' ? 'Όλοι οι πελάτες' : `${TAB_LABELS[tab].replace('…', '')} · ${pickedKeys.size}`}
+                </span>
             </button>
             <p className={`text-slate-500 font-bold mt-1 ${isDesktop ? 'text-[11px] pl-7' : 'text-[10px] pl-6'}`}>
                 Το κουμπί «Όλα» χρησιμοποιεί μόνο αυτό το φίλτρο. Ανά SKU, χρησιμοποιήστε τα τικ στην ανάλυση.

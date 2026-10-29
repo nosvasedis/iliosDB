@@ -1,12 +1,13 @@
 import { useRestartDraft } from '../hooks/useRestartBlocker';
-import { requestAppRestart } from '../lib/appUpdates';
+import { APP_BUILD_ID, requestAppRestart } from '../lib/appUpdates';
 import { formatNumber } from '../utils/numberFormat';
 import PricingRulesSettings from './PricingRulesSettings';
 
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare } from 'lucide-react';
-import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Key, Download, Database, RefreshCw, Trash2, HardDrive, Upload, Tag, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare, Coins, MonitorSmartphone, Wrench, ChevronRight, Eye, EyeOff, WifiOff, Cloud, Server, Unplug, Printer, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api, getLocalImageStoragePreference, setLocalImageStoragePreference, getConnectionSummary, clearConfiguration } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import AuditLogsModal from './AuditLogsModal';
 import BackupProgressModal from './BackupProgressModal';
@@ -22,12 +23,16 @@ import DesktopPageHeader from './DesktopPageHeader';
 import { useSettings } from '../hooks/api/useSettings';
 import { compressImage } from '../utils/imageHelpers';
 import IliosLoader from './ui/IliosLoader';
+import { BELOW_TAB_CONTAINER, belowTabButton } from './ui/designTokens';
+import { DEFAULT_PRICING_RULES, validatePricingRules } from '../utils/pricingRules';
+import { LABEL_PRINT_STORAGE_KEYS, LabelPrintSettings, readLabelPrintSettings } from '../features/printing';
 
 const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
 const IMAGE_OPTIMIZATION_SKIPPED_KEY = 'ilios:image-optimization-skipped:v1';
 const IMAGE_OPTIMIZATION_HISTORY_KEY = 'ilios:image-optimization-history:v1';
 const IMAGE_OPTIMIZATION_MIN_BYTES = 450 * 1024;
 const IMAGE_OPTIMIZATION_MAX_EDGE = 1100;
+const SETTINGS_TAB_KEY = 'ilios:settings-tab:v1';
 const waitForBrowserIdle = () => new Promise(resolve => window.setTimeout(resolve, 150));
 
 type ImageOptimizationHistoryEntry = {
@@ -41,21 +46,246 @@ type ImageOptimizationHistoryEntry = {
     savedMb: string;
 };
 
+type SettingsTab = 'pricing' | 'labels' | 'device' | 'data' | 'maintenance';
+
+const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; icon: LucideIcon }> = [
+    { id: 'pricing', label: 'Τιμολόγηση', icon: Coins },
+    { id: 'labels', label: 'Ετικέτες', icon: Tag },
+    { id: 'device', label: 'Συσκευή & Σύνδεση', icon: MonitorSmartphone },
+    { id: 'data', label: 'Δεδομένα & Backup', icon: Database },
+    { id: 'maintenance', label: 'Συντήρηση', icon: Wrench },
+];
+
+/** Preferences that live on this device only (not in global_settings). */
+type DevicePrefs = { localImages: boolean; labels: LabelPrintSettings };
+
+const readDevicePrefs = (): DevicePrefs => ({ localImages: getLocalImageStoragePreference(), labels: readLabelPrintSettings() });
+
+const writeDevicePrefs = (prefs: DevicePrefs) => {
+    setLocalImageStoragePreference(prefs.localImages);
+    localStorage.setItem(LABEL_PRINT_STORAGE_KEYS.format, prefs.labels.format);
+    localStorage.setItem(LABEL_PRINT_STORAGE_KEYS.showPrice, String(prefs.labels.showPrice));
+    localStorage.setItem(LABEL_PRINT_STORAGE_KEYS.priceTier, prefs.labels.priceTier);
+    localStorage.setItem(LABEL_PRINT_STORAGE_KEYS.codifiedPrice, String(prefs.labels.codifiedPrice));
+};
+
+const readStoredTab = (): SettingsTab => {
+    try {
+        const stored = localStorage.getItem(SETTINGS_TAB_KEY);
+        return SETTINGS_TABS.some(tab => tab.id === stored) ? stored as SettingsTab : 'pricing';
+    } catch {
+        return 'pricing';
+    }
+};
+
+const isPositive = (value: number) => Number.isFinite(value) && value > 0;
+const numberInputValue = (value: number) => (Number.isFinite(value) ? value : '');
+const parseNumberInput = (raw: string) => (raw === '' ? NaN : Number(raw));
+
+// ──────────────────────────────────────────────
+//  Building blocks
+// ──────────────────────────────────────────────
+
+type Tone = 'amber' | 'purple' | 'emerald' | 'blue' | 'indigo' | 'rose' | 'slate';
+
+const TONE_TILE: Record<Tone, string> = {
+    amber: 'bg-amber-100 text-amber-700',
+    purple: 'bg-purple-100 text-purple-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
+    blue: 'bg-blue-100 text-blue-700',
+    indigo: 'bg-indigo-100 text-indigo-700',
+    rose: 'bg-rose-100 text-rose-700',
+    slate: 'bg-slate-100 text-slate-700',
+};
+
+function SettingsCard({ icon: Icon, tone, title, description, actions, children, className = '' }: {
+    icon: LucideIcon; tone: Tone; title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string;
+}) {
+    return (
+        <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm ${className}`}>
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/70 p-5 md:px-6">
+                <div className="flex items-start gap-3">
+                    <div className={`rounded-2xl p-3 ${TONE_TILE[tone]}`}><Icon size={20} /></div>
+                    <div>
+                        <h2 className="text-base font-bold text-slate-800">{title}</h2>
+                        {description ? <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p> : null}
+                    </div>
+                </div>
+                {actions}
+            </div>
+            <div className="p-5 md:p-6">{children}</div>
+        </section>
+    );
+}
+
+function NumberField({ label, value, unit, onChange, step = '0.01', min = 0, invalid, hint }: {
+    label: string; value: number; unit: string; onChange: (value: number) => void; step?: string; min?: number; invalid?: boolean; hint?: string;
+}) {
+    return (
+        <label className="block text-xs font-semibold text-slate-600">
+            {label}
+            <span className={`mt-2 flex items-center gap-2 rounded-xl border bg-white px-3 transition focus-within:ring-2 ${invalid ? 'border-red-300 focus-within:border-red-400 focus-within:ring-red-100' : 'border-slate-200 focus-within:border-amber-400 focus-within:ring-amber-100'}`}>
+                <input
+                    type="number" min={min} step={step}
+                    value={numberInputValue(value)}
+                    onChange={event => onChange(parseNumberInput(event.target.value))}
+                    aria-invalid={invalid || undefined}
+                    className="min-w-0 w-full bg-transparent py-3 font-mono text-base font-semibold text-slate-900 outline-none"
+                />
+                <span className="shrink-0 text-xs font-medium text-slate-400">{unit}</span>
+            </span>
+            {hint ? <span className="mt-1.5 block text-[11px] font-medium text-slate-400">{hint}</span> : null}
+        </label>
+    );
+}
+
+function ToggleRow({ icon: Icon, title, description, checked, onChange, disabled }: {
+    icon?: LucideIcon; title: string; description?: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean;
+}) {
+    return (
+        <label className={`flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition ${disabled ? 'opacity-50' : 'cursor-pointer hover:border-slate-300'}`}>
+            <span className="flex min-w-0 items-start gap-3">
+                {Icon ? <Icon size={18} className="mt-0.5 shrink-0 text-slate-400" /> : null}
+                <span className="min-w-0">
+                    <span className="block text-sm font-bold text-slate-800">{title}</span>
+                    {description ? <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{description}</span> : null}
+                </span>
+            </span>
+            <span className="relative inline-flex shrink-0">
+                <input type="checkbox" role="switch" className="peer sr-only" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
+                <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-300 peer-focus-visible:ring-offset-2" />
+                <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+            </span>
+        </label>
+    );
+}
+
+function Segmented<T extends string>({ label, value, options, onChange, disabled }: {
+    label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void; disabled?: boolean;
+}) {
+    return (
+        <div className={disabled ? 'opacity-50' : ''}>
+            <p className="text-xs font-semibold text-slate-600">{label}</p>
+            <div role="radiogroup" aria-label={label} className="mt-2 inline-flex w-full rounded-xl border border-slate-200/60 bg-slate-100 p-1">
+                {options.map(option => (
+                    <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={value === option.value}
+                        disabled={disabled}
+                        onClick={() => onChange(option.value)}
+                        className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 ${value === option.value ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ActionTile({ icon: Icon, tone, title, description, onClick, disabled, busy, trailing }: {
+    icon: LucideIcon; tone: Tone; title: string; description: string; onClick: () => void; disabled?: boolean; busy?: boolean; trailing?: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="group flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-transform group-hover:scale-105 ${TONE_TILE[tone]}`}>
+                {busy ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-slate-800">{title}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{description}</span>
+            </span>
+            {trailing}
+            <ChevronRight size={18} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" />
+        </button>
+    );
+}
+
+function InfoRow({ label, value, ok }: { label: string; value: React.ReactNode; ok?: boolean }) {
+    return (
+        <div className="flex items-center justify-between gap-4 py-3">
+            <span className="text-sm font-medium text-slate-500">{label}</span>
+            <span className={`flex min-w-0 items-center gap-1.5 truncate text-sm font-bold ${ok === false ? 'text-amber-700' : 'text-slate-800'}`}>
+                {ok === true ? <CheckCircle2 size={15} className="shrink-0 text-emerald-500" /> : ok === false ? <AlertCircle size={15} className="shrink-0 text-amber-500" /> : null}
+                <span className="truncate">{value}</span>
+            </span>
+        </div>
+    );
+}
+
+/** Scaled outline of a label so width/height edits are easy to sanity-check. */
+function LabelPreview({ width, height, tone }: { width: number; height: number; tone: 'purple' | 'amber' }) {
+    const valid = isPositive(width) && isPositive(height);
+    const scale = valid ? Math.min(220 / width, 96 / height) : 0;
+    return (
+        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[radial-gradient(rgba(15,23,42,0.06)_1px,transparent_1px)] [background-size:12px_12px]">
+            {valid ? (
+                <div
+                    className={`flex items-center justify-center rounded-md border-2 bg-white font-mono text-[10px] font-bold shadow-sm ${tone === 'purple' ? 'border-purple-300 text-purple-700' : 'border-amber-300 text-amber-700'}`}
+                    style={{ width: Math.max(24, width * scale), height: Math.max(14, height * scale) }}
+                >
+                    {formatDecimal(width, 1)} × {formatDecimal(height, 1)}
+                </div>
+            ) : (
+                <span className="text-xs font-semibold text-red-500">Μη έγκυρες διαστάσεις</span>
+            )}
+        </div>
+    );
+}
+
 export default function SettingsPage() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: settingsData, isLoading: loadingSettings } = useSettings();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const connection = useMemo(() => getConnectionSummary(), []);
+
+    const [activeTab, setActiveTabState] = useState<SettingsTab>(readStoredTab);
+    const setActiveTab = (tab: SettingsTab) => {
+        setActiveTabState(tab);
+        try { localStorage.setItem(SETTINGS_TAB_KEY, tab); } catch { /* per-device convenience only */ }
+    };
 
     const [settings, setSettings] = useState<GlobalSettings | null>(null);
     const [localGeminiKey, setLocalGeminiKey] = useState(GEMINI_API_KEY);
+    const [savedGeminiKey, setSavedGeminiKey] = useState(GEMINI_API_KEY);
+    const [showGeminiKey, setShowGeminiKey] = useState(false);
+    const [devicePrefs, setDevicePrefs] = useState<DevicePrefs>(readDevicePrefs);
+    const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+    const [pendingSyncCount, setPendingSyncCount] = useState<number | null>(null);
 
     useEffect(() => {
         if (settingsData && !settingsRestart.dirty) {
-            settingsRestart.markSaved({ settings: settingsData, key: localGeminiKey });
+            settingsRestart.markSaved({ settings: settingsData, key: localGeminiKey, device: devicePrefs });
             setSettings(settingsData);
         }
     }, [settingsData]);
+
+    const refreshPendingSyncCount = useCallback(async () => {
+        try {
+            setPendingSyncCount(await offlineDb.getQueueCount());
+        } catch {
+            setPendingSyncCount(null);
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshPendingSyncCount();
+        const update = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+        return () => {
+            window.removeEventListener('online', update);
+            window.removeEventListener('offline', update);
+        };
+    }, [refreshPendingSyncCount]);
 
     const [isLoadingPrice, setIsLoadingPrice] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -88,7 +318,7 @@ export default function SettingsPage() {
     const [backupManagerMode, setBackupManagerMode] = useState<'export' | 'restore'>('export');
     const [pendingRestoreData, setPendingRestoreData] = useState<unknown>(null);
     const [pendingEncryptedBackup, setPendingEncryptedBackup] = useState<Uint8Array | null>(null);
-    const settingsRestart = useRestartDraft('Ρυθμίσεις', { settings: settings, key: localGeminiKey }, { enabled: !!settings, busy: isSaving || isMaintenanceAction || isExporting });
+    const settingsRestart = useRestartDraft('Ρυθμίσεις', { settings: settings, key: localGeminiKey, device: devicePrefs }, { enabled: !!settings, busy: isSaving || isMaintenanceAction || isExporting });
 
     const filteredImageOptimizationPreview = useMemo(() => {
         const filter = imageOptimizationFilter.trim().toUpperCase();
@@ -101,6 +331,22 @@ export default function SettingsPage() {
     if (loadingSettings || !settings) {
         return <IliosLoader variant="section" detail="Ρυθμίσεις" />;
     }
+
+    const pricingError = validatePricingRules({ ...DEFAULT_PRICING_RULES, ...settings.pricing_rules });
+    const silverError = isPositive(settings.silver_price_gram) ? null : 'Η τιμή ασημιού πρέπει να είναι μεγαλύτερη του 0.';
+    const labelsError = [settings.barcode_width_mm, settings.barcode_height_mm, settings.retail_barcode_width_mm, settings.retail_barcode_height_mm].every(isPositive)
+        ? null
+        : 'Οι διαστάσεις ετικετών πρέπει να είναι μεγαλύτερες του 0.';
+    const tabErrors: Partial<Record<SettingsTab, string | null>> = { pricing: silverError || pricingError, labels: labelsError };
+    const isDirty = settingsRestart.dirty;
+
+    const updateSettings = (patch: Partial<GlobalSettings>) => setSettings({ ...settings, ...patch });
+    const updateLabelPrefs = (patch: Partial<LabelPrintSettings>) => setDevicePrefs(prev => ({ ...prev, labels: { ...prev.labels, ...patch } }));
+
+    const silverBase = settings.last_calc_silver_price;
+    const silverDelta = isPositive(settings.silver_price_gram) && isPositive(silverBase)
+        ? (settings.silver_price_gram - silverBase) / silverBase
+        : null;
 
     const fetchLivePrice = async () => {
         setIsLoadingPrice(true);
@@ -116,13 +362,13 @@ export default function SettingsPage() {
             }
 
             const finalPrice = parseFloat(data.price.toFixed(3));
-            const newSettings = { ...settings, silver_price_gram: finalPrice };
+            // Persist only the price on top of the stored settings, so unsaved edits elsewhere on the page stay a draft.
+            const stored = { ...(settingsData ?? settings), silver_price_gram: finalPrice };
+            await api.updateSettings(stored);
 
-            // Update via API for full persistence
-            await api.updateSettings(newSettings);
-
-            setSettings(newSettings);
-            queryClient.setQueryData(['settings'], newSettings);
+            setSettings(prev => prev ? { ...prev, silver_price_gram: finalPrice } : prev);
+            settingsRestart.markSaved((saved: { settings: GlobalSettings }) => ({ ...saved, settings: { ...saved.settings, silver_price_gram: finalPrice } }));
+            queryClient.setQueryData(['settings'], stored);
             showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
         } catch (error: any) {
             showToast(`Σφάλμα: ${error.message}`, 'error');
@@ -132,24 +378,54 @@ export default function SettingsPage() {
     };
 
     const handleSaveSettings = async () => {
+        const invalidTab = SETTINGS_TABS.find(tab => tabErrors[tab.id]);
+        if (invalidTab) {
+            setActiveTab(invalidTab.id);
+            showToast(tabErrors[invalidTab.id]!, 'error');
+            return;
+        }
         setIsSaving(true);
         try {
             // Κεντρική αποθήκευση για τοπικά και απομακρυσμένα δεδομένα.
             await api.updateSettings(settings);
-            settingsRestart.markSaved();
+            writeDevicePrefs(devicePrefs);
 
-            if (localGeminiKey !== GEMINI_API_KEY) {
+            const keyChanged = localGeminiKey !== savedGeminiKey;
+            if (keyChanged) {
                 localStorage.setItem('VITE_GEMINI_API_KEY', localGeminiKey);
+                setSavedGeminiKey(localGeminiKey);
+            }
+            settingsRestart.markSaved();
+            await queryClient.invalidateQueries({ queryKey: ['settings'] });
+
+            if (keyChanged) {
                 requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
                 return;
             }
-            await queryClient.invalidateQueries({ queryKey: ['settings'] });
             showToast("Οι ρυθμίσεις αποθηκεύτηκαν.", 'success');
-        } catch (err) {
-            showToast("Σφάλμα κατά την αποθήκευση.", 'error');
+        } catch (err: any) {
+            showToast(err?.message ? `Σφάλμα κατά την αποθήκευση: ${err.message}` : "Σφάλμα κατά την αποθήκευση.", 'error');
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleDiscardChanges = () => {
+        const restored = { settings: settingsData ?? settings, key: savedGeminiKey, device: readDevicePrefs() };
+        setSettings(restored.settings);
+        setLocalGeminiKey(restored.key);
+        setDevicePrefs(restored.device);
+        settingsRestart.markSaved(restored);
+    };
+
+    const handleResetConnection = async () => {
+        const yes = await confirm({
+            title: 'Αλλαγή σύνδεσης βάσης',
+            message: 'Θα διαγραφούν από αυτή τη συσκευή τα στοιχεία σύνδεσης (βάση, κλειδί εικόνων, κλειδί Gemini) και μετά την επανεκκίνηση θα εμφανιστεί η οθόνη αρχικής ρύθμισης. Τα δεδομένα στη βάση δεν επηρεάζονται.',
+            isDestructive: true,
+            confirmText: 'Αλλαγή σύνδεσης'
+        });
+        if (yes) clearConfiguration();
     };
 
     const runExport = async (options: BackupExportOptions, format: BackupExportKind, password?: string) => {
@@ -325,6 +601,7 @@ export default function SettingsPage() {
             showToast("Σφάλμα συγχρονισμού.", "error");
         } finally {
             setIsMaintenanceAction(false);
+            void refreshPendingSyncCount();
         }
     };
 
@@ -338,13 +615,8 @@ export default function SettingsPage() {
         if (yes) {
             setIsMaintenanceAction(true);
             try {
-                const db = await new Promise<IDBDatabase>((resolve, reject) => {
-                    const req = indexedDB.open('IliosERP_Offline_Mirror');
-                    req.onsuccess = () => resolve(req.result);
-                    req.onerror = () => reject(req.error);
-                });
-                const tx = db.transaction('sync_queue', 'readwrite');
-                tx.objectStore('sync_queue').clear();
+                await offlineDb.clearSyncQueue();
+                await refreshPendingSyncCount();
                 showToast("Η ουρά εκκαθαρίστηκε. Ο συγχρονισμός θα σταματήσει.", "success");
                 requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } catch (err) {
@@ -541,7 +813,7 @@ export default function SettingsPage() {
         const yes = await confirm({
             title: 'Βελτιστοποίηση εικόνων προϊόντων',
             message: isSelectedScope
-                ? `Θα βελτιστοποιηθούν οι ${selectedUrls.size} επιλεγμένες εικόνες${forceSelectedOptimization ? ', ακόμη κι αν δεν ξεπερνούν τα αυτόματα όρια' : ' με βάση τα αυτόματα όρια'}. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`
+                ? `Θα βελτιστοποιηθούν οι ${formatNumber(selectedUrls.size)} επιλεγμένες εικόνες${forceSelectedOptimization ? ', ακόμη κι αν δεν ξεπερνούν τα αυτόματα όρια' : ' με βάση τα αυτόματα όρια'}. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`
                 : `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${formatNumber(IMAGE_OPTIMIZATION_BATCH_SIZE)}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`,
             confirmText: 'Βελτιστοποίηση'
         });
@@ -638,164 +910,270 @@ export default function SettingsPage() {
         }
     };
 
+    const renderPricingTab = () => (
+        <div className="space-y-6">
+            <SettingsCard
+                icon={TrendingUp}
+                tone="amber"
+                title="Τιμή ασημιού"
+                description="Η τρέχουσα τιμή ανά γραμμάριο που χρησιμοποιείται σε όλους τους υπολογισμούς κόστους."
+                actions={(
+                    <button type="button" onClick={fetchLivePrice} disabled={isLoadingPrice || !isOnline} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50">
+                        {isLoadingPrice ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Λήψη ζωντανής τιμής
+                    </button>
+                )}
+            >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-end">
+                    <NumberField
+                        label="Τιμή ασημιού"
+                        unit="€/g"
+                        step="0.001"
+                        value={settings.silver_price_gram}
+                        invalid={!!silverError}
+                        onChange={value => updateSettings({ silver_price_gram: value })}
+                    />
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="font-medium text-slate-500">Βάση τελευταίου επανυπολογισμού</span>
+                            <span className="font-mono font-bold text-slate-800">{formatDecimal(silverBase, 3)} €/g</span>
+                        </div>
+                        {silverDelta !== null && (
+                            <p className={`mt-1 text-xs font-bold ${Math.abs(silverDelta) < 0.0005 ? 'text-slate-500' : silverDelta > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                {Math.abs(silverDelta) < 0.0005 ? 'Ίδια με τη βάση του καταλόγου.' : `${silverDelta > 0 ? '+' : ''}${formatDecimal(silverDelta * 100, 1)}% σε σχέση με τη βάση. Ενημερώστε τις τιμές από την «Τιμολόγηση».`}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                {silverError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{silverError}</p>}
+            </SettingsCard>
+
+            <PricingRulesSettings settings={settings} onChange={setSettings} />
+        </div>
+    );
+
+    const renderLabelsTab = () => (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <SettingsCard icon={Tag} tone="amber" title="Ετικέτα χονδρικής" description="Διαστάσεις της ετικέτας για κοσμήματα χονδρικής.">
+                    <div className="space-y-4">
+                        <LabelPreview width={settings.barcode_width_mm} height={settings.barcode_height_mm} tone="amber" />
+                        <div className="grid grid-cols-2 gap-3">
+                            <NumberField label="Πλάτος" unit="mm" step="0.5" value={settings.barcode_width_mm} invalid={!isPositive(settings.barcode_width_mm)} onChange={value => updateSettings({ barcode_width_mm: value })} />
+                            <NumberField label="Ύψος" unit="mm" step="0.5" value={settings.barcode_height_mm} invalid={!isPositive(settings.barcode_height_mm)} onChange={value => updateSettings({ barcode_height_mm: value })} />
+                        </div>
+                    </div>
+                </SettingsCard>
+                <SettingsCard icon={Tag} tone="purple" title="Ετικέτα λιανικής" description="Διαστάσεις της ετικέτας για πώληση λιανικής.">
+                    <div className="space-y-4">
+                        <LabelPreview width={settings.retail_barcode_width_mm} height={settings.retail_barcode_height_mm} tone="purple" />
+                        <div className="grid grid-cols-2 gap-3">
+                            <NumberField label="Πλάτος" unit="mm" step="0.5" value={settings.retail_barcode_width_mm} invalid={!isPositive(settings.retail_barcode_width_mm)} onChange={value => updateSettings({ retail_barcode_width_mm: value })} />
+                            <NumberField label="Ύψος" unit="mm" step="0.5" value={settings.retail_barcode_height_mm} invalid={!isPositive(settings.retail_barcode_height_mm)} onChange={value => updateSettings({ retail_barcode_height_mm: value })} />
+                        </div>
+                    </div>
+                </SettingsCard>
+            </div>
+            {labelsError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{labelsError}</p>}
+
+            <SettingsCard
+                icon={Printer}
+                tone="slate"
+                title="Προεπιλογές εκτύπωσης"
+                description="Οι αρχικές επιλογές στην Εκτύπωση ετικετών και στο Μητρώο. Ισχύουν για αυτή τη συσκευή και αλλάζουν και από την ίδια την εκτύπωση."
+            >
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <Segmented
+                        label="Τύπος ετικέτας"
+                        value={devicePrefs.labels.format}
+                        options={[{ value: 'standard', label: 'Χονδρική' }, { value: 'retail', label: 'Λιανική' }]}
+                        onChange={format => updateLabelPrefs({ format })}
+                    />
+                    <Segmented
+                        label="Τιμή που τυπώνεται"
+                        value={devicePrefs.labels.priceTier}
+                        disabled={!devicePrefs.labels.showPrice}
+                        options={[{ value: 'wholesale', label: 'Χονδρικής' }, { value: 'retail', label: 'Λιανικής' }]}
+                        onChange={priceTier => updateLabelPrefs({ priceTier })}
+                    />
+                    <ToggleRow title="Εμφάνιση τιμής" description="Τυπώνει την τιμή πάνω στην ετικέτα." checked={devicePrefs.labels.showPrice} onChange={showPrice => updateLabelPrefs({ showPrice })} />
+                    <ToggleRow title="Κωδικοποιημένη τιμή" description="Τυπώνει κωδικό αντί για ποσό, π.χ. 32,20 € → 132209." checked={devicePrefs.labels.codifiedPrice} disabled={!devicePrefs.labels.showPrice} onChange={codifiedPrice => updateLabelPrefs({ codifiedPrice })} />
+                </div>
+            </SettingsCard>
+        </div>
+    );
+
+    const renderDeviceTab = () => (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <SettingsCard icon={connection.localMode ? Server : Cloud} tone="blue" title="Σύνδεση" description="Πώς είναι συνδεδεμένη αυτή η συσκευή.">
+                <div className="divide-y divide-slate-100">
+                    <InfoRow label="Λειτουργία" value={connection.localMode ? 'Τοπική (χωρίς cloud)' : 'Cloud'} />
+                    {!connection.localMode && <InfoRow label="Βάση δεδομένων" value={connection.databaseHost || '—'} ok={!!connection.databaseHost} />}
+                    <InfoRow label="Κατάσταση δικτύου" value={isOnline ? 'Online' : 'Offline'} ok={isOnline} />
+                    <InfoRow label="Αποθήκευση εικόνων" value={connection.workerKeyConfigured ? 'Ρυθμισμένη' : 'Χωρίς κλειδί'} ok={connection.workerKeyConfigured} />
+                    <InfoRow label="Εκκρεμείς αλλαγές" value={pendingSyncCount === null ? '—' : formatNumber(pendingSyncCount)} ok={pendingSyncCount === null ? undefined : pendingSyncCount === 0} />
+                    <InfoRow label="Έκδοση εφαρμογής" value={<span className="font-mono">{APP_BUILD_ID}</span>} />
+                </div>
+            </SettingsCard>
+
+            <div className="space-y-6">
+                <SettingsCard icon={Key} tone="indigo" title="Κλειδί Gemini API" description="Χρησιμοποιείται για τις λειτουργίες AI (περιγραφές, ανάλυση εικόνων).">
+                    {connection.geminiKeyFromEnv ? (
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Το κλειδί ορίζεται από τη διαμόρφωση της εγκατάστασης και δεν αλλάζει από εδώ.</p>
+                    ) : (
+                        <>
+                            <span className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 transition focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-100">
+                                <input
+                                    type={showGeminiKey ? 'text' : 'password'}
+                                    value={localGeminiKey}
+                                    onChange={(e) => setLocalGeminiKey(e.target.value)}
+                                    placeholder="AIzaSy..."
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                    aria-label="Κλειδί Gemini API"
+                                    className="min-w-0 w-full bg-transparent py-3 font-mono text-sm text-slate-900 outline-none"
+                                />
+                                <button type="button" onClick={() => setShowGeminiKey(v => !v)} aria-label={showGeminiKey ? 'Απόκρυψη κλειδιού' : 'Εμφάνιση κλειδιού'} className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+                                    {showGeminiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </span>
+                            <p className="mt-2 text-xs text-slate-500">Αποθηκεύεται μόνο σε αυτή τη συσκευή. Η αλλαγή ισχύει μετά από επανεκκίνηση.</p>
+                        </>
+                    )}
+                </SettingsCard>
+
+                <SettingsCard icon={HardDrive} tone="emerald" title="Εικόνες σε αυτή τη συσκευή">
+                    <ToggleRow
+                        title="Τοπική αποθήκευση νέων εικόνων"
+                        description="Οι νέες φωτογραφίες προϊόντων αποθηκεύονται στη βάση (WebP) αντί για το cloud, μειώνοντας τις κλήσεις στο διαδίκτυο. Χωρίς σύνδεση αυτό γίνεται πάντα."
+                        checked={devicePrefs.localImages}
+                        onChange={localImages => setDevicePrefs(prev => ({ ...prev, localImages }))}
+                    />
+                </SettingsCard>
+            </div>
+        </div>
+    );
+
+    const renderDataTab = () => (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <SettingsCard icon={Database} tone="blue" title="Αντίγραφα ασφαλείας & εξαγωγή" description="Πλήρες backup για επαναφορά ή πακέτο μεταφοράς για άλλο ERP.">
+                <div className="space-y-3">
+                    <ActionTile
+                        icon={Download}
+                        tone="blue"
+                        title="Δημιουργία backup / εξαγωγή"
+                        description="Επιλογή περιεχομένου, κρυπτογράφηση, ERP & PRISMA Win."
+                        busy={isExporting}
+                        disabled={isExporting || isMaintenanceAction}
+                        onClick={() => { setBackupManagerMode('export'); setIsBackupManagerOpen(true); }}
+                    />
+                    <ActionTile
+                        icon={Upload}
+                        tone="indigo"
+                        title="Επαναφορά από backup"
+                        description="Από αρχείο .iliosbackup / .json ή από αυτόματο backup."
+                        disabled={isMaintenanceAction || isExporting}
+                        onClick={() => fileInputRef.current?.click()}
+                    />
+                </div>
+            </SettingsCard>
+
+            <SettingsCard icon={Clock} tone="slate" title="Ιστορικό ενεργειών" description="Ποιος άλλαξε τι και πότε στο σύστημα.">
+                <ActionTile icon={Clock} tone="slate" title="Άνοιγμα ιστορικού" description="Αναζήτηση στο αρχείο καταγραφής ενεργειών." onClick={() => setIsAuditLogsOpen(true)} />
+            </SettingsCard>
+        </div>
+    );
+
+    const renderMaintenanceTab = () => (
+        <div className="space-y-6">
+            <SettingsCard icon={Wrench} tone="emerald" title="Εργαλεία συντήρησης" description="Ασφαλείς ενέργειες που μπορείτε να εκτελέσετε οποτεδήποτε.">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <ActionTile
+                        icon={isOnline ? RefreshCw : WifiOff}
+                        tone="emerald"
+                        title="Συγχρονισμός εκκρεμοτήτων"
+                        description={isOnline ? 'Ανεβάζει τώρα τις αλλαγές που περιμένουν στην ουρά.' : 'Απαιτείται σύνδεση στο διαδίκτυο.'}
+                        busy={isMaintenanceAction}
+                        disabled={isMaintenanceAction || !isOnline}
+                        onClick={handleForceSync}
+                        trailing={pendingSyncCount ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">{formatNumber(pendingSyncCount)}</span> : null}
+                    />
+                    <ActionTile
+                        icon={ImageIcon}
+                        tone="emerald"
+                        title="Βελτιστοποίηση εικόνων προϊόντων"
+                        description="Συμπίεση βαριών εικόνων στο cloud χωρίς αλλαγή στα προϊόντα."
+                        disabled={isMaintenanceAction || !isOnline}
+                        onClick={openImageOptimizationModal}
+                    />
+                </div>
+            </SettingsCard>
+
+            <section className="overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-sm">
+                <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50/60 p-5 md:px-6">
+                    <div className="rounded-2xl bg-rose-100 p-3 text-rose-700"><AlertTriangle size={20} /></div>
+                    <div>
+                        <h2 className="text-base font-bold text-slate-800">Ζώνη κινδύνου</h2>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-500">Χρησιμοποιήστε τις μόνο αν κάτι έχει κολλήσει. Ζητείται επιβεβαίωση πριν από κάθε ενέργεια.</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 p-5 md:grid-cols-3 md:p-6">
+                    <ActionTile icon={AlertTriangle} tone="amber" title="Εκκαθάριση ουράς" description="Διαγράφει εκκρεμείς αλλαγές που δεν έχουν ανέβει." disabled={isMaintenanceAction} onClick={handleClearSyncQueue} />
+                    <ActionTile icon={Trash2} tone="rose" title="Εκκαθάριση cache" description="Σβήνει όλα τα τοπικά δεδομένα αυτής της συσκευής." disabled={isMaintenanceAction} onClick={handleWipeCache} />
+                    <ActionTile icon={Unplug} tone="rose" title="Αλλαγή σύνδεσης" description="Αφαιρεί τα στοιχεία σύνδεσης από αυτή τη συσκευή." disabled={isMaintenanceAction || isSaving} onClick={handleResetConnection} />
+                </div>
+            </section>
+        </div>
+    );
+
+    const tabContent: Record<SettingsTab, () => React.ReactNode> = {
+        pricing: renderPricingTab,
+        labels: renderLabelsTab,
+        device: renderDeviceTab,
+        data: renderDataTab,
+        maintenance: renderMaintenanceTab,
+    };
+
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-20">
+        <div className="max-w-5xl mx-auto space-y-6 pb-8">
             <DesktopPageHeader
                 icon={SettingsIcon}
                 title="Ρυθμίσεις Συστήματος"
                 subtitle="Παράμετροι τιμολόγησης και διαχείριση δεδομένων."
+                below={(
+                    <div role="tablist" aria-label="Ενότητες ρυθμίσεων" className={BELOW_TAB_CONTAINER}>
+                        {SETTINGS_TABS.map(({ id, label, icon: TabIcon }) => (
+                            <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setActiveTab(id)} className={belowTabButton(activeTab === id)}>
+                                <TabIcon size={16} /> {label}
+                                {tabErrors[id] ? <span className="h-2 w-2 rounded-full bg-red-500" aria-label="Χρειάζεται διόρθωση" /> : null}
+                            </button>
+                        ))}
+                    </div>
+                )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                    <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-                        <TrendingUp className="text-amber-500" size={20} />
-                        Οικονομικά Στοιχεία
-                    </h2>
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Τιμή Ασημιού (€/g)</label>
-                            <div className="flex gap-2 relative">
-                                <input
-                                    type="number" step="0.01"
-                                    value={settings.silver_price_gram}
-                                    onChange={(e) => setSettings({ ...settings, silver_price_gram: parseFloat(e.target.value) })}
-                                    className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-mono font-bold text-lg"
-                                />
-                                <button onClick={fetchLivePrice} disabled={isLoadingPrice} className="px-4 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-200 transition-colors">
-                                    {isLoadingPrice ? <Loader2 className="animate-spin" size={20} /> : <TrendingUp size={20} />}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                    <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
-                        <Database className="text-blue-500" size={20} />
-                        Αντίγραφα Ασφαλείας & Εξαγωγή
-                    </h2>
-                    <div className="space-y-4">
-                        <button
-                            onClick={() => { setBackupManagerMode('export'); setIsBackupManagerOpen(true); }}
-                            disabled={isExporting}
-                            className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-blue-200 hover:bg-blue-50 transition-all group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-110 transition-transform"><Database size={20} /></div>
-                                <div className="text-left">
-                                    <span className="block font-bold text-slate-700">Διαχείριση Backup & Εξαγωγής</span>
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">JSON • CSV • Επιλογή περιεχομένου</span>
-                                </div>
-                            </div>
-                            {isExporting ? <Loader2 size={18} className="animate-spin text-blue-500" /> : <Download size={18} className="text-slate-300 group-hover:text-blue-500" />}
-                        </button>
-                    </div>
-                </div>
+            <div role="tabpanel" aria-label={SETTINGS_TABS.find(tab => tab.id === activeTab)?.label}>
+                {tabContent[activeTab]()}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                    <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
-                        <Tag className="text-purple-500" size={20} />
-                        Διαστάσεις Ετικετών (mm)
-                    </h2>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Χονδρική</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Φάρδος</label>
-                                    <input type="number" value={settings.barcode_width_mm} onChange={(e) => setSettings({ ...settings, barcode_width_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ύψος</label>
-                                    <input type="number" value={settings.barcode_height_mm} onChange={(e) => setSettings({ ...settings, barcode_height_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="col-span-2 border-t border-slate-100 pt-3">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 block">Λιανική</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Φάρδος</label>
-                                    <input type="number" value={settings.retail_barcode_width_mm} onChange={(e) => setSettings({ ...settings, retail_barcode_width_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ύψος</label>
-                                    <input type="number" value={settings.retail_barcode_height_mm} onChange={(e) => setSettings({ ...settings, retail_barcode_height_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
-                                </div>
-                            </div>
+            <input type="file" accept=".json,.iliosbackup" className="hidden" ref={fileInputRef} onChange={handleRestoreFilePick} />
+
+            {isDirty && (
+                <div className="sticky bottom-6 z-30 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-3 pl-5 text-white shadow-2xl">
+                        <span className="flex items-center gap-2 text-sm font-bold">
+                            <span className="h-2 w-2 rounded-full bg-amber-400" /> Υπάρχουν μη αποθηκευμένες αλλαγές
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button type="button" onClick={handleDiscardChanges} disabled={isSaving} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50">
+                                <RotateCcw size={16} /> Απόρριψη
+                            </button>
+                            <button type="button" onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 px-5 py-2.5 text-sm font-bold text-[#060b00] shadow-lg transition hover:brightness-105 disabled:opacity-50">
+                                {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Αποθήκευση
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                    <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
-                        <Shield className="text-emerald-500" size={20} />
-                        Τοπική Ρύθμιση & Συντήρηση
-                    </h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                                <Key size={14} className="text-slate-400" /> Κλειδί Gemini API
-                            </label>
-                            <input type="password" value={localGeminiKey} onChange={(e) => setLocalGeminiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 border border-slate-200 rounded-xl bg-white text-slate-900 font-mono text-sm" />
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                            <div className="flex flex-col">
-                                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                    <HardDrive size={16} className="text-emerald-500" /> Τοπική Αποθήκευση Εικόνων
-                                </label>
-                                <span className="text-xs text-slate-500 mt-1">Αποθηκεύει τις μικρογραφίες στη Βάση (Base64 WebP) μειώνοντας τις κλήσεις στο διαδίκτυο.</span>
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={settings.local_image_storage || false}
-                                onChange={(e) => setSettings({ ...settings, local_image_storage: e.target.checked })}
-                                className="w-5 h-5 accent-emerald-500 rounded cursor-pointer shrink-0"
-                            />
-                        </div>
-
-                        <button onClick={handleForceSync} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors font-bold text-slate-700 text-sm mt-4">
-                            <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''} /> Συγχρονισμός Εκκρεμοτήτων
-                        </button>
-
-                        <button onClick={openImageOptimizationModal} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
-                            <ImageIcon size={16} /> Βελτιστοποίηση Εικόνων Προϊόντων
-                        </button>
-
-                        <button onClick={handleClearSyncQueue} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-bold text-amber-700 text-sm">
-                            <AlertTriangle size={16} /> Εκκαθάριση Ουράς
-                        </button>
-
-                        <input type="file" accept=".json,.iliosbackup" className="hidden" ref={fileInputRef} onChange={handleRestoreFilePick} />
-                        <button onClick={() => fileInputRef.current?.click()} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors font-bold text-blue-700 text-sm">
-                            <Upload size={16} /> Επαναφορά από Backup
-                        </button>
-
-                        <button onClick={handleWipeCache} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-colors font-bold text-rose-600 text-sm">
-                            <Trash2 size={16} /> Εκκαθάριση Cache
-                        </button>
-
-                        <button onClick={() => setIsAuditLogsOpen(true)} className="w-full flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-colors font-bold text-indigo-700 text-sm">
-                            <Clock size={16} /> Ιστορικό Ενεργειών
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <PricingRulesSettings settings={settings} onChange={setSettings} />
-
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-8 pointer-events-none">
-                <div className="flex justify-end pointer-events-auto">
-                    <button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 text-base bg-slate-900 text-white px-10 py-4 rounded-2xl hover:bg-black font-bold disabled:opacity-50 shadow-2xl transition-all hover:-translate-y-1 active:scale-95">
-                        {isSaving ? <Loader2 className="animate-spin" size={22} /> : <Save size={22} />}
-                        Αποθήκευση Όλων των Ρυθμίσεων
-                    </button>
-                </div>
-            </div>
+            )}
 
             {isImageOptimizationOpen && (
                 <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -825,7 +1203,7 @@ export default function SettingsPage() {
                                         <Search size={16} /> Φόρτωση λίστας
                                     </button>
                                     <button onClick={() => handleOptimizeProductImages('selected')} disabled={isMaintenanceAction || selectedImageUrls.size === 0} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50">
-                                        <CheckSquare size={16} /> Επιλεγμένες ({selectedImageUrls.size})
+                                        <CheckSquare size={16} /> Επιλεγμένες ({formatNumber(selectedImageUrls.size)})
                                     </button>
                                 </div>
 

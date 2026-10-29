@@ -119,6 +119,18 @@ export const AUTH_KEY_SECRET = envWorkerKey || getLocalStorageItem('VITE_WORKER_
 export const GEMINI_API_KEY = envGeminiKey || getLocalStorageItem('VITE_GEMINI_API_KEY') || '';
 
 export const isLocalMode = getLocalStorageItem('ILIOS_LOCAL_MODE') === 'true';
+
+/** Read-only view of how this device is connected, for the Settings page. */
+export const getConnectionSummary = () => {
+    let databaseHost = '';
+    try { databaseHost = SUPABASE_URL ? new URL(SUPABASE_URL).host : ''; } catch { databaseHost = SUPABASE_URL; }
+    return {
+        localMode: isLocalMode,
+        databaseHost,
+        workerKeyConfigured: !!AUTH_KEY_SECRET,
+        geminiKeyFromEnv: !!envGeminiKey,
+    };
+};
 export const isConfigured = (!!SUPABASE_URL && !!SUPABASE_KEY) || isLocalMode;
 
 const rawSupabase = createClient(
@@ -1144,15 +1156,18 @@ const buildCatalogImageFileName = (sku: string, suffix: string): string => {
     return `${safeSku.toUpperCase()}_${suffix}`;
 };
 
+// Per-device preference: global_settings has no column for it, so it lives with the other local config.
+export const LOCAL_IMAGE_STORAGE_KEY = 'ILIOS_LOCAL_IMAGE_STORAGE';
+export const getLocalImageStoragePreference = (): boolean => getLocalStorageItem(LOCAL_IMAGE_STORAGE_KEY) === 'true';
+export const setLocalImageStoragePreference = (enabled: boolean): void => {
+    if (typeof localStorage === 'undefined') return;
+    if (enabled) localStorage.setItem(LOCAL_IMAGE_STORAGE_KEY, 'true');
+    else localStorage.removeItem(LOCAL_IMAGE_STORAGE_KEY);
+};
+
 export const shouldStoreImageLocally = async (): Promise<boolean> => {
     if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) return true;
-    try {
-        const settings = await api.getSettings();
-        return !!settings?.local_image_storage;
-    } catch (e) {
-        console.warn("Could not fetch settings for image upload, defaulting to standard behavior", e);
-        return false;
-    }
+    return getLocalImageStoragePreference();
 };
 
 export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
@@ -2087,7 +2102,9 @@ const apiMethods = {
             const validationError = validatePricingRules(settings.pricing_rules);
             if (validationError) throw new Error(validationError);
         }
-        const payload = { ...settings, id: 1 };
+        const payload: Partial<GlobalSettings> & { id: number; local_image_storage?: unknown } = { ...settings, id: 1 };
+        // Legacy device-only field; the table has no such column.
+        delete payload.local_image_storage;
         const cached = await offlineDb.getTable('global_settings');
         const pricingChanged = !pricingRulesMatch(cached?.[0]?.pricing_rules, settings.pricing_rules);
         if (pricingChanged && !isLocalMode) {
