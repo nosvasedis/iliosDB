@@ -1,4 +1,4 @@
-import { Gender, ProductionType } from '../../types';
+import { Gender, ProductLinkMembership, ProductionType } from '../../types';
 import { R2_PUBLIC_URL } from '../../lib/supabase';
 import { resolveProductImageUrl } from '../products/mappers';
 import {
@@ -51,6 +51,16 @@ const parseVariant = (value: unknown, index: number): SellerCatalogVariant => {
   };
 };
 
+/** Lenient: an unknown shape yields no sets instead of rejecting the whole snapshot. */
+const parseLinkGroups = (value: unknown): ProductLinkMembership[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.group_id !== 'string' || entry.group_id.length === 0) return [];
+    const position = Number(entry.position);
+    return [{ group_id: entry.group_id, position: Number.isFinite(position) ? position : 0 }];
+  });
+};
+
 const parseProduct = (value: unknown, index: number): SellerCatalogProduct => {
   if (!isRecord(value)) throw new Error(`Invalid seller catalogue product at index ${index}`);
   if (!Array.isArray(value.collection_ids) || !Array.isArray(value.variants)) {
@@ -73,6 +83,7 @@ const parseProduct = (value: unknown, index: number): SellerCatalogProduct => {
     collections: value.collection_ids.map((id, collectionIndex) =>
       finiteNumber(id, `products[${index}].collection_ids[${collectionIndex}]`)),
     variants: value.variants.map(parseVariant),
+    link_groups: parseLinkGroups(value.link_groups),
   };
 };
 

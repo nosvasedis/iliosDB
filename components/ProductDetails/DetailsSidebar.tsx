@@ -4,6 +4,7 @@ import { Camera, ImageIcon, Loader2, PieChart, ScrollText, Trash2 } from 'lucide
 import { ACCEPTED_IMAGE_INPUT_TYPES } from '../../utils/imageHelpers';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { DetailsFact, DetailsIconButton } from './detailsUi';
+import ImageZoomButton from '../products/ImageZoomButton';
 
 export interface CostComposition {
     silver: number;
@@ -28,6 +29,7 @@ export default function DetailsSidebar({
     cost,
     scopeLabel,
     facts,
+    onZoomImage,
 }: {
     sku: string;
     imageUrl?: string | null;
@@ -39,6 +41,7 @@ export default function DetailsSidebar({
     cost: number;
     scopeLabel: string;
     facts: { label: string; value: React.ReactNode }[];
+    onZoomImage?: () => void;
 }) {
     const compositionTotal = COMPOSITION_PARTS.reduce((sum, part) => sum + Math.max(0, composition[part.key] || 0), 0);
 
@@ -60,6 +63,9 @@ export default function DetailsSidebar({
                         </div>
                     )}
                     <input type="file" aria-label="Αλλαγή φωτογραφίας SKU" className="sr-only" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
+                    {imageUrl && onZoomImage && !isUploadingImage && (
+                        <ImageZoomButton onZoom={onZoomImage} className="absolute bottom-2 right-2" />
+                    )}
                 </label>
                 <div className="flex items-center gap-1 px-1 pb-0.5 pt-1.5">
                     <label className={`inline-flex h-8 flex-1 cursor-pointer select-none items-center justify-center gap-1.5 rounded-lg text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${isUploadingImage ? 'pointer-events-none opacity-50' : ''}`}>

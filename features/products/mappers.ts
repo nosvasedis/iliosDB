@@ -2,6 +2,7 @@ import {
   Gender,
   PlatingType,
   Product,
+  ProductLinkMembership,
   ProductVariant,
   ProductionType,
 } from '../../types';
@@ -47,6 +48,12 @@ type RawMoldRow = {
 type RawCollectionRow = {
   product_sku: string;
   collection_id: number;
+};
+
+type RawLinkRow = {
+  group_id: string;
+  product_sku: string;
+  position?: number | null;
 };
 
 type RawProductRow = {
@@ -100,6 +107,7 @@ export interface ProductTableRelations {
   recipes?: RawRecipeRow[];
   molds?: RawMoldRow[];
   collections?: RawCollectionRow[];
+  links?: RawLinkRow[];
   stock?: RawStockRow[];
 }
 
@@ -149,6 +157,16 @@ const buildCollectionsMap = (rows: RawCollectionRow[] = []) => {
   return collectionsMap;
 };
 
+export const buildLinkGroupsMap = (rows: RawLinkRow[] = []) => {
+  const linksMap = new Map<string, ProductLinkMembership[]>();
+  rows.forEach((row) => {
+    if (!row?.group_id || !row.product_sku) return;
+    if (!linksMap.has(row.product_sku)) linksMap.set(row.product_sku, []);
+    linksMap.get(row.product_sku)!.push({ group_id: String(row.group_id), position: Number(row.position || 0) });
+  });
+  return linksMap;
+};
+
 export function resolveProductImageUrl(url: string | null | undefined, publicImageBaseUrl: string): string | null {
   if (!url) return null;
   if (url.startsWith('data:')) return url;
@@ -176,6 +194,7 @@ function mapProductRow(
     recipeMap: Map<string, RawRecipeRow[]>;
     moldsMap: Map<string, RawMoldRow[]>;
     collectionsMap: Map<string, number[]>;
+    linksMap: Map<string, ProductLinkMembership[]>;
   },
   options: { includeRecipes: boolean; includeMolds: boolean; includeCreatedAt: boolean },
 ): Product {
@@ -294,6 +313,7 @@ function mapProductRow(
     variants,
     recipe: recipes,
     collections: maps.collectionsMap.get(row.sku) || [],
+    link_groups: maps.linksMap.get(row.sku) || [],
     labor: {
       casting_cost: Number(row.labor_casting || 0),
       setter_cost: Number(row.labor_setter || 0),
@@ -334,6 +354,7 @@ export function mapProductsWithRelations(
     recipeMap: buildRecipeMap(relations.recipes),
     moldsMap: buildMoldsMap(relations.molds),
     collectionsMap: buildCollectionsMap(relations.collections),
+    linksMap: buildLinkGroupsMap(relations.links),
   };
   return rows.map((row) => mapProductRow(row, context, maps, { includeRecipes: true, includeMolds: true, includeCreatedAt: true }));
 }
@@ -349,6 +370,7 @@ export function mapCatalogProductsWithRelations(
     recipeMap: buildRecipeMap(relations.recipes),
     moldsMap: buildMoldsMap(relations.molds),
     collectionsMap: buildCollectionsMap(relations.collections),
+    linksMap: buildLinkGroupsMap(relations.links),
   };
   return rows.map((row) => mapProductRow(row, context, maps, { includeRecipes: false, includeMolds: false, includeCreatedAt: true }));
 }

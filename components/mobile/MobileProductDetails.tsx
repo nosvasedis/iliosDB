@@ -29,7 +29,12 @@ import {
   useInventoryAvailability,
 } from '../../hooks/api/useInventory';
 import { useAuth } from '../AuthContext';
-import { SizeChips } from '../inventory/ui/StockControls';
+import { SizeChips } from '../inventory/ui/StockControls';import ImageZoomLightbox from '../products/ImageZoomLightbox';
+import LinkedProductsStrip from '../products/LinkedProductsStrip';
+import { useProductQuickViews } from '../products/useProductQuickViews';
+import { productToFanItem } from '../products/productFanItems';
+import { getLinkedSkus, useProductLinkIndex } from '../../features/products/productLinks';
+
 
 interface Props {
   product: Product;
@@ -92,6 +97,21 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const { data: allProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
   const availabilityQuery = useInventoryAvailability();
+
+  // Συνδεδεμένα Προϊόντα: a set-mate opens as another card stacked on top (back returns here).
+  const [linkedView, setLinkedView] = useState<Product | null>(null);
+  const linkIndex = useProductLinkIndex(allProducts);
+  const productsBySku = useMemo(() => new Map((allProducts || []).map((item) => [item.sku, item])), [allProducts]);
+  const linkedProducts = useMemo(
+      () => getLinkedSkus(product.sku, linkIndex).map((sku) => productsBySku.get(sku)).filter((item): item is Product => !!item),
+      [product.sku, linkIndex, productsBySku],
+  );
+  const quickViews = useProductQuickViews<Product>({
+      index: linkIndex,
+      productsBySku,
+      toFanItem: productToFanItem,
+      onOpenProduct: setLinkedView,
+  });
 
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; sizeInfo: string; qty: number; reason: string } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; sizeInfo: string; qty: number; reason: string } | null>(null);
@@ -617,6 +637,23 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
           {activeTab === 'info' && (
               <div className="space-y-3 animate-in fade-in slide-in-from-left-2">
+                  {linkedProducts.length > 0 && (
+                      <LinkedProductsStrip
+                          title="Συνδεδεμένα Προϊόντα"
+                          onOpenFan={(anchor) => quickViews.openLinks(product.sku, anchor)}
+                          items={linkedProducts.map((item) => {
+                              const available = item.available_qty ?? item.stock_qty ?? 0;
+                              return {
+                                  sku: item.sku,
+                                  suffix: '',
+                                  imageUrl: item.image_url,
+                                  gender: item.gender,
+                                  aside: <span className={available > 0 ? 'text-emerald-600' : 'text-slate-400'}>{available > 0 ? `${formatNumber(available)} διαθ.` : 'Χωρίς στοκ'}</span>,
+                                  onSelect: () => setLinkedView(item),
+                              };
+                          })}
+                      />
+                  )}
                   <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Box size={12}/> Συνταγή / Υλικά</h4>
@@ -706,11 +743,20 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           <div className="h-12"></div>
       </div>
 
-      {showFullImage && product.image_url && (
-          <div className="fixed inset-0 z-[120] bg-black flex items-center justify-center p-0 animate-in fade-in duration-200" onClick={() => setShowFullImage(false)}>
-              <img src={product.image_url} className="max-w-full max-h-full object-contain" alt="Full" />
-              <button className="absolute top-4 right-4 text-white p-2 bg-white/20 rounded-full"><X size={24}/></button>
-          </div>
+      {showFullImage && (localImageUrl || product.image_url) && (
+          <ImageZoomLightbox imageUrl={(localImageUrl || product.image_url)!} sku={product.sku} onClose={() => setShowFullImage(false)} />
+      )}
+
+      {quickViews.element}
+
+      {linkedView && (
+          <MobileProductDetails
+              key={linkedView.sku}
+              product={linkedView}
+              onClose={() => setLinkedView(null)}
+              warehouses={warehouses}
+              setPrintItems={setPrintItems}
+          />
       )}
 
       {showImageMenu && localImageUrl && (

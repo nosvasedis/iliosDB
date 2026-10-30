@@ -111,6 +111,12 @@ export interface Collection {
   description?: string;
 }
 
+/** Membership of a master SKU in a curated set (Συνδεδεμένα Προϊόντα). Rows sharing group_id form one set. */
+export interface ProductLinkMembership {
+  group_id: string;
+  position: number;
+}
+
 export interface Product {
   /** Calculated from the complete server-side recipe; never recompute from a reduced catalogue. */
   resolved_invoice_weight?: { value: number | null; source: 'automatic' | 'manual' | 'missing'; missingItems: string[] };
@@ -165,6 +171,8 @@ export interface Product {
 
   // Organization
   collections?: number[];
+  /** Sets this master SKU belongs to (Συνδεδεμένα Προϊόντα). */
+  link_groups?: ProductLinkMembership[];
 }
 
 export interface PricingRules {

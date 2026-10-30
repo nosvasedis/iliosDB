@@ -9,6 +9,11 @@ import { FolderKanban, Plus, Trash2, Search, X, ChevronRight, Check } from 'luci
 import { useUI } from '../UIProvider';
 import MobileProductDetails from './MobileProductDetails';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
+import LinkedProductsBadge from '../products/LinkedProductsBadge';
+import LinkedProductsStrip from '../products/LinkedProductsStrip';
+import { useProductQuickViews } from '../products/useProductQuickViews';
+import { productToFanItem } from '../products/productFanItems';
+import { getLinkedSkus, useProductLinkIndex } from '../../features/products/productLinks';
 
 export default function MobileCollections() {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
@@ -70,6 +75,38 @@ export default function MobileCollections() {
         if (!products || !search) return [];
         return products.filter(p => p.sku.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase())).slice(0, 20);
     }, [products, search]);
+
+    // Συνδεδεμένα Προϊόντα: set-mates of the collection's products that are missing from it.
+    const linkIndex = useProductLinkIndex(products);
+    const productsBySku = useMemo(() => new Map((products || []).map((product) => [product.sku, product])), [products]);
+    const quickViews = useProductQuickViews<Product>({
+        index: linkIndex,
+        productsBySku,
+        toFanItem: productToFanItem,
+        onOpenProduct: setViewProduct,
+    });
+    const missingSetMates = useMemo(() => {
+        const inCollection = new Set(collectionProducts.map((product) => product.sku));
+        const missing = new Map<string, Product>();
+        collectionProducts.forEach((product) => {
+            getLinkedSkus(product.sku, linkIndex).forEach((mate) => {
+                const mateProduct = productsBySku.get(mate);
+                if (mateProduct && !mateProduct.is_component && !inCollection.has(mate)) missing.set(mate, mateProduct);
+            });
+        });
+        return [...missing.values()];
+    }, [collectionProducts, linkIndex, productsBySku]);
+
+    const addSetMates = async (skus: string[]) => {
+        if (!selectedCollection || skus.length === 0) return;
+        try {
+            await api.addProductsToCollection(skus.map((sku) => ({ product_sku: sku, collection_id: selectedCollection.id })));
+            await invalidateProductsAndCatalog(queryClient);
+            showToast(skus.length === 1 ? `Προστέθηκε ο ${skus[0]}.` : `Προστέθηκαν ${formatNumber(skus.length)} κωδικοί.`, 'success');
+        } catch (e) {
+            showToast('Σφάλμα προσθήκης των συνδεδεμένων προϊόντων.', 'error');
+        }
+    };
 
     if (view === 'detail' && selectedCollection) {
         return (
@@ -141,6 +178,31 @@ export default function MobileCollections() {
                         )}
                     </div>
 
+                    {missingSetMates.length > 0 && (
+                        <LinkedProductsStrip
+                            compact
+                            title={`Λείπουν από τα σετ (${formatNumber(missingSetMates.length)})`}
+                            items={missingSetMates.map((product) => ({
+                                sku: product.sku,
+                                suffix: '',
+                                imageUrl: product.image_url,
+                                gender: product.gender,
+                                onSelect: () => setViewProduct(product),
+                                onAdd: () => addSetMates([product.sku]),
+                                addTitle: `Προσθήκη ${product.sku} στη συλλογή`,
+                            }))}
+                            action={(
+                                <button
+                                    type="button"
+                                    onClick={() => addSetMates(missingSetMates.map((product) => product.sku))}
+                                    className="shrink-0 rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-black text-white active:scale-95"
+                                >
+                                    Προσθήκη όλων
+                                </button>
+                            )}
+                        />
+                    )}
+
                     <div className="space-y-2">
                         <h3 className="text-xs font-bold text-slate-400 uppercase ml-1">Περιεχομενα ({formatNumber(collectionProducts.length)})</h3>
                         {collectionProducts.map(p => (
@@ -149,11 +211,27 @@ export default function MobileCollections() {
                                 onClick={() => setViewProduct(p)}
                                 className="relative bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 active:scale-[0.98] transition-transform"
                             >
-                                <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0">
+                                <button
+                                    type="button"
+                                    aria-label={p.image_url ? `Μεγέθυνση φωτογραφίας ${p.sku}` : undefined}
+                                    disabled={!p.image_url}
+                                    onClick={(e) => { e.stopPropagation(); quickViews.zoomProduct(p.sku, p.image_url, p.category); }}
+                                    className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0"
+                                >
                                     {p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}
-                                </div>
+                                </button>
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-slate-800 text-sm">{p.sku}</div>
+                                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
+                                        {p.sku}
+                                        {linkIndex.bySku.has(p.sku) && (
+                                            <LinkedProductsBadge
+                                                tone="light"
+                                                size="sm"
+                                                linkedSkus={getLinkedSkus(p.sku, linkIndex)}
+                                                onOpen={(anchor) => quickViews.openLinks(p.sku, anchor)}
+                                            />
+                                        )}
+                                    </div>
                                     <div className="text-[10px] text-slate-500">{p.category}</div>
                                 </div>
                                 <button 
@@ -168,9 +246,12 @@ export default function MobileCollections() {
                     </div>
                 </div>
 
+                {quickViews.element}
+
                 {viewProduct && warehouses && (
                     <MobileProductDetails 
                         product={viewProduct} 
+                        key={viewProduct.sku}
                         onClose={() => setViewProduct(null)}
                         warehouses={warehouses}
                     />

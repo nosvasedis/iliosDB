@@ -40,6 +40,11 @@ import {
     type RegistrySortMode,
 } from '../../features/products';
 import IliosLoader from '../ui/IliosLoader';
+import ImageZoomButton from '../products/ImageZoomButton';
+import LinkedProductsBadge from '../products/LinkedProductsBadge';
+import { useProductQuickViews } from '../products/useProductQuickViews';
+import { productToFanItem } from '../products/productFanItems';
+import { getLinkedSkus, useProductLinkIndex } from '../../features/products/productLinks';
 
 interface Props {
   products: Product[];
@@ -106,7 +111,13 @@ const stoneFilters = [
     { label: 'Χωρίς Πέτρες', value: 'without' },
 ];
 
-const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+const RegistryCard: React.FC<{
+    product: Product;
+    onClick: () => void;
+    linkedSkus?: string[];
+    onOpenLinks?: (product: Product, anchor: HTMLElement) => void;
+    onZoom?: (product: Product) => void;
+}> = ({ product, onClick, linkedSkus, onOpenLinks, onZoom }) => {
     const [variantIndex, setVariantIndex] = useState(0);
 
     const variants = useMemo(() => {
@@ -167,6 +178,14 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
                         <Layers size={10} /> {formatNumber(variants.length)}
                     </div>
                 )}
+
+                {linkedSkus && linkedSkus.length > 0 && onOpenLinks && (
+                    <LinkedProductsBadge size="sm" className="absolute left-2 top-2" linkedSkus={linkedSkus} onOpen={(anchor) => onOpenLinks(product, anchor)} />
+                )}
+
+                {product.image_url && onZoom && (
+                    <ImageZoomButton size="sm" className="absolute bottom-2 right-2" onZoom={() => onZoom(product)} />
+                )}
             </div>
 
             <div className="mt-auto">
@@ -222,6 +241,14 @@ function countActiveRegistryFilters(params: {
 export default function MobileRegistry({ products, onProductSelect }: Props) {
     const { data: materials } = useMaterials();
     const { data: collections } = useCollections();
+    const linkIndex = useProductLinkIndex(products);
+    const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+    const quickViews = useProductQuickViews<Product>({
+        index: linkIndex,
+        productsBySku,
+        toFanItem: productToFanItem,
+        onOpenProduct: (product) => onProductSelect(product),
+    });
 
     const [search, setSearch] = useState('');
     const deferredSearch = useDeferredValue(search.trim());
@@ -413,6 +440,9 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                             key={p.sku}
                             product={p}
                             onClick={() => onProductSelect(p)}
+                            linkedSkus={linkIndex.bySku.has(p.sku) ? getLinkedSkus(p.sku, linkIndex) : undefined}
+                            onOpenLinks={(product, anchor) => quickViews.openLinks(product.sku, anchor)}
+                            onZoom={(product) => quickViews.zoomProduct(product.sku, product.image_url, product.category)}
                         />
                     ))}
                 </div>
@@ -434,6 +464,8 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                 )}
             </div>
             </div>
+
+            {quickViews.element}
 
             {showScanner && (
                 <BarcodeScanner

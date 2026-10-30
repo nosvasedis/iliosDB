@@ -3,7 +3,7 @@ import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
-import { Search, Layers, Database, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight, Plus, ScanLine, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Search, Layers, Database, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight, Plus, ScanLine, SlidersHorizontal, Sparkles, Link2 } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
@@ -39,6 +39,11 @@ import {
     type RegistrySortMode,
 } from '../features/products';
 import EmptyState from './ui/EmptyState';
+import ImageZoomButton from './products/ImageZoomButton';
+import LinkedProductsBadge from './products/LinkedProductsBadge';
+import { useProductQuickViews } from './products/useProductQuickViews';
+import { productToFanItem } from './products/productFanItems';
+import { getLinkedSkus, useProductLinkIndex } from '../features/products/productLinks';
 import { consumeRegistrySku } from '../utils/registryHandoff';
 
 interface Props {
@@ -270,6 +275,24 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         return map;
     }, [materials]);
 
+    // Συνδεδεμένα Προϊόντα: one stable array per SKU so memoised cards only re-render when their set changes.
+    const linkIndex = useProductLinkIndex(products);
+    const linkedSkusBySku = useMemo(() => {
+        const map = new Map<string, string[]>();
+        linkIndex.bySku.forEach((_groups, sku) => map.set(sku, getLinkedSkus(sku, linkIndex)));
+        return map;
+    }, [linkIndex]);
+    const quickViews = useProductQuickViews<Product>({
+        index: linkIndex,
+        productsBySku: productsMap,
+        toFanItem: productToFanItem,
+        onOpenProduct: handleProductSelect,
+    });
+    const { openLinks, zoomProduct } = quickViews;
+    const handleOpenLinks = useCallback((product: Product, anchor: HTMLElement) => openLinks(product.sku, anchor), [openLinks]);
+    const handleZoomImage = useCallback((product: Product) => zoomProduct(product.sku, product.image_url, product.category), [zoomProduct]);
+    const [linkedOnly, setLinkedOnly] = useState(false);
+
     const baseProducts = useMemo(() => {
         if (!products) return [];
         return products.filter(p => showStxOnly ? p.is_component : !p.is_component);
@@ -296,7 +319,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     }, [searchableProducts, filterGender]);
 
     const filteredProducts = useMemo(() => {
-        return filterRegistryProducts(searchableProducts, {
+        const result = filterRegistryProducts(searchableProducts, {
             category: filterCategory,
             gender: filterGender,
             searchTerm: deferredSearchTerm,
@@ -306,7 +329,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             collection: subFilters.collection,
             sortBy,
         });
-    }, [searchableProducts, deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy]);
+        return linkedOnly ? result.filter((product) => linkIndex.bySku.has(product.sku)) : result;
+    }, [searchableProducts, deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy, linkedOnly, linkIndex]);
 
     // Pagination state for table mode
     const [tablePage, setTablePage] = useState(0);
@@ -351,7 +375,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     useEffect(() => {
         setTablePage(0);
         setGridPage(0);
-    }, [deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy, showStxOnly, viewMode]);
+    }, [deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy, showStxOnly, viewMode, linkedOnly]);
 
     const pagedProducts = useMemo(() => {
         const start = gridPage * GRID_PAGE_SIZE;
@@ -629,10 +653,12 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     if (subFilters.plating !== 'all') activeFilterChips.push({ key: 'plating', label: platingFilters.find(f => f.value === subFilters.plating)?.label || subFilters.plating, clear: () => setSubFilters(p => ({ ...p, plating: 'all' })) });
     if (subFilters.productionType !== 'all') activeFilterChips.push({ key: 'productionType', label: subFilters.productionType === 'InHouse' ? 'Ιδιοπαραγωγή' : 'Εισαγωγή', clear: () => setSubFilters(p => ({ ...p, productionType: 'all' })) });
     if (subFilters.collection !== 'all') activeFilterChips.push({ key: 'collection', label: collections.find(c => String(c.id) === subFilters.collection)?.name || 'Συλλογή', clear: () => setSubFilters(p => ({ ...p, collection: 'all' })) });
+    if (linkedOnly) activeFilterChips.push({ key: 'linked', label: 'Σε σετ', clear: () => setLinkedOnly(false) });
     const clearAllFilters = () => {
         setFilterGender('All');
         setFilterCategory('All');
         setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+        setLinkedOnly(false);
     };
 
     const segmentBase = 'relative flex items-center justify-center gap-2 rounded-[10px] text-sm font-bold transition-all duration-200';
@@ -800,6 +826,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                         materialsMap={materialsMap}
                                         onSelectProduct={handleProductSelect}
                                         isSelected={selectedSkus.has(product.sku)}
+                                        linkedSkus={linkedSkusBySku.get(product.sku)}
+                                        onOpenLinks={handleOpenLinks}
+                                        onZoomImage={handleZoomImage}
                                     />
                                 </div>
                             ))}
@@ -833,7 +862,10 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.variantSku); }} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSelected ? 'text-emerald-600' : ''}`}>
                                                     <CheckSquare size={20} className={isSelected ? 'fill-emerald-100' : ''} />
                                                 </button>
-                                                <div className={`h-12 w-12 rounded-lg shrink-0 cursor-pointer flex items-center justify-center ${isFirstInTeam ? 'bg-slate-100 overflow-hidden' : ''}`} onClick={() => handleProductSelect(item.product)}>
+                                                <div className={`group relative h-12 w-12 rounded-lg shrink-0 cursor-pointer flex items-center justify-center ${isFirstInTeam ? 'bg-slate-100 overflow-hidden' : ''}`} onClick={() => handleProductSelect(item.product)}>
+                                                    {isFirstInTeam && item.image && (
+                                                        <ImageZoomButton size="sm" onZoom={() => handleZoomImage(item.product)} className="absolute inset-0 m-auto" />
+                                                    )}
                                                     {isFirstInTeam ? (
                                                         item.image ? <img src={item.image} alt={item.variantSku} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>
                                                     ) : (
@@ -843,6 +875,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => handleProductSelect(item.product)}>
                                                     <div className="font-black text-slate-800 text-sm truncate flex items-center gap-2">
                                                         <SkuColorizedText sku={item.variantSku} gender={item.product.gender} />
+                                                        {isFirstInTeam && linkedSkusBySku.has(item.masterSku) && (
+                                                            <LinkedProductsBadge
+                                                                tone="light"
+                                                                size="sm"
+                                                                linkedSkus={linkedSkusBySku.get(item.masterSku)!}
+                                                                onOpen={(anchor) => handleOpenLinks(item.product, anchor)}
+                                                            />
+                                                        )}
                                                     </div>
                                                     <div className="text-xs text-slate-500 truncate flex items-center gap-2">
                                                         {isFirstInTeam && (
@@ -1023,6 +1063,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
             {selectedProduct && (
                 <ProductDetails
+                    key={selectedProduct.sku}
                     product={selectedProduct}
                     initialVariantSuffix={selectedVariantSuffix}
                     allProducts={products}
@@ -1036,6 +1077,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     collections={collections}
                     allMolds={molds}
                     viewMode="registry"
+                    onOpenProduct={handleProductSelect}
                     onDuplicate={(prod) => {
                         setProductToDuplicate(prod);
                         setSelectedProduct(null);
@@ -1044,6 +1086,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     }}
                 />
             )}
+
+            {quickViews.element}
 
             {showScanner && <BarcodeScanner products={products} onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
 
@@ -1238,6 +1282,17 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 {f.icon} {f.label}
                                             </button>
                                         ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Σετ ── */}
+                            {!showStxOnly && (
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><Link2 size={14} /> Συνδεδεμένα Προϊόντα</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        <SubFilterButton label="Όλα" value="all" activeValue={linkedOnly ? 'linked' : 'all'} onClick={() => setLinkedOnly(false)} />
+                                        <SubFilterButton label={`Σε σετ (${formatNumber(linkIndex.bySku.size)})`} value="linked" activeValue={linkedOnly ? 'linked' : 'all'} onClick={() => setLinkedOnly(true)} />
                                     </div>
                                 </div>
                             )}

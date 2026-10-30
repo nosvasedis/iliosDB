@@ -28,6 +28,7 @@ export type ErpProductsBySkusPayload = {
   recipes?: unknown[];
   product_molds?: unknown[];
   product_collections?: unknown[];
+  product_link_members?: unknown[];
   inventory_balances?: unknown[];
   suppliers?: unknown[];
 };

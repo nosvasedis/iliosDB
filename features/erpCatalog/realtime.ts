@@ -2,6 +2,7 @@ export const ERP_CATALOG_REALTIME_TABLES = [
   'products',
   'product_variants',
   'product_collections',
+  'product_link_members',
   'product_molds',
   'recipes',
   'collections',
@@ -38,6 +39,7 @@ export function resolveErpProductRealtimePayload(
     }
     case 'product_variants':
     case 'product_collections':
+    case 'product_link_members':
     case 'product_molds': {
       const skus = stringsFromRows(payload, 'product_sku');
       return skus.length > 0 ? { type: 'skus', skus } : { type: 'full' };

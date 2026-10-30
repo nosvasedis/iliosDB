@@ -5,6 +5,8 @@ import { GlobalSettings, Material, Product, ProductVariant, ProductionType } fro
 import { calculateProductCost, estimateVariantCost, formatCurrency } from '../../utils/pricingEngine';
 import { resolveInvoiceTotalWeight } from '../../utils/invoiceTotalWeight';
 import SkuColorizedText from '../SkuColorizedText';
+import ImageZoomButton from '../products/ImageZoomButton';
+import LinkedProductsBadge from '../products/LinkedProductsBadge';
 import {
     PRODUCTION_TYPE_LABELS,
     SKIP_CASTING_LABEL,
@@ -23,6 +25,10 @@ interface Props {
     materialsMap?: Map<string, Material>;
     onSelectProduct: (product: Product) => void;
     isSelected: boolean;
+    /** Other members of this SKU's sets (Συνδεδεμένα Προϊόντα); keep the array stable between renders. */
+    linkedSkus?: string[];
+    onOpenLinks?: (product: Product, anchor: HTMLElement) => void;
+    onZoomImage?: (product: Product) => void;
 }
 
 const imageBadgeClass = 'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full border border-white/15 bg-[#060b00]/80 px-2 text-[10px] font-bold text-white shadow-sm backdrop-blur-md';
@@ -83,6 +89,9 @@ const ProductCard: React.FC<Props> = React.memo(({
     materialsMap,
     onSelectProduct,
     isSelected,
+    linkedSkus,
+    onOpenLinks,
+    onZoomImage,
 }) => {
     const [viewIndex, setViewIndex] = useState(0);
 
@@ -188,14 +197,23 @@ const ProductCard: React.FC<Props> = React.memo(({
                 )}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
 
-                {hasVariants && (
-                    <span
-                        title={variantCount === 1 ? '1 παραλλαγή' : `${formatNumber(variantCount)} παραλλαγές`}
-                        className={`absolute left-3 top-3 z-10 ${imageBadgeClass}`}
-                    >
-                        <Layers size={11} className="text-amber-300" />
-                        <span>{formatNumber(variantCount)}</span>
-                    </span>
+                <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5">
+                    {hasVariants && (
+                        <span
+                            title={variantCount === 1 ? '1 παραλλαγή' : `${formatNumber(variantCount)} παραλλαγές`}
+                            className={imageBadgeClass}
+                        >
+                            <Layers size={11} className="text-amber-300" />
+                            <span>{formatNumber(variantCount)}</span>
+                        </span>
+                    )}
+                    {linkedSkus && linkedSkus.length > 0 && onOpenLinks && (
+                        <LinkedProductsBadge linkedSkus={linkedSkus} onOpen={(anchor) => onOpenLinks(product, anchor)} />
+                    )}
+                </div>
+
+                {product.image_url && onZoomImage && (
+                    <ImageZoomButton onZoom={() => onZoomImage(product)} className="absolute bottom-3 right-3" />
                 )}
 
                 <span

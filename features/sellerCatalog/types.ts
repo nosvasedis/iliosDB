@@ -1,4 +1,4 @@
-import { Gender, ProductionType } from '../../types';
+import { Gender, ProductLinkMembership, ProductionType } from '../../types';
 
 export const SELLER_CATALOG_SCHEMA_VERSION = 1 as const;
 
@@ -22,6 +22,8 @@ export interface SellerCatalogProduct {
   available_qty: number;
   collections: number[];
   variants: SellerCatalogVariant[];
+  /** Sets (Συνδεδεμένα Προϊόντα). Optional: snapshots cached before sets existed omit it. */
+  link_groups?: ProductLinkMembership[];
 }
 
 export interface SellerCatalogCollection {

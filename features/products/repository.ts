@@ -37,6 +37,8 @@ export const productsRepository = withProtectedWrites({
   insertProductMold: (input: { product_sku: string; mold_code: string; quantity: number }) =>
     api.insertProductMold(input),
   renameProduct: (oldSku: string, newSku: string) => api.renameProduct(oldSku, newSku),
+  saveProductLinkGroup: (groupId: string | null, skus: string[]) => api.saveProductLinkGroup(groupId, skus),
+  deleteProductLinkGroup: (groupId: string) => api.deleteProductLinkGroup(groupId),
   deleteProduct: (sku: string, imageUrl?: string | null) => deleteProductApi(sku, imageUrl),
 });
 

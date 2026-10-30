@@ -29,6 +29,7 @@ import {
     type SkuPrefixMatches,
 } from '../features/orders/skuPrefixSearch';
 import { dispatchLiveActivity } from './useLiveActivity';
+import { buildProductLinkIndex, findMissingSetMates, getLinkedSkus, type MissingSetMate } from '../features/products/productLinks';
 import { invalidateAndRefetchAfterOrderMutation } from '../lib/queryInvalidation';
 import { calculateOrderFinancials } from '../features/orders/orderFinancials';
 import {
@@ -161,6 +162,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         return m;
     }, [collections]);
 
+
+    // Συνδεδεμένα Προϊόντα: set-mates of the active master and of the last added line.
+    const linkIndex = useMemo(() => buildProductLinkIndex(products), [products]);
+    const productsBySku = useMemo(() => new Map((products || []).map((product) => [product.sku, product])), [products]);
+    const [lastAddedForSet, setLastAddedForSet] = useState<{ sku: string; suffix: string } | null>(null);
 
     const orderRangePreview = useMemo(() => {
         const skuCode = scanInput.split(/\s+/)[0]?.toUpperCase();
@@ -473,6 +479,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         enamelColor?: OrderItem['enamel_color']
     ) => {
         const unitPrice = getOrderCatalogPrice(master, variant?.suffix, priceMode);
+        if (linkIndex.bySku.has(master.sku)) setLastAddedForSet({ sku: master.sku, suffix: variant?.suffix || '' });
         const newItem: OrderItem = {
             sku: master.sku,
             variant_suffix: variant?.suffix,
@@ -1069,6 +1076,40 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         return { masterStr, suffixStr, finish, stone, sizeText };
     };
 
+    const presentOrderSkus = useMemo(() => new Set(selectedItems.map((item) => item.sku)), [selectedItems]);
+    const activeMasterSetMates = useMemo(() => {
+        if (!activeMaster) return [] as Product[];
+        return getLinkedSkus(activeMaster.sku, linkIndex)
+            .map((sku) => productsBySku.get(sku))
+            .filter((product): product is Product => !!product && !product.is_component);
+    }, [activeMaster, linkIndex, productsBySku]);
+    const missingSetMates: MissingSetMate<Product>[] = useMemo(() => {
+        if (!lastAddedForSet) return [];
+        return findMissingSetMates(lastAddedForSet.sku, lastAddedForSet.suffix, presentOrderSkus, linkIndex, productsBySku)
+            .filter((mate) => !mate.product.is_component);
+    }, [lastAddedForSet, presentOrderSkus, linkIndex, productsBySku]);
+
+    /** One click «add the rest of the set»: same finish/stone suffix, qty 1. Sized or unmatched codes open normally. */
+    const addSetMate = (mate: MissingSetMate<Product>, silent = false) => {
+        const needsChoice = mate.suffix === null || !!getSizingInfo(mate.product);
+        if (needsChoice) {
+            handleSelectMaster(mate.product, mate.suffix || lastAddedForSet?.suffix || null);
+            return false;
+        }
+        const variant = mate.suffix ? (mate.product.variants || []).find((item) => item.suffix === mate.suffix) || null : null;
+        _addItemToOrder(mate.product, variant, 1, '', '');
+        if (!silent) showToast(`${mate.product.sku}${mate.suffix || ''} προστέθηκε`, 'success');
+        return true;
+    };
+    const addAllSetMates = () => {
+        const direct = missingSetMates.filter((mate) => mate.suffix !== null && !getSizingInfo(mate.product));
+        direct.forEach((mate) => addSetMate(mate, true));
+        if (direct.length > 0) showToast(`Προστέθηκαν ${direct.length} κωδικοί του σετ.`, 'success');
+        const pending = missingSetMates.length - direct.length;
+        if (pending > 0) showToast(`${pending} κωδικοί του σετ θέλουν επιλογή παραλλαγής ή μεγέθους.`, 'info');
+    };
+    const dismissSetHint = () => setLastAddedForSet(null);
+
     const handleSelectSize = (size: string) => {
         setSelectedSize(size);
         const typed = resolveSkuSizeInput(scanInput, products, true);
@@ -1089,6 +1130,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, skuMatches, collectionNameById,
+            activeMasterSetMates, missingSetMates,
             orderRangePreview, pendingOrderRangeReview,
             activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
@@ -1127,6 +1169,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             updateQuantity, updateItemNotes, updateItemFulfillmentMode, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, generatePriceSyncPreview, applyPriceSyncPreview, handleSaveOrder, handleBack,
             getSkuComponents,
+            addSetMate, addAllSetMates, dismissSetHint,
         },
         refs: { inputRef },
     };

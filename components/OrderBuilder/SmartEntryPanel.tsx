@@ -19,6 +19,7 @@ import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
 import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
 import ProductImageZoom from './ProductImageZoom';
+import LinkedProductsStrip from '../products/LinkedProductsStrip';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -298,6 +299,39 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 </div>
 
+                {/* Συνδεδεμένα Προϊόντα: rest of the set of the line just added */}
+                {isIdle && state.missingSetMates.length > 0 && (
+                    <LinkedProductsStrip
+                        title="Λείπουν από το σετ"
+                        items={state.missingSetMates.map((mate) => ({
+                            sku: mate.product.sku,
+                            suffix: mate.suffix ?? '',
+                            imageUrl: mate.product.image_url,
+                            gender: mate.product.gender,
+                            aside: hasAvailability ? <StockPill available={quantityFor(availability, mate.product.sku)} compact /> : undefined,
+                            onSelect: () => actions.handleSelectMaster(mate.product, mate.suffix),
+                            onAdd: () => { actions.addSetMate(mate); },
+                            addTitle: mate.suffix === null
+                                ? `Επιλογή παραλλαγής για ${mate.product.sku}`
+                                : `Προσθήκη ${mate.product.sku}${mate.suffix}`,
+                        }))}
+                        action={(
+                            <span className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={actions.addAllSetMates}
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-black text-white shadow-sm transition hover:bg-violet-700"
+                                >
+                                    <Plus size={12} strokeWidth={3} /> Προσθήκη όλων
+                                </button>
+                                <button type="button" onClick={actions.dismissSetHint} aria-label="Απόκρυψη" className="rounded-lg p-1 text-violet-400 transition hover:bg-violet-100 hover:text-violet-700">
+                                    <X size={13} />
+                                </button>
+                            </span>
+                        )}
+                    />
+                )}
+
                 {/* Idle: quick repeat of the latest lines + tips */}
                 {isIdle && (
                     recentLines.length > 0 ? (
@@ -531,6 +565,26 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <X size={16} />
                             </button>
                         </div>
+
+                        {state.activeMasterSetMates.length > 0 && (
+                            <LinkedProductsStrip
+                                compact
+                                items={state.activeMasterSetMates.map((mate) => ({
+                                    sku: mate.sku,
+                                    suffix: '',
+                                    imageUrl: mate.image_url,
+                                    gender: mate.gender,
+                                    done: quantityFor(inOrder, mate.sku) > 0,
+                                    aside: (
+                                        <>
+                                            {quantityFor(inOrder, mate.sku) > 0 && <InOrderPill qty={quantityFor(inOrder, mate.sku)} compact />}
+                                            {hasAvailability && <StockPill available={quantityFor(availability, mate.sku)} compact />}
+                                        </>
+                                    ),
+                                    onSelect: () => actions.handleSelectMaster(mate),
+                                }))}
+                            />
+                        )}
 
                         {/* Facts: price, stock, already on this order */}
                         <div className="grid grid-cols-3 gap-2">

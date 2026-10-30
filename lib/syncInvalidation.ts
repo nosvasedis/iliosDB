@@ -12,6 +12,7 @@ const TABLE_DOMAIN_MAP: Record<string, RealtimeInvalidationDomain[]> = {
     recipes: ['products'],
     product_molds: ['products'],
     product_collections: ['products', 'collections'],
+    product_link_members: ['products'],
     stock_movements: ['products'],
     inventory_balances: ['inventory', 'products'],
     inventory_reservations: ['inventory', 'orders'],

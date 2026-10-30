@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
 import { calculateProductCost } from '../utils/pricingEngine';
 import { getPricingRules } from '../utils/pricingRules';
-import { Info, Layers, ScanBarcode, Factory, Box, Hammer } from 'lucide-react';
+import { Info, Layers, ScanBarcode, Factory, Box, Hammer, Link2 } from 'lucide-react';
 import { AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { prepareUploadSource } from '../utils/imageHelpers';
 import { uploadCatalogPhotoWithChoice } from '../utils/catalogPhotoUpload';
@@ -27,6 +27,9 @@ import MoldsSection, { EMPTY_MOLD_DRAFT, type MoldDraft } from './ProductDetails
 import RecipeSection from './ProductDetails/RecipeSection';
 import LaborSection from './ProductDetails/LaborSection';
 import VariantsPanel from './ProductDetails/VariantsPanel';
+import LinkedProductsPanel from './ProductDetails/LinkedProductsPanel';
+import ImageZoomLightbox from './products/ImageZoomLightbox';
+import { getLinkedCount, useProductLinkIndex } from '../features/products/productLinks';
 import { DetailsSection, DetailsSubTabs } from './ProductDetails/detailsUi';
 import { useAutoCostSync } from './ProductDetails/useAutoCostSync';
 import { useSkuPricing } from './ProductDetails/useSkuPricing';
@@ -69,6 +72,8 @@ interface Props {
     initialVariantSuffix?: string;
     /** Allows details to open above an existing workflow modal. */
     zIndex?: number;
+    /** Switch the card to another SKU (e.g. a set-mate). The caller should key the card by SKU. */
+    onOpenProduct?: (product: Product) => void;
 }
 
 const GENDER_LABELS: Record<Gender, string> = {
@@ -77,7 +82,7 @@ const GENDER_LABELS: Record<Gender, string> = {
     [Gender.Unisex]: 'Ουδέτερο',
 };
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix, zIndex = 100 }: Props) {
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix, zIndex = 100, onOpenProduct }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -110,14 +115,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const productRestart = useRestartDraft('Καρτέλα SKU', { product: productDraftSnapshot(editedProduct), tempSku, newMoldCode: moldDraft.open ? moldDraft.code : '', newMoldLoc: moldDraft.open ? moldDraft.location : '', newMoldDesc: moldDraft.open ? moldDraft.description : '' }, { identity: product.sku, busy: isSaving || isRenaming || isDeleting || isUploadingImage || isDeletingImage || isCreatingMold });
 
     const isInHouse = editedProduct.production_type === ProductionType.InHouse;
+    const linkIndex = useProductLinkIndex(allProducts);
+    const linkedCount = getLinkedCount(product.sku, linkIndex);
+    const [isZoomOpen, setIsZoomOpen] = useState(false);
 
     const TABS = useMemo((): DetailsTab[] => {
         const baseTabs: DetailsTab[] = [{ id: 'overview', label: 'Στοιχεία', icon: Info }];
         if (isInHouse) baseTabs.push({ id: 'production', label: 'Παραγωγή', icon: Factory });
         baseTabs.push({ id: 'variants', label: 'Παραλλαγές', icon: Layers, count: editedProduct.variants?.length || 0 });
+        if (!editedProduct.is_component) baseTabs.push({ id: 'linked', label: 'Σετ', icon: Link2, count: linkedCount });
         baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
         return baseTabs;
-    }, [isInHouse, editedProduct.variants?.length]);
+    }, [isInHouse, editedProduct.variants?.length, editedProduct.is_component, linkedCount]);
 
     useEffect(() => {
         if (!TABS.some((tab) => tab.id === activeTab)) setActiveTab('overview');
@@ -425,6 +434,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         onClose();
     };
 
+    /** Open a set-mate in this card, asking first when there are unsaved changes. */
+    const requestOpenProduct = async (next: Product) => {
+        if (!onOpenProduct || isSaving || next.sku === product.sku) return;
+        if (productRestart.dirty) {
+            const discard = await confirm({
+                title: 'Μη αποθηκευμένες αλλαγές',
+                message: `Η καρτέλα ${editedProduct.sku} έχει αλλαγές που δεν έχουν αποθηκευτεί. Μετάβαση στο ${next.sku} χωρίς αποθήκευση;`,
+                confirmText: 'Μετάβαση χωρίς αποθήκευση',
+                cancelText: 'Επιστροφή',
+                isDestructive: true,
+            });
+            if (!discard) return;
+        }
+        onOpenProduct(next);
+    };
+
     const requestDelete = async () => {
         const confirmed = await confirm({
             title: 'Διαγραφή Προϊόντος',
@@ -643,6 +668,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 cost={displayedCost}
                                 scopeLabel={scopeLabel}
                                 facts={recordFacts}
+                                onZoomImage={() => setIsZoomOpen(true)}
                             />
                         </aside>
 
@@ -749,6 +775,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     />
                                 )}
 
+                                {activeTab === 'linked' && (
+                                    <LinkedProductsPanel
+                                        sku={product.sku}
+                                        allProducts={allProducts}
+                                        onOpenProduct={onOpenProduct ? requestOpenProduct : undefined}
+                                        showToast={showToast}
+                                        confirm={confirm}
+                                    />
+                                )}
+
                                 {activeTab === 'barcodes' && (
                                     <div className="h-full animate-in fade-in">
                                         <DetailsSection tone="barcodes" icon={ScanBarcode} title="Barcodes" subtitle="Προεπισκόπηση & εκτύπωση ετικετών">
@@ -761,6 +797,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 </div>
 
                 <DetailsFooter isSaving={isSaving} isDirty={productRestart.dirty} onSave={handleSave} onClose={requestClose} />
+                {isZoomOpen && editedProduct.image_url && (
+                    <ImageZoomLightbox imageUrl={editedProduct.image_url} sku={editedProduct.sku} onClose={() => setIsZoomOpen(false)} />
+                )}
             </div>
         </div>,
         document.body

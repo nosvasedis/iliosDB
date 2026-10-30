@@ -25,3 +25,4 @@ export {
   getVariantIndexBySuffix,
   PLATING_LABELS,
 } from './productDetailsViewModels';
+export * from './productLinks';

@@ -464,6 +464,7 @@ const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
     recipes: (q) => q.order('parent_sku'),
     product_molds: (q) => q.order('product_sku').order('mold_code'),
     product_collections: (q) => q.order('product_sku').order('collection_id'),
+    product_link_members: (q) => q.order('group_id').order('product_sku'),
     product_stock: (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }),
     legal_documents: (q) => q.order('created_at', { ascending: false }),
     legal_document_lines: (q) => q.order('line_number'),
@@ -1247,6 +1248,7 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         await safeMutate('recipes', 'DELETE', null, { match: { parent_sku: sku } });
         await safeMutate('product_molds', 'DELETE', null, { match: { product_sku: sku } });
         await safeMutate('product_collections', 'DELETE', null, { match: { product_sku: sku } });
+        await safeMutate('product_link_members', 'DELETE', null, { match: { product_sku: sku } }).catch(() => undefined);
         await safeMutate('product_stock', 'DELETE', null, { match: { product_sku: sku } });
 
         const { error } = await safeMutate('products', 'DELETE', null, { match: { sku: sku } });
@@ -1293,11 +1295,13 @@ async function getProductsUncached(): Promise<Product[]> {
 
     const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersData as any[]);
 
-    const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
+    const [varData, recData, prodMoldsData, prodCollData, linkData, stockData] = await Promise.all([
         fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
         fetchFullTable('recipes', '*', (q) => q.order('parent_sku')),
         fetchFullTable('product_molds', '*', (q) => q.order('product_sku').order('mold_code')),
         fetchFullTable('product_collections', '*', (q) => q.order('product_sku').order('collection_id')),
+        // Sets are additive metadata: a missing table (migration not yet applied) must never block the catalogue.
+        fetchFullTable('product_link_members', '*', (q) => q.order('group_id').order('product_sku')).catch(() => []),
         fetchFullTable('inventory_balances', '*', (q) => q.order('product_sku').order('variant_suffix').order('size_info'))
             .catch(() => fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }))),
     ]);
@@ -1308,6 +1312,7 @@ async function getProductsUncached(): Promise<Product[]> {
             recipes: recData as any,
             molds: prodMoldsData as any,
             collections: prodCollData as any,
+            links: (linkData || []) as any,
             stock: stockData as any,
         },
         {
@@ -2249,9 +2254,10 @@ const apiMethods = {
             if (visibleProdData.length === 0) return { products: [], hasMore };
             const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersRes as any[]);
             const skus = prodWithSuppliers.map((p: any) => p.sku);
-            const [varRes, collRes, stockRes] = await Promise.all([
+            const [varRes, collRes, linkRes, stockRes] = await Promise.all([
                 supabase.from('product_variants').select('*').in('product_sku', skus),
                 supabase.from('product_collections').select('*').in('product_sku', skus),
+                supabase.from('product_link_members').select('*').in('product_sku', skus),
                 supabase.from('inventory_balances').select('*').in('product_sku', skus)
             ]);
             const products: Product[] = mapCatalogProductsWithRelations(
@@ -2259,6 +2265,7 @@ const apiMethods = {
                 {
                     variants: varRes.data || [],
                     collections: collRes.data || [],
+                    links: linkRes.error ? [] : (linkRes.data || []),
                     stock: stockRes.error
                       ? ((await supabase.from('product_stock').select('*').in('product_sku', skus)).data || [])
                       : (stockRes.data || []),
@@ -2407,13 +2414,14 @@ const apiMethods = {
         if (!product) throw new Error('Original product not found');
 
         const [
-            { data: variants }, { data: parentRecipes }, { data: componentRecipes }, { data: molds }, { data: collections }, { data: stock }, { data: batches }, { data: movements }
+            { data: variants }, { data: parentRecipes }, { data: componentRecipes }, { data: molds }, { data: collections }, { data: links }, { data: stock }, { data: batches }, { data: movements }
         ] = await Promise.all([
             supabase.from('product_variants').select('*').eq('product_sku', oldSku),
             supabase.from('recipes').select('*').eq('parent_sku', oldSku),
             supabase.from('recipes').select('*').eq('component_sku', oldSku),
             supabase.from('product_molds').select('*').eq('product_sku', oldSku),
             supabase.from('product_collections').select('*').eq('product_sku', oldSku),
+            supabase.from('product_link_members').select('*').eq('product_sku', oldSku),
             supabase.from('product_stock').select('*').eq('product_sku', oldSku),
             supabase.from('production_batches').select('*').eq('sku', oldSku),
             supabase.from('stock_movements').select('*').eq('product_sku', oldSku)
@@ -2429,6 +2437,7 @@ const apiMethods = {
             if (parentRecipes?.length) await supabase.from('recipes').insert(parentRecipes.map(r => { const { id, ...rest } = r; return { ...rest, parent_sku: newSku }; }));
             if (molds?.length) await supabase.from('product_molds').insert(molds.map(m => { const { id, ...rest } = m; return { ...rest, product_sku: newSku }; }));
             if (collections?.length) await supabase.from('product_collections').insert(collections.map(c => { const { id, ...rest } = c; return { ...rest, product_sku: newSku }; }));
+            if (links?.length) await supabase.from('product_link_members').insert(links.map(l => { const { created_at, ...rest } = l; return { ...rest, product_sku: newSku }; }));
             if (stock?.length) await supabase.from('product_stock').insert(stock.map(s => { const { id, ...rest } = s; return { ...rest, product_sku: newSku }; }));
             if (componentRecipes?.length) await supabase.from('recipes').update({ component_sku: newSku }).eq('component_sku', oldSku);
             if (batches?.length) await supabase.from('production_batches').update({ sku: newSku }).eq('sku', oldSku);
@@ -2438,6 +2447,7 @@ const apiMethods = {
             await supabase.from('recipes').delete().eq('parent_sku', oldSku);
             await supabase.from('product_molds').delete().eq('product_sku', oldSku);
             await supabase.from('product_collections').delete().eq('product_sku', oldSku);
+            await supabase.from('product_link_members').delete().eq('product_sku', oldSku);
             await supabase.from('product_stock').delete().eq('product_sku', oldSku);
             await supabase.from('products').delete().eq('sku', oldSku);
         } catch (err) {
@@ -3338,6 +3348,32 @@ const apiMethods = {
             const inserts = collectionIds.map(id => ({ product_sku: sku, collection_id: id }));
             await safeMutate('product_collections', 'INSERT', inserts);
         }
+    },
+
+    /**
+     * Replace the members of one set (Συνδεδεμένα Προϊόντα). `groupId` null creates a new set.
+     * Fewer than two distinct SKUs removes the set entirely. Returns the set id, or null when removed.
+     */
+    saveProductLinkGroup: async (groupId: string | null, skus: string[]): Promise<string | null> => {
+        const members = Array.from(new Set(skus.map((sku) => sku.trim()).filter(Boolean)));
+        const id = groupId || crypto.randomUUID();
+        if (groupId) {
+            const { error } = await safeMutate('product_link_members', 'DELETE', null, { match: { group_id: groupId } });
+            if (error) throw error;
+        }
+        if (members.length < 2) return null;
+        const { error } = await safeMutate(
+            'product_link_members',
+            'INSERT',
+            members.map((product_sku, position) => ({ group_id: id, product_sku, position })),
+        );
+        if (error) throw error;
+        return id;
+    },
+
+    deleteProductLinkGroup: async (groupId: string): Promise<void> => {
+        const { error } = await safeMutate('product_link_members', 'DELETE', null, { match: { group_id: groupId } });
+        if (error) throw error;
     },
 
     addProductsToCollection: async (items: { product_sku: string, collection_id: number }[]): Promise<void> => {

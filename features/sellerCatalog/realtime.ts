@@ -2,6 +2,7 @@ export const SELLER_CATALOG_REALTIME_TABLES = [
   'products',
   'product_variants',
   'product_collections',
+  'product_link_members',
   'collections',
   'inventory_balances',
 ] as const;
@@ -36,7 +37,8 @@ export function resolveSellerCatalogRealtimePayload(
       return skus.length > 0 ? { type: 'skus', skus } : { type: 'full' };
     }
     case 'product_variants':
-    case 'product_collections': {
+    case 'product_collections':
+    case 'product_link_members': {
       const skus = stringsFromRows(payload, 'product_sku');
       return skus.length > 0 ? { type: 'skus', skus } : { type: 'full' };
     }

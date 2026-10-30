@@ -160,6 +160,7 @@ async function persistFullCatalogMirror(products: Product[]): Promise<void> {
       'recipes',
       'product_molds',
       'product_collections',
+      'product_link_members',
       'inventory_balances',
       'suppliers',
       'materials',

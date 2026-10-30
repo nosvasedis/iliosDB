@@ -68,7 +68,7 @@ describe('realtime invalidation mapping', () => {
       tables: [...group.tables],
     })));
     expect(groups.map((group) => group.tables)).toEqual([
-      ['products', 'product_variants', 'product_collections', 'collections', 'inventory_balances'],
+      ['products', 'product_variants', 'product_collections', 'product_link_members', 'collections', 'inventory_balances'],
       [
         'orders', 'customers', 'consignments', 'consignment_lines', 'consignment_settlements',
         'consignment_payments', 'consignment_returns', 'consignment_events', 'repair_intakes',

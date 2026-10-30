@@ -3,7 +3,7 @@ import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
 export interface DetailsTab {
-    id: 'overview' | 'production' | 'variants' | 'barcodes';
+    id: 'overview' | 'production' | 'variants' | 'linked' | 'barcodes';
     label: string;
     icon: LucideIcon;
     count?: number;

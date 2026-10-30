@@ -59,6 +59,7 @@ const ENTITY_LABELS_EL: Record<string, string> = {
     product_molds: 'Σύνδεση προϊόντων–καλουπιών',
     collections: 'Συλλογές',
     product_collections: 'Σύνδεση προϊόντων–συλλογών',
+    product_link_members: 'Συνδεδεμένα προϊόντα (σετ)',
     orders: 'Παραγγελίες',
     order_lines: 'Γραμμές παραγγελιών',
     order_shipments: 'Αποστολές',

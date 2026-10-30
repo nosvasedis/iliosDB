@@ -33,6 +33,7 @@ const BACKUP_TABLES = [
   'materials',
   'collections',
   'products',
+  'product_link_members',
   'product_variants',
   'recipes',
   'product_molds',

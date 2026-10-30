@@ -22,6 +22,7 @@ export function mapErpProductsBySkusPayload(payload: ErpProductsBySkusPayload): 
       recipes: asRowArray(payload.recipes) as any,
       molds: asRowArray(payload.product_molds) as any,
       collections: asRowArray(payload.product_collections) as any,
+      links: asRowArray(payload.product_link_members) as any,
       stock: asRowArray(payload.inventory_balances) as any,
     },
     {

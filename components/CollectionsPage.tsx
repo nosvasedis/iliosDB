@@ -5,7 +5,7 @@ import { Collection, Product } from '../types';
 import {
     FolderKanban, Plus, Trash2, X, Search, Loader2, Printer, ScanBarcode,
     PackagePlus, Sparkles, Save, Wand2, PenTool, ArrowLeft, ArrowRight,
-    Package, ImageOff, Pencil, Check, ArrowDownAZ, ArrowDownWideNarrow, Database, Layers,
+    Package, ImageOff, Pencil, Check, ArrowDownAZ, ArrowDownWideNarrow, Database, Layers, Link2,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -19,6 +19,12 @@ import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import PageErrorState from './ui/PageErrorState';
+import ImageZoomButton from './products/ImageZoomButton';
+import LinkedProductsBadge from './products/LinkedProductsBadge';
+import LinkedProductsStrip from './products/LinkedProductsStrip';
+import { useProductQuickViews } from './products/useProductQuickViews';
+import { productToFanItem } from './products/productFanItems';
+import { getLinkedSkus, useProductLinkIndex } from '../features/products/productLinks';
 
 interface Props {
     products?: Product[];
@@ -273,6 +279,29 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
     }, [selectedCollection, allProducts]);
 
+    // Συνδεδεμένα Προϊόντα: set-mates of the collection's products that are not in it yet.
+    const linkIndex = useProductLinkIndex(allProducts);
+    const productsBySku = useMemo(() => new Map((allProducts || []).map((product) => [product.sku, product])), [allProducts]);
+    const quickViews = useProductQuickViews<Product>({
+        index: linkIndex,
+        productsBySku,
+        toFanItem: productToFanItem,
+        onOpenProduct: setViewProduct,
+    });
+    const missingSetMates = useMemo(() => {
+        if (!selectedCollection) return [];
+        const inCollection = new Set(productsInSelectedCollection.map((product) => product.sku));
+        const missing = new Map<string, Product>();
+        productsInSelectedCollection.forEach((product) => {
+            getLinkedSkus(product.sku, linkIndex).forEach((mate) => {
+                const mateProduct = productsBySku.get(mate);
+                if (mateProduct && !mateProduct.is_component && !inCollection.has(mate)) missing.set(mate, mateProduct);
+            });
+        });
+        return [...missing.values()].sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+    }, [selectedCollection, productsInSelectedCollection, linkIndex, productsBySku]);
+    const [isAddingSetMates, setIsAddingSetMates] = useState(false);
+
     const visibleCollectionProducts = useMemo(() => {
         const q = collectionSearch.trim().toLowerCase();
         if (!q) return productsInSelectedCollection;
@@ -398,6 +427,21 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                 next.delete(sku);
                 return next;
             });
+        }
+    };
+
+    const handleAddSetMates = async (skus: string[]) => {
+        if (!selectedCollection || skus.length === 0 || isAddingSetMates) return;
+        setIsAddingSetMates(true);
+        try {
+            await api.addProductsToCollection(skus.map((sku) => ({ product_sku: sku, collection_id: selectedCollection.id })));
+            await invalidateProductsAndCatalog(queryClient);
+            showToast(skus.length === 1 ? `Προστέθηκε ο ${skus[0]} για να ολοκληρωθεί το σετ.` : `Προστέθηκαν ${formatNumber(skus.length)} κωδικοί για να ολοκληρωθούν τα σετ.`, 'success');
+        } catch (e) {
+            console.error(e);
+            showToast('Σφάλμα προσθήκης των συνδεδεμένων προϊόντων.', 'error');
+        } finally {
+            setIsAddingSetMates(false);
         }
     };
 
@@ -920,7 +964,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                                 : <ImageOff size={14} className="text-slate-300" />}
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="truncate font-mono text-xs font-black text-slate-800">{p.sku}</div>
+                                                            <div className="flex items-center gap-1 truncate font-mono text-xs font-black text-slate-800">
+                                                                {p.sku}
+                                                                {linkIndex.bySku.has(p.sku) && (
+                                                                    <span title={`Σετ με: ${getLinkedSkus(p.sku, linkIndex).join(', ')}`} className="text-violet-500"><Link2 size={11} strokeWidth={2.75} /></span>
+                                                                )}
+                                                            </div>
                                                             <div className="truncate text-[10px] text-slate-400">{p.category || '—'}</div>
                                                         </div>
                                                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-300 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
@@ -989,6 +1038,34 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                 )}
                             </div>
 
+                            {missingSetMates.length > 0 && (
+                                <LinkedProductsStrip
+                                    className="mb-5"
+                                    title={`Λείπουν από τα σετ της συλλογής (${formatNumber(missingSetMates.length)})`}
+                                    items={missingSetMates.map((product) => ({
+                                        sku: product.sku,
+                                        suffix: '',
+                                        imageUrl: product.image_url,
+                                        gender: product.gender,
+                                        aside: <span className="truncate">{product.category}</span>,
+                                        onSelect: () => setViewProduct(product),
+                                        onAdd: isAddingSetMates ? undefined : () => handleAddSetMates([product.sku]),
+                                        addTitle: `Προσθήκη ${product.sku} στη συλλογή`,
+                                    }))}
+                                    action={(
+                                        <button
+                                            type="button"
+                                            disabled={isAddingSetMates}
+                                            onClick={() => handleAddSetMates(missingSetMates.map((product) => product.sku))}
+                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-black text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-50"
+                                        >
+                                            {isAddingSetMates ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} strokeWidth={3} />}
+                                            Προσθήκη όλων
+                                        </button>
+                                    )}
+                                />
+                            )}
+
                             {visibleCollectionProducts.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                                     {visibleCollectionProducts.map((p) => {
@@ -1016,6 +1093,20 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                         <img src={p.image_url} alt={p.sku} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                                     ) : (
                                                         <ImageOff size={22} className="text-slate-300" />
+                                                    )}
+                                                    {linkIndex.bySku.has(p.sku) && (
+                                                        <LinkedProductsBadge
+                                                            className="absolute left-2 top-2"
+                                                            linkedSkus={getLinkedSkus(p.sku, linkIndex)}
+                                                            onOpen={(anchor) => quickViews.openLinks(p.sku, anchor)}
+                                                        />
+                                                    )}
+                                                    {p.image_url && (
+                                                        <ImageZoomButton
+                                                            size="sm"
+                                                            className="absolute bottom-2 right-2"
+                                                            onZoom={() => quickViews.zoomProduct(p.sku, p.image_url, p.category)}
+                                                        />
                                                     )}
                                                 </div>
                                                 <div className="px-1">
@@ -1136,8 +1227,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             )}
 
             {/* PRODUCT DETAILS MODAL */}
+            {quickViews.element}
+
             {viewProduct && settings && materials && molds && (
                 <ProductDetails
+                    key={viewProduct.sku}
+                    onOpenProduct={setViewProduct}
                     product={viewProduct}
                     allProducts={allProducts || []}
                     allMaterials={materials}
