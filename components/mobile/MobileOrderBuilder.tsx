@@ -1,5 +1,6 @@
 import { resolveSkuSizeInput } from '../../utils/skuSizeInput';
 import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import SetCompletionHints from '../products/SetCompletionHints';
 import { orderItemsDraftSnapshot } from '../../lib/editorSnapshots';
 import StoneCodeText from '../StoneCodeText';
 import OrderPriceModeToggle from '../OrderBuilder/OrderPriceModeToggle';
@@ -882,6 +883,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 )}
 
                 {/* ── Add Item Section ─────────────────────────────────── */}
+                <SetCompletionHints products={products} items={items} activeProduct={activeMaster} activeSuffix={resolvedVariant?.suffix} onChoose={(product, suffix) => {
+                    handleSelectMaster(product);
+                    setResolvedVariant(product.variants?.find((variant) => variant.suffix === suffix) || null);
+                }} />
                 {!activeMaster && (
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
 

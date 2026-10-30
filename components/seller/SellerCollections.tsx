@@ -99,6 +99,7 @@ export default function SellerCollections({ products, collections, onAddToOrder 
                 />
                 <SellerProductGrid
                     products={filteredProducts}
+                    allProducts={products}
                     resetKey={`${collection.id}:${deferredSearch}`}
                     onAddToOrder={onAddToOrder}
                     empty={<div className="py-20 text-center text-sm font-bold text-slate-400">Δεν βρέθηκαν προϊόντα.</div>}

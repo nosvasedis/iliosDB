@@ -1,4 +1,5 @@
 import { formatNumber } from '../../utils/numberFormat';
+import CatalogSetLinks from '../products/CatalogSetLinks';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
@@ -16,6 +17,8 @@ interface Props {
     /** Kept for callers; stock comes from the product itself. */
     warehouses?: Warehouse[];
     setPrintItems?: (items: PrintItem[]) => void;
+    products: Product[];
+    onSelectProduct: (product: Product) => void;
 }
 
 const StatTile = ({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone: string }) => (
@@ -25,9 +28,10 @@ const StatTile = ({ icon: Icon, label, value, tone }: { icon: React.ElementType;
     </div>
 );
 
-export default function EmployeeProductDetails({ product, onClose, setPrintItems }: Props) {
+export default function EmployeeProductDetails({ product, products, onSelectProduct, onClose, setPrintItems }: Props) {
     const [imageFailed, setImageFailed] = useState(false);
     const variants = useMemo(() => sortStoreVariants(product.variants || [], product.gender), [product]);
+    useEffect(() => setImageFailed(false), [product.image_url]);
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -77,6 +81,7 @@ export default function EmployeeProductDetails({ product, onClose, setPrintItems
                 </div>
 
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-50/60 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-6">
+                    <CatalogSetLinks product={product} products={products} onSelect={onSelectProduct} />
                     <div className="grid grid-cols-3 gap-2">
                         <StatTile icon={Package} label="Απόθεμα" value={formatNumber(totalStock)} tone="border-emerald-100 bg-emerald-50 text-emerald-800" />
                         <StatTile icon={BookMarked} label="Δειγματολόγιο" value={formatNumber(product.sample_qty || 0)} tone="border-violet-100 bg-violet-50 text-violet-800" />

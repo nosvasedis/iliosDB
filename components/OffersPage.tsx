@@ -1,4 +1,5 @@
 import { useRestartDraft } from '../hooks/useRestartBlocker';
+import SetCompletionHints from './products/SetCompletionHints';
 import { orderItemsDraftSnapshot } from '../lib/editorSnapshots';
 import { getSkuStoneLetterStyle } from '../utils/skuColoring';
 import StoneCodeText from './StoneCodeText';
@@ -773,6 +774,13 @@ export default function OffersPage({ products, materials, settings, collections,
                             </div>
 
                             {/* Candidate products strip (photos + SKU) */}
+                            <SetCompletionHints products={products} items={items} activeProduct={activeMasterProduct} activeSuffix={activeMasterProduct && scanInput.startsWith(activeMasterProduct.sku) ? scanInput.slice(activeMasterProduct.sku.length) : null} onChoose={(product, suffix) => {
+                                selectProductCandidate(product);
+                                if (suffix !== null) {
+                                    setScanInput(product.sku + suffix);
+                                    setFilteredVariants([]);
+                                }
+                            }} />
                             {candidateProducts.length > 0 && !scanInput.includes('-') && (
                                 <div className="animate-in slide-in-from-top-2 fade-in">
                                     <label className="text-[9px] text-slate-400 font-bold uppercase mb-1.5 ml-1 block tracking-widest flex items-center gap-1">

@@ -19,6 +19,7 @@ describe('SBZ PostgreSQL transactions',()=>{
     await db.exec('GRANT USAGE ON SCHEMA public,auth TO authenticated,service_role; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO authenticated,service_role;');
     await db.exec(read('20260911070545_sbz_provider_wholesale.sql'));
     await db.exec(read('20260914094500_customer_vat_exemption_profile.sql'));
+    await db.exec(read('20261030120001_backup_count_and_pricing_coverage.sql'));
 
   },60000);
   afterAll(async()=>{await db?.close();});

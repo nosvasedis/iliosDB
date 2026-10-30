@@ -110,6 +110,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
 
             <CatalogProductGrid
                 products={filtered}
+                allProducts={products}
                 resetKey={resetKey}
                 priceMultiplier={STORE_RETAIL_MULTIPLIER}
                 onOpen={openProduct}
@@ -158,7 +159,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
 
             {selectedProduct && (
-                <EmployeeProductDetails product={selectedProduct} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems} />
+                <EmployeeProductDetails product={selectedProduct} products={products || EMPTY} onSelectProduct={openProduct} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems} />
             )}
         </div>
     );

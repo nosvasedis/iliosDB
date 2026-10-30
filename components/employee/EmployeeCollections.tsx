@@ -26,6 +26,7 @@ const itemsLabel = (count: number) => `${formatNumber(count)} ${count === 1 ? '�
 
 const CollectionCover = ({ product, priority }: { product?: Product; priority: boolean }) => {
     const [failed, setFailed] = useState(false);
+    React.useEffect(() => setFailed(false), [product?.image_url]);
     if (product?.image_url && !failed) {
         return (
             <img
@@ -93,7 +94,7 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
     if ((loadingCol && !collections) || (loadingProd && !products)) return <IliosLoader variant="section" detail="Συλλογές" className="h-full" />;
 
     const details = selectedProduct && (
-        <EmployeeProductDetails product={selectedProduct} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems} />
+        <EmployeeProductDetails product={selectedProduct} products={products || []} onSelectProduct={openProduct} onClose={() => setSelectedProduct(null)} setPrintItems={setPrintItems} />
     );
 
     if (selected) {
@@ -123,6 +124,7 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
                 />
                 <CatalogProductGrid
                     products={filteredProducts}
+                    allProducts={products}
                     resetKey={`${collection.id}:${deferredSearch}`}
                     priceMultiplier={STORE_RETAIL_MULTIPLIER}
                     onOpen={openProduct}

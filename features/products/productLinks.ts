@@ -9,7 +9,7 @@ import type { ProductLinkMembership } from '../../types';
 export interface LinkableProduct {
   sku: string;
   link_groups?: ProductLinkMembership[];
-  variants?: Array<{ suffix: string }>;
+  variants?: readonly { suffix: string }[];
 }
 
 export interface ProductLinkIndex {

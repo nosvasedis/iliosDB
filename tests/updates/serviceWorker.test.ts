@@ -2,14 +2,19 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 
-function worker() {
+function worker(fail: 'open' | 'read' | 'write' | 'trim' | null = null) {
   const handlers = new Map<string, Function>();
   const stores = new Map<string, Map<string, Response>>();
   const key = (request: Request | string) => typeof request === 'string' ? request : request.url;
   const open = vi.fn(async (name: string) => {
+    if (fail === 'open') throw new Error('CacheStorage unavailable');
     if (!stores.has(name)) stores.set(name, new Map());
     const store = stores.get(name)!;
-    return { match: async (request: Request | string) => store.get(key(request))?.clone(), put: async (request: Request | string, response: Response) => { store.set(key(request), response); }, addAll: vi.fn(), keys: async () => [], delete: vi.fn() };
+    return {
+      match: async (request: Request | string) => { if (fail === 'read') throw new Error('Cache read failed'); return store.get(key(request))?.clone(); },
+      put: async (request: Request | string, response: Response) => { if (fail === 'write') throw new Error('QuotaExceededError'); store.set(key(request), response); },
+      addAll: vi.fn(), keys: async () => { if (fail === 'trim') throw new Error('Cache trim failed'); return []; }, delete: vi.fn(),
+    };
   });
   const caches = { open, delete: vi.fn(), keys: async () => [...stores.keys()], match: vi.fn(async (request: Request | string) => {
     for (const store of stores.values()) if (store.has(key(request))) return store.get(key(request))!.clone();
@@ -58,5 +63,52 @@ describe('service worker live-build compatibility', () => {
     Object.defineProperty(request, 'mode', { value: 'navigate' });
     const response = await w.dispatch(request);
     expect(await response.text()).toBe('last valid app');
+  });
+});
+
+describe('product photo caching', () => {
+  const url = 'https://ilios-image-handler.iliosdb.workers.dev/SK227.webp';
+  const photo = () => new Response('photo bytes', { headers: { 'Content-Type': 'image/webp' } });
+  const request = () => {
+    const value = new Request(url, { mode: 'no-cors' });
+    Object.defineProperty(value, 'destination', { value: 'image' });
+    return value;
+  };
+
+  it.each(['open', 'read', 'write', 'trim'] as const)('returns a downloaded photo even when cache %s fails', async (fault) => {
+    const w = worker(fault);
+    w.fetch.mockResolvedValue(photo());
+    const response = await w.dispatch(request());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('photo bytes');
+  });
+
+  it('uses readable CORS responses and keeps viewed photos available offline', async () => {
+    const w = worker();
+    w.fetch.mockResolvedValue(photo());
+    await w.dispatch(request());
+    expect(w.fetch.mock.calls[0][0].mode).toBe('cors');
+    expect(w.fetch.mock.calls[0][0].credentials).toBe('omit');
+    w.fetch.mockRejectedValue(new Error('Offline'));
+    expect(await (await w.dispatch(request())).text()).toBe('photo bytes');
+    expect(w.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores the legacy opaque cache and never caches failed HTTP responses', async () => {
+    const w = worker();
+    w.stores.set('ilios-viewed-product-images-v1', new Map([[url, new Response('old error', { status: 404 })]]));
+    expect((await w.dispatch(request())).status).toBe(404);
+    w.fetch.mockResolvedValue(photo());
+    expect(await (await w.dispatch(request())).text()).toBe('photo bytes');
+    expect(w.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not persist successful HTML error pages as photos', async () => {
+    const w = worker();
+    w.fetch.mockResolvedValue(new Response('<html>Error</html>', { headers: { 'Content-Type': 'text/html' } }));
+    await w.dispatch(request());
+    w.fetch.mockResolvedValue(photo());
+    expect(await (await w.dispatch(request())).text()).toBe('photo bytes');
+    expect(w.fetch).toHaveBeenCalledTimes(2);
   });
 });

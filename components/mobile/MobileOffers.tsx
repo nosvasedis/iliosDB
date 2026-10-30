@@ -1,4 +1,5 @@
 import { useRestartDraft } from '../../hooks/useRestartBlocker';
+import SetCompletionHints from '../products/SetCompletionHints';
 import { orderItemsDraftSnapshot } from '../../lib/editorSnapshots';
 import { INTERNAL_CUSTOMER_ID } from '../../utils/retailConstants';
 import { buildOrderCustomerFields, getRetailClientName, isRetailCustomerOrder } from '../../utils/orderCustomer';
@@ -623,6 +624,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                     </div>
 
                     {/* Items List */}
+                    <SetCompletionHints products={products} items={items} onChoose={(product, suffix) => setSkuInput(product.sku + (suffix || ''))} />
                     <div className="space-y-2">
                         {items.map((item, idx) => (
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">

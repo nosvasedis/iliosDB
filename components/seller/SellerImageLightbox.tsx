@@ -1,4 +1,5 @@
 import StoneCodeText from '../StoneCodeText';
+import CatalogSetLinks from '../products/CatalogSetLinks';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
@@ -15,12 +16,14 @@ interface LightboxItem {
 interface Props {
     item: LightboxItem;
     onClose: () => void;
+    products: SellerCatalogProduct[];
+    onSelectProduct: (product: SellerCatalogProduct, suffix: string | null) => void;
 }
 
 const SWIPE_THRESHOLD = 50;
 const WHEEL_THRESHOLD = 80;
 
-export default function SellerImageLightbox({ item, onClose }: Props) {
+export default function SellerImageLightbox({ item, products, onSelectProduct, onClose }: Props) {
     const { product } = item;
     const variants = product.variants || [];
     const hasVariants = variants.length > 0;
@@ -160,6 +163,9 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
             </div>
 
             {/* Bottom info bar — description line, bigger badge, bigger price */}
+            <div className="absolute inset-x-3 top-20 z-20 max-h-28 overflow-y-auto sm:inset-x-8" onClick={(event) => event.stopPropagation()}>
+                <CatalogSetLinks product={product} products={products} suffix={currentVariant?.suffix} onSelect={onSelectProduct} />
+            </div>
             <div
                 className="absolute bottom-0 inset-x-0 p-5 flex items-end justify-between"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)' }}

@@ -119,11 +119,17 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'inventory_command_results', displayName: 'Inventory_Command_Results', label: 'Ασφαλείς Επαναλήψεις Κινήσεων Αποθέματος', category: 'history', primaryKey: 'idempotency_key', primaryKeyType: 'string', includeInCsv: false },
     { table: 'inventory_cutover_balance_snapshot', displayName: 'Inventory_Cutover_Snapshot', label: 'Στιγμιότυπο Υπολοίπων Μετάβασης', category: 'history', primaryKey: 'snapshot_id', primaryKeyType: 'uuid', conflictTarget: 'snapshot_id,product_sku,variant_suffix,size_info,warehouse_id', includeInCsv: true },
     { table: 'inventory_reconciliation_issues', displayName: 'Inventory_Reconciliation', label: 'Έλεγχοι Συμφωνίας Αποθέματος', category: 'history', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['products', 'warehouses'] },
+    { table: 'inventory_count_sessions', displayName: 'Inventory_Count_Sessions', label: 'Συνεδρίες Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['profiles', 'warehouses'] },
+    { table: 'inventory_count_batches', displayName: 'Inventory_Count_Batches', label: 'Παρτίδες Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['inventory_count_sessions'] },
+    { table: 'inventory_count_targets', displayName: 'Inventory_Count_Targets', label: 'Κωδικοί Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['inventory_count_batches', 'products'] },
+    { table: 'inventory_count_entries', displayName: 'Inventory_Count_Entries', label: 'Καταμετρήσεις Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['inventory_count_targets', 'inventory_count_batches', 'inventory_count_sessions', 'warehouses', 'inventory_events'] },
+    { table: 'pricing_recalculation_runs', displayName: 'Pricing_Recalculation_Runs', label: 'Ιστορικό Επανυπολογισμού Τιμών', category: 'pricing', primaryKey: 'id', primaryKeyType: 'integer', includeInCsv: false },
 ];
 
 export const ALL_BACKUP_TABLE_NAMES = BACKUP_TABLE_REGISTRY.map((e) => e.table);
 
 export const HISTORY_TABLES = new Set([
+    'pricing_recalculation_runs',
     'audit_logs',
     'legal_sync_runs',
     'legal_transmissions',

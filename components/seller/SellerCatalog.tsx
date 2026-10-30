@@ -157,6 +157,7 @@ export default function SellerCatalog({ products, collections }: Props) {
 
             <SellerProductGrid
                 products={filteredProducts}
+                allProducts={products}
                 resetKey={resetKey}
                 empty={
                     <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">

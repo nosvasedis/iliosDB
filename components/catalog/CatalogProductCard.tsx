@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ImageIcon, Maximize2, ShoppingBag } from 'lucide-react';
-import { Gender } from '../../types';
+import { Gender, ProductLinkMembership } from '../../types';
 import { FINISH_CODES } from '../../constants';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { formatNumber } from '../../utils/numberFormat';
@@ -31,6 +31,7 @@ export interface CatalogCardProduct {
     stock_qty?: number;
     available_qty?: number;
     variants?: readonly CatalogCardVariant[];
+    link_groups?: ProductLinkMembership[];
 }
 
 export const SuffixBadge = React.memo(({ suffix, gender }: { suffix: string; gender: Gender }) => {
@@ -62,13 +63,14 @@ export interface CatalogCardProps<T extends CatalogCardProduct> {
     priceMultiplier?: number;
     onOpen: (product: T, variantIndex: number) => void;
     onAddToOrder?: (product: T, variantSuffix?: string) => void;
+    linkedSkus?: readonly string[];
 }
 
 /**
  * Catalogue card: SKU first, compact price, swipe (touch) or arrows (mouse) through variants.
  * Drag feedback writes the transform straight to the DOM so a swipe never re-renders React.
  */
-function CatalogProductCardInner<T extends CatalogCardProduct>({ product, density, priority = false, priceMultiplier = 1, onOpen, onAddToOrder }: CatalogCardProps<T>) {
+function CatalogProductCardInner<T extends CatalogCardProduct>({ product, density, priority = false, priceMultiplier = 1, onOpen, onAddToOrder, linkedSkus }: CatalogCardProps<T>) {
     const variants = product.variants ?? [];
     const variantCount = variants.length;
     const [viewIndex, setViewIndex] = useState(0);
@@ -249,6 +251,11 @@ function CatalogProductCardInner<T extends CatalogCardProduct>({ product, densit
                         className="mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#060b00] py-1.5 text-[11px] font-bold text-amber-300 active:scale-[0.98]"
                     >
                         <ShoppingBag size={12} /> Προσθήκη
+                    </button>
+                )}
+                {!!linkedSkus?.length && (
+                    <button type="button" title={`Σετ με: ${linkedSkus.join(', ')}`} onClick={() => onOpen(product, safeIndex)} className="mt-1 truncate rounded-lg bg-violet-50 px-1.5 py-1 text-left text-[10px] font-bold text-violet-700">
+                        Σετ με: {linkedSkus.join(', ')}
                     </button>
                 )}
             </div>

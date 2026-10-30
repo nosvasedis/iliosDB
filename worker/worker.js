@@ -88,6 +88,11 @@ const BACKUP_TABLES = [
   'inventory_command_results',
   'inventory_cutover_balance_snapshot',
   'inventory_reconciliation_issues',
+  'inventory_count_sessions',
+  'inventory_count_batches',
+  'inventory_count_targets',
+  'inventory_count_entries',
+  'pricing_recalculation_runs',
 ];
 
 export function selectExpiredBackupKeys(keys, dailyRetention = 30, monthlyRetention = 12) {

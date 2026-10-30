@@ -1,6 +1,7 @@
 // A cache policy version, independent of deployments. Hashed assets are immutable.
 const CACHE_NAME = 'ilios-runtime-safe-v1';
-const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v1';
+// v1 cached opaque responses, including undetectable HTTP errors. Start fresh.
+const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v2';
 const IMAGE_CACHE_LIMIT = 200;
 const PRECACHE_URLS = ['/manifest.json'];
 
@@ -47,20 +48,27 @@ self.addEventListener('fetch', (event) => {
 
   if (isProductImageRequest(event.request, url)) {
     event.respondWith(
-      caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(event.request);
-        if (cached) return cached;
+      (async () => {
+        // Storage can be unavailable/full. It must never prevent online photos.
+        let cache;
         try {
-          const response = await fetch(event.request);
-          if (response.ok || response.type === 'opaque') {
-            await cache.put(event.request, response.clone());
-            void trimImageCache(cache);
+          cache = await caches.open(IMAGE_CACHE_NAME);
+          const cached = await cache.match(event.request);
+          if (cached?.ok && cached.headers.get('Content-Type')?.startsWith('image/')) return cached;
+        } catch { /* Fetch normally without a cache. */ }
+        try {
+          // The image Worker allows CORS. Read status/type so a 404/503 cannot
+          // become a permanently cached opaque "photo".
+          const response = await fetch(new Request(event.request, { mode: 'cors', credentials: 'omit' }));
+          if (cache && response.ok && response.headers.get('Content-Type')?.startsWith('image/')) {
+            event.waitUntil(cache.put(event.request, response.clone())
+              .then(() => trimImageCache(cache)).catch(() => {}));
           }
           return response;
         } catch {
           return new Response('', { status: 503, statusText: 'Image unavailable offline' });
         }
-      })
+      })()
     );
     return;
   }

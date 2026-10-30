@@ -1,9 +1,11 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { getLinkedSkus, useProductLinkIndex } from '../../features/products/productLinks';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import CatalogProductCard, { CatalogCardDensity, CatalogCardProduct } from './CatalogProductCard';
 
 interface Props<T extends CatalogCardProduct> {
     products: readonly T[];
+    allProducts?: readonly T[];
     /** Changes whenever the result set is re-filtered; scrolls back to the top. */
     resetKey?: string;
     empty?: React.ReactNode;
@@ -37,7 +39,9 @@ const estimateRowHeight = (m: GridMetrics) => m.cardWidth + (m.density === 'comp
  * Virtualised product grid: only the rows near the viewport exist in the DOM, so a catalogue of
  * thousands of SKUs scrolls as smoothly on a budget phone as a list of twenty.
  */
-export default function CatalogProductGrid<T extends CatalogCardProduct>({ products, resetKey, empty, priceMultiplier, onOpen, onAddToOrder, children }: Props<T>) {
+export default function CatalogProductGrid<T extends CatalogCardProduct>({ products, allProducts = products, resetKey, empty, priceMultiplier, onOpen, onAddToOrder, children }: Props<T>) {
+    const links = useProductLinkIndex(allProducts);
+    const linkedSkusBySku = useMemo(() => new Map([...links.bySku.keys()].map((sku) => [sku, getLinkedSkus(sku, links)])), [links]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
@@ -101,6 +105,7 @@ export default function CatalogProductGrid<T extends CatalogCardProduct>({ produ
                                             priceMultiplier={priceMultiplier}
                                             onOpen={onOpen}
                                             onAddToOrder={onAddToOrder}
+                                            linkedSkus={linkedSkusBySku.get(product.sku)}
                                         />
                                     ))}
                                 </div>
