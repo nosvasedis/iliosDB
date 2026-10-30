@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 /** Desktop shell (dark sidebar, DesktopPageHeader, desktop order builder) from this width up. */
-export const SELLER_DESKTOP_QUERY = '(min-width: 1024px)';
+export const DESKTOP_QUERY = '(min-width: 1024px)';
 /** Side rail instead of the bottom bar: tablets and phones held in landscape. */
-export const SELLER_RAIL_QUERY = '(min-width: 768px), (orientation: landscape) and (min-width: 600px)';
+export const RAIL_QUERY = '(min-width: 768px), (orientation: landscape) and (min-width: 600px)';
 
 export function useMediaQuery(query: string): boolean {
     const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
@@ -17,20 +17,21 @@ export function useMediaQuery(query: string): boolean {
     return matches;
 }
 
-interface SellerViewport {
+interface Viewport {
     /** Wide screens: desktop headers, multi-column layouts, desktop order builder. */
     isDesktop: boolean;
     /** Sidebar navigation (desktop, tablets, landscape phones) instead of the bottom bar. */
     hasRail: boolean;
 }
 
-const SellerViewportContext = createContext<SellerViewport>({ isDesktop: false, hasRail: false });
+const ViewportContext = createContext<Viewport>({ isDesktop: false, hasRail: false });
 
-export function SellerViewportProvider({ children }: { children: React.ReactNode }) {
-    const isDesktop = useMediaQuery(SELLER_DESKTOP_QUERY);
-    const hasRail = useMediaQuery(SELLER_RAIL_QUERY) || isDesktop;
+/** Shared by the seller and store shells so every screen agrees on phone vs desktop layout. */
+export function ViewportProvider({ children }: { children: React.ReactNode }) {
+    const isDesktop = useMediaQuery(DESKTOP_QUERY);
+    const hasRail = useMediaQuery(RAIL_QUERY) || isDesktop;
     const value = useMemo(() => ({ isDesktop, hasRail }), [isDesktop, hasRail]);
-    return <SellerViewportContext.Provider value={value}>{children}</SellerViewportContext.Provider>;
+    return <ViewportContext.Provider value={value}>{children}</ViewportContext.Provider>;
 }
 
-export const useSellerViewport = () => useContext(SellerViewportContext);
+export const useViewport = () => useContext(ViewportContext);

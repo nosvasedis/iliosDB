@@ -12,8 +12,8 @@ import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrders } from '../../hooks/api/useOrders';
 import { formatNumber } from '../../utils/numberFormat';
 import { HeaderPrimaryButton } from '../DesktopPageHeader';
-import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
-import { useSellerViewport } from './sellerViewport';
+import PageHeader, { SearchField } from '../shell/PageHeader';
+import { useViewport } from '../shell/viewport';
 
 const PAGE_SIZE = 60;
 
@@ -81,7 +81,7 @@ export default function SellerCustomers() {
     const { data: orders } = useOrders();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const { isDesktop } = useSellerViewport();
+    const { isDesktop } = useViewport();
 
     const [search, setSearch] = useState('');
     const deferredSearch = useDeferredValue(search.trim());
@@ -221,7 +221,7 @@ export default function SellerCustomers() {
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
-            <SellerPageHeader
+            <PageHeader
                 icon={Users}
                 title="Πελατολόγιο"
                 subtitle={customers ? `${formatNumber(sortedCustomers.length)} πελάτες` : 'Φόρτωση…'}
@@ -232,7 +232,7 @@ export default function SellerCustomers() {
                         <Plus size={17} className="text-amber-300" /> Νέος
                     </button>
                 )}
-                below={<div className="flex"><SellerSearchField value={search} onChange={setSearch} placeholder="Όνομα, τηλέφωνο, ΑΦΜ, περιοχή…" /></div>}
+                below={<div className="flex"><SearchField value={search} onChange={setSearch} placeholder="Όνομα, τηλέφωνο, ΑΦΜ, περιοχή…" /></div>}
             />
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">

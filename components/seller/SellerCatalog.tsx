@@ -1,8 +1,8 @@
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useState, useMemo, useCallback, useDeferredValue, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { Gender, ProductionType } from '../../types';
-import { BookOpen, X, SlidersHorizontal, ScanLine, PackageOpen, RotateCcw } from 'lucide-react';
+import { BookOpen, SlidersHorizontal, ScanLine, PackageOpen } from 'lucide-react';
 import { findProductByScannedCode } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
 import BarcodeScanner from '../BarcodeScanner';
@@ -18,23 +18,15 @@ import {
     SellerCatalogCollection,
     SellerCatalogProduct,
 } from '../../features/sellerCatalog/types';
-import SellerPageHeader, { SellerIconButton, SellerSearchField } from './SellerPageHeader';
+import PageHeader, { IconButton, SearchField } from '../shell/PageHeader';
 import SellerProductGrid from './SellerProductGrid';
-import { useSellerViewport } from './sellerViewport';
+import { useViewport } from '../shell/viewport';
+import { ActiveChip, ActiveChipsRow, CategoryChips, FilterSection, FilterSheet, FilterToggle, getCategoryGroup, optionClass } from '../catalog/catalogUi';
 
 interface Props {
     products: SellerCatalogProduct[];
     collections: SellerCatalogCollection[];
 }
-
-// ─── Category grouping ────────────────────────────────────────────────────────
-const CATEGORY_PREFIXES = ['Βραχιόλι', 'Κολιέ', 'Σκουλαρίκι', 'Δαχτυλίδι', 'Τσόκερ', 'Σετ', 'Αλυσίδα', 'Τσάντα', 'Καρφίτσα'];
-const getCategoryGroup = (category: string): string => {
-    for (const prefix of CATEGORY_PREFIXES) {
-        if (category.startsWith(prefix)) return prefix;
-    }
-    return category;
-};
 
 // The index (variant sorting + search strings) is the expensive part; build it once per snapshot,
 // not every time the seller opens the catalogue.
@@ -65,39 +57,17 @@ const GENDER_OPTS: Array<{ v: 'All' | Gender; l: string }> = [
     { v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Ουδέτερα' },
 ];
 
-const optionClass = (active: boolean) =>
-    `min-h-[2.25rem] rounded-xl border px-3 text-[12px] font-bold transition-colors active:scale-[0.97] ${
-        active ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-    }`;
-
-const FilterSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <section className="space-y-2">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{title}</h3>
-        <div className="flex flex-wrap gap-1.5">{children}</div>
-    </section>
-);
-
-const ActiveChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
-    <button
-        type="button"
-        onClick={onClear}
-        className="flex h-7 shrink-0 items-center gap-1 rounded-full bg-[#060b00] pl-2.5 pr-1.5 text-[11px] font-bold text-white"
-    >
-        {label}
-        <X size={12} className="opacity-70" />
-    </button>
-);
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerCatalog({ products, collections }: Props) {
     const { showToast } = useUI();
-    const { isDesktop } = useSellerViewport();
+    const { isDesktop } = useViewport();
 
     const [search, setSearch] = useState('');
     const [group, setGroup] = useState('All');
     const [facets, setFacets] = useState<FacetFilters>(DEFAULT_FACETS);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
+    const closeFilters = useCallback(() => setShowFilters(false), []);
 
     const setFacet = useCallback(<K extends keyof FacetFilters>(key: K, value: FacetFilters[K]) => {
         setFacets((prev) => ({ ...prev, [key]: value }));
@@ -134,34 +104,12 @@ export default function SellerCatalog({ products, collections }: Props) {
         }
     };
 
-    useEffect(() => {
-        if (!showFilters) return;
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowFilters(false); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [showFilters]);
-
     const stoneName = (code: string) => catalogIndex.availableStones.find((s) => s.code === code)?.name ?? code;
 
-    const chips = (
-        <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:flex-wrap lg:px-0">
-            {['All', ...categoryGroups].map((g) => (
-                <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGroup(g)}
-                    className={`h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-[12px] font-bold transition-colors ${
-                        group === g ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                >
-                    {g === 'All' ? 'Όλα' : g}
-                </button>
-            ))}
-        </div>
-    );
+    const chips = <CategoryChips groups={categoryGroups} value={group} onChange={setGroup} />;
 
     const activeChips = activeCount > 0 && (
-        <div className="-mx-3 mt-2 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:flex-wrap lg:px-0">
+        <ActiveChipsRow onClearAll={clearAll}>
             {facets.gender !== 'All' && <ActiveChip label={GENDER_OPTS.find((g) => g.v === facets.gender)?.l || ''} onClear={() => setFacet('gender', 'All')} />}
             {facets.finish !== null && <ActiveChip label={FINISH_CODES[facets.finish] ?? facets.finish} onClear={() => setFacet('finish', null)} />}
             {facets.stone !== null && <ActiveChip label={stoneName(facets.stone)} onClear={() => setFacet('stone', null)} />}
@@ -169,37 +117,36 @@ export default function SellerCatalog({ products, collections }: Props) {
             {facets.productionType !== 'All' && <ActiveChip label={facets.productionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setFacet('productionType', 'All')} />}
             {facets.collection !== 'All' && <ActiveChip label={collections.find((c) => c.id === facets.collection)?.name || 'Συλλογή'} onClear={() => setFacet('collection', 'All')} />}
             {facets.onlyInStock && <ActiveChip label="Διαθέσιμα" onClear={() => setFacet('onlyInStock', false)} />}
-            <button type="button" onClick={clearAll} className="h-7 shrink-0 px-2 text-[11px] font-bold text-rose-600">Καθαρισμός</button>
-        </div>
+        </ActiveChipsRow>
     );
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-slate-50 lg:gap-0">
-            <SellerPageHeader
+            <PageHeader
                 icon={BookOpen}
                 title="Κατάλογος"
                 subtitle={`${formatNumber(filteredProducts.length)} από ${formatNumber(products.length)} κωδικούς`}
                 actions={isDesktop ? undefined : (
                     <>
-                        <SellerIconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></SellerIconButton>
-                        <SellerIconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
+                        <IconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></IconButton>
+                        <IconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
                             <SlidersHorizontal size={18} />
-                        </SellerIconButton>
+                        </IconButton>
                     </>
                 )}
                 below={
                     <>
                         {isDesktop ? (
                             <div className="mb-3 flex items-center gap-2">
-                                <SellerSearchField value={search} onChange={setSearch} placeholder="Αναζήτηση κωδικού ή κατηγορίας…" />
-                                <SellerIconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></SellerIconButton>
-                                <SellerIconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
+                                <SearchField value={search} onChange={setSearch} placeholder="Αναζήτηση κωδικού ή κατηγορίας…" />
+                                <IconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></IconButton>
+                                <IconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
                                     <SlidersHorizontal size={18} />
-                                </SellerIconButton>
+                                </IconButton>
                             </div>
                         ) : (
                             <div className="mb-2 flex">
-                                <SellerSearchField value={search} onChange={setSearch} placeholder="Κωδικός ή κατηγορία…" />
+                                <SearchField value={search} onChange={setSearch} placeholder="Κωδικός ή κατηγορία…" />
                             </div>
                         )}
                         {chips}
@@ -229,38 +176,13 @@ export default function SellerCatalog({ products, collections }: Props) {
             />
 
             {showFilters && (
-                <div className="fixed inset-0 z-[70] flex items-end justify-center lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label="Φίλτρα καταλόγου">
-                    <button type="button" aria-label="Κλείσιμο" onClick={() => setShowFilters(false)} className="absolute inset-0 bg-[#060b00]/40" />
-                    <div className="relative flex max-h-[88dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl lg:max-h-none lg:w-[400px] lg:rounded-none lg:rounded-l-3xl">
-                        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200 lg:hidden" />
-                        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                            <h2 className="text-base font-bold text-[#060b00]">Φίλτρα</h2>
-                            <button type="button" onClick={() => setShowFilters(false)} aria-label="Κλείσιμο" className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100">
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
+                <FilterSheet resultCount={filteredProducts.length} activeCount={activeCount} onClear={clearAll} onClose={closeFilters}>
                             <FilterSection title="Ταξινόμηση">
                                 <button type="button" onClick={() => setFacet('sortBy', 'sku')} className={optionClass(facets.sortBy === 'sku')}>Κωδικός</button>
                                 <button type="button" onClick={() => setFacet('sortBy', 'created_at')} className={optionClass(facets.sortBy === 'created_at')}>Νεότερα</button>
                             </FilterSection>
 
-                            <section className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
-                                <div>
-                                    <p className="text-[13px] font-bold text-slate-800">Μόνο διαθέσιμα</p>
-                                    <p className="text-[11px] text-slate-400">Κωδικοί με απόθεμα</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={facets.onlyInStock}
-                                    onClick={() => setFacet('onlyInStock', !facets.onlyInStock)}
-                                    className={`relative h-7 w-12 rounded-full transition-colors ${facets.onlyInStock ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                                >
-                                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${facets.onlyInStock ? 'translate-x-6' : 'translate-x-1'}`} />
-                                </button>
-                            </section>
+                            <FilterToggle title="Μόνο διαθέσιμα" hint="Κωδικοί με απόθεμα" checked={facets.onlyInStock} onChange={(v) => setFacet('onlyInStock', v)} />
 
                             <FilterSection title="Φύλο">
                                 {GENDER_OPTS.map((g) => (
@@ -324,27 +246,7 @@ export default function SellerCatalog({ products, collections }: Props) {
                                     ))}
                                 </FilterSection>
                             )}
-                        </div>
-
-                        <div className="flex gap-2 border-t border-slate-100 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                            <button
-                                type="button"
-                                onClick={clearAll}
-                                disabled={activeCount === 0}
-                                className="flex h-12 items-center gap-1.5 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 disabled:opacity-40"
-                            >
-                                <RotateCcw size={15} /> Καθαρισμός
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowFilters(false)}
-                                className="flex h-12 flex-1 items-center justify-center rounded-xl bg-[#060b00] text-sm font-bold text-white active:scale-[0.99]"
-                            >
-                                Προβολή {formatNumber(filteredProducts.length)}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                </FilterSheet>
             )}
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}

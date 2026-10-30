@@ -11,8 +11,8 @@ interface Props {
     products: Product[];
 }
 
-/** The admin desktop order builder, fed with the data it needs only once a seller opens it. */
-export default function SellerDesktopOrderBuilder({ onBack, initialOrder, products }: Props) {
+/** The admin desktop order builder in a card, fed with customers/collections only once it opens. */
+export default function DesktopOrderBuilderPanel({ onBack, initialOrder, products }: Props) {
     const { data: customers, isLoading } = useCustomers();
     const { data: collections } = useCollections();
 

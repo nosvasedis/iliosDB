@@ -2,154 +2,211 @@ import OrderCustomerName from '../orders/OrderCustomerName';
 import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
-import { useOrdersWithItems } from '../../hooks/api/useOrders';
+import React, { useDeferredValue, useMemo, useState } from 'react';
+import { CalendarRange, ChevronRight, Plus, ShoppingCart, Package, Calendar, Loader2 } from 'lucide-react';
+import { useOrdersList } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
-import { ShoppingCart, Plus, Search, ChevronRight, CalendarRange } from 'lucide-react';
-import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
-import MobileOrderBuilder from '../mobile/MobileOrderBuilder'; 
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import IliosLoader from '../ui/IliosLoader';
+import { HeaderPrimaryButton } from '../DesktopPageHeader';
+import PageHeader, { SearchField } from '../shell/PageHeader';
+import { useViewport } from '../shell/viewport';
+import { useIncrementalList } from '../shell/useIncrementalList';
 
-export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
-    const { data: orders, isLoading } = useOrdersWithItems();
-    const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-    const { showToast } = useUI();
-    const [isCreating, setIsCreating] = useState(false);
-    const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-    const [search, setSearch] = useState('');
+interface Props {
+    onCreate: () => void;
+    onEdit: (order: Order) => void;
+    onOpenDeliveries?: (order: Order) => void;
+    /** Id of the order currently being opened for editing (shows a spinner on its row). */
+    openingId?: string | null;
+}
 
-    const filteredOrders = orders?.filter(o => 
-        (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(search.toLowerCase()) ||
-        o.id.toLowerCase().includes(search.toLowerCase())
-    ) || [];
+type FilterKey = 'all' | OrderStatus;
 
-    if (isLoading || !products) return <IliosLoader variant="section" detail="Παραγγελίες" />;
+const FILTER_TABS: Array<{ key: FilterKey; label: string }> = [
+    { key: 'all', label: 'Όλες' },
+    { key: OrderStatus.Pending, label: 'Εκκρεμείς' },
+    { key: OrderStatus.InProduction, label: 'Σε παραγωγή' },
+    { key: OrderStatus.Ready, label: 'Έτοιμες' },
+    { key: OrderStatus.PartiallyDelivered, label: 'Μερικώς' },
+    { key: OrderStatus.Delivered, label: 'Παραδόθηκαν' },
+];
 
-    if (isCreating || editingOrder) {
-        return (
-            <div className="bg-white md:rounded-3xl shadow-sm border border-slate-100 h-[calc(100vh-140px)] md:h-full overflow-hidden absolute inset-0 md:relative z-50">
-                <MobileOrderBuilder 
-                    onBack={() => { setIsCreating(false); setEditingOrder(null); }} 
-                    products={products} 
-                    initialOrder={editingOrder} 
-                />
+const netValueOf = (order: Order) => order.total_price / (1 + (order.vat_rate !== undefined ? order.vat_rate : 0.24));
+const dateFormatter = new Intl.DateTimeFormat('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+const shortId = (id: string) => id.slice(-8).toUpperCase();
+const itemCountOf = (order: Order) => order.item_count ?? order.items.length;
+
+const StatusPill = ({ status }: { status: OrderStatus }) => (
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${getOrderStatusClasses(status)}`}>
+        {getOrderStatusIcon(status, 11)}
+        {getOrderStatusLabel(status)}
+    </span>
+);
+
+const OrderCard = React.memo<{ order: Order; busy: boolean; onEdit: (o: Order) => void; onOpenDeliveries?: (o: Order) => void }>(({ order, busy, onEdit, onOpenDeliveries }) => (
+    <div
+        className="flex items-stretch overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}
+    >
+        <button type="button" onClick={() => onEdit(order)} className="min-w-0 flex-1 p-3 text-left active:bg-slate-50">
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                    <div className="truncate text-[15px] font-bold leading-tight text-slate-900"><OrderCustomerName order={order} /></div>
+                    <div className="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-400">
+                        #{shortId(order.id)}{order.seller_name ? <span className="font-sans font-semibold text-slate-500"> · {order.seller_name}</span> : null}
+                    </div>
+                </div>
+                <StatusPill status={order.status} />
             </div>
-        );
-    }
+            <div className="mt-2 flex items-end justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-slate-500">
+                    <span className="inline-flex items-center gap-1"><Calendar size={11} className="text-slate-400" />{dateFormatter.format(new Date(order.created_at))}</span>
+                    <span className="inline-flex items-center gap-1"><Package size={11} className="text-slate-400" />{formatNumber(itemCountOf(order))} είδη</span>
+                </div>
+                <span className="flex items-center gap-1 text-base font-bold tabular-nums text-[#060b00]">
+                    {formatCurrency(netValueOf(order))}
+                    {busy ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <ChevronRight size={15} className="text-slate-300" />}
+                </span>
+            </div>
+        </button>
+        {onOpenDeliveries && (
+            <button
+                type="button"
+                onClick={() => onOpenDeliveries(order)}
+                aria-label="Παράδοση"
+                className="flex w-12 shrink-0 items-center justify-center border-l border-slate-100 text-slate-500 hover:bg-slate-50 active:bg-slate-100"
+            >
+                <CalendarRange size={17} />
+            </button>
+        )}
+    </div>
+));
+OrderCard.displayName = 'OrderCard';
+
+export default function EmployeeOrders({ onCreate, onEdit, onOpenDeliveries, openingId }: Props) {
+    const { data: orders, isLoading } = useOrdersList();
+    const { isDesktop } = useViewport();
+    const [search, setSearch] = useState('');
+    const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+    const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+
+    const counts = useMemo(() => {
+        const map = new Map<FilterKey, number>([['all', orders?.length || 0]]);
+        (orders || []).forEach((o) => map.set(o.status, (map.get(o.status) || 0) + 1));
+        return map;
+    }, [orders]);
+
+    const filtered = useMemo(() => (orders || []).filter((o) => {
+        if (activeFilter !== 'all' && o.status !== activeFilter) return false;
+        if (!deferredSearch) return true;
+        return `${getOrderCustomerName(o)} ${o.customer_name} ${o.id} ${o.seller_name || ''}`.toLowerCase().includes(deferredSearch);
+    }), [orders, activeFilter, deferredSearch]);
+
+    const { visible, hasMore, sentinelRef } = useIncrementalList(filtered, `${activeFilter}|${deferredSearch}`);
+
+    if (isLoading && !orders) return <IliosLoader variant="section" detail="Παραγγελίες" className="h-full" />;
+
+    const tabs = (
+        <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:px-0">
+            {FILTER_TABS.map((tab) => {
+                const active = activeFilter === tab.key;
+                return (
+                    <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveFilter(tab.key)}
+                        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-bold transition-colors ${
+                            active ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                    >
+                        {tab.label}
+                        <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{formatNumber(counts.get(tab.key) || 0)}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-slate-800">Παραγγελίες</h1>
-                <button 
-                    onClick={() => setIsCreating(true)}
-                    className="bg-[#060b00] text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-black transition-all active:scale-95"
-                >
-                    <Plus size={20}/> <span className="hidden md:inline">Νέα Παραγγελία</span><span className="md:hidden">Νέα</span>
-                </button>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-slate-100 flex flex-col flex-1 overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-slate-100 flex items-center gap-4">
-                    <Search className="text-slate-400" size={20}/>
-                    <input 
-                        className="flex-1 outline-none font-medium text-slate-700"
-                        placeholder="Αναζήτηση..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                </div>
-
-                <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white">
-                    {/* MOBILE VIEW (CARDS) */}
-                    <div className="md:hidden p-3 space-y-3">
-                        {filteredOrders.map(order => {
-                            const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-                            const netValue = order.total_price / (1 + activeVat);
-                            return (
-                                <div 
-                                    key={order.id} 
-                                    onClick={() => setEditingOrder(order)}
-                                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-auto px-2 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-[10px]">
-                                                #{order.id}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-slate-800 text-sm"><OrderCustomerName order={order} /></div>
-                                                <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
-                                            </div>
-                                        </div>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${getOrderStatusClasses(order.status)}`}>
-                                            {getOrderStatusIcon(order.status, 12)} {getOrderStatusLabel(order.status)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
-                                        <div className="text-xs text-slate-500 font-medium">{formatNumber(order.items.length)} είδη</div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }} className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center">
-                                                <CalendarRange size={14}/>
-                                            </button>
-                                            <span className="font-black text-slate-900 text-base">{formatCurrency(netValue)}</span>
-                                            <ChevronRight size={16} className="text-slate-300"/>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <PageHeader
+                icon={ShoppingCart}
+                title="Παραγγελίες"
+                subtitle={`${formatNumber(orders?.length || 0)} συνολικά`}
+                actions={isDesktop ? (
+                    <HeaderPrimaryButton icon={Plus} onClick={onCreate}>Νέα παραγγελία</HeaderPrimaryButton>
+                ) : (
+                    <button type="button" onClick={onCreate} className="flex h-10 items-center gap-1.5 rounded-xl bg-[#060b00] pl-2.5 pr-3.5 text-[13px] font-bold text-white active:scale-95">
+                        <Plus size={17} className="text-amber-300" /> Νέα
+                    </button>
+                )}
+                below={
+                    <div className="space-y-2.5">
+                        <div className="flex"><SearchField value={search} onChange={setSearch} placeholder="Πελάτης, πλασιέ ή κωδικός…" /></div>
+                        {tabs}
                     </div>
+                }
+            />
 
-                    {/* DESKTOP VIEW (TABLE) */}
-                    <table className="hidden md:table w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0">
-                            <tr>
-                                <th className="p-4">ID</th>
-                                <th className="p-4">Πελάτης</th>
-                                <th className="p-4">Ημερομηνία</th>
-                                <th className="p-4 text-right">Ποσό</th>
-                                <th className="p-4 text-center">Κατάσταση</th>
-                                <th className="p-4 text-right">Παράδοση</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {filteredOrders.map(order => {
-                                const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-                                const netValue = order.total_price / (1 + activeVat);
-                                return (
-                                    <tr key={order.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setEditingOrder(order)}>
-                                        <td className="p-4 font-mono font-bold text-slate-600">#{order.id}</td>
-                                        <td className="p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+                {isDesktop ? (
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+                        <table className="w-full text-left text-sm">
+                            <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th className="px-4 py-3">Κωδ.</th>
+                                    <th className="px-4 py-3">Πελάτης</th>
+                                    <th className="px-4 py-3">Ημερομηνία</th>
+                                    <th className="px-4 py-3 text-right">Είδη</th>
+                                    <th className="px-4 py-3 text-right">Καθαρό</th>
+                                    <th className="px-4 py-3 text-center">Κατάσταση</th>
+                                    <th className="px-4 py-3 text-right">Παράδοση</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {visible.map((order) => (
+                                    <tr key={order.id} onClick={() => onEdit(order)} className="cursor-pointer transition-colors hover:bg-slate-50">
+                                        <td className="px-4 py-3 font-mono text-xs font-bold text-slate-500">
+                                            <span className="inline-flex items-center gap-1.5">#{shortId(order.id)}{openingId === order.id && <Loader2 size={13} className="animate-spin" />}</span>
+                                        </td>
+                                        <td className="px-4 py-3">
                                             <div className="font-bold text-slate-800"><OrderCustomerName order={order} /></div>
-                                            {order.seller_name && <div className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</div>}
+                                            {order.seller_name && <div className="mt-0.5 text-[11px] text-slate-500">Πλασιέ: {order.seller_name}</div>}
                                         </td>
-                                        <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
-                                        <td className="p-4 text-right font-black text-slate-900">{formatCurrency(netValue)}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getOrderStatusClasses(order.status)}`}>
-                                                {getOrderStatusLabel(order.status)}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-right">
-                                            <button onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }} className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold inline-flex items-center gap-2">
-                                                <CalendarRange size={14}/> Παράδοση
+                                        <td className="px-4 py-3 text-slate-500">{dateFormatter.format(new Date(order.created_at))}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{formatNumber(itemCountOf(order))}</td>
+                                        <td className="px-4 py-3 text-right font-bold tabular-nums text-slate-900">{formatCurrency(netValueOf(order))}</td>
+                                        <td className="px-4 py-3 text-center"><StatusPill status={order.status} /></td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); onOpenDeliveries?.(order); }}
+                                                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200"
+                                            >
+                                                <CalendarRange size={13} /> Παράδοση
                                             </button>
                                         </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-
-                    {filteredOrders.length === 0 && (
-                        <div className="p-10 text-center text-slate-400 italic">Δεν βρέθηκαν παραγγελίες.</div>
-                    )}
-                </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="space-y-2 p-2 min-[400px]:p-3">
+                        {visible.map((order) => (
+                            <OrderCard key={order.id} order={order} busy={openingId === order.id} onEdit={onEdit} onOpenDeliveries={onOpenDeliveries} />
+                        ))}
+                    </div>
+                )}
+                {hasMore && <div ref={sentinelRef} className="h-10" />}
+                {filtered.length === 0 && (
+                    <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
+                        <ShoppingCart size={34} className="opacity-25" />
+                        <p className="text-sm font-bold">Δεν βρέθηκαν παραγγελίες.</p>
+                    </div>
+                )}
             </div>
         </div>
     );

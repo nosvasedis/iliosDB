@@ -9,7 +9,7 @@ import {
     SellerCatalogCollection,
     SellerCatalogProduct,
 } from '../../features/sellerCatalog/types';
-import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
+import PageHeader, { SearchField } from '../shell/PageHeader';
 import SellerProductGrid from './SellerProductGrid';
 
 interface Props {
@@ -76,7 +76,7 @@ export default function SellerCollections({ products, collections, onAddToOrder 
         const { collection } = selected;
         return (
             <div className="flex h-full min-h-0 flex-col bg-slate-50">
-                <SellerPageHeader
+                <PageHeader
                     icon={FolderKanban}
                     title={collection.name}
                     subtitle={collection.description || itemsLabel(filteredProducts.length)}
@@ -95,7 +95,7 @@ export default function SellerCollections({ products, collections, onAddToOrder 
                             {itemsLabel(filteredProducts.length)}
                         </span>
                     }
-                    below={<div className="flex"><SellerSearchField value={searchTerm} onChange={setSearchTerm} placeholder="Αναζήτηση στη συλλογή…" /></div>}
+                    below={<div className="flex"><SearchField value={searchTerm} onChange={setSearchTerm} placeholder="Αναζήτηση στη συλλογή…" /></div>}
                 />
                 <SellerProductGrid
                     products={filteredProducts}
@@ -110,11 +110,11 @@ export default function SellerCollections({ products, collections, onAddToOrder 
     // ── Collections List View ──────────────────────────────────────────────────
     return (
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
-            <SellerPageHeader
+            <PageHeader
                 icon={FolderKanban}
                 title="Συλλογές"
                 subtitle={`${formatNumber(summaries.length)} συλλογές`}
-                below={summaries.length > 6 ? <div className="flex"><SellerSearchField value={listFilter} onChange={setListFilter} placeholder="Αναζήτηση συλλογής…" /></div> : undefined}
+                below={summaries.length > 6 ? <div className="flex"><SearchField value={listFilter} onChange={setListFilter} placeholder="Αναζήτηση συλλογής…" /></div> : undefined}
             />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
                 <div className="grid grid-cols-2 gap-2 p-2 min-[400px]:gap-2.5 min-[400px]:p-2.5 sm:grid-cols-3 sm:gap-3 sm:p-3 lg:grid-cols-3 lg:gap-4 lg:px-0 lg:pt-4 xl:grid-cols-4 2xl:grid-cols-5">

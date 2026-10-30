@@ -5,8 +5,7 @@ import { FINISH_CODES } from '../../constants';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { formatNumber } from '../../utils/numberFormat';
 import SkuColorizedText from '../SkuColorizedText';
-import { SellerCatalogProduct } from '../../features/sellerCatalog/types';
-import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
+import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from '../seller/skuColors';
 
 const FINISH_DOT_ACTIVE: Record<string, string> = {
     '': 'bg-emerald-500', P: 'bg-stone-500', X: 'bg-amber-500', D: 'bg-rose-400', H: 'bg-cyan-400',
@@ -14,6 +13,25 @@ const FINISH_DOT_ACTIVE: Record<string, string> = {
 
 const SWIPE_THRESHOLD = 32;
 const TAP_SLOP = 8;
+
+/** The fields a catalogue card reads; both the seller read model and full ERP products satisfy it. */
+export interface CatalogCardVariant {
+    suffix: string;
+    selling_price?: number | null;
+    stock_qty?: number;
+    available_qty?: number;
+}
+
+export interface CatalogCardProduct {
+    sku: string;
+    category: string;
+    gender: Gender;
+    image_url?: string | null;
+    selling_price?: number | null;
+    stock_qty?: number;
+    available_qty?: number;
+    variants?: readonly CatalogCardVariant[];
+}
 
 export const SuffixBadge = React.memo(({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
@@ -34,22 +52,24 @@ export const SuffixBadge = React.memo(({ suffix, gender }: { suffix: string; gen
 });
 SuffixBadge.displayName = 'SuffixBadge';
 
-export type SellerCardDensity = 'compact' | 'regular';
+export type CatalogCardDensity = 'compact' | 'regular';
 
-interface Props {
-    product: SellerCatalogProduct;
-    density: SellerCardDensity;
+export interface CatalogCardProps<T extends CatalogCardProduct> {
+    product: T;
+    density: CatalogCardDensity;
     priority?: boolean;
-    onOpen: (product: SellerCatalogProduct, variantIndex: number) => void;
-    onAddToOrder?: (product: SellerCatalogProduct, variantSuffix?: string) => void;
+    /** Store shows retail (wholesale × 3); sellers see wholesale. */
+    priceMultiplier?: number;
+    onOpen: (product: T, variantIndex: number) => void;
+    onAddToOrder?: (product: T, variantSuffix?: string) => void;
 }
 
 /**
  * Catalogue card: SKU first, compact price, swipe (touch) or arrows (mouse) through variants.
  * Drag feedback writes the transform straight to the DOM so a swipe never re-renders React.
  */
-const SellerProductCard = React.memo(function SellerProductCard({ product, density, priority = false, onOpen, onAddToOrder }: Props) {
-    const variants = product.variants;
+function CatalogProductCardInner<T extends CatalogCardProduct>({ product, density, priority = false, priceMultiplier = 1, onOpen, onAddToOrder }: CatalogCardProps<T>) {
+    const variants = product.variants ?? [];
     const variantCount = variants.length;
     const [viewIndex, setViewIndex] = useState(0);
     const [imageFailed, setImageFailed] = useState(false);
@@ -62,18 +82,18 @@ const SellerProductCard = React.memo(function SellerProductCard({ product, densi
 
     const finishGroups = useMemo(() => {
         if (variantCount < 2) return [];
-        const groups: { finish: string; first: number; indices: Set<number> }[] = [];
+        const groups: { finish: string; first: number }[] = [];
         variants.forEach((v, i) => {
             const f = getVariantComponents(v.suffix, product.gender).finish.code;
-            const g = groups.find((item) => item.finish === f);
-            if (g) g.indices.add(i);
-            else groups.push({ finish: f, first: i, indices: new Set([i]) });
+            if (!groups.some((item) => item.finish === f)) groups.push({ finish: f, first: i });
         });
         return groups.length > 1 ? groups : [];
     }, [variants, variantCount, product.gender]);
 
-    const current = variantCount > 0 ? variants[Math.min(viewIndex, variantCount - 1)] : null;
-    const price = current ? (current.selling_price || product.selling_price || 0) : (product.selling_price || 0);
+    const safeIndex = variantCount > 0 ? Math.min(viewIndex, variantCount - 1) : 0;
+    const current = variantCount > 0 ? variants[safeIndex] : null;
+    const basePrice = current ? (current.selling_price || product.selling_price || 0) : (product.selling_price || 0);
+    const price = basePrice * priceMultiplier;
     const stock = current ? (current.available_qty ?? current.stock_qty ?? 0) : (product.available_qty ?? product.stock_qty ?? 0);
     const compact = density === 'compact';
 
@@ -124,7 +144,7 @@ const SellerProductCard = React.memo(function SellerProductCard({ product, densi
             suppressClick.current = false;
             return;
         }
-        onOpen(product, Math.min(viewIndex, Math.max(variantCount - 1, 0)));
+        onOpen(product, safeIndex);
     };
 
     const activeFinish = current ? getVariantComponents(current.suffix, product.gender).finish.code : null;
@@ -134,7 +154,7 @@ const SellerProductCard = React.memo(function SellerProductCard({ product, densi
             <div className="relative aspect-square overflow-hidden bg-slate-100">
                 <div
                     ref={mediaRef}
-                    className="absolute inset-0 cursor-zoom-in"
+                    className="absolute inset-0 cursor-pointer"
                     style={{ touchAction: 'pan-y' }}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
@@ -166,11 +186,11 @@ const SellerProductCard = React.memo(function SellerProductCard({ product, densi
 
                 {variantCount > 1 && (
                     <span className={`pointer-events-none absolute right-1 top-1 rounded-full bg-black/55 px-1.5 py-px font-bold tabular-nums text-white ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
-                        {formatNumber(Math.min(viewIndex, variantCount - 1) + 1)}/{formatNumber(variantCount)}
+                        {formatNumber(safeIndex + 1)}/{formatNumber(variantCount)}
                     </span>
                 )}
 
-                {/* Mouse users: arrows + zoom appear on hover (touch devices swipe and tap). */}
+                {/* Mouse users: arrows + open hint appear on hover (touch devices swipe and tap). */}
                 {variantCount > 1 && (
                     <div className="pointer-events-none absolute inset-x-1 top-1/2 hidden -translate-y-1/2 justify-between opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:hover)]:flex">
                         <button type="button" onClick={(e) => { e.stopPropagation(); step(-1); }} aria-label="Προηγούμενη παραλλαγή" className="pointer-events-auto rounded-full bg-white/90 p-1 text-slate-700 shadow hover:bg-white">
@@ -234,6 +254,7 @@ const SellerProductCard = React.memo(function SellerProductCard({ product, densi
             </div>
         </article>
     );
-});
+}
 
-export default SellerProductCard;
+const CatalogProductCard = React.memo(CatalogProductCardInner) as typeof CatalogProductCardInner;
+export default CatalogProductCard;

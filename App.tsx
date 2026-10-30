@@ -191,6 +191,7 @@ function ErpAppContent() {
     pendingItems,
     pendingCount,
     refreshQueue,
+    triggerSync,
   } = useConnectivityStatus({
     onSyncCompleted: async (result) => {
       if (result.syncedCount > 0 && result.remainingCount === 0) {
@@ -234,6 +235,7 @@ function ErpAppContent() {
   const { data: collections, isLoading: loadingCollections } = useCollections({ enabled: shouldLoadErpData });
   const { data: allShipments } = useAllShipments({ enabled: shouldLoadErpData });
   const { data: allShipmentItems } = useAllShipmentItems({ enabled: shouldLoadErpData });
+  const shellConnectivity = { isOnline, isSyncing, pendingCount, triggerSync };
 
 
 
@@ -242,7 +244,7 @@ function ErpAppContent() {
   if (profile?.role === 'seller') {
     return (
       <Suspense fallback={<IliosLoader variant="screen" detail="Άνοιγμα χώρου πλασιέ" />}>
-        <SellerApp />
+        <SellerApp connectivity={shellConnectivity} />
       </Suspense>
     );
   }
@@ -304,7 +306,7 @@ function ErpAppContent() {
             setLegalDocumentToPrint={setLegalDocumentToPrint}
             setProformaToPrint={setProformaToPrint}
           />
-          <EmployeeApp setPrintItems={setPrintItems} />
+          <EmployeeApp setPrintItems={setPrintItems} connectivity={shellConnectivity} />
         </>
       </Suspense>
     );

@@ -1,205 +1,127 @@
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Product, ProductVariant, Warehouse } from '../../types';
-import { X, ImageIcon, Tag, Package, ChevronLeft, Printer, ShoppingBag } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { X, ImageIcon, Tag, Package, ChevronLeft, ShoppingBag, BookMarked, Euro } from 'lucide-react';
+import { formatCurrency } from '../../utils/pricingEngine';
+import SkuColorizedText from '../SkuColorizedText';
+import { SuffixBadge } from '../catalog/CatalogProductCard';
+import { STORE_RETAIL_MULTIPLIER, sortStoreVariants } from './storeCatalog';
+
+type PrintItem = { product: Product; variant?: ProductVariant; quantity: number; format?: 'standard' | 'simple' | 'retail' };
 
 interface Props {
     product: Product;
     onClose: () => void;
-    warehouses: Warehouse[];
-    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    /** Kept for callers; stock comes from the product itself. */
+    warehouses?: Warehouse[];
+    setPrintItems?: (items: PrintItem[]) => void;
 }
 
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-700 border-amber-200',
-    'P': 'bg-slate-100 text-slate-600 border-slate-200',
-    'D': 'bg-orange-100 text-orange-700 border-orange-200',
-    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
-};
+const StatTile = ({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone: string }) => (
+    <div className={`min-w-0 rounded-2xl border px-3 py-2.5 ${tone}`}>
+        <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide opacity-80"><Icon size={11} /> <span className="truncate">{label}</span></div>
+        <div className="mt-0.5 truncate text-lg font-black tabular-nums lg:text-xl">{value}</div>
+    </div>
+);
 
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'CI': 'text-yellow-600', 'MUL': 'text-fuchsia-600',
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
-    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
-    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'AZM': 'text-teal-600', 'LR': 'text-indigo-700', 'SB': 'text-sky-500',
-    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
-    'MV': 'text-purple-500', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
-};
+export default function EmployeeProductDetails({ product, onClose, setPrintItems }: Props) {
+    const [imageFailed, setImageFailed] = useState(false);
+    const variants = useMemo(() => sortStoreVariants(product.variants || [], product.gender), [product]);
 
-export default function EmployeeProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
-    const variants = product.variants || [];
-    
-    const sortedVariants = useMemo(() => {
-        return [...variants].sort((a, b) => {
-            const getPriority = (s: string) => {
-                if (s === '') return 0;
-                if (s.startsWith('P')) return 1;
-                if (s.startsWith('D')) return 2;
-                if (s.startsWith('X')) return 3;
-                if (s.startsWith('H')) return 4;
-                return 5;
-            };
-            return getPriority(a.suffix) - getPriority(b.suffix);
-        });
-    }, [variants]);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
-    const totalStock = (product.available_qty ?? product.stock_qty ?? 0)
-        + variants.reduce((acc, v) => acc + (v.available_qty ?? v.stock_qty ?? 0), 0);
+    const masterStock = product.available_qty ?? product.stock_qty ?? 0;
+    const totalStock = masterStock + variants.reduce((acc, v) => acc + (v.available_qty ?? v.stock_qty ?? 0), 0);
+    const retailOf = (v: ProductVariant | null) => ((v ? v.selling_price || product.selling_price : product.selling_price) || 0) * STORE_RETAIL_MULTIPLIER;
+    const retailPrices = (variants.length ? variants.map(retailOf) : [retailOf(null)]).filter((p) => p > 0);
+    const minRetail = retailPrices.length ? Math.min(...retailPrices) : 0;
 
-    const handlePrintLabel = (variant: ProductVariant | null, format: 'standard' | 'retail') => {
-        if (!setPrintItems) return;
-        setPrintItems([{
-            product,
-            variant: variant || undefined,
-            quantity: 1,
-            format
-        }]);
+    const print = (variant: ProductVariant | null, format: 'standard' | 'retail') => {
+        setPrintItems?.([{ product, variant: variant || undefined, quantity: 1, format }]);
     };
 
-    // Retail Price Calculation
-    const wholesalePrice = product.selling_price || 0;
-    const retailPrice = wholesalePrice * 3.0;
+    const rows: Array<ProductVariant | null> = variants.length ? variants : [null];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 bg-white md:bg-transparent">
-            <div className="hidden md:block absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-            
-            <div className="bg-white w-full md:max-w-4xl h-full md:h-[85vh] md:rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95">
-                
+        <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-white lg:items-center lg:bg-transparent lg:p-6" role="dialog" aria-modal="true" aria-label={product.sku}>
+            <button type="button" aria-label="Κλείσιμο" onClick={onClose} className="absolute inset-0 hidden bg-[#060b00]/50 lg:block" />
+
+            <div className="relative flex h-full w-full flex-col overflow-hidden bg-white lg:h-[min(52rem,90vh)] lg:max-w-3xl lg:rounded-3xl lg:shadow-2xl">
                 {/* Header */}
-                <div className="flex justify-between items-start p-4 md:p-6 border-b border-slate-100 bg-white z-10 sticky top-0">
-                    <div className="flex gap-4 md:gap-6 items-center">
-                        <button onClick={onClose} className="md:hidden p-2 -ml-2 text-slate-500">
-                            <ChevronLeft size={24}/>
-                        </button>
-                        <div className="w-16 h-16 md:w-24 md:h-24 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shrink-0">
-                            {product.image_url ? (
-                                <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32}/></div>
-                            )}
-                        </div>
-                        <div>
-                            <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{product.sku}</h2>
-                            <div className="flex items-center gap-2 mt-1 md:mt-2">
-                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{product.category}</span>
-                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase hidden md:inline-block">{product.gender}</span>
-                            </div>
+                <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] lg:px-6 lg:py-5">
+                    <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden">
+                        <ChevronLeft size={22} />
+                    </button>
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 lg:h-24 lg:w-24">
+                        {product.image_url && !imageFailed ? (
+                            <img src={product.image_url} alt={product.sku} decoding="async" onError={() => setImageFailed(true)} className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-300"><ImageIcon size={26} /></div>
+                        )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <SkuColorizedText sku={product.sku} suffix="" gender={product.gender} className="block truncate text-xl leading-tight lg:text-3xl" />
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{product.category}</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{product.gender}</span>
                         </div>
                     </div>
-                    <button onClick={onClose} className="hidden md:block p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-colors">
-                        <X size={20}/>
+                    <button type="button" onClick={onClose} aria-label="Κλείσιμο" className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 lg:flex">
+                        <X size={20} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 pb-24 md:pb-8">
-                    {/* Stock Overview */}
-                    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm mb-6">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
-                            <Package size={18} className="text-emerald-500"/> Συνολικό Απόθεμα
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase">Σύνολο Τεμαχίων</div>
-                                <div className="text-2xl font-black text-slate-900">{formatNumber(totalStock)}</div>
-                            </div>
-                            <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center">
-                                <div className="text-[10px] font-bold text-purple-400 uppercase">Δειγματολόγιο</div>
-                                <div className="text-2xl font-black text-purple-700">{formatNumber(product.sample_qty)}</div>
-                            </div>
-                        </div>
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-50/60 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-6">
+                    <div className="grid grid-cols-3 gap-2">
+                        <StatTile icon={Package} label="Απόθεμα" value={formatNumber(totalStock)} tone="border-emerald-100 bg-emerald-50 text-emerald-800" />
+                        <StatTile icon={BookMarked} label="Δειγματολόγιο" value={formatNumber(product.sample_qty || 0)} tone="border-violet-100 bg-violet-50 text-violet-800" />
+                        <StatTile icon={Euro} label="Λιανική από" value={minRetail > 0 ? formatCurrency(minRetail) : '—'} tone="border-slate-200 bg-white text-slate-800" />
                     </div>
 
-                    {/* Variants Table */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Tag size={18} className="text-blue-500"/> Τιμές & Ετικέτες
-                            </h3>
+                    <section className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5 lg:px-4">
+                            <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500"><Tag size={13} /> Παραλλαγές, τιμές & ετικέτες</h3>
+                            <span className="text-[11px] font-bold tabular-nums text-slate-400">{formatNumber(rows.length)}</span>
                         </div>
-                        
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
-                                <tr>
-                                    <th className="p-4">Παραλλαγή / Περιγραφή</th>
-                                    <th className="p-4 text-center hidden sm:table-cell">Απόθεμα</th>
-                                    <th className="p-4 text-right">Τιμή Λιανικής</th>
-                                    <th className="p-4 text-center w-32">Εκτύπωση</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {variants.length > 0 ? sortedVariants.map(v => {
-                                    const { finish, stone } = getVariantComponents(v.suffix, product.gender);
-                                    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-                                    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-                                    const variantRetail = (v.selling_price || product.selling_price || 0) * 3.0;
-                                    
-                                    return (
-                                    <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className={`px-2 py-1 rounded-lg font-mono font-black text-sm border ${badgeColor} min-w-[3rem] text-center`}>
-                                                    {v.suffix || 'BAS'}
-                                                </span>
-                                                <span className={`font-bold text-sm ${stoneColor}`}>{v.description}</span>
+                        <ul className="divide-y divide-slate-100">
+                            {rows.map((v) => {
+                                const stock = v ? (v.available_qty ?? v.stock_qty ?? 0) : masterStock;
+                                const retail = retailOf(v);
+                                return (
+                                    <li key={v?.suffix ?? 'master'} className="flex items-center gap-2.5 px-3 py-2.5 lg:gap-4 lg:px-4">
+                                        <div className="min-w-0 flex-1">
+                                            <SkuColorizedText sku={product.sku} suffix={v?.suffix || ''} gender={product.gender} className="block truncate text-[15px] leading-tight" />
+                                            <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                                                {v ? <SuffixBadge suffix={v.suffix} gender={product.gender} /> : <span className="text-[11px] font-semibold text-slate-500">Βασικό προϊόν</span>}
+                                                {v?.description && <span className="hidden truncate text-[11px] font-medium text-slate-500 sm:inline">{v.description}</span>}
                                             </div>
-                                        </td>
-                                        <td className="p-4 text-center hidden sm:table-cell">
-                                            {(v.available_qty ?? v.stock_qty) > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{formatNumber(v.available_qty ?? v.stock_qty)}</span>
-                                            ) : <span className="text-slate-300">-</span>}
-                                        </td>
-                                        <td className="p-4 text-right font-black text-lg text-slate-800">
-                                            {formatCurrency(variantRetail)}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center gap-1">
-                                                <button onClick={() => handlePrintLabel(v, 'standard')} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Χονδρική">
-                                                    <Tag size={16}/>
+                                        </div>
+                                        <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold tabular-nums ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                            {formatNumber(stock)}<span className="hidden sm:inline"> τεμ.</span>
+                                        </span>
+                                        <span className="w-[4.75rem] shrink-0 text-right text-[15px] font-black tabular-nums text-[#060b00] lg:w-24 lg:text-base">
+                                            {retail > 0 ? formatCurrency(retail) : '—'}
+                                        </span>
+                                        {setPrintItems && (
+                                            <div className="flex shrink-0 gap-1">
+                                                <button type="button" onClick={() => print(v, 'standard')} title="Ετικέτα χονδρικής" aria-label="Ετικέτα χονδρικής" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95">
+                                                    <Tag size={15} />
                                                 </button>
-                                                <button onClick={() => handlePrintLabel(v, 'retail')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Λιανική">
-                                                    <ShoppingBag size={16}/>
+                                                <button type="button" onClick={() => print(v, 'retail')} title="Ετικέτα λιανικής" aria-label="Ετικέτα λιανικής" className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95">
+                                                    <ShoppingBag size={15} />
                                                 </button>
                                             </div>
-                                        </td>
-                                    </tr>
-                                )}) : (
-                                    <tr>
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded-lg font-mono font-black text-sm">MASTER</span>
-                                                <span className="text-slate-700 font-bold text-sm">Βασικό Προϊόν</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-center hidden sm:table-cell">
-                                            {(product.available_qty ?? product.stock_qty) > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{formatNumber(product.available_qty ?? product.stock_qty)}</span>
-                                            ) : <span className="text-slate-300">-</span>}
-                                        </td>
-                                        <td className="p-4 text-right font-black text-lg text-slate-800">
-                                            {formatCurrency(retailPrice)}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center gap-1">
-                                                <button onClick={() => handlePrintLabel(null, 'standard')} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Χονδρική">
-                                                    <Tag size={16}/>
-                                                </button>
-                                                <button onClick={() => handlePrintLabel(null, 'retail')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100" title="Λιανική">
-                                                    <ShoppingBag size={16}/>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </section>
                 </div>
             </div>
         </div>

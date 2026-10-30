@@ -16,8 +16,8 @@ import IliosLoader from '../ui/IliosLoader';
 import SpecialCreationNote from '../SpecialCreationNote';
 import SkuColorizedText from '../SkuColorizedText';
 import { HeaderPrimaryButton } from '../DesktopPageHeader';
-import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
-import { useSellerViewport } from './sellerViewport';
+import PageHeader, { SearchField } from '../shell/PageHeader';
+import { useViewport } from '../shell/viewport';
 import { isSellerOrder } from './sellerOrderScope';
 
 interface Props {
@@ -138,7 +138,7 @@ SellerOrderCard.displayName = 'SellerOrderCard';
 export default function SellerOrders({ onCreate, onEdit }: Props) {
     const { user, profile } = useAuth();
     const { confirm, showToast } = useUI();
-    const { isDesktop } = useSellerViewport();
+    const { isDesktop } = useViewport();
     const queryClient = useQueryClient();
     const { data: orders, isLoading } = useOrdersList();
     const [search, setSearch] = useState('');
@@ -204,7 +204,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
-            <SellerPageHeader
+            <PageHeader
                 icon={ShoppingCart}
                 title="Οι παραγγελίες μου"
                 subtitle={`${formatNumber(myOrders.length)} συνολικά`}
@@ -217,7 +217,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
                 )}
                 below={
                     <div className="space-y-2.5">
-                        <div className="flex"><SellerSearchField value={search} onChange={setSearch} placeholder="Πελάτης ή κωδικός παραγγελίας…" /></div>
+                        <div className="flex"><SearchField value={search} onChange={setSearch} placeholder="Πελάτης ή κωδικός παραγγελίας…" /></div>
                         {tabs}
                     </div>
                 }

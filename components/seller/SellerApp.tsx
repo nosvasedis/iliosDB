@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import SellerLayout from './SellerLayout';
+import AppShell, { type ShellConnectivity } from '../shell/AppShell';
 import SellerDashboard from './SellerDashboard';
 import SellerOrders from './SellerOrders';
 import SellerCatalog from './SellerCatalog';
@@ -10,12 +10,13 @@ import type { SellerPage } from '../../surfaces/pageIds';
 import { productKeys, productsRepository } from '../../features/products';
 import IliosLoader from '../ui/IliosLoader';
 import { useSellerCatalog } from '../../features/sellerCatalog/useSellerCatalog';
-import { SellerViewportProvider, useSellerViewport } from './sellerViewport';
+import { ViewportProvider, useViewport } from '../shell/viewport';
+import { sellerNavSections } from '../../surfaces/navConfig';
 
 // Heavy, rarely-first screens load on demand so the seller shell opens fast on weak phones.
 const loadMobileOrderBuilder = () => import('../mobile/MobileOrderBuilder');
 const MobileOrderBuilder = lazy(loadMobileOrderBuilder);
-const SellerDesktopOrderBuilder = lazy(() => import('./SellerDesktopOrderBuilder'));
+const DesktopOrderBuilderPanel = lazy(() => import('../shell/DesktopOrderBuilderPanel'));
 const SellerCustomers = lazy(() => import('./SellerCustomers'));
 const CustomerServiceWorkspace = lazy(() => import('../CustomerServiceWorkspace'));
 
@@ -30,6 +31,9 @@ const sellerLoadingDetails: Record<SellerPage, string> = {
   'order-builder': 'Νέα παραγγελία',
 };
 
+const navItem = (id: SellerPage) => sellerNavSections.flatMap((s) => s.items).find((i) => i.id === id)!;
+const SELLER_BAR_ITEMS = [navItem('dashboard'), navItem('catalog'), navItem('orders')] as const;
+
 /** Screens whose filters and scroll position survive switching away and back. */
 const KEEP_ALIVE_PAGES: SellerPage[] = ['catalog', 'collections'];
 
@@ -41,8 +45,8 @@ const hiddenPageStyle: React.CSSProperties = {
   contentVisibility: 'hidden',
 };
 
-function SellerWorkspace() {
-  const { isDesktop } = useSellerViewport();
+function SellerWorkspace({ connectivity }: { connectivity: ShellConnectivity }) {
+  const { isDesktop } = useViewport();
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
   const [visited, setVisited] = useState<ReadonlySet<SellerPage>>(() => new Set<SellerPage>(['dashboard']));
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -97,7 +101,7 @@ function SellerWorkspace() {
       case 'order-builder':
         if (productsLoading || !products) return loadingView;
         return isDesktop ? (
-          <SellerDesktopOrderBuilder onBack={handleOrderBack} initialOrder={editingOrder} products={products} />
+          <DesktopOrderBuilderPanel onBack={handleOrderBack} initialOrder={editingOrder} products={products} />
         ) : (
           <div className="h-full bg-white">
             <MobileOrderBuilder onBack={handleOrderBack} initialOrder={editingOrder} products={products} attachSeller={true} />
@@ -120,7 +124,17 @@ function SellerWorkspace() {
   const activeIsKeptAlive = keepAlive.includes(activePage);
 
   return (
-    <SellerLayout activePage={activePage} onNavigate={navigate} onCreateOrder={handleCreateOrder}>
+    <AppShell
+      activePage={activePage}
+      onNavigate={navigate}
+      sections={sellerNavSections}
+      barItems={SELLER_BAR_ITEMS}
+      primaryAction={{ label: 'Νέα παραγγελία', onClick: handleCreateOrder, isActive: activePage === 'order-builder' }}
+      workspaceLabel="Χώρος πλασιέ"
+      connectivity={connectivity}
+      hideBottomBar={activePage === 'order-builder'}
+      storageKey="ilios-seller-sidebar-collapsed"
+    >
       <div className="relative h-full">
         {keepAlive.map((page) => (
           <div
@@ -138,14 +152,14 @@ function SellerWorkspace() {
           </Suspense>
         )}
       </div>
-    </SellerLayout>
+    </AppShell>
   );
 }
 
-export default function SellerApp() {
+export default function SellerApp({ connectivity }: { connectivity: ShellConnectivity }) {
   return (
-    <SellerViewportProvider>
-      <SellerWorkspace />
-    </SellerViewportProvider>
+    <ViewportProvider>
+      <SellerWorkspace connectivity={connectivity} />
+    </ViewportProvider>
   );
 }

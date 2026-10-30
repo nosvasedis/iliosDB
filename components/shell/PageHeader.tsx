@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, X, type LucideIcon } from 'lucide-react';
 import DesktopPageHeader from '../DesktopPageHeader';
-import { useSellerViewport } from './sellerViewport';
+import { useViewport } from './viewport';
 
 interface Props {
     icon: LucideIcon;
@@ -16,12 +16,12 @@ interface Props {
 }
 
 /**
- * One header for every seller screen: the desktop app's DesktopPageHeader on wide
+ * One header for every seller and store screen: the desktop app's DesktopPageHeader on wide
  * screens, a compact bar with the same brand tile on phones. Rendered outside the
  * page's scroll area so it stays put without sticky positioning.
  */
-export default function SellerPageHeader({ icon: Icon, title, subtitle, leading, actions, below }: Props) {
-    const { isDesktop } = useSellerViewport();
+export default function PageHeader({ icon: Icon, title, subtitle, leading, actions, below }: Props) {
+    const { isDesktop } = useViewport();
 
     if (isDesktop) {
         return (
@@ -55,8 +55,8 @@ export default function SellerPageHeader({ icon: Icon, title, subtitle, leading,
     );
 }
 
-/** Compact search field shared by seller screens (matches the desktop SEARCH tokens). */
-export function SellerSearchField({
+/** Compact search field shared by seller and store screens (matches the desktop SEARCH tokens). */
+export function SearchField({
     value,
     onChange,
     placeholder,
@@ -100,8 +100,8 @@ export function SellerSearchField({
     );
 }
 
-/** Square icon button used in seller toolbars. */
-export function SellerIconButton({
+/** Square icon button used in toolbars. */
+export function IconButton({
     onClick,
     label,
     active = false,

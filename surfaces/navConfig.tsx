@@ -98,19 +98,22 @@ export const mobileAdminNavItems: SurfaceNavItem<MobileAdminPage>[] = [
   { id: 'menu', icon: Menu, label: 'Μενού' },
 ];
 
-export const employeeDesktopNavSections: NavSection<EmployeePage>[] = [
-  {
-    title: 'Επισκόπηση',
-    items: [
-      { id: 'dashboard', icon: LayoutDashboard, label: 'Πίνακας Ελέγχου' },
-    ],
-  },
+export const employeeNavSections: NavSection<EmployeePage>[] = [
   {
     title: 'Πωλήσεις',
     items: [
+      { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
       { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
-      { id: 'deliveries', icon: CalendarRange, label: 'Ημερολόγιο' },
-      { id: 'customers', icon: Users, label: 'Πελάτες' },
+      { id: 'deliveries', icon: CalendarRange, label: 'Παραδόσεις' },
+      { id: 'customers', icon: Users, label: 'Επαφές' },
+    ],
+  },
+  {
+    title: 'Κατάλογος',
+    items: [
+      { id: 'registry', icon: DatabaseIcon, label: 'Προϊόντα & Τιμές' },
+      { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
+      { id: 'inventory', icon: Package, label: 'Αποθήκη' },
     ],
   },
   {
@@ -121,31 +124,10 @@ export const employeeDesktopNavSections: NavSection<EmployeePage>[] = [
       { id: 'repairs', icon: Wrench, label: 'Επισκευές' },
     ],
   },
-  {
-    title: 'Κατάλογος',
-    items: [
-      { id: 'registry', icon: DatabaseIcon, label: 'Προϊόντα & Τιμές' },
-      { id: 'inventory', icon: Package, label: 'Διαχείριση Αποθήκης' },
-      { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
-    ],
-  },
 ];
 
-export const employeeDesktopNavItems: SurfaceNavItem<EmployeePage>[] =
-  employeeDesktopNavSections.flatMap((section) => section.items);
-
-export const employeeMobileNavItems: SurfaceNavItem<EmployeePage>[] = [
-  { id: 'deliveries', icon: CalendarRange, label: 'Παραδόσεις' },
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
-  { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
-  { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
-  { id: 'consignments', icon: HandHeart, label: 'Παρακαταθήκες' },
-  { id: 'repairs', icon: Wrench, label: 'Επισκευές' },
-  { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
-  { id: 'inventory', icon: Package, label: 'Αποθήκη' },
-  { id: 'registry', icon: DatabaseIcon, label: 'Προϊόντα' },
-  { id: 'customers', icon: Users, label: 'Πελάτες' },
-];
+export const employeeNavItems: SurfaceNavItem<EmployeePage>[] =
+  employeeNavSections.flatMap((section) => section.items);
 
 export const sellerNavSections: NavSection<SellerPage>[] = [
   {
