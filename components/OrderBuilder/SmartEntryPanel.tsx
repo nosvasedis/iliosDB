@@ -4,7 +4,7 @@ import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, ZoomIn } from 'lucide-react';
+import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, ZoomIn, Camera } from 'lucide-react';
 import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import {
@@ -28,6 +28,14 @@ function collectionLabel(product: Product, collectionNameById: Record<number, st
     const id = product.collections?.[0];
     if (id === undefined) return null;
     return collectionNameById[id] ?? `#${id}`;
+}
+
+function optionChipClass(active: boolean): string {
+    return `px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+        active
+            ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+    }`;
 }
 
 function SuffixHighlightPreview({ suffix, gender }: { suffix: string; gender?: Product['gender'] }) {
@@ -202,7 +210,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
             });
 
         return (
-            <div className="absolute inset-y-0 left-0 p-3.5 pointer-events-none font-mono text-xl tracking-wider flex items-center overflow-hidden z-20">
+            <div className="absolute inset-0 px-4 border border-transparent pointer-events-none font-mono text-xl font-black tracking-wider flex items-center overflow-hidden whitespace-nowrap z-20">
                 <span>
                     <span className="text-slate-900 font-black">{masterStr}</span>
                     <span className="font-black">{renderSuffixChars()}</span>
@@ -214,31 +222,29 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
 
     return (
         <div
-            className={`flex flex-col h-full bg-slate-50/50 rounded-[2.5rem] border border-slate-200 p-6 shadow-inner overflow-y-auto custom-scrollbar transition-all ${
-                isItemsExpanded ? 'hidden lg:col-span-0' : 'lg:col-span-5'
+            className={`flex-col bg-white rounded-3xl border border-slate-200/80 shadow-sm p-4 xl:p-5 lg:min-h-0 lg:overflow-y-auto custom-scrollbar ${
+                isItemsExpanded ? 'hidden' : 'flex'
             }`}
         >
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
-                    <ScanBarcode size={22} className="animate-pulse" />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
-                    <div className="mt-2">
-                        <FulfillmentModeToggle
-                            value={state.defaultFulfillmentMode}
-                            onChange={setters.setDefaultFulfillmentMode}
-                            label="Νέα είδη"
-                            compact
-                        />
+            <div className="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap mb-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 bg-[#060b00] text-white rounded-xl shadow-sm shrink-0">
+                        <ScanBarcode size={18} />
                     </div>
+                    <h2 className="font-black text-slate-800 uppercase tracking-tight text-[15px] leading-tight">Έξυπνη Ταχεία Προσθήκη</h2>
                 </div>
+                <FulfillmentModeToggle
+                    value={state.defaultFulfillmentMode}
+                    onChange={setters.setDefaultFulfillmentMode}
+                    label="Νέα είδη"
+                    compact
+                />
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
                 {/* SKU + Qty inputs */}
-                <div className="grid grid-cols-12 gap-4 items-end">
-                    <div className="col-span-9 relative">
+                <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-3 items-end">
+                    <div className="relative min-w-0">
                         <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Κωδικός / SKU</label>
                         <div className="relative">
                             <SkuVisualizer />
@@ -249,23 +255,44 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 onChange={actions.handleSmartInput}
                                 onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                                 placeholder="Πληκτρολογήστε..."
-                                className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest shadow-sm relative z-10"
+                                aria-label="Κωδικός / SKU"
+                                autoComplete="off"
+                                spellCheck={false}
+                                className="w-full px-4 py-3 bg-slate-50 focus:bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-wider placeholder:text-slate-300 placeholder:font-sans placeholder:font-semibold placeholder:text-base placeholder:normal-case placeholder:tracking-normal relative z-10 transition-colors"
                                 autoFocus
                             />
                         </div>
                     </div>
-                    <div className="col-span-3">
+                    <div>
                         <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
                         <input
                             type="number"
                             min="1"
+                            aria-label="Ποσότητα"
                             value={state.scanQty}
                             onChange={(e) => setters.setScanQty(parseInt(e.target.value, 10) || 1)}
                             onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
-                            className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                            onFocus={(e) => e.target.select()}
+                            className="w-full px-2 py-3 text-center font-black text-xl tabular-nums rounded-2xl outline-none bg-slate-50 focus:bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-colors"
                         />
                     </div>
                 </div>
+
+                {!state.scanInput.trim() && !state.activeMaster && (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-center">
+                        <p className="text-sm font-bold text-slate-600">Πληκτρολογήστε κωδικό για προτάσεις και παραλλαγές</p>
+                        <p className="mt-1 text-[11px] font-medium text-slate-400">
+                            <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-white font-mono text-[10px] text-slate-500">Enter</kbd> για άμεση προσθήκη
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setters.setShowScanner(true)}
+                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+                        >
+                            <Camera size={13} /> Σάρωση barcode
+                        </button>
+                    </div>
+                )}
 
                 {rangePreview && (
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 flex items-center justify-between gap-3">
@@ -427,13 +454,13 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
 
                 {/* Active master card */}
                 {state.activeMaster && (
-                    <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 duration-200 space-y-6">
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-3">
-                                {productImage(state.activeMaster, 'w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200', 24)}
-                                <div>
-                                    <h3 className="font-black text-xl text-slate-900 leading-none">{state.activeMaster.sku}</h3>
-                                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase">{state.activeMaster.category}</p>
+                    <div className="bg-white p-4 rounded-2xl border border-emerald-200/70 ring-4 ring-emerald-500/5 shadow-sm animate-in zoom-in-95 duration-200 space-y-4">
+                        <div className="flex justify-between items-start gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                {productImage(state.activeMaster, 'w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200', 24)}
+                                <div className="min-w-0">
+                                    <h3 className="font-black text-xl text-slate-900 leading-none font-mono truncate">{state.activeMaster.sku}</h3>
+                                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase truncate">{state.activeMaster.category}</p>
                                 </div>
                             </div>
                             <button
@@ -447,7 +474,9 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                     setters.setCandidateProducts([]);
                                     setters.setSmartSuggestions(null);
                                 }}
-                                className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                                aria-label="Καθαρισμός επιλογής"
+                                title="Καθαρισμός επιλογής"
+                                className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors shrink-0"
                             >
                                 <X size={16} />
                             </button>
@@ -484,16 +513,14 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                     <Hash size={12} /> Επιλογή {state.sizeMode.type}{' '}
                                     <span className="font-normal text-slate-300 lowercase">(Προαιρετικό)</span>
                                 </label>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1.5">
                                     {state.sizeMode.sizes.map((s) => (
                                         <button
                                             key={s}
                                             onClick={() => setters.setSelectedSize(s === state.selectedSize ? '' : s)}
-                                            className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
-                                                state.selectedSize === s
-                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
-                                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
+                                            type="button"
+                                            aria-pressed={state.selectedSize === s}
+                                            className={`${optionChipClass(state.selectedSize === s)} min-w-[2.75rem] tabular-nums`}
                                         >
                                             {s}
                                         </button>
@@ -503,21 +530,18 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         )}
 
                         {isXrCordEnamelSku(state.activeMaster) && (
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-1 gap-3">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Κορδόνι</label>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-1.5">
                                         {PRODUCT_OPTION_COLORS.map((color) => (
                                             <button
+                                                type="button"
                                                 key={`cord-${color}`}
                                                 onClick={() =>
                                                     setters.setSelectedCordColor(state.selectedCordColor === color ? undefined : color)
                                                 }
-                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
-                                                    state.selectedCordColor === color
-                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
-                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                                }`}
+                                                className={optionChipClass(state.selectedCordColor === color)}
                                             >
                                                 {PRODUCT_OPTION_COLOR_LABELS[color]}
                                             </button>
@@ -526,18 +550,15 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Σμάλτο</label>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-1.5">
                                         {PRODUCT_OPTION_COLORS.map((color) => (
                                             <button
+                                                type="button"
                                                 key={`enamel-${color}`}
                                                 onClick={() =>
                                                     setters.setSelectedEnamelColor(state.selectedEnamelColor === color ? undefined : color)
                                                 }
-                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
-                                                    state.selectedEnamelColor === color
-                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
-                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                                }`}
+                                                className={optionChipClass(state.selectedEnamelColor === color)}
                                             >
                                                 {PRODUCT_OPTION_COLOR_LABELS[color]}
                                             </button>
@@ -553,7 +574,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
                                     <Layers size={12} /> ΠΑΡΑΛΛΑΓΕΣ
                                 </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
                                     {state.filteredVariants.map((v) => {
                                         const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
                                             v.suffix,
@@ -576,12 +597,14 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                             variantSuffixMatchesOrderHints(v.suffix, orderHints, state.activeMaster);
                                         return (
                                             <button
+                                                type="button"
                                                 key={v.suffix}
                                                 onClick={() => actions.handleAddItem(v.variant)}
-                                                className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 ${
+                                                title={v.desc || undefined}
+                                                className={`px-2 py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 active:scale-95 ${
                                                     orderHintMatch
                                                         ? 'bg-amber-50/90 border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1 hover:border-amber-500'
-                                                        : 'bg-white border-slate-100 hover:border-emerald-500'
+                                                        : 'bg-white border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 hover:shadow-sm'
                                                 }`}
                                             >
                                                 <span className="text-sm font-black flex items-center justify-center gap-0.5 flex-wrap">
@@ -614,17 +637,18 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 onChange={(e) => setters.setItemNotes(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                                 placeholder="π.χ. Αλλαγή κουμπώματος, Μακρύτερη αλυσίδα..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
+                                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15 text-sm transition-all"
                             />
                         </div>
 
                         {/* Add base button (no variants) */}
                         {(!state.activeMaster.variants || state.activeMaster.variants.length === 0) && (
                             <button
+                                type="button"
                                 onClick={() => actions.handleAddItem(null)}
-                                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-emerald-700"
+                                className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black shadow-md shadow-emerald-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2 hover:bg-emerald-700"
                             >
-                                <Plus size={24} /> Προσθήκη Βασικού
+                                <Plus size={20} /> Προσθήκη Βασικού
                             </button>
                         )}
                     </div>
@@ -632,8 +656,12 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
             </div>
 
             {pendingRange && (
-                <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="w-full max-w-3xl max-h-[86vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+                <div
+                    className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+                    onMouseDown={(e) => { if (e.target === e.currentTarget) setters.setPendingOrderRangeReview(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setters.setPendingOrderRangeReview(null); }}
+                >
+                    <div role="dialog" aria-modal="true" aria-label="Έλεγχος εύρους" className="w-full max-w-3xl max-h-[86dvh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
                         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
                             <div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Έλεγχος εύρους</h3>
@@ -644,6 +672,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             <button
                                 type="button"
                                 onClick={() => setters.setPendingOrderRangeReview(null)}
+                                aria-label="Κλείσιμο"
                                 className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                             >
                                 <X size={16} />
@@ -656,7 +685,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 return (
                                     <div
                                         key={row.sku}
-                                        className={`grid grid-cols-[3rem_minmax(0,1fr)_minmax(7rem,10rem)] gap-3 items-center rounded-xl border p-2.5 ${
+                                        className={`grid grid-cols-[3rem_minmax(0,1fr)_minmax(6.5rem,10rem)] gap-3 items-center rounded-xl border p-2.5 ${
                                             isReady ? 'bg-white border-slate-100' : 'bg-amber-50/70 border-amber-100'
                                         }`}
                                     >

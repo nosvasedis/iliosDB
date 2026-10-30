@@ -1,6 +1,6 @@
 import RetailClientField from '../orders/RetailClientField';
 import React from 'react';
-import { User, Tag, Plus, X, Percent, Check, Store, Warehouse } from 'lucide-react';
+import { User, Tag, Plus, X, Percent, Check, Store, Warehouse, Phone, Receipt, StickyNote, Search } from 'lucide-react';
 import InternalOrderNotice from '../orders/InternalOrderNotice';
 import { VatRegime } from '../../types';
 import { useOrderState } from '../../hooks/useOrderState';
@@ -14,176 +14,228 @@ interface Props {
     orderState: ReturnType<typeof useOrderState>;
 }
 
+const fieldLabel = 'text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 block';
+const fieldInput = 'w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm text-slate-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15 transition-all';
+
+function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <h3 className="font-black text-slate-700 flex items-center gap-1.5 uppercase text-[11px] tracking-wider mb-3">
+            <span className="text-slate-400">{icon}</span> {children}
+        </h3>
+    );
+}
+
 export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
     const { state, setters, actions } = orderState;
     const { overrides: tagColorOverrides } = useTagColorOverrides();
 
     return (
-        <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-y-auto custom-scrollbar h-full">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-50 pb-2">
-                <User size={16} /> Στοιχεία Πελάτη
-            </h3>
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm lg:min-h-0 lg:overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+            {/* Customer */}
+            <section className="p-4 xl:p-5">
+                <SectionTitle icon={<User size={14} />}>Στοιχεία Πελάτη</SectionTitle>
+                <div className="space-y-3">
+                    {state.isRetailCustomer ? <RetailClientField
+                        value={state.retailClientLabel} onChange={setters.setRetailClientLabel}
+                        onChangeCustomer={() => { setters.setSelectedCustomerId(null); setters.setCustomerName(''); setters.setCustomerSearch(''); setters.setRetailClientLabel(''); setters.setCustomerPhone(''); }}
+                    /> : <>
+                        {/* Customer Name with Autocomplete */}
+                        <div className="relative">
+                            <label className={fieldLabel}>Ονοματεπώνυμο</label>
+                            <div className="relative">
+                                <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${state.selectedCustomerId ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                <input
+                                    className={`w-full pl-9 pr-9 py-2.5 border rounded-xl outline-none font-bold text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/15 transition-all ${state.selectedCustomerId ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400'}`}
+                                    placeholder="Αναζήτηση πελάτη..."
+                                    value={state.customerName}
+                                    onChange={e => {
+                                        setters.setCustomerName(e.target.value);
+                                        setters.setCustomerSearch(e.target.value);
+                                        setters.setShowCustomerResults(true);
+                                        setters.setSelectedCustomerId(null);
+                                    }}
+                                    onFocus={() => setters.setShowCustomerResults(true)}
+                                    onBlur={() => setters.setShowCustomerResults(false)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Escape') setters.setShowCustomerResults(false);
+                                        if (e.key === 'Enter' && state.showCustomerResults && !state.selectedCustomerId && state.filteredCustomers.length > 0) {
+                                            e.preventDefault();
+                                            actions.handleSelectCustomer(state.filteredCustomers[0]);
+                                            setters.setShowCustomerResults(false);
+                                        }
+                                    }}
+                                    autoComplete="off"
+                                />
+                                {state.selectedCustomerId && <Check size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500" />}
+                            </div>
 
-            <div className="space-y-4">
-                {state.isRetailCustomer ? <RetailClientField
-                    value={state.retailClientLabel} onChange={setters.setRetailClientLabel}
-                    onChangeCustomer={() => { setters.setSelectedCustomerId(null); setters.setCustomerName(''); setters.setCustomerSearch(''); setters.setRetailClientLabel(''); setters.setCustomerPhone(''); }}
-                /> : <>
-                    {/* Customer Name with Autocomplete */}
-                    <div className="relative">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
-                        <input
-                            className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 transition-all ${state.selectedCustomerId ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200'}`}
-                            placeholder="Αναζήτηση..."
-                            value={state.customerName}
-                            onChange={e => {
-                                setters.setCustomerName(e.target.value);
-                                setters.setCustomerSearch(e.target.value);
-                                setters.setShowCustomerResults(true);
-                                setters.setSelectedCustomerId(null);
-                            }}
-                            onFocus={() => setters.setShowCustomerResults(true)}
-                        />
-                        {state.selectedCustomerId && <Check size={16} className="absolute right-3 top-9 text-emerald-500" />}
+                            {state.showCustomerResults && state.customerSearch && !state.selectedCustomerId && state.filteredCustomers.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-200 mt-1.5 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                    {state.filteredCustomers.map(c => (
+                                        <div
+                                            key={c.id}
+                                            // mousedown keeps the input from blurring (and closing the list) before the pick lands
+                                            onMouseDown={e => { e.preventDefault(); actions.handleSelectCustomer(c); setters.setShowCustomerResults(false); }}
+                                            className="px-3 py-2.5 hover:bg-emerald-50/60 cursor-pointer border-b border-slate-50 last:border-0 font-semibold text-sm text-slate-700 truncate"
+                                        >
+                                            {c.full_name}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
-                        {state.showCustomerResults && state.customerSearch && !state.selectedCustomerId && state.filteredCustomers.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                {state.filteredCustomers.map(c => (
-                                    <div key={c.id} onClick={() => actions.handleSelectCustomer(c)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 font-medium text-sm text-slate-700">
-                                        {c.full_name}
-                                    </div>
-                                ))}
+                        {state.isInternalCustomer ? (
+                            <InternalOrderNotice />
+                        ) : (
+                            <div className={`grid gap-2 ${state.isSeller ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                <button
+                                    type="button"
+                                    onClick={actions.handleUseRetailCustomer}
+                                    title="Χρήση πελάτη λιανικής"
+                                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-[11px] font-black hover:bg-fuchsia-100 transition-colors"
+                                >
+                                    <Store size={13} className="shrink-0" /> Λιανική
+                                </button>
+                                {!state.isSeller && (
+                                    <button
+                                        type="button"
+                                        onClick={actions.handleUseInternalCustomer}
+                                        title="Παραγγελία για δικό μας απόθεμα — δεν μετράει στις πωλήσεις"
+                                        className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-[11px] font-black hover:bg-teal-100 transition-colors"
+                                    >
+                                        <Warehouse size={13} className="shrink-0" /> Εσωτερική
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>}
+
+                    {!state.isRetailCustomer && (
+                        <OrderTerritoryAlert customerId={state.selectedCustomerId} skus={state.selectedItems.map(item => item.sku)} />
+                    )}
+
+                    {/* Phone */}
+                    <div>
+                        <label className={fieldLabel}>Τηλέφωνο</label>
+                        <div className="relative">
+                            <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input
+                                type="tel"
+                                className={`${fieldInput} pl-9 font-medium`}
+                                placeholder="—"
+                                value={state.customerPhone}
+                                onChange={e => setters.setCustomerPhone(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                        <label className={`${fieldLabel} flex items-center gap-1`}><Tag size={11} /> Ετικέτες / Ομάδα</label>
+                        <div className="flex gap-1.5">
+                            <input
+                                className={`${fieldInput} py-2 min-w-0 flex-1`}
+                                placeholder="π.χ. Έκθεση A..."
+                                value={state.tagInput}
+                                onChange={e => setters.setTagInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && actions.handleAddTag()}
+                            />
+                            <button
+                                type="button"
+                                onClick={actions.handleAddTag}
+                                disabled={!state.tagInput.trim()}
+                                aria-label="Προσθήκη ετικέτας"
+                                className="shrink-0 w-9 inline-flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+                            >
+                                <Plus size={16} />
+                            </button>
+                        </div>
+                        {state.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {state.tags.map(t => {
+                                    const c = getTagColor(t, tagColorOverrides);
+                                    return (
+                                        <span key={t} className={`text-[10px] pl-2 pr-1 py-0.5 rounded-md border flex items-center gap-1 font-bold ${c.bg} ${c.text} ${c.border}`}>
+                                            {t}
+                                            <button type="button" onClick={() => actions.removeTag(t)} className="p-0.5 rounded hover:text-red-600 opacity-70 hover:opacity-100" aria-label={`Αφαίρεση ${t}`}>
+                                                <X size={10} />
+                                            </button>
+                                        </span>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
+                </div>
+            </section>
 
-                    {state.isInternalCustomer ? (
-                        <InternalOrderNotice />
-                    ) : (
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={actions.handleUseRetailCustomer}
-                                className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black hover:bg-fuchsia-100 transition-colors"
-                            >
-                                <Store size={14} /> Χρήση Λιανικής
-                            </button>
-                            {!state.isSeller && (
-                                <button
-                                    type="button"
-                                    onClick={actions.handleUseInternalCustomer}
-                                    title="Παραγγελία για δικό μας απόθεμα — δεν μετράει στις πωλήσεις"
-                                    className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-black hover:bg-teal-100 transition-colors"
-                                >
-                                    <Warehouse size={14} /> Εσωτερική
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </>}
-
-                {!state.isRetailCustomer && (
-                    <OrderTerritoryAlert customerId={state.selectedCustomerId} skus={state.selectedItems.map(item => item.sku)} />
-                )}
-
-                {/* Phone */}
-                <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Τηλέφωνο</label>
-                    <input
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="-"
-                        value={state.customerPhone}
-                        onChange={e => setters.setCustomerPhone(e.target.value)}
+            {/* Seller / Πλασιέ Picker (admin only) */}
+            {!state.isSeller && (
+                <section className="p-4 xl:p-5">
+                    <SellerPicker
+                        selectedSellerId={state.selectedSellerId}
+                        selectedSellerName={state.selectedSellerName}
+                        commissionPercent={state.sellerCommissionPercent}
+                        onSellerChange={(id, name) => {
+                            setters.setSelectedSellerId(id);
+                            setters.setSelectedSellerName(name);
+                        }}
+                        onCommissionChange={setters.setSellerCommissionPercent}
                     />
-                </div>
+                </section>
+            )}
 
-
-                {/* Tags */}
-                <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Tag size={12} /> Ετικέτες / Ομάδα</label>
-                    <div className="flex gap-2 mb-2">
-                        <input
-                            className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none"
-                            placeholder="π.χ. Έκθεση A..."
-                            value={state.tagInput}
-                            onChange={e => setters.setTagInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && actions.handleAddTag()}
-                        />
-                        <button onClick={actions.handleAddTag} className="bg-slate-200 text-slate-600 p-2 rounded-lg hover:bg-slate-300"><Plus size={16} /></button>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                        {state.tags.map(t => {
-                            const c = getTagColor(t, tagColorOverrides);
-                            return (
-                                <span key={t} className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 font-bold ${c.bg} ${c.text} ${c.border}`}>
-                                    {t}{' '}
-                                    <button type="button" onClick={() => actions.removeTag(t)} className="hover:text-red-600 opacity-70 hover:opacity-100" aria-label={`Αφαίρεση ${t}`}>
-                                        <X size={10} />
-                                    </button>
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Seller / Πλασιέ Picker (admin only) */}
-                {!state.isSeller && (
-                    <div className="pt-4 border-t border-slate-50">
-                        <SellerPicker
-                            selectedSellerId={state.selectedSellerId}
-                            selectedSellerName={state.selectedSellerName}
-                            commissionPercent={state.sellerCommissionPercent}
-                            onSellerChange={(id, name, defaultCommission) => {
-                                setters.setSelectedSellerId(id);
-                                setters.setSelectedSellerName(name);
-                            }}
-                            onCommissionChange={setters.setSellerCommissionPercent}
-                        />
-                    </div>
-                )}
-
-                {/* Discount & VAT */}
-                <div className="pt-4 border-t border-slate-50 space-y-4">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
-                        <div className="relative">
-                            <input
-                                type="number" min="0" max="100"
-                                value={state.discountPercent}
-                                onChange={e => setters.setDiscountPercent(parseFloat(e.target.value) || 0)}
-                                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-900 pr-8"
-                            />
-                            <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500" />
+            {/* Discount, VAT & price mode */}
+            <section className="p-4 xl:p-5">
+                <SectionTitle icon={<Receipt size={14} />}>Εμπορικοί Όροι</SectionTitle>
+                <div className="space-y-3">
+                    <div className="grid grid-cols-[minmax(0,5.5rem)_minmax(0,1fr)] gap-2">
+                        <div>
+                            <label className={fieldLabel}>Έκπτωση</label>
+                            <div className="relative">
+                                <input
+                                    type="number" min="0" max="100"
+                                    value={state.discountPercent}
+                                    onChange={e => setters.setDiscountPercent(parseFloat(e.target.value) || 0)}
+                                    onFocus={e => e.target.select()}
+                                    className={`w-full pl-3 pr-7 py-2.5 border rounded-xl outline-none font-bold text-sm tabular-nums transition-all focus:ring-2 focus:ring-amber-500/25 focus:border-amber-400 ${
+                                        state.discountPercent > 0 ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-800'
+                                    }`}
+                                />
+                                <Percent size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className={fieldLabel}>Καθεστώς ΦΠΑ</label>
+                            <select
+                                value={state.vatRate}
+                                onChange={e => setters.setVatRate(parseFloat(e.target.value))}
+                                className={`${fieldInput} px-2.5 font-bold text-slate-700 cursor-pointer`}
+                            >
+                                <option value={VatRegime.Standard}>24% Κανονικό</option>
+                                <option value={VatRegime.Reduced}>17% Μειωμένο</option>
+                                <option value={VatRegime.Zero}>0% Μηδενικό</option>
+                            </select>
                         </div>
                     </div>
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Καθεστώς ΦΠΑ</label>
-                        <select
-                            value={state.vatRate}
-                            onChange={e => setters.setVatRate(parseFloat(e.target.value))}
-                            className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 cursor-pointer"
-                        >
-                            <option value={VatRegime.Standard}>24% (Κανονικό)</option>
-                            <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
-                            <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
-                        </select>
-                    </div>
-                    <div className="flex justify-end !mt-1">
+                    <div className="flex justify-end -mt-1">
                         <OrderPriceModeToggle value={state.priceMode} onChange={actions.handlePriceModeChange} />
                     </div>
                 </div>
+            </section>
 
-                {/* Notes */}
-                <div className="pt-4 border-t border-slate-50">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Σημειώσεις Παραγγελίας</label>
-                    <textarea
-                        value={state.orderNotes}
-                        onChange={e => setters.setOrderNotes(e.target.value)}
-                        className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm h-32 resize-none outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="Ειδικές οδηγίες..."
-                    />
-                </div>
-            </div>
+            {/* Notes */}
+            <section className="p-4 xl:p-5">
+                <SectionTitle icon={<StickyNote size={14} />}>Σημειώσεις Παραγγελίας</SectionTitle>
+                <textarea
+                    value={state.orderNotes}
+                    onChange={e => setters.setOrderNotes(e.target.value)}
+                    rows={3}
+                    className={`${fieldInput} resize-y min-h-[4.5rem] max-h-64`}
+                    placeholder="Ειδικές οδηγίες..."
+                />
+            </section>
         </div>
     );
 };

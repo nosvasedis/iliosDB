@@ -1675,7 +1675,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     if (isCreating) {
         return (
-            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300" style={{ minHeight: 'calc(100dvh - 8rem)' }}>
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 min-h-[calc(100dvh-8rem)] lg:min-h-0 lg:h-[calc(100dvh-4rem)]">
                 <DesktopOrderBuilder
                     onBack={() => { setIsCreating(false); setEditingOrder(null); }}
                     initialOrder={editingOrder}
