@@ -2,139 +2,150 @@ import OrderCustomerName from '../orders/OrderCustomerName';
 import { getOrderCustomerName } from '../../utils/orderCustomer';
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOrdersWithItems } from '../../hooks/api/useOrders';
+import { useOrderDetail, useOrdersList } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
 import { orderKeys, ordersRepository } from '../../features/orders';
-import {
-    Search, Plus, Loader2, ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2
-} from 'lucide-react';
+import { Plus, Loader2, ChevronDown, Edit, ShoppingCart, Trash2, Calendar, Package } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import IliosLoader from '../ui/IliosLoader';
 import SpecialCreationNote from '../SpecialCreationNote';
+import SkuColorizedText from '../SkuColorizedText';
+import { HeaderPrimaryButton } from '../DesktopPageHeader';
+import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
+import { useSellerViewport } from './sellerViewport';
+import { isSellerOrder } from './sellerOrderScope';
 
 interface Props {
     onCreate: () => void;
     onEdit: (o: Order) => void;
 }
 
-// ─── Filter Tabs Config ───────────────────────────────────────────────────────
-const FILTER_TABS: Array<{ key: 'all' | OrderStatus; label: string }> = [
+type FilterKey = 'all' | OrderStatus;
+
+const FILTER_TABS: Array<{ key: FilterKey; label: string }> = [
     { key: 'all', label: 'Όλες' },
     { key: OrderStatus.Pending, label: 'Εκκρεμείς' },
+    { key: OrderStatus.InProduction, label: 'Σε παραγωγή' },
     { key: OrderStatus.Ready, label: 'Έτοιμες' },
     { key: OrderStatus.Delivered, label: 'Παραδόθηκαν' },
 ];
 
-// ─── Order Card ───────────────────────────────────────────────────────────────
-const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDelete: (id: string) => Promise<void> }> = ({ order, onEdit, onDelete }) => {
-    const [expanded, setExpanded] = useState(false);
+const netValueOf = (order: Order) => order.total_price / (1 + (order.vat_rate !== undefined ? order.vat_rate : 0.24));
+const dateFormatter = new Intl.DateTimeFormat('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+// ─── Expanded detail (loads the line items only when opened) ─────────────────
+const OrderDetailPanel: React.FC<{ order: Order; onEdit: (o: Order) => void; onDelete: (id: string) => Promise<void> }> = ({ order, onEdit, onDelete }) => {
+    const { data: detail, isLoading } = useOrderDetail(order.id);
     const [isDeleting, setIsDeleting] = useState(false);
     const canEdit = order.status === OrderStatus.Pending;
-    const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-    const netValue = order.total_price / (1 + activeVat);
+    const items = detail?.items ?? [];
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200">
-            {/* Card Header */}
-            <div className="p-4" onClick={() => setExpanded(!expanded)}>
-                <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <div className="text-[10px] font-mono text-slate-300 font-bold mb-0.5">#{order.id.slice(-8).toUpperCase()}</div>
-                        <div className="font-black text-slate-800 text-base leading-tight"><OrderCustomerName order={order} /></div>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase flex items-center gap-1 ${getOrderStatusClasses(order.status, 'seller')}`}>
-                        {getOrderStatusIcon(order.status, 12)}
-                        {getOrderStatusLabel(order.status, 'seller')}
-                    </span>
+        <div className="space-y-1.5 border-t border-slate-100 bg-slate-50/70 p-3">
+            {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-slate-400">
+                    <Loader2 size={14} className="animate-spin" /> Φόρτωση ειδών…
                 </div>
-                <div className="flex justify-between items-end mt-3">
-                    <div className="text-[10px] text-slate-400 font-medium">
-                        {formatNumber(order.items.length)} {order.items.length === 1 ? 'είδος' : 'είδη'} &nbsp;·&nbsp;
-                        {new Date(order.created_at).toLocaleDateString('el-GR')}
-                        {order.seller_name && <span className="ml-1.5 text-slate-500">· Πλάσιε: {order.seller_name}</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-lg font-black text-slate-900">{formatCurrency(netValue)}</span>
-                        {expanded
-                            ? <ChevronUp size={16} className="text-slate-300" />
-                            : <ChevronDown size={16} className="text-slate-300" />
-                        }
-                    </div>
-                </div>
-            </div>
-
-            {/* Expanded Detail */}
-            {expanded && (
-                <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-2">
-                    {order.items.map((item, idx) => (
-                        <div key={item.line_id || idx} className="flex justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex items-center gap-2">
-                                <span className="font-black text-slate-800">{item.sku}</span>
-                                <SpecialCreationNote sku={item.sku} note={item.notes} compact />
-                                {item.variant_suffix && (
-                                    <span className="text-slate-400 font-bold">{item.variant_suffix}</span>
-                                )}
-                                {item.size_info && (
-                                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-blue-100">
-                                        {item.size_info}
-                                    </span>
-                                )}
-                                <span className="text-slate-400">×{formatNumber(item.quantity)}</span>
-                            </div>
-                            <span className="font-mono text-slate-600 font-bold">
-                                {formatCurrency(item.price_at_order * item.quantity)}
-                            </span>
+            ) : items.length === 0 ? (
+                <p className="py-3 text-center text-xs font-bold text-slate-400">Χωρίς είδη.</p>
+            ) : (
+                items.map((item, idx) => (
+                    <div key={item.line_id || idx} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2 text-xs">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                            <SkuColorizedText sku={item.sku} suffix={item.variant_suffix || ''} className="text-[13px]" />
+                            <SpecialCreationNote sku={item.sku} note={item.notes} compact />
+                            {item.size_info && (
+                                <span className="rounded-md border border-blue-100 bg-blue-50 px-1.5 py-px text-[10px] font-bold text-blue-600">{item.size_info}</span>
+                            )}
+                            <span className="font-bold text-slate-400">×{formatNumber(item.quantity)}</span>
                         </div>
-                    ))}
-                    {canEdit && (
-                        <div className="flex gap-2 mt-3">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-                                className="flex-1 bg-white border border-slate-200 text-slate-700 hover:text-[#060b00] hover:border-[#060b00]
-                                           py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-colors"
-                            >
-                                <Edit size={14} /> Επεξεργασία
-                            </button>
-                            <button
-                                onClick={async (e) => {
-                                    e.stopPropagation();
-                                    setIsDeleting(true);
-                                    try { await onDelete(order.id); } finally { setIsDeleting(false); }
-                                }}
-                                disabled={isDeleting}
-                                className="px-4 py-2.5 rounded-xl text-xs font-black bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
-                            >
-                                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                Διαγραφή
-                            </button>
-                        </div>
-                    )}
+                        <span className="shrink-0 font-bold tabular-nums text-slate-700">{formatCurrency(item.price_at_order * item.quantity)}</span>
+                    </div>
+                ))
+            )}
+            {canEdit && (
+                <div className="flex gap-2 pt-1.5">
+                    <button
+                        type="button"
+                        onClick={() => detail && onEdit(detail)}
+                        disabled={!detail}
+                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 transition-colors hover:border-[#060b00] hover:text-[#060b00] disabled:opacity-50"
+                    >
+                        <Edit size={14} /> Επεξεργασία
+                    </button>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            setIsDeleting(true);
+                            try { await onDelete(order.id); } finally { setIsDeleting(false); }
+                        }}
+                        disabled={isDeleting}
+                        className="flex h-10 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-600 hover:bg-rose-100 disabled:opacity-50"
+                    >
+                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Διαγραφή
+                    </button>
                 </div>
             )}
         </div>
     );
 };
 
+// ─── Order Card ───────────────────────────────────────────────────────────────
+const SellerOrderCard = React.memo<{ order: Order; onEdit: (o: Order) => void; onDelete: (id: string) => Promise<void> }>(({ order, onEdit, onDelete }) => {
+    const [expanded, setExpanded] = useState(false);
+    const itemCount = order.item_count ?? order.items.length;
+
+    return (
+        <div
+            className="self-start overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            style={expanded ? undefined : { contentVisibility: 'auto', containIntrinsicSize: 'auto 104px' }}
+        >
+            <button type="button" className="block w-full p-3 text-left min-[400px]:p-4" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="truncate text-[15px] font-bold leading-tight text-slate-900"><OrderCustomerName order={order} /></div>
+                        <div className="mt-0.5 font-mono text-[10px] font-bold text-slate-400">#{order.id.slice(-8).toUpperCase()}</div>
+                    </div>
+                    <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${getOrderStatusClasses(order.status, 'seller')}`}>
+                        {getOrderStatusIcon(order.status, 11)}
+                        {getOrderStatusLabel(order.status, 'seller')}
+                    </span>
+                </div>
+                <div className="mt-2.5 flex items-end justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-semibold text-slate-500">
+                        <span className="inline-flex items-center gap-1"><Calendar size={11} className="text-slate-400" />{dateFormatter.format(new Date(order.created_at))}</span>
+                        <span className="inline-flex items-center gap-1"><Package size={11} className="text-slate-400" />{formatNumber(itemCount)} {itemCount === 1 ? 'είδος' : 'είδη'}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-base font-bold tabular-nums text-[#060b00]">{formatCurrency(netValueOf(order))}</span>
+                        <ChevronDown size={16} className={`text-slate-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                    </div>
+                </div>
+            </button>
+            {expanded && <OrderDetailPanel order={order} onEdit={onEdit} onDelete={onDelete} />}
+        </div>
+    );
+});
+SellerOrderCard.displayName = 'SellerOrderCard';
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerOrders({ onCreate, onEdit }: Props) {
     const { user, profile } = useAuth();
     const { confirm, showToast } = useUI();
+    const { isDesktop } = useSellerViewport();
     const queryClient = useQueryClient();
-    const { data: orders, isLoading } = useOrdersWithItems();
+    const { data: orders, isLoading } = useOrdersList();
     const [search, setSearch] = useState('');
-    const [activeFilter, setActiveFilter] = useState<'all' | OrderStatus>('all');
+    const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+    const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
-    // The seller's identity — used for both primary (seller_id) and fallback (seller_name) matching
-    const sellerId = profile?.id ?? user?.id;
-    const sellerEmail = user?.email ?? '';
-    const sellerFullName = profile?.full_name ?? '';
-
-    const handleDeleteOrder = async (id: string) => {
+    const handleDeleteOrder = React.useCallback(async (id: string) => {
         const yes = await confirm({ title: 'Διαγραφή Παραγγελίας', message: 'Θέλετε να διαγράψετε οριστικά αυτή την παραγγελία;', isDestructive: true });
         if (!yes) return;
         try {
@@ -144,89 +155,89 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         } catch (e) {
             showToast('Σφάλμα διαγραφής.', 'error');
         }
-    };
+    }, [confirm, queryClient, showToast]);
 
-    // Match by seller_id (primary) OR seller_name (fallback for orders saved before migration)
-    const myOrders = (orders || []).filter(o => {
-        if (o.seller_id && sellerId && o.seller_id === sellerId) return true;
-        if (o.seller_name) {
-            if (sellerFullName && o.seller_name === sellerFullName) return true;
-            if (sellerEmail && o.seller_name === sellerEmail) return true;
-        }
-        return false;
-    });
+    const sellerId = profile?.id ?? user?.id;
+    const sellerEmail = user?.email ?? '';
+    const sellerFullName = profile?.full_name ?? '';
+    const myOrders = useMemo(
+        () => (orders || []).filter((o) => isSellerOrder(o, { id: sellerId, email: sellerEmail, fullName: sellerFullName })),
+        [orders, sellerId, sellerEmail, sellerFullName],
+    );
 
-    const filteredOrders = myOrders.filter(o => {
-        const matchesStatus = activeFilter === 'all' || o.status === activeFilter;
-        const matchesSearch = (getOrderCustomerName(o) + ' ' + o.customer_name).toLowerCase().includes(search.toLowerCase())
-            || o.id.toLowerCase().includes(search.toLowerCase());
-        return matchesStatus && matchesSearch;
-    });
+    const counts = useMemo(() => {
+        const map = new Map<FilterKey, number>([['all', myOrders.length]]);
+        myOrders.forEach((o) => map.set(o.status, (map.get(o.status) || 0) + 1));
+        return map;
+    }, [myOrders]);
 
-    if (isLoading) return <IliosLoader variant="section" detail="Παραγγελίες" />;
+    const filteredOrders = useMemo(() => myOrders.filter((o) => {
+        if (activeFilter !== 'all' && o.status !== activeFilter) return false;
+        if (!deferredSearch) return true;
+        return `${getOrderCustomerName(o)} ${o.customer_name} ${o.id}`.toLowerCase().includes(deferredSearch);
+    }), [myOrders, activeFilter, deferredSearch]);
 
-    return (
-        <div className="p-4 space-y-4 h-full flex flex-col landscape:max-w-4xl landscape:mx-auto">
+    if (isLoading) return <IliosLoader variant="section" detail="Παραγγελίες" className="h-full" />;
 
-            {/* Title + New Button */}
-            <div className="flex justify-between items-center shrink-0">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900">Οι Παραγγελίες μου</h1>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">{formatNumber(myOrders.length)} σύνολο</p>
-                </div>
-                <button
-                    onClick={onCreate}
-                    className="bg-[#060b00] text-white p-3 rounded-2xl shadow-lg active:scale-95 hover:bg-slate-800 transition-all flex items-center gap-2 pr-4"
-                >
-                    <Plus size={20} />
-                    <span className="text-sm font-black">Νέα</span>
-                </button>
-            </div>
-
-            {/* Search */}
-            <div className="relative shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                    type="text"
-                    placeholder="Αναζήτηση πελάτη ή κωδικού..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-400/30 shadow-sm font-medium text-sm"
-                />
-            </div>
-
-            {/* Status Filter Tabs */}
-            <div className="flex gap-2 overflow-x-auto pb-1 shrink-0 scrollbar-hide -mx-1 px-1">
-                {FILTER_TABS.map(tab => (
+    const tabs = (
+        <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:px-0">
+            {FILTER_TABS.map((tab) => {
+                const active = activeFilter === tab.key;
+                return (
                     <button
                         key={tab.key}
+                        type="button"
                         onClick={() => setActiveFilter(tab.key)}
-                        className={`px-3.5 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border ${activeFilter === tab.key
-                            ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                            }`}
+                        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-bold transition-colors ${
+                            active ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
                     >
                         {tab.label}
-                        {tab.key !== 'all' && (
-                            <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full ${activeFilter === tab.key ? 'bg-white/20' : 'bg-slate-100'
-                                }`}>
-                                {formatNumber(myOrders.filter(o => o.status === tab.key).length)}
-                            </span>
-                        )}
+                        <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                            {formatNumber(counts.get(tab.key) || 0)}
+                        </span>
                     </button>
-                ))}
-            </div>
+                );
+            })}
+        </div>
+    );
 
-            {/* Orders List */}
-            <div className="flex-1 overflow-y-auto space-y-3 pb-28 landscape:pb-8 custom-scrollbar
-                            landscape:grid landscape:grid-cols-2 landscape:gap-3 landscape:space-y-0">
-                {filteredOrders.map(order => (
-                    <SellerOrderCard key={order.id} order={order} onEdit={onEdit} onDelete={handleDeleteOrder} />
-                ))}
+    return (
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <SellerPageHeader
+                icon={ShoppingCart}
+                title="Οι παραγγελίες μου"
+                subtitle={`${formatNumber(myOrders.length)} συνολικά`}
+                actions={isDesktop ? (
+                    <HeaderPrimaryButton icon={Plus} onClick={onCreate}>Νέα παραγγελία</HeaderPrimaryButton>
+                ) : (
+                    <button type="button" onClick={onCreate} className="flex h-10 items-center gap-1.5 rounded-xl bg-[#060b00] pl-2.5 pr-3.5 text-[13px] font-bold text-white active:scale-95">
+                        <Plus size={17} className="text-amber-300" /> Νέα
+                    </button>
+                )}
+                below={
+                    <div className="space-y-2.5">
+                        <div className="flex"><SellerSearchField value={search} onChange={setSearch} placeholder="Πελάτης ή κωδικός παραγγελίας…" /></div>
+                        {tabs}
+                    </div>
+                }
+            />
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+                <div className="grid grid-cols-1 gap-2 p-2 min-[400px]:gap-2.5 min-[400px]:p-3 md:grid-cols-2 lg:gap-3 lg:px-0 lg:pt-4 2xl:grid-cols-3">
+                    {filteredOrders.map((order) => (
+                        <SellerOrderCard key={order.id} order={order} onEdit={onEdit} onDelete={handleDeleteOrder} />
+                    ))}
+                </div>
                 {filteredOrders.length === 0 && (
-                    <div className="landscape:col-span-2 flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
-                        <ShoppingCart size={36} className="opacity-20" />
+                    <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
+                        <ShoppingCart size={36} className="opacity-25" />
                         <p className="text-sm font-bold">Δεν βρέθηκαν παραγγελίες.</p>
+                        {myOrders.length === 0 && (
+                            <button type="button" onClick={onCreate} className="mt-1 rounded-xl bg-[#060b00] px-4 py-2.5 text-xs font-bold text-white">
+                                Δημιουργία πρώτης παραγγελίας
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

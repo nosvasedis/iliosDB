@@ -1,13 +1,6 @@
-import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Gender } from '../../types';
-import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
-import { FINISH_CODES } from '../../constants';
-import SkuColorizedText from '../SkuColorizedText';
-import SellerImageLightbox from './SellerImageLightbox';
-import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
+import React, { useState, useMemo, useDeferredValue } from 'react';
+import { FolderKanban, ArrowLeft, ChevronRight, PackageOpen } from 'lucide-react';
 import {
     buildSellerCollectionSummaries,
     filterSellerCollectionProducts,
@@ -16,19 +9,8 @@ import {
     SellerCatalogCollection,
     SellerCatalogProduct,
 } from '../../features/sellerCatalog/types';
-
-const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
-    const { finish, stone } = getVariantComponents(suffix, gender);
-    const badgeColor = SELLER_FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-    const stoneColor = SELLER_STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
-    return (
-        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
-            <span>{finishLabel}</span>
-            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}><StoneCodeText code={stone.code} /></span></>)}
-        </div>
-    );
-};
+import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
+import SellerProductGrid from './SellerProductGrid';
 
 interface Props {
     products: SellerCatalogProduct[];
@@ -37,187 +19,6 @@ interface Props {
     onAddToOrder?: (product: SellerCatalogProduct, variantSuffix?: string) => void;
 }
 
-// ─── Product Grid Card with swipe functionality ───────────────────────────────────
-const ProductGridCard: React.FC<{
-    product: SellerCatalogProduct;
-    onAddToOrder?: (product: SellerCatalogProduct, variantSuffix?: string) => void;
-}> = ({ product, onAddToOrder }) => {
-    const [viewIndex, setViewIndex] = useState(0);
-    const [imageFailed, setImageFailed] = useState(false);
-    const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
-    const [dragOffset, setDragOffset] = useState(0);
-    const touchStartX = useRef<number | null>(null);
-    const isAnimating = useRef(false);
-
-    React.useEffect(() => setImageFailed(false), [product.image_url]);
-
-    const variants = useMemo(() => product.variants || [], [product.variants]);
-    const hasVariants = variants.length > 0;
-    const currentVariant = hasVariants ? variants[viewIndex % variants.length] : null;
-
-    const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
-    const displayPrice = currentVariant
-        ? (currentVariant.selling_price || 0)
-        : (product.selling_price || 0);
-
-    const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
-        if (isAnimating.current || newIdx === viewIndex) return;
-        isAnimating.current = true;
-        setSlideDir(dir);
-        setTimeout(() => {
-            setViewIndex(newIdx);
-            setSlideDir(null);
-            isAnimating.current = false;
-        }, 180);
-    }, [viewIndex]);
-
-    const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        if (!hasVariants || variants.length <= 1) return;
-        touchStartX.current = e.touches[0].clientX;
-        setDragOffset(0);
-    }, [hasVariants, variants.length]);
-
-    const handleTouchMove = useCallback((e: React.TouchEvent) => {
-        if (touchStartX.current === null) return;
-        const delta = e.touches[0].clientX - touchStartX.current;
-        setDragOffset(Math.max(-90, Math.min(90, delta)));
-    }, []);
-
-    const handleTouchEnd = useCallback(() => {
-        if (touchStartX.current === null) return;
-        const d = dragOffset;
-        if (d < -35) goToIndex((viewIndex + 1) % variants.length, 'left');
-        else if (d > 35) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
-        touchStartX.current = null;
-        setDragOffset(0);
-    }, [dragOffset, viewIndex, variants.length, goToIndex]);
-
-    const nextVariant = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) goToIndex((viewIndex + 1) % variants.length, 'left');
-    };
-    const prevVariant = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
-    };
-
-    const handleAdd = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (onAddToOrder) {
-            onAddToOrder(product, currentVariant?.suffix);
-        }
-    };
-
-    const [showLightbox, setShowLightbox] = useState(false);
-
-    // Animated info strip classes
-    const infoClass = slideDir === 'left'
-        ? '-translate-x-full opacity-0'
-        : slideDir === 'right'
-            ? 'translate-x-full opacity-0'
-            : 'translate-x-0 opacity-100';
-
-    return (
-        <>
-            {showLightbox && (
-                <SellerImageLightbox
-                    item={{ product, variantIndex: viewIndex }}
-                    onClose={() => setShowLightbox(false)}
-                />
-            )}
-            <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-100 flex flex-col h-full relative">
-                {/* Image with touch support */}
-                <div
-                    className="aspect-[4/5] bg-slate-50 relative overflow-hidden"
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
-                >
-                    {product.image_url && !imageFailed ? (
-                        <img
-                            src={product.image_url}
-                            alt={displaySku}
-                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out cursor-zoom-in"
-                            onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
-                            loading="lazy"
-                            decoding="async"
-                            onError={() => setImageFailed(true)}
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <ImageIcon size={32} />
-                        </div>
-                    )}
-
-                    {/* Swipe direction hint during drag */}
-                    {Math.abs(dragOffset) > 20 && variants.length > 1 && (
-                        <div className={`absolute top-1/2 -translate-y-1/2 z-30 ${dragOffset > 0 ? 'left-2' : 'right-2'}`}>
-                            <div className="bg-white/80 backdrop-blur-sm rounded-full p-1 shadow">
-                                {dragOffset > 0
-                                    ? <ChevronLeft size={12} className="text-slate-700" />
-                                    : <ChevronRight size={12} className="text-slate-700" />
-                                }
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Zoom hint on hover */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
-                        className="absolute top-2 left-2 z-20 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all active:scale-90"
-                    >
-                        <Expand size={13} />
-                    </button>
-
-                    {/* Variant navigation */}
-                    {hasVariants && variants.length > 1 && (
-                        <div className="absolute top-2 right-2 flex bg-black/40 backdrop-blur-md rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
-                            <button onClick={prevVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
-                                <ChevronLeft size={12} />
-                            </button>
-                            <span className="text-white text-[9px] font-black px-1 flex items-center">
-                                {formatNumber(viewIndex % variants.length + 1)}/{formatNumber(variants.length)}
-                            </span>
-                            <button onClick={nextVariant} className="p-1 hover:bg-white/20 text-white rounded transition-all">
-                                <ChevronRight size={12} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Light strip: SKU + SuffixBadge + category (match Catalog exactly) */}
-                <div className="px-3 pt-2 pb-1.5 bg-white border-t border-slate-50">
-                    <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
-                        <SkuColorizedText sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} className="font-black text-slate-800 text-[11px] leading-tight truncate" masterClassName="text-slate-900" />
-                        {currentVariant && (
-                            <div className="mt-1">
-                                <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />
-                            </div>
-                        )}
-                        <p className="text-[9px] text-slate-400 font-bold truncate mt-0.5">{product.category}</p>
-                    </div>
-                </div>
-
-                {/* Footer — bigger price like Catalog */}
-                <div className="p-3 flex justify-between items-center bg-white border-t border-slate-50">
-                    <span className="font-black text-[#060b00] text-lg">
-                        {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                    </span>
-                    {onAddToOrder && (
-                        <button
-                            onClick={handleAdd}
-                            className="bg-[#060b00] text-amber-400 p-1.5 rounded-lg active:scale-95 transition-transform shadow-sm"
-                        >
-                            <ShoppingBag size={14} />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </>
-    );
-};
-
 const CollectionCover = ({ product, priority }: { product?: SellerCatalogProduct; priority: boolean }) => {
     const [failed, setFailed] = useState(false);
     React.useEffect(() => setFailed(false), [product?.image_url]);
@@ -225,21 +26,23 @@ const CollectionCover = ({ product, priority }: { product?: SellerCatalogProduct
         return (
             <img
                 src={product.image_url}
-                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                alt="Cover"
+                className="h-full w-full object-cover transition-transform duration-500 [@media(hover:hover)]:group-hover:scale-105"
+                alt=""
                 loading={priority ? 'eager' : 'lazy'}
-                fetchPriority={priority ? 'high' : 'auto'}
+                fetchPriority={priority ? 'high' : 'low'}
                 decoding="async"
                 onError={() => setFailed(true)}
             />
         );
     }
     return (
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300">
-            <FolderKanban size={64} strokeWidth={1} />
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300">
+            <FolderKanban size={48} strokeWidth={1} />
         </div>
     );
 };
+
+const itemsLabel = (count: number) => `${formatNumber(count)} ${count === 1 ? 'είδος' : 'είδη'}`;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerCollections({ products, collections, onAddToOrder }: Props) {
@@ -247,127 +50,107 @@ export default function SellerCollections({ products, collections, onAddToOrder 
         () => buildSellerCollectionSummaries(collections, products),
         [collections, products],
     );
-    const [selectedCollection, setSelectedCollection] = useState<SellerCatalogCollection | null>(null);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const deferredSearch = useDeferredValue(searchTerm);
+    const [listFilter, setListFilter] = useState('');
 
-    const filteredProducts = useMemo(() => {
-        if (!selectedCollection) return [];
-        const summary = summaries.find((item) => item.collection.id === selectedCollection.id);
-        return filterSellerCollectionProducts(summary?.products || [], searchTerm);
-    }, [selectedCollection, summaries, searchTerm]);
+    const selected = useMemo(
+        () => (selectedId == null ? null : summaries.find((item) => item.collection.id === selectedId) ?? null),
+        [selectedId, summaries],
+    );
+
+    const filteredProducts = useMemo(
+        () => (selected ? filterSellerCollectionProducts(selected.products, deferredSearch) : []),
+        [selected, deferredSearch],
+    );
+
+    const visibleSummaries = useMemo(() => {
+        const q = listFilter.trim().toLocaleLowerCase('el');
+        if (!q) return summaries;
+        return summaries.filter((s) => s.collection.name.toLocaleLowerCase('el').includes(q));
+    }, [summaries, listFilter]);
 
     // ── Collection Products View ───────────────────────────────────────────────
-    if (selectedCollection) {
+    if (selected) {
+        const { collection } = selected;
         return (
-            <div className="flex flex-col h-full p-4 space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between shrink-0 gap-3">
-                    <button
-                        onClick={() => { setSelectedCollection(null); setSearchTerm(''); }}
-                        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold group"
-                    >
-                        <div className="p-2 bg-white rounded-full shadow-sm group-hover:scale-110 transition-transform">
-                            <ArrowLeft size={18} />
-                        </div>
-                        Πίσω
-                    </button>
-                    <div className="relative flex-1 max-w-[200px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-400/20 text-sm font-medium shadow-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* Collection title */}
-                <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm shrink-0">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-black text-slate-900 leading-tight">{selectedCollection.name}</h1>
-                        <span className="bg-slate-100 text-slate-500 text-xs font-black px-3 py-1 rounded-full border border-slate-200">
-                            {formatNumber(filteredProducts.length)} {filteredProducts.length === 1 ? 'είδος' : 'είδη'}
+            <div className="flex h-full min-h-0 flex-col bg-slate-50">
+                <SellerPageHeader
+                    icon={FolderKanban}
+                    title={collection.name}
+                    subtitle={collection.description || itemsLabel(filteredProducts.length)}
+                    leading={
+                        <button
+                            type="button"
+                            onClick={() => { setSelectedId(null); setSearchTerm(''); }}
+                            aria-label="Πίσω στις συλλογές"
+                            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                        >
+                            <ArrowLeft size={19} />
+                        </button>
+                    }
+                    actions={
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold tabular-nums text-slate-600">
+                            {itemsLabel(filteredProducts.length)}
                         </span>
-                    </div>
-                    {selectedCollection.description && (
-                        <div className="flex items-start gap-3 mt-3 pt-3 border-t border-slate-50">
-                            <Sparkles size={16} className="text-blue-300 mt-0.5 shrink-0" />
-                            <p className="text-sm font-serif italic text-slate-500 leading-relaxed">
-                                "{selectedCollection.description}"
-                            </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Product Grid */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar pb-28 landscape:pb-8">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 landscape:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {filteredProducts.map(p => (
-                            <ProductGridCard key={p.sku} product={p} onAddToOrder={onAddToOrder} />
-                        ))}
-                        {filteredProducts.length === 0 && (
-                            <div className="col-span-full text-center py-20 text-slate-400 italic text-sm">
-                                Δεν βρέθηκαν προϊόντα.
-                            </div>
-                        )}
-                    </div>
-                </div>
+                    }
+                    below={<div className="flex"><SellerSearchField value={searchTerm} onChange={setSearchTerm} placeholder="Αναζήτηση στη συλλογή…" /></div>}
+                />
+                <SellerProductGrid
+                    products={filteredProducts}
+                    resetKey={`${collection.id}:${deferredSearch}`}
+                    onAddToOrder={onAddToOrder}
+                    empty={<div className="py-20 text-center text-sm font-bold text-slate-400">Δεν βρέθηκαν προϊόντα.</div>}
+                />
             </div>
         );
     }
 
     // ── Collections List View ──────────────────────────────────────────────────
     return (
-        <div className="space-y-6 p-4 pb-28 landscape:pb-8">
-            <div>
-                <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                    <FolderKanban className="text-blue-500" /> Συλλογές
-                </h1>
-                <p className="text-slate-400 mt-1 text-sm font-medium">Προτάσεις και επιλογές για εσάς.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 landscape:grid-cols-3 xl:grid-cols-4 gap-6">
-                {summaries.map(({ collection, previewProduct, products: collectionProducts }, index) => {
-                    const count = collectionProducts.length;
-                    return (
-                        <div
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <SellerPageHeader
+                icon={FolderKanban}
+                title="Συλλογές"
+                subtitle={`${formatNumber(summaries.length)} συλλογές`}
+                below={summaries.length > 6 ? <div className="flex"><SellerSearchField value={listFilter} onChange={setListFilter} placeholder="Αναζήτηση συλλογής…" /></div> : undefined}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+                <div className="grid grid-cols-2 gap-2 p-2 min-[400px]:gap-2.5 min-[400px]:p-2.5 sm:grid-cols-3 sm:gap-3 sm:p-3 lg:grid-cols-3 lg:gap-4 lg:px-0 lg:pt-4 xl:grid-cols-4 2xl:grid-cols-5">
+                    {visibleSummaries.map(({ collection, previewProduct, products: collectionProducts }, index) => (
+                        <button
                             key={collection.id}
-                            onClick={() => setSelectedCollection(collection)}
-                            className="group cursor-pointer relative bg-white rounded-[2rem] shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden border border-slate-100 h-72 flex flex-col"
+                            type="button"
+                            onClick={() => setSelectedId(collection.id)}
+                            className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-200 text-left shadow-sm transition-shadow active:scale-[0.985] lg:rounded-3xl lg:hover:shadow-xl"
+                            style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 300px' }}
                         >
-                            {/* Background image */}
-                            <div className="absolute inset-0 bg-slate-200">
-                                <CollectionCover product={previewProduct} priority={index < 2} />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-85 group-hover:opacity-95 transition-opacity" />
+                            <div className="absolute inset-0">
+                                <CollectionCover product={previewProduct} priority={index < 4} />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                             </div>
-
-                            {/* Content */}
-                            <div className="relative z-10 mt-auto p-6 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                                <span className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-2 block">
-                                    {formatNumber(count)} {count === 1 ? 'είδος' : 'είδη'}
+                            <div className="relative z-10 mt-auto w-full p-3 lg:p-5">
+                                <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-amber-300/90">
+                                    {itemsLabel(collectionProducts.length)}
                                 </span>
-                                <h2 className="text-2xl font-black text-white mb-2 leading-tight tracking-tight">
+                                <h2 className="line-clamp-2 text-[15px] font-bold leading-tight text-white min-[400px]:text-base lg:text-xl">
                                     {collection.name}
                                 </h2>
                                 {collection.description && (
-                                    <p className="text-white/70 text-xs line-clamp-2 font-serif italic mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-75">
-                                        {collection.description}
-                                    </p>
+                                    <div className="mt-1 hidden sm:block"><p className="line-clamp-2 text-xs italic text-white/70">{collection.description}</p></div>
                                 )}
-                                <div className="h-0.5 w-10 bg-amber-400 rounded-full mb-3 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 group-hover:w-14" />
-                                <p className="text-white/80 text-xs font-bold flex items-center gap-2">
-                                    <span>Προβολή</span>
-                                    <ArrowLeft className="rotate-180" size={14} />
-                                </p>
+                                <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-white/80">
+                                    Προβολή <ChevronRight size={13} />
+                                </span>
                             </div>
-                        </div>
-                    );
-                })}
-                {summaries.length === 0 && (
-                    <div className="col-span-full text-center py-20 text-slate-400 font-medium">
-                        Δεν υπάρχουν συλλογές.
+                        </button>
+                    ))}
+                </div>
+                {visibleSummaries.length === 0 && (
+                    <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
+                        <PackageOpen size={36} className="opacity-30" />
+                        <p className="text-sm font-bold">{summaries.length === 0 ? 'Δεν υπάρχουν συλλογές.' : 'Καμία συλλογή δεν ταιριάζει.'}</p>
                     </div>
                 )}
             </div>

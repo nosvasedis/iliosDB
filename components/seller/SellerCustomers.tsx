@@ -1,53 +1,140 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, INTERNAL_CUSTOMER_ID, RETAIL_CUSTOMER_ID } from '../../lib/supabase';
+import { INTERNAL_CUSTOMER_ID, RETAIL_CUSTOMER_ID } from '../../lib/supabase';
 import { isReservedCustomerName } from '../../utils/retailConstants';
 import { Customer, VatRegime } from '../../types';
-import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
+import { Phone, MapPin, Mail, Plus, Clock, Users, UserPlus } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import CustomerDetailsModal from '../CustomerDetailsModal';
 import CreateCustomerModal from '../CreateCustomerModal';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrders } from '../../hooks/api/useOrders';
+import { formatNumber } from '../../utils/numberFormat';
+import { HeaderPrimaryButton } from '../DesktopPageHeader';
+import SellerPageHeader, { SellerSearchField } from './SellerPageHeader';
+import { useSellerViewport } from './sellerViewport';
+
+const PAGE_SIZE = 60;
 
 // Normalize for duplicate check: lowercase, strip accents and spaces
 const normalizeStr = (s: string) =>
     s.toLowerCase().replace(/\s+/g, ' ').trim()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const nameCollator = new Intl.Collator('el', { sensitivity: 'base' });
+const dateFormatter = new Intl.DateTimeFormat('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+const initialsOf = (name: string) =>
+    name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || '?';
+
+const CustomerCard = React.memo<{ customer: Customer; lastOrder?: string; onOpen: (c: Customer) => void }>(({ customer: c, lastOrder, onOpen }) => {
+    const isRetail = c.id === RETAIL_CUSTOMER_ID;
+    return (
+        <div
+            className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 76px' }}
+        >
+            <button type="button" onClick={() => onOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-black ${isRetail ? 'bg-fuchsia-50 text-fuchsia-700' : 'bg-gradient-to-br from-[#1c2812] to-[#060b00] text-amber-300'}`}>
+                    {initialsOf(c.full_name)}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[14px] font-bold text-slate-900">{c.full_name}</span>
+                        {c.customer_code && <span className="shrink-0 font-mono text-[10px] font-bold text-slate-400">#{c.customer_code}</span>}
+                        {isRetail && (
+                            <span className="shrink-0 rounded-full border border-fuchsia-200 bg-fuchsia-50 px-1.5 text-[9px] font-bold uppercase text-fuchsia-700">Σύστημα</span>
+                        )}
+                    </span>
+                    {isRetail ? (
+                        <span className="block truncate text-[11px] text-slate-500">Συλλογικός λογαριασμός· όχι ένα ΑΦΜ/διεύθυνση.</span>
+                    ) : c.address ? (
+                        <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-500"><MapPin size={11} className="shrink-0 text-slate-400" /><span className="truncate">{c.address}</span></span>
+                    ) : null}
+                    {lastOrder && (
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400"><Clock size={10} /> Τελευταία: {dateFormatter.format(new Date(lastOrder))}</span>
+                    )}
+                </span>
+            </button>
+            {!isRetail && (c.phone || c.email) && (
+                <div className="flex shrink-0 gap-1.5">
+                    {c.phone && (
+                        <a href={`tel:${c.phone}`} aria-label={`Κλήση ${c.full_name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 active:scale-95">
+                            <Phone size={16} />
+                        </a>
+                    )}
+                    {c.email && (
+                        <a href={`mailto:${c.email}`} aria-label={`Email ${c.full_name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 active:scale-95">
+                            <Mail size={16} />
+                        </a>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+});
+CustomerCard.displayName = 'CustomerCard';
 
 export default function SellerCustomers() {
     const { data: customers } = useCustomers();
     const { data: orders } = useOrders();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
+    const { isDesktop } = useSellerViewport();
 
     const [search, setSearch] = useState('');
+    const deferredSearch = useDeferredValue(search.trim());
+    const [limit, setLimit] = useState(PAGE_SIZE);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [isCreating, setIsCreating] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+
+    // Internal orders are an admin concept; sellers never pick that account.
+    const sortedCustomers = useMemo(
+        () => (customers || []).filter((c) => c.id !== INTERNAL_CUSTOMER_ID).sort((a, b) => nameCollator.compare(a.full_name, b.full_name)),
+        [customers],
+    );
 
     const filteredList = useMemo(() => {
-        if (!customers) return [];
-        // Internal orders are an admin concept; sellers never pick that account.
-        return customers.filter(c => c.id !== INTERNAL_CUSTOMER_ID).filter(c =>
-            normalizedIncludes(c.full_name, search) ||
-            (c.phone && c.phone.includes(search)) ||
-            (c.customer_code && c.customer_code.includes(search)) ||
-            (c.vat_number && c.vat_number.includes(search))
-        ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
-    }, [customers, search]);
+        if (!deferredSearch) return sortedCustomers;
+        const digits = deferredSearch.replace(/\D/g, '');
+        return sortedCustomers.filter((c) =>
+            normalizedIncludes(c.full_name, deferredSearch) ||
+            (c.phone && (c.phone.includes(deferredSearch) || (digits.length >= 3 && c.phone.replace(/\D/g, '').includes(digits)))) ||
+            (c.customer_code && c.customer_code.includes(deferredSearch)) ||
+            (c.vat_number && c.vat_number.includes(deferredSearch)) ||
+            (c.address && normalizedIncludes(c.address, deferredSearch)),
+        );
+    }, [sortedCustomers, deferredSearch]);
+
+    useEffect(() => setLimit(PAGE_SIZE), [deferredSearch]);
+
+    // Grow the rendered window as the seller scrolls near the end.
+    const hasMore = limit < filteredList.length;
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el || !hasMore) return;
+        const io = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) setLimit((prev) => prev + PAGE_SIZE);
+        }, { rootMargin: '600px 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+    }, [hasMore, filteredList]);
 
     const latestOrdersMap = useMemo(() => {
-        if (!orders) return {} as Record<string, string>;
         const map: Record<string, string> = {};
-        orders.forEach(o => {
+        (orders || []).forEach((o) => {
             const cid = o.customer_id;
-            if (cid && (!map[cid] || new Date(o.created_at) > new Date(map[cid]))) {
-                map[cid] = o.created_at;
-            }
+            if (cid && (!map[cid] || o.created_at > map[cid])) map[cid] = o.created_at;
         });
         return map;
     }, [orders]);
+
+    const existingNameMatch = (existingName: string, normalized: string) => {
+        if (!normalized) return false;
+        return normalizeStr(existingName) === normalized;
+    };
 
     const handleCreateCustomer = async (c: Customer) => {
         if (isReservedCustomerName(c.full_name)) {
@@ -84,11 +171,6 @@ export default function SellerCustomers() {
             showToast('Σφάλμα δημιουργίας.', 'error');
             throw e;
         }
-    };
-
-    const existingNameMatch = (existingName: string, normalized: string) => {
-        if (!normalized) return false;
-        return normalizeStr(existingName) === normalized;
     };
 
     const handleUpdateCustomer = async (c: Customer) => {
@@ -132,82 +214,40 @@ export default function SellerCustomers() {
         setIsCreating(true);
     };
 
+    const openCustomer = React.useCallback((c: Customer) => {
+        setSelectedCustomer(c);
+        setIsCreating(false);
+    }, []);
+
     return (
-        <div className="p-4 h-full flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 shrink-0">
-                <h1 className="text-2xl font-black text-slate-900">Πελατολόγιο</h1>
-                <button
-                    onClick={openNewCustomer}
-                    className="flex items-center gap-2 bg-[#060b00] text-white px-4 py-2.5 rounded-xl font-bold shadow-md active:scale-95 transition-transform"
-                >
-                    <Plus size={18} /> Νέος Πελάτης
-                </button>
-            </div>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <SellerPageHeader
+                icon={Users}
+                title="Πελατολόγιο"
+                subtitle={customers ? `${formatNumber(sortedCustomers.length)} πελάτες` : 'Φόρτωση…'}
+                actions={isDesktop ? (
+                    <HeaderPrimaryButton icon={UserPlus} onClick={openNewCustomer}>Νέος πελάτης</HeaderPrimaryButton>
+                ) : (
+                    <button type="button" onClick={openNewCustomer} className="flex h-10 items-center gap-1.5 rounded-xl bg-[#060b00] pl-2.5 pr-3.5 text-[13px] font-bold text-white active:scale-95">
+                        <Plus size={17} className="text-amber-300" /> Νέος
+                    </button>
+                )}
+                below={<div className="flex"><SellerSearchField value={search} onChange={setSearch} placeholder="Όνομα, τηλέφωνο, ΑΦΜ, περιοχή…" /></div>}
+            />
 
-            <div className="relative mb-4 shrink-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                    type="text"
-                    placeholder="Αναζήτηση..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                />
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
-                {filteredList.map(c => (
-                    <div
-                        key={c.id}
-                        onClick={() => { setSelectedCustomer(c); setIsCreating(false); }}
-                        className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-                    >
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold shrink-0">
-                                <User size={18} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                    <div className="font-bold text-slate-900 truncate">{c.full_name}</div>
-                                    {c.customer_code && <span className="font-mono text-[9px] font-black text-slate-500">#{c.customer_code}</span>}
-                                    {c.id === RETAIL_CUSTOMER_ID && (
-                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
-                                            Σύστημα
-                                        </span>
-                                    )}
-                                </div>
-                                {latestOrdersMap[c.id] && (
-                                    <div className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">
-                                        <Clock size={10} /> Τελευταία: {new Date(latestOrdersMap[c.id]).toLocaleDateString('el-GR')}
-                                    </div>
-                                )}
-                                {c.id === RETAIL_CUSTOMER_ID ? (
-                                    <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                                        Συλλογικός λογαριασμός· όχι ένα ΑΦΜ/διεύθυνση.
-                                    </p>
-                                ) : (
-                                    c.address && (
-                                        <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
-                                            <MapPin size={10} /> {c.address}
-                                        </div>
-                                    )
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex gap-2 mt-3 pt-2 border-t border-slate-50" onClick={e => e.stopPropagation()}>
-                            {c.id !== RETAIL_CUSTOMER_ID && c.phone && (
-                                <a href={`tel:${c.phone}`} className="flex-1 bg-slate-50 py-2 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-2">
-                                    <Phone size={12} /> Κλήση
-                                </a>
-                            )}
-                            {c.id !== RETAIL_CUSTOMER_ID && c.email && (
-                                <a href={`mailto:${c.email}`} className="flex-1 bg-slate-50 py-2 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-2">
-                                    <Mail size={12} /> Ηλ. ταχυδρομείο
-                                </a>
-                            )}
-                        </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+                <div className="grid grid-cols-1 gap-2 p-2 min-[400px]:p-3 md:grid-cols-2 lg:gap-3 lg:px-0 lg:pt-4 2xl:grid-cols-3">
+                    {filteredList.slice(0, limit).map((c) => (
+                        <CustomerCard key={c.id} customer={c} lastOrder={latestOrdersMap[c.id]} onOpen={openCustomer} />
+                    ))}
+                </div>
+                {hasMore && <div ref={sentinelRef} className="h-10" />}
+                {customers && filteredList.length === 0 && (
+                    <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
+                        <Users size={34} className="opacity-25" />
+                        <p className="text-sm font-bold">Δεν βρέθηκαν πελάτες.</p>
                     </div>
-                ))}
+                )}
             </div>
 
             {selectedCustomer && !isCreating && orders && (

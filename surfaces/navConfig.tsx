@@ -147,15 +147,32 @@ export const employeeMobileNavItems: SurfaceNavItem<EmployeePage>[] = [
   { id: 'customers', icon: Users, label: 'Πελάτες' },
 ];
 
-export const sellerNavItems: SurfaceNavItem<SellerPage>[] = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
-  { id: 'catalog', icon: BookOpen, label: 'Κατάλογος' },
-  { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
-  { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
-  { id: 'customers', icon: Users, label: 'Πελάτες' },
-  { id: 'consignments', icon: HandHeart, label: 'Παρακαταθήκες' },
-  { id: 'repairs', icon: Wrench, label: 'Επισκευές' },
+export const sellerNavSections: NavSection<SellerPage>[] = [
+  {
+    title: 'Πωλήσεις',
+    items: [
+      { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
+      { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
+      { id: 'customers', icon: Users, label: 'Πελάτες' },
+    ],
+  },
+  {
+    title: 'Κατάλογος',
+    items: [
+      { id: 'catalog', icon: BookOpen, label: 'Κατάλογος' },
+      { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
+    ],
+  },
+  {
+    title: 'Εξυπηρέτηση',
+    items: [
+      { id: 'consignments', icon: HandHeart, label: 'Παρακαταθήκες' },
+      { id: 'repairs', icon: Wrench, label: 'Επισκευές' },
+    ],
+  },
 ];
+
+export const sellerNavItems: SurfaceNavItem<SellerPage>[] = sellerNavSections.flatMap((section) => section.items);
 
 export function renderNavIcon(Icon: LucideIcon, size = 18, strokeWidth = 2) {
   return React.createElement(Icon, { size, strokeWidth });

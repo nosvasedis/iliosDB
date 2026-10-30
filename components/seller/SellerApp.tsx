@@ -1,24 +1,51 @@
-
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import SellerLayout from './SellerLayout';
 import SellerDashboard from './SellerDashboard';
 import SellerOrders from './SellerOrders';
 import SellerCatalog from './SellerCatalog';
 import SellerCollections from './SellerCollections';
-import SellerCustomers from './SellerCustomers';
-import MobileOrderBuilder from '../mobile/MobileOrderBuilder';
 import { Order } from '../../types';
 import { useQuery } from '@tanstack/react-query';
 import type { SellerPage } from '../../surfaces/pageIds';
 import { productKeys, productsRepository } from '../../features/products';
 import IliosLoader from '../ui/IliosLoader';
 import { useSellerCatalog } from '../../features/sellerCatalog/useSellerCatalog';
-import CustomerServiceWorkspace from '../CustomerServiceWorkspace';
+import { SellerViewportProvider, useSellerViewport } from './sellerViewport';
 
-export default function SellerApp() {
+// Heavy, rarely-first screens load on demand so the seller shell opens fast on weak phones.
+const loadMobileOrderBuilder = () => import('../mobile/MobileOrderBuilder');
+const MobileOrderBuilder = lazy(loadMobileOrderBuilder);
+const SellerDesktopOrderBuilder = lazy(() => import('./SellerDesktopOrderBuilder'));
+const SellerCustomers = lazy(() => import('./SellerCustomers'));
+const CustomerServiceWorkspace = lazy(() => import('../CustomerServiceWorkspace'));
+
+const sellerLoadingDetails: Record<SellerPage, string> = {
+  dashboard: 'Αρχική',
+  catalog: 'Κατάλογος',
+  collections: 'Συλλογές',
+  orders: 'Παραγγελίες',
+  customers: 'Πελάτες',
+  consignments: 'Παρακαταθήκες',
+  repairs: 'Επισκευές',
+  'order-builder': 'Νέα παραγγελία',
+};
+
+/** Screens whose filters and scroll position survive switching away and back. */
+const KEEP_ALIVE_PAGES: SellerPage[] = ['catalog', 'collections'];
+
+const hiddenPageStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  visibility: 'hidden',
+  pointerEvents: 'none',
+  contentVisibility: 'hidden',
+};
+
+function SellerWorkspace() {
+  const { isDesktop } = useSellerViewport();
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
+  const [visited, setVisited] = useState<ReadonlySet<SellerPage>>(() => new Set<SellerPage>(['dashboard']));
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const handleNavigate = (page: string) => setActivePage(page as SellerPage);
   const { snapshot: sellerCatalog } = useSellerCatalog();
   const needsFullProducts = activePage === 'order-builder';
   const { data: products, isLoading: productsLoading } = useQuery({
@@ -27,60 +54,98 @@ export default function SellerApp() {
     enabled: needsFullProducts,
   });
 
-  const handleCreateOrder = () => {
-      setEditingOrder(null);
-      setActivePage('order-builder');
-  };
+  const navigate = useCallback((page: SellerPage) => {
+    setActivePage(page);
+    setVisited((prev) => (prev.has(page) ? prev : new Set(prev).add(page)));
+  }, []);
 
-  const handleEditOrder = (order: Order) => {
-      setEditingOrder(order);
-      setActivePage('order-builder');
-  };
+  // Warm the order-builder code while the seller browses, so "Νέα" opens instantly.
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const run = () => { void loadMobileOrderBuilder(); };
+    const handle = idle ? idle(run) : window.setTimeout(run, 2500);
+    return () => {
+      const cancel = (window as Window & { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      if (idle && cancel) cancel(handle); else window.clearTimeout(handle);
+    };
+  }, []);
 
-  const handleOrderBack = () => {
-      setEditingOrder(null);
-      setActivePage('orders');
-  };
+  const handleCreateOrder = useCallback(() => {
+    setEditingOrder(null);
+    navigate('order-builder');
+  }, [navigate]);
 
-  const sellerLoadingDetails: Record<SellerPage, string> = {
-    dashboard: 'Αρχική',
-    catalog: 'Κατάλογος',
-    collections: 'Συλλογές',
-    orders: 'Παραγγελίες',
-    customers: 'Πελάτες',
-    consignments: 'Παρακαταθήκες',
-    repairs: 'Επισκευές',
-    'order-builder': 'Νέα παραγγελία',
-  };
+  const handleEditOrder = useCallback((order: Order) => {
+    setEditingOrder(order);
+    navigate('order-builder');
+  }, [navigate]);
+
+  const handleOrderBack = useCallback(() => {
+    setEditingOrder(null);
+    navigate('orders');
+  }, [navigate]);
+
   const loadingView = <IliosLoader variant="section" detail={sellerLoadingDetails[activePage]} className="h-full min-h-full bg-slate-50" />;
+  const scrollPage = (node: React.ReactNode) => <div className="h-full overflow-y-auto overscroll-contain p-3 custom-scrollbar sm:p-4 lg:p-0">{node}</div>;
 
-  const pageRegistry: Record<SellerPage, React.ReactNode> = {
-    dashboard: <SellerDashboard onNavigate={handleNavigate} onCreateOrder={handleCreateOrder} />,
-    orders: <SellerOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} />,
-    'order-builder': productsLoading || !products ? loadingView : (
-      <div className="bg-white h-full">
-        <MobileOrderBuilder
-          onBack={handleOrderBack}
-          initialOrder={editingOrder}
-          products={products}
-          attachSeller={true}
-        />
-      </div>
-    ),
-    catalog: !sellerCatalog ? loadingView : (
-      <SellerCatalog products={sellerCatalog.products} collections={sellerCatalog.collections} />
-    ),
-    collections: !sellerCatalog ? loadingView : (
-      <SellerCollections products={sellerCatalog.products} collections={sellerCatalog.collections} />
-    ),
-    customers: <SellerCustomers />,
-    consignments: <CustomerServiceWorkspace mode="consignments" />,
-    repairs: <CustomerServiceWorkspace mode="repairs" />,
+  const renderPage = (page: SellerPage): React.ReactNode => {
+    switch (page) {
+      case 'dashboard':
+        return <SellerDashboard onNavigate={navigate} onCreateOrder={handleCreateOrder} />;
+      case 'orders':
+        return <SellerOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} />;
+      case 'order-builder':
+        if (productsLoading || !products) return loadingView;
+        return isDesktop ? (
+          <SellerDesktopOrderBuilder onBack={handleOrderBack} initialOrder={editingOrder} products={products} />
+        ) : (
+          <div className="h-full bg-white">
+            <MobileOrderBuilder onBack={handleOrderBack} initialOrder={editingOrder} products={products} attachSeller={true} />
+          </div>
+        );
+      case 'catalog':
+        return !sellerCatalog ? loadingView : <SellerCatalog products={sellerCatalog.products} collections={sellerCatalog.collections} />;
+      case 'collections':
+        return !sellerCatalog ? loadingView : <SellerCollections products={sellerCatalog.products} collections={sellerCatalog.collections} />;
+      case 'customers':
+        return <SellerCustomers />;
+      case 'consignments':
+        return scrollPage(<CustomerServiceWorkspace mode="consignments" />);
+      case 'repairs':
+        return scrollPage(<CustomerServiceWorkspace mode="repairs" />);
+    }
   };
+
+  const keepAlive = KEEP_ALIVE_PAGES.filter((page) => visited.has(page) && sellerCatalog);
+  const activeIsKeptAlive = keepAlive.includes(activePage);
 
   return (
-    <SellerLayout activePage={activePage} onNavigate={(page) => setActivePage(page)}>
-      {pageRegistry[activePage]}
+    <SellerLayout activePage={activePage} onNavigate={navigate} onCreateOrder={handleCreateOrder}>
+      <div className="relative h-full">
+        {keepAlive.map((page) => (
+          <div
+            key={page}
+            className="h-full"
+            style={page === activePage ? undefined : hiddenPageStyle}
+            aria-hidden={page === activePage ? undefined : true}
+          >
+            {renderPage(page)}
+          </div>
+        ))}
+        {!activeIsKeptAlive && (
+          <Suspense fallback={loadingView}>
+            <div key={activePage} className="h-full">{renderPage(activePage)}</div>
+          </Suspense>
+        )}
+      </div>
     </SellerLayout>
+  );
+}
+
+export default function SellerApp() {
+  return (
+    <SellerViewportProvider>
+      <SellerWorkspace />
+    </SellerViewportProvider>
   );
 }

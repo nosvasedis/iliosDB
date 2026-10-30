@@ -1,37 +1,31 @@
 import { formatNumber } from '../../utils/numberFormat';
 
-import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, useEffect } from 'react';
 import { Gender, ProductionType } from '../../types';
-import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import { BookOpen, X, SlidersHorizontal, ScanLine, PackageOpen, RotateCcw } from 'lucide-react';
+import { findProductByScannedCode } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
 import BarcodeScanner from '../BarcodeScanner';
-import SkuColorizedText from '../SkuColorizedText';
 import { useUI } from '../UIProvider';
-import SellerImageLightbox from './SellerImageLightbox';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 import {
     buildSellerCatalogIndex,
     selectSellerCatalogProducts,
+    SellerCatalogFilters,
+    SellerCatalogIndex,
 } from '../../features/sellerCatalog/selectors';
 import {
     SellerCatalogCollection,
     SellerCatalogProduct,
-    SellerCatalogVariant,
 } from '../../features/sellerCatalog/types';
-
-const INITIAL_DISPLAY_LIMIT = 60;
-const DISPLAY_INCREMENT = 60;
+import SellerPageHeader, { SellerIconButton, SellerSearchField } from './SellerPageHeader';
+import SellerProductGrid from './SellerProductGrid';
+import { useSellerViewport } from './sellerViewport';
 
 interface Props {
     products: SellerCatalogProduct[];
     collections: SellerCatalogCollection[];
 }
-
-// ─── Visual constants ─────────────────────────────────────────────────────────
-const FINISH_DOT_ACTIVE: Record<string, string> = {
-    '': 'bg-emerald-500', 'P': 'bg-stone-500', 'X': 'bg-amber-500', 'D': 'bg-rose-400', 'H': 'bg-cyan-400',
-};
 
 // ─── Category grouping ────────────────────────────────────────────────────────
 const CATEGORY_PREFIXES = ['Βραχιόλι', 'Κολιέ', 'Σκουλαρίκι', 'Δαχτυλίδι', 'Τσόκερ', 'Σετ', 'Αλυσίδα', 'Τσάντα', 'Καρφίτσα'];
@@ -42,292 +36,97 @@ const getCategoryGroup = (category: string): string => {
     return category;
 };
 
-// ─── SuffixBadge (desk parity) ────────────────────────────────────────────────
-const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
-    const { finish, stone } = getVariantComponents(suffix, gender);
-    const badgeColor = SELLER_FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-    const stoneColor = SELLER_STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-    const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
-    const stoneLabel = stone.name || stone.code;
-    return (
-        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
-            <span>{finishLabel}</span>
-            {stone.code && (<><span className="opacity-30">|</span><span className={stoneColor}>{stoneLabel}</span></>)}
-        </div>
-    );
+// The index (variant sorting + search strings) is the expensive part; build it once per snapshot,
+// not every time the seller opens the catalogue.
+const indexCache = new WeakMap<SellerCatalogProduct[], SellerCatalogIndex>();
+const getCatalogIndex = (products: SellerCatalogProduct[]) => {
+    let index = indexCache.get(products);
+    if (!index) {
+        index = buildSellerCatalogIndex(products, getCategoryGroup);
+        indexCache.set(products, index);
+    }
+    return index;
 };
 
-// ─── Catalogue Card with swipe + smart variant ordering ───────────────────────
-interface CardProps { product: SellerCatalogProduct; priority?: boolean; }
+type FacetFilters = Omit<SellerCatalogFilters, 'search' | 'categoryGroup'>;
 
-const CatalogueCard = React.memo(({ product, priority = false }: CardProps) => {
-    const variants = product.variants;
+const DEFAULT_FACETS: FacetFilters = {
+    gender: 'All',
+    collection: 'All',
+    finish: null,
+    stone: null,
+    stoneMode: 'All',
+    productionType: 'All',
+    onlyInStock: false,
+    sortBy: 'sku',
+};
 
-    // Finish groups (for the progress dots)
-    const finishGroups = useMemo(() => {
-        const groups: { finish: string; indices: number[] }[] = [];
-        variants.forEach((v, i) => {
-            const f = getVariantComponents(v.suffix, product.gender).finish.code;
-            const g = groups.find(g => g.finish === f);
-            if (g) g.indices.push(i);
-            else groups.push({ finish: f, indices: [i] });
-        });
-        return groups;
-    }, [variants, product.gender]);
+const GENDER_OPTS: Array<{ v: 'All' | Gender; l: string }> = [
+    { v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Ουδέτερα' },
+];
 
-    const [viewIndex, setViewIndex] = useState(0);
-    const [showLightbox, setShowLightbox] = useState(false);
-    const [imageFailed, setImageFailed] = useState(false);
-    const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
-    const [dragOffset, setDragOffset] = useState(0);
-    const touchStartX = useRef<number | null>(null);
-    const isAnimating = useRef(false);
+const optionClass = (active: boolean) =>
+    `min-h-[2.25rem] rounded-xl border px-3 text-[12px] font-bold transition-colors active:scale-[0.97] ${
+        active ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+    }`;
 
-    useEffect(() => setImageFailed(false), [product.image_url]);
+const FilterSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section className="space-y-2">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{title}</h3>
+        <div className="flex flex-wrap gap-1.5">{children}</div>
+    </section>
+);
 
-    const hasVariants = variants.length > 0;
-    const currentVariant: SellerCatalogVariant | null = hasVariants ? variants[viewIndex] : null;
-    const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
-    const displayPrice = currentVariant
-        ? (currentVariant.selling_price || product.selling_price || 0)
-        : (product.selling_price || 0);
-    const stockQty = currentVariant
-        ? (currentVariant.available_qty ?? currentVariant.stock_qty ?? 0)
-        : (product.available_qty ?? product.stock_qty ?? 0);
-
-    const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
-        if (isAnimating.current || newIdx === viewIndex) return;
-        isAnimating.current = true;
-        setSlideDir(dir);
-        setTimeout(() => {
-            setViewIndex(newIdx);
-            setSlideDir(null);
-            isAnimating.current = false;
-        }, 180);
-    }, [viewIndex]);
-
-    const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        if (!hasVariants || variants.length <= 1) return;
-        touchStartX.current = e.touches[0].clientX;
-        setDragOffset(0);
-    }, [hasVariants, variants.length]);
-
-    const handleTouchMove = useCallback((e: React.TouchEvent) => {
-        if (touchStartX.current === null) return;
-        const delta = e.touches[0].clientX - touchStartX.current;
-        setDragOffset(Math.max(-90, Math.min(90, delta)));
-    }, []);
-
-    const handleTouchEnd = useCallback(() => {
-        if (touchStartX.current === null) return;
-        const d = dragOffset;
-        if (d < -35) goToIndex((viewIndex + 1) % variants.length, 'left');
-        else if (d > 35) goToIndex((viewIndex - 1 + variants.length) % variants.length, 'right');
-        touchStartX.current = null;
-        setDragOffset(0);
-    }, [dragOffset, viewIndex, variants.length, goToIndex]);
-
-    // Animated info strip classes
-    const infoClass = slideDir === 'left'
-        ? '-translate-x-full opacity-0'
-        : slideDir === 'right'
-            ? 'translate-x-full opacity-0'
-            : 'translate-x-0 opacity-100';
-
-    const activeGroupIdx = finishGroups.findIndex(g => g.indices.includes(viewIndex));
-
-    return (
-        <>
-            {showLightbox && (
-                <SellerImageLightbox
-                    item={{ product, variantIndex: viewIndex }}
-                    onClose={() => setShowLightbox(false)}
-                />
-            )}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100 flex flex-col relative group select-none">
-
-                {/* ── Image + touch zone ─────────────────────────────── */}
-                <div
-                    className="relative aspect-square bg-slate-50 overflow-hidden"
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
-                >
-                    {product.image_url && !imageFailed ? (
-                        <img
-                            src={product.image_url}
-                            className="w-full h-full object-cover"
-                            alt={displaySku}
-                            draggable={false}
-                            loading={priority ? 'eager' : 'lazy'}
-                            fetchPriority={priority ? 'high' : 'auto'}
-                            decoding="async"
-                            onError={() => setImageFailed(true)}
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <ImageIcon size={20} />
-                        </div>
-                    )}
-
-                    {/* Swipe direction hint during drag */}
-                    {Math.abs(dragOffset) > 20 && variants.length > 1 && (
-                        <div className={`absolute top-1/2 -translate-y-1/2 z-30 ${dragOffset > 0 ? 'left-2' : 'right-2'}`}>
-                            <div className="bg-white/80 backdrop-blur-sm rounded-full p-1 shadow">
-                                {dragOffset > 0
-                                    ? <ChevronLeft size={12} className="text-slate-700" />
-                                    : <ChevronRight size={12} className="text-slate-700" />
-                                }
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Stock pill */}
-                    <div className="absolute top-1 left-1 z-20 pointer-events-none">
-                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-md ${stockQty > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
-                            {formatNumber(stockQty)}
-                        </span>
-                    </div>
-
-                    {/* Variant counter */}
-                    {hasVariants && variants.length > 1 && (
-                        <div className="absolute top-1 right-1 z-20 pointer-events-none">
-                            <span className="bg-black/50 backdrop-blur-md text-white text-[7px] font-black px-1.5 py-0.5 rounded-full">
-                                {formatNumber(viewIndex + 1)}/{formatNumber(variants.length)}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Expand button */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
-                        className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 bg-black/40 hover:bg-black/65 backdrop-blur-sm text-white rounded-full p-1.5 transition-all active:scale-90 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    >
-                        <Expand size={11} />
-                    </button>
-                </div>
-
-                {/* ── Animated info strip ─────────────────────────────── */}
-                <div className="px-1.5 pt-1 pb-0.5 overflow-hidden">
-                    <div className={`flex flex-col gap-0.5 transition-all duration-[180ms] ease-out ${infoClass}`}>
-                        {/* SKU */}
-                        <SkuColorizedText sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} className="font-black text-slate-800 text-[11px] leading-tight truncate" masterClassName="text-slate-900" />
-
-                        {/* Finish badge */}
-                        {currentVariant && (
-                            <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />
-                        )}
-
-                        {/* Price row */}
-                        <div className="flex justify-between items-end mt-0.5">
-                            <span className="text-[8px] text-slate-400 truncate max-w-[50%]">{product.category}</span>
-                            <div className="text-right leading-none">
-                                <div className="font-black text-[#060b00] text-base">
-                                    {displayPrice > 0 ? formatCurrency(displayPrice) : '—'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Finish group progress dots ──────────────────────── */}
-                {finishGroups.length > 1 && (
-                    <div className="px-1.5 pb-1.5 flex gap-1">
-                        {finishGroups.map((g, gi) => (
-                            <button
-                                key={g.finish}
-                                onClick={() => goToIndex(g.indices[0], gi > activeGroupIdx ? 'left' : 'right')}
-                                className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${gi === activeGroupIdx ? (FINISH_DOT_ACTIVE[g.finish] || 'bg-slate-700') : 'bg-slate-200 hover:bg-slate-300'}`}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-        </>
-    );
-});
-CatalogueCard.displayName = 'CatalogueCard';
-
-// ─── Filter chip ──────────────────────────────────────────────────────────────
-const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
-    <div className="flex items-center gap-1 bg-[#060b00] text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm shrink-0">
+const ActiveChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
+    <button
+        type="button"
+        onClick={onClear}
+        className="flex h-7 shrink-0 items-center gap-1 rounded-full bg-[#060b00] pl-2.5 pr-1.5 text-[11px] font-bold text-white"
+    >
         {label}
-        <button onClick={onClear} className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"><X size={10} /></button>
-    </div>
+        <X size={12} className="opacity-70" />
+    </button>
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerCatalog({ products, collections }: Props) {
     const { showToast } = useUI();
+    const { isDesktop } = useSellerViewport();
 
-    // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
-    const deferredSearch = useDeferredValue(search.trim());
-    const [selectedGroup, setSelectedGroup] = useState<string>('All');
-    const [selectedGender, setSelectedGender] = useState<'All' | Gender>('All');
-    const [selectedCollection, setSelectedCollection] = useState<number | 'All'>('All');
-    const [selectedFinish, setSelectedFinish] = useState<string | null>(null);
-    const [selectedStone, setSelectedStone] = useState<string | null>(null);
-    const [stoneFilterMode, setStoneFilterMode] = useState<'All' | 'with' | 'without'>('All');
-    const [selectedProductionType, setSelectedProductionType] = useState<'All' | ProductionType>('All');
-    const [sortBy, setSortBy] = useState<'sku' | 'created_at'>('sku');
-    const [onlyInStock, setOnlyInStock] = useState(false);
+    const [group, setGroup] = useState('All');
+    const [facets, setFacets] = useState<FacetFilters>(DEFAULT_FACETS);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
-    const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_LIMIT);
 
-    // Reset the visible window when filters change, matching the admin mobile registry.
-    useEffect(() => {
-        setDisplayLimit(INITIAL_DISPLAY_LIMIT);
-    }, [deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
-
-    const scrollRef = useRef<HTMLDivElement>(null);
-
-    // ── Derived filter options ───────────────────────────────────────────────
-    const catalogIndex = useMemo(() => buildSellerCatalogIndex(products, getCategoryGroup), [products]);
-    const categoryGroups = useMemo(() => ['All', ...catalogIndex.categoryGroups], [catalogIndex]);
-    const availableFinishes = catalogIndex.availableFinishes;
-    const availableStones = catalogIndex.availableStones;
-
-    // ── Filtered products ────────────────────────────────────────────────────
-    const filteredProducts = useMemo(() => selectSellerCatalogProducts(catalogIndex, {
-        search: deferredSearch,
-        categoryGroup: selectedGroup,
-        gender: selectedGender,
-        collection: selectedCollection,
-        finish: selectedFinish,
-        stone: selectedStone,
-        stoneMode: stoneFilterMode,
-        productionType: selectedProductionType,
-        onlyInStock,
-        sortBy,
-    }), [catalogIndex, deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
-
-    const displayedProducts = useMemo(() => filteredProducts.slice(0, displayLimit), [filteredProducts, displayLimit]);
-
-    // ── Active filter count ──────────────────────────────────────────────────
-    const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, stoneFilterMode !== 'All', selectedProductionType !== 'All', onlyInStock].filter(Boolean).length;
-
-    const canShowMoreLoaded = displayedProducts.length < filteredProducts.length;
-
-    const handleLoadMore = useCallback(() => {
-        setDisplayLimit(prev => prev + DISPLAY_INCREMENT);
+    const setFacet = useCallback(<K extends keyof FacetFilters>(key: K, value: FacetFilters[K]) => {
+        setFacets((prev) => ({ ...prev, [key]: value }));
     }, []);
 
-    const clearAll = () => {
-        setSelectedGender('All');
-        setSelectedCollection('All');
-        setSelectedFinish(null);
-        setSelectedStone(null);
-        setStoneFilterMode('All');
-        setSelectedProductionType('All');
-        setOnlyInStock(false);
-    };
+    const catalogIndex = useMemo(() => getCatalogIndex(products), [products]);
+    const categoryGroups = catalogIndex.categoryGroups;
+
+    // Typing and chip taps stay instant; the filter pass runs at lower priority.
+    const filters = useDeferredValue(useMemo<SellerCatalogFilters>(() => ({
+        ...facets,
+        search: search.trim(),
+        categoryGroup: group,
+    }), [facets, search, group]));
+
+    const filteredProducts = useMemo(() => selectSellerCatalogProducts(catalogIndex, filters), [catalogIndex, filters]);
+    const resetKey = JSON.stringify(filters);
+
+    const activeCount = [
+        facets.gender !== 'All', facets.collection !== 'All', facets.finish !== null, facets.stone !== null,
+        facets.stoneMode !== 'All', facets.productionType !== 'All', facets.onlyInStock,
+    ].filter(Boolean).length;
+
+    const clearAll = () => setFacets((prev) => ({ ...DEFAULT_FACETS, sortBy: prev.sortBy }));
 
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
         if (match) {
+            setGroup('All');
             setSearch(match.product.sku + (match.variant?.suffix || ''));
             setShowScanner(false);
         } else {
@@ -335,213 +134,218 @@ export default function SellerCatalog({ products, collections }: Props) {
         }
     };
 
-    const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Ουδέτερα' }];
+    useEffect(() => {
+        if (!showFilters) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowFilters(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showFilters]);
+
+    const stoneName = (code: string) => catalogIndex.availableStones.find((s) => s.code === code)?.name ?? code;
+
+    const chips = (
+        <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:flex-wrap lg:px-0">
+            {['All', ...categoryGroups].map((g) => (
+                <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGroup(g)}
+                    className={`h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-[12px] font-bold transition-colors ${
+                        group === g ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                >
+                    {g === 'All' ? 'Όλα' : g}
+                </button>
+            ))}
+        </div>
+    );
+
+    const activeChips = activeCount > 0 && (
+        <div className="-mx-3 mt-2 flex gap-1.5 overflow-x-auto px-3 ilios-no-scrollbar min-[400px]:-mx-4 min-[400px]:px-4 lg:mx-0 lg:flex-wrap lg:px-0">
+            {facets.gender !== 'All' && <ActiveChip label={GENDER_OPTS.find((g) => g.v === facets.gender)?.l || ''} onClear={() => setFacet('gender', 'All')} />}
+            {facets.finish !== null && <ActiveChip label={FINISH_CODES[facets.finish] ?? facets.finish} onClear={() => setFacet('finish', null)} />}
+            {facets.stone !== null && <ActiveChip label={stoneName(facets.stone)} onClear={() => setFacet('stone', null)} />}
+            {facets.stoneMode !== 'All' && <ActiveChip label={facets.stoneMode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'} onClear={() => setFacet('stoneMode', 'All')} />}
+            {facets.productionType !== 'All' && <ActiveChip label={facets.productionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setFacet('productionType', 'All')} />}
+            {facets.collection !== 'All' && <ActiveChip label={collections.find((c) => c.id === facets.collection)?.name || 'Συλλογή'} onClear={() => setFacet('collection', 'All')} />}
+            {facets.onlyInStock && <ActiveChip label="Διαθέσιμα" onClear={() => setFacet('onlyInStock', false)} />}
+            <button type="button" onClick={clearAll} className="h-7 shrink-0 px-2 text-[11px] font-bold text-rose-600">Καθαρισμός</button>
+        </div>
+    );
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative">
+        <div className="flex h-full min-h-0 flex-col bg-slate-50 lg:gap-0">
+            <SellerPageHeader
+                icon={BookOpen}
+                title="Κατάλογος"
+                subtitle={`${formatNumber(filteredProducts.length)} από ${formatNumber(products.length)} κωδικούς`}
+                actions={isDesktop ? undefined : (
+                    <>
+                        <SellerIconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></SellerIconButton>
+                        <SellerIconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
+                            <SlidersHorizontal size={18} />
+                        </SellerIconButton>
+                    </>
+                )}
+                below={
+                    <>
+                        {isDesktop ? (
+                            <div className="mb-3 flex items-center gap-2">
+                                <SellerSearchField value={search} onChange={setSearch} placeholder="Αναζήτηση κωδικού ή κατηγορίας…" />
+                                <SellerIconButton label="Σάρωση" onClick={() => setShowScanner(true)}><ScanLine size={18} /></SellerIconButton>
+                                <SellerIconButton label="Φίλτρα" onClick={() => setShowFilters(true)} active={activeCount > 0} badge={activeCount || undefined}>
+                                    <SlidersHorizontal size={18} />
+                                </SellerIconButton>
+                            </div>
+                        ) : (
+                            <div className="mb-2 flex">
+                                <SellerSearchField value={search} onChange={setSearch} placeholder="Κωδικός ή κατηγορία…" />
+                            </div>
+                        )}
+                        {chips}
+                        {activeChips}
+                    </>
+                }
+            />
 
-            {/* ── Sticky Header ─────────────────────────────────────────── */}
-            <div className="sticky top-0 z-20 bg-white/98 backdrop-blur-xl border-b border-slate-200 shadow-sm px-3 pt-3 pb-2 space-y-2">
-
-                {/* Row 1: Search + scan + filter toggle */}
-                <div className="flex gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                        <input type="text" placeholder="Αναζήτηση κωδικού, κατηγορίας..." value={search} onChange={e => { setSearch(e.target.value); setSelectedGroup('All'); }}
-                            className="w-full pl-8 pr-7 p-2.5 bg-slate-100 focus:bg-white focus:border-slate-300 border border-transparent rounded-xl outline-none font-bold text-sm text-slate-900 transition-all placeholder:font-medium placeholder:text-slate-400" />
-                        {search && (
-                            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-300 rounded-full p-0.5">
-                                <X size={11} className="text-slate-600" />
+            <SellerProductGrid
+                products={filteredProducts}
+                resetKey={resetKey}
+                empty={
+                    <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">
+                        <PackageOpen size={40} className="opacity-30" />
+                        <p className="text-sm font-bold">Δεν βρέθηκαν προϊόντα.</p>
+                        {(activeCount > 0 || search || group !== 'All') && (
+                            <button
+                                type="button"
+                                onClick={() => { clearAll(); setSearch(''); setGroup('All'); }}
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700"
+                            >
+                                Καθαρισμός αναζήτησης & φίλτρων
                             </button>
                         )}
                     </div>
-                    <button onClick={() => setShowScanner(true)} className="bg-slate-100 text-slate-600 p-2.5 rounded-xl hover:bg-slate-200 transition-colors shrink-0"><Camera size={18} /></button>
-                    <button onClick={() => setShowFilters(v => !v)} className={`relative p-2.5 rounded-xl border transition-colors shrink-0 ${(showFilters || activeCount > 0) ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200'}`}>
-                        <SlidersHorizontal size={18} />
-                        {activeCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 text-[#060b00] text-[9px] font-black rounded-full flex items-center justify-center">{formatNumber(activeCount)}</span>
-                        )}
-                    </button>
-                </div>
+                }
+            />
 
-                {/* Expandable filter panel */}
-                {showFilters && (
-                    <div className="space-y-3 py-1 animate-in slide-in-from-top-2 duration-200">
-
-                        {/* Gender */}
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Φύλο</p>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {GENDER_OPTS.map(g => (
-                                    <button key={g.v} onClick={() => setSelectedGender(g.v as any)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedGender === g.v ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                        {g.l}
-                                    </button>
-                                ))}
-                            </div>
+            {showFilters && (
+                <div className="fixed inset-0 z-[70] flex items-end justify-center lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label="Φίλτρα καταλόγου">
+                    <button type="button" aria-label="Κλείσιμο" onClick={() => setShowFilters(false)} className="absolute inset-0 bg-[#060b00]/40" />
+                    <div className="relative flex max-h-[88dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl lg:max-h-none lg:w-[400px] lg:rounded-none lg:rounded-l-3xl">
+                        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200 lg:hidden" />
+                        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+                            <h2 className="text-base font-bold text-[#060b00]">Φίλτρα</h2>
+                            <button type="button" onClick={() => setShowFilters(false)} aria-label="Κλείσιμο" className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100">
+                                <X size={18} />
+                            </button>
                         </div>
 
-                        {/* Finish (metal) filter */}
-                        {availableFinishes.length > 0 && (
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Μέταλλο</p>
-                                <div className="flex gap-1.5 flex-wrap">
-                                    {availableFinishes.map(f => (
-                                        <button key={f} onClick={() => setSelectedFinish(selectedFinish === f ? null : f)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedFinish === f ? 'ring-2 ring-offset-1 ' + (SELLER_FINISH_COLORS[f] || '') + ' ring-slate-600' : (SELLER_FINISH_COLORS[f] || 'bg-slate-50 text-slate-500 border-slate-200')}`}>
+                        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
+                            <FilterSection title="Ταξινόμηση">
+                                <button type="button" onClick={() => setFacet('sortBy', 'sku')} className={optionClass(facets.sortBy === 'sku')}>Κωδικός</button>
+                                <button type="button" onClick={() => setFacet('sortBy', 'created_at')} className={optionClass(facets.sortBy === 'created_at')}>Νεότερα</button>
+                            </FilterSection>
+
+                            <section className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
+                                <div>
+                                    <p className="text-[13px] font-bold text-slate-800">Μόνο διαθέσιμα</p>
+                                    <p className="text-[11px] text-slate-400">Κωδικοί με απόθεμα</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={facets.onlyInStock}
+                                    onClick={() => setFacet('onlyInStock', !facets.onlyInStock)}
+                                    className={`relative h-7 w-12 rounded-full transition-colors ${facets.onlyInStock ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                                >
+                                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${facets.onlyInStock ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </section>
+
+                            <FilterSection title="Φύλο">
+                                {GENDER_OPTS.map((g) => (
+                                    <button key={g.v} type="button" onClick={() => setFacet('gender', g.v)} className={optionClass(facets.gender === g.v)}>{g.l}</button>
+                                ))}
+                            </FilterSection>
+
+                            {catalogIndex.availableFinishes.length > 0 && (
+                                <FilterSection title="Μέταλλο">
+                                    {catalogIndex.availableFinishes.map((f) => (
+                                        <button
+                                            key={f}
+                                            type="button"
+                                            onClick={() => setFacet('finish', facets.finish === f ? null : f)}
+                                            className={`min-h-[2.25rem] rounded-xl border px-3 text-[12px] font-bold transition-colors ${SELLER_FINISH_COLORS[f] || 'border-slate-200 bg-slate-50 text-slate-600'} ${facets.finish === f ? 'ring-2 ring-[#060b00] ring-offset-1' : ''}`}
+                                        >
                                             {FINISH_CODES[f] ?? f}
                                         </button>
                                     ))}
-                                </div>
-                            </div>
-                        )}
+                                </FilterSection>
+                            )}
 
-                        {/* Stone: With/Without + specific stones */}
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Πέτρα</p>
-                            <div className="flex gap-1.5 flex-wrap mb-2">
-                                {(['All', 'with', 'without'] as const).map(mode => (
-                                    <button key={mode} onClick={() => setStoneFilterMode(mode === stoneFilterMode ? 'All' : mode)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${stoneFilterMode === mode ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                            <FilterSection title="Πέτρα">
+                                {(['All', 'with', 'without'] as const).map((mode) => (
+                                    <button key={mode} type="button" onClick={() => setFacet('stoneMode', mode)} className={optionClass(facets.stoneMode === mode)}>
                                         {mode === 'All' ? 'Όλα' : mode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'}
                                     </button>
                                 ))}
-                            </div>
-                            {availableStones.length > 0 && (
-                                <div className="flex gap-1.5 flex-wrap max-h-24 overflow-y-auto">
-                                    {availableStones.map(s => (
-                                        <button key={s.code} onClick={() => setSelectedStone(selectedStone === s.code ? null : s.code)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s.code ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                            <span className={selectedStone === s.code ? 'text-white' : (SELLER_STONE_TEXT_COLORS[s.code] || 'text-slate-600')}>{s.name}</span>
+                            </FilterSection>
+
+                            {catalogIndex.availableStones.length > 0 && (
+                                <FilterSection title="Συγκεκριμένη πέτρα">
+                                    {catalogIndex.availableStones.map((s) => (
+                                        <button
+                                            key={s.code}
+                                            type="button"
+                                            onClick={() => setFacet('stone', facets.stone === s.code ? null : s.code)}
+                                            className={optionClass(facets.stone === s.code)}
+                                        >
+                                            <span className={facets.stone === s.code ? 'text-white' : (SELLER_STONE_TEXT_COLORS[s.code] || 'text-slate-600')}>{s.name}</span>
                                         </button>
                                     ))}
-                                </div>
+                                </FilterSection>
                             )}
-                        </div>
 
-                        {/* Production type */}
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Τύπος παραγωγής</p>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {(['All', ProductionType.InHouse, ProductionType.Imported] as const).map(pt => (
-                                    <button key={pt} onClick={() => setSelectedProductionType(selectedProductionType === pt ? 'All' : pt)}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedProductionType === pt ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                            <FilterSection title="Τύπος παραγωγής">
+                                {(['All', ProductionType.InHouse, ProductionType.Imported] as const).map((pt) => (
+                                    <button key={pt} type="button" onClick={() => setFacet('productionType', pt)} className={optionClass(facets.productionType === pt)}>
                                         {pt === 'All' ? 'Όλα' : pt === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'}
                                     </button>
                                 ))}
-                            </div>
-                        </div>
+                            </FilterSection>
 
-                        {/* Sort */}
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Ταξινόμηση</p>
-                            <div className="flex gap-1.5 flex-wrap">
-                                <button onClick={() => setSortBy('sku')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${sortBy === 'sku' ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                    Κωδικός
-                                </button>
-                                <button onClick={() => setSortBy('created_at')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${sortBy === 'created_at' ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                    Νεότερα
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Collections */}
-                        {collections && collections.length > 0 && (
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Συλλογή</p>
-                                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide -mx-1 px-1">
-                                    <button onClick={() => setSelectedCollection('All')}
-                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === 'All' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                        Όλες
-                                    </button>
-                                    {collections.map(col => (
-                                        <button key={col.id} onClick={() => setSelectedCollection(col.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border whitespace-nowrap transition-all ${selectedCollection === col.id ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                            {collections.length > 0 && (
+                                <FilterSection title="Συλλογή">
+                                    <button type="button" onClick={() => setFacet('collection', 'All')} className={optionClass(facets.collection === 'All')}>Όλες</button>
+                                    {collections.map((col) => (
+                                        <button key={col.id} type="button" onClick={() => setFacet('collection', col.id)} className={optionClass(facets.collection === col.id)}>
                                             {col.name}
                                         </button>
                                     ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* In stock toggle */}
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-black text-slate-700">Μόνο Διαθέσιμα</p>
-                                <p className="text-[9px] text-slate-400">Προϊόντα με στοκ &gt; 0</p>
-                            </div>
-                            <button onClick={() => setOnlyInStock(v => !v)} className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${onlyInStock ? 'bg-emerald-500' : 'bg-slate-200'}`}>
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-md absolute top-1 transition-all duration-200 ${onlyInStock ? 'left-6' : 'left-1'}`} />
-                            </button>
+                                </FilterSection>
+                            )}
                         </div>
 
-                        {activeCount > 0 && (
-                            <button onClick={clearAll} className="w-full py-2 text-[11px] font-black text-red-500 border border-red-200 rounded-xl bg-red-50 hover:bg-red-100 transition-colors">
-                                Καθαρισμός Φίλτρων ({formatNumber(activeCount)})
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {/* Category group chips - always visible */}
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-3 px-3 scrollbar-hide">
-                    {categoryGroups.map(g => (
-                        <button key={g} onClick={() => setSelectedGroup(g)}
-                            className={`px-3 py-1.5 rounded-full text-[10px] font-black whitespace-nowrap border transition-all ${selectedGroup === g ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                            {g === 'All' ? 'Όλα' : g}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Active chips row */}
-                {activeCount > 0 && !showFilters && (
-                    <div className="flex gap-2 flex-wrap animate-in slide-in-from-top-1">
-                        {selectedGender !== 'All' && <FilterChip label={GENDER_OPTS.find(g => g.v === selectedGender)?.l || ''} onClear={() => setSelectedGender('All')} />}
-                        {selectedFinish !== null && <FilterChip label={FINISH_CODES[selectedFinish] ?? selectedFinish} onClear={() => setSelectedFinish(null)} />}
-                        {selectedStone !== null && <FilterChip label={availableStones.find(x => x.code === selectedStone)?.name ?? selectedStone} onClear={() => setSelectedStone(null)} />}
-                        {stoneFilterMode !== 'All' && <FilterChip label={stoneFilterMode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'} onClear={() => setStoneFilterMode('All')} />}
-                        {selectedProductionType !== 'All' && <FilterChip label={selectedProductionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setSelectedProductionType('All')} />}
-                        {selectedCollection !== 'All' && <FilterChip label={collections?.find(c => c.id === selectedCollection)?.name || 'Συλλογή'} onClear={() => setSelectedCollection('All')} />}
-                        {onlyInStock && <FilterChip label="Διαθέσιμα" onClear={() => setOnlyInStock(false)} />}
-                    </div>
-                )}
-            </div>
-
-            {/* Results count */}
-            <div className="px-3 pt-2 pb-1 shrink-0">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    {formatNumber(filteredProducts.length)} προϊόντα
-                </span>
-            </div>
-
-            {/* ── Product grid ─────────────────────────────────────────── */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-6">
-                {filteredProducts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
-                        <PackageOpen size={40} className="opacity-20" />
-                        <p className="font-black text-sm">Δεν βρέθηκαν προϊόντα.</p>
-                        {activeCount > 0 && <button onClick={clearAll} className="text-xs font-black text-[#060b00] underline">Καθαρισμός φίλτρων</button>}
-                    </div>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-3 gap-2 pb-4">
-                            {displayedProducts.map((p, index) => (
-                                <CatalogueCard key={p.sku} product={p} priority={index < 3} />
-                            ))}
-                        </div>
-
-                        {canShowMoreLoaded && (
+                        <div className="flex gap-2 border-t border-slate-100 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                             <button
                                 type="button"
-                                onClick={handleLoadMore}
-                                className="w-full py-3 bg-white text-slate-600 rounded-xl font-black text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 mb-4 border border-slate-100 shadow-sm disabled:opacity-60"
+                                onClick={clearAll}
+                                disabled={activeCount === 0}
+                                className="flex h-12 items-center gap-1.5 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 disabled:opacity-40"
                             >
-                                {`Περισσότερα (${formatNumber(filteredProducts.length - displayedProducts.length)})`}
+                                <RotateCcw size={15} /> Καθαρισμός
                             </button>
-                        )}
-                    </>
-                )}
-            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowFilters(false)}
+                                className="flex h-12 flex-1 items-center justify-center rounded-xl bg-[#060b00] text-sm font-bold text-white active:scale-[0.99]"
+                            >
+                                Προβολή {formatNumber(filteredProducts.length)}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
