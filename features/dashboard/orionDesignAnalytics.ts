@@ -1,6 +1,6 @@
 import type { Collection, Mold, Product } from '../../types';
 import type { FinanceLineEvent } from '../../utils/financeAnalytics';
-import { isOrionCollectionName, parseMasterSkuParts } from '../orders/smartSkuSuggestions';
+import { isOrionCollectionName, parseMasterSkuParts } from '../orders/skuParts';
 import type { VariantAnalyticsSort } from './dashboardAnalysisViewModels';
 import type { SkuModalFilterSelection } from './skuModalFilters';
 

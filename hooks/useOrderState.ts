@@ -24,15 +24,10 @@ import {
 import { isXrCordEnamelSku } from '../utils/xrOptions';
 import { generateOrderPriceSyncPreview } from '../utils/productionPricingUtils';
 import {
-    buildOrderContextAffinitySkuSet,
-    buildProductSearchIndex,
-    computeSmartSkuSuggestions,
-    getActiveMasterSetMates,
-    productMatchesVariantSuffix,
-    sortProductsForSuggestions,
-    type SmartSuggestionResult,
-    type SuggestionRankContext,
-} from '../features/orders/smartSkuSuggestions';
+    productHasVariantPrefix,
+    searchMastersByPrefix,
+    type SkuPrefixMatches,
+} from '../features/orders/skuPrefixSearch';
 import { dispatchLiveActivity } from './useLiveActivity';
 import { invalidateAndRefetchAfterOrderMutation } from '../lib/queryInvalidation';
 import { calculateOrderFinancials } from '../features/orders/orderFinancials';
@@ -136,8 +131,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [defaultFulfillmentMode, setDefaultFulfillmentMode] = useState<'sale' | 'consignment'>('sale');
     const [itemNotes, setItemNotes] = useState('');
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
-    const [smartSuggestions, setSmartSuggestions] = useState<SmartSuggestionResult | null>(null);
-    const [recentContextMasterSkus, setRecentContextMasterSkus] = useState<string[]>([]);
+    const [skuMatches, setSkuMatches] = useState<SkuPrefixMatches | null>(null);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
     const [selectedSize, setSelectedSize] = useState('');
@@ -161,43 +155,12 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const productSearchIndex = useMemo(() => buildProductSearchIndex(products, collections), [products, collections]);
-    const resolveOrderLineProduct = useMemo(
-        () => (sku: string) => products.find((p) => p.sku === sku),
-        [products],
-    );
     const collectionNameById = useMemo(() => {
         const m: Record<number, string> = {};
         for (const c of collections || []) m[c.id] = c.name;
         return m;
     }, [collections]);
 
-    const activeMasterSetMates = useMemo(() => {
-        if (!activeMaster) return [];
-        const token = scanInput.trim().split(/\s+/)[0] || '';
-        const mates = getActiveMasterSetMates(productSearchIndex, activeMaster, token);
-        const upper = token.toUpperCase();
-        const masterU = activeMaster.sku.toUpperCase();
-        let typedTail: string | null = null;
-        if (upper.startsWith(masterU) && upper.length > masterU.length) {
-            typedTail = upper.slice(masterU.length);
-        }
-        const affinitySkus = buildOrderContextAffinitySkuSet(productSearchIndex, recentContextMasterSkus);
-        const rankCtx: SuggestionRankContext = {
-            searchTerm: activeMaster.sku,
-            typedVariant: typedTail,
-            orderContextAffinitySkus: affinitySkus.size > 0 ? affinitySkus : undefined,
-            ...(selectedItems.length > 0
-                ? {
-                      orderVariantResolution: {
-                          orderItems: selectedItems,
-                          resolveProduct: resolveOrderLineProduct,
-                      },
-                  }
-                : {}),
-        };
-        return sortProductsForSuggestions(mates, rankCtx);
-    }, [productSearchIndex, activeMaster, scanInput, selectedItems, recentContextMasterSkus, resolveOrderLineProduct]);
 
     const orderRangePreview = useMemo(() => {
         const skuCode = scanInput.split(/\s+/)[0]?.toUpperCase();
@@ -372,7 +335,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setSizeMode(null);
         setScanInput('');
         setCandidateProducts([]);
-        setSmartSuggestions(null);
+        setSkuMatches(null);
         setFilteredVariants([]);
     };
 
@@ -386,7 +349,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
         if (skuPart.length < 2) {
             setCandidateProducts([]);
-            setSmartSuggestions(null);
+            setSkuMatches(null);
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
@@ -398,7 +361,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
         if (skuPart === SPECIAL_CREATION_SKU) {
             setCandidateProducts([]);
-            setSmartSuggestions(null);
+            setSkuMatches(null);
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
@@ -410,7 +373,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
         if (skuPart.includes('-') && resolveOrderRangeInput(skuPart, products)) {
             setCandidateProducts([]);
-            setSmartSuggestions(null);
+            setSkuMatches(null);
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
@@ -437,17 +400,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
         if (bestMaster) {
             setCandidateProducts([bestMaster]);
-            setSmartSuggestions(null);
+            setSkuMatches(null);
         } else {
-            const smart = computeSmartSkuSuggestions({
-                index: productSearchIndex,
-                skuPart,
-                orderContextMasterSkus: recentContextMasterSkus,
-                orderItems: selectedItems,
-                resolveOrderLineProduct,
-            });
-            setSmartSuggestions(smart);
-            setCandidateProducts(smart?.topChips ?? []);
+            const matches = searchMastersByPrefix(products, skuPart);
+            setSkuMatches(matches);
+            setCandidateProducts(matches?.products ?? []);
         }
 
         if (bestMaster) {
@@ -480,11 +437,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
     const handleSelectMaster = (p: Product, preferVariantSuffix?: string | null) => {
         const pref = preferVariantSuffix?.trim().toUpperCase() || '';
-        const usePref = pref.length > 0 && productMatchesVariantSuffix(p, pref);
+        const usePref = pref.length > 0 && productHasVariantPrefix(p, pref);
         setActiveMaster(p);
         setScanInput(usePref ? p.sku + pref : p.sku);
         setCandidateProducts([p]);
-        setSmartSuggestions(null);
+        setSkuMatches(null);
         const sizing = getSizingInfo(p);
         if (sizing) { setSizeMode(sizing); setSelectedSize(''); }
         else setSizeMode(null);
@@ -540,12 +497,6 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             }
             return [newItem, ...prev];
         });
-        if (!isSpecialCreationSku(master.sku)) {
-            setRecentContextMasterSkus(prev => {
-                const next = [master.sku, ...prev.filter(s => s !== master.sku)];
-                return next.slice(0, 12);
-            });
-        }
         setPriceDiffs(null);
     };
 
@@ -606,7 +557,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setActiveMaster(null); setScanQty(1); setSelectedSize(''); setItemNotes('');
         setSelectedCordColor(undefined); setSelectedEnamelColor(undefined);
         setSizeMode(null); setScanInput('');
-        setCandidateProducts([]); setSmartSuggestions(null); setFilteredVariants([]);
+        setCandidateProducts([]); setSkuMatches(null); setFilteredVariants([]);
         setTimeout(() => inputRef.current?.focus(), 100);
     };
 
@@ -664,7 +615,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setSpecialCreationUnitPriceStr('');
             setActiveMaster(null);
             setCandidateProducts([]);
-            setSmartSuggestions(null);
+            setSkuMatches(null);
             setFilteredVariants([]);
             setSizeMode(null);
             setSelectedSize('');
@@ -694,7 +645,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 showToast('Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.', 'error');
                 setActiveMaster(product);
                 setCandidateProducts([product]);
-                setSmartSuggestions(null);
+                setSkuMatches(null);
                 if (product.variants) {
                     setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
                 }
@@ -709,7 +660,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setSelectedCordColor(undefined);
         setSelectedEnamelColor(undefined);
         setCandidateProducts([]);
-        setSmartSuggestions(null);
+        setSkuMatches(null);
         setActiveMaster(null);
         setFilteredVariants([]);
         setSizeMode(null);
@@ -756,10 +707,6 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                         return updated;
                     }
                     return [newItem, ...prev];
-                });
-                setRecentContextMasterSkus(prev => {
-                    const next = [product.sku, ...prev.filter(s => s !== product.sku)];
-                    return next.slice(0, 12);
                 });
                 showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
                 setShowScanner(false);
@@ -1141,9 +1088,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             isSeller,
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
-            candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
+            candidateProducts, skuMatches, collectionNameById,
             orderRangePreview, pendingOrderRangeReview,
-            resolveOrderLineProduct,
             activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter
@@ -1170,7 +1116,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setDefaultFulfillmentMode,
             setActiveMaster, setFilteredVariants, setSelectedSize: handleSelectSize, setSelectedCordColor, setSelectedEnamelColor,
-            setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner, setPendingOrderRangeReview,
+            setSizeMode, setCandidateProducts, setSkuMatches, setShowScanner, setPendingOrderRangeReview,
             setSortOrder, setItemSearchTerm,
         },
         actions: {

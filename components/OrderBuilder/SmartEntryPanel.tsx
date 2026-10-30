@@ -1,18 +1,19 @@
-import { resolveSkuSizeInput } from '../../utils/skuSizeInput';
 import { getSkuStoneLetterStyle } from '../../utils/skuColoring';
 import StoneCodeText from '../StoneCodeText';
 import { formatNumber } from '../../utils/numberFormat';
-import React, { useEffect, useRef, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, ZoomIn, Camera } from 'lucide-react';
-import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, AlertTriangle, CheckCircle2, ZoomIn, Camera, ShoppingBag, History, CornerDownLeft, ArrowUpDown, SearchX } from 'lucide-react';
+import { formatDecimal, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
+import { useInventoryAvailability } from '../../hooks/api/useInventory';
+import { SYSTEM_IDS } from '../../lib/supabase';
+import { getOrderCatalogPrice } from '../../utils/orderPricing';
 import {
-    buildVariantHintListForRanking,
-    getVariantDisplayHighlightHint,
-    productMatchesVariantSuffix,
-    variantSuffixMatchesOrderHints,
-} from '../../features/orders/smartSkuSuggestions';
+    buildAvailabilityIndex,
+    buildOrderQuantityIndex,
+    catalogPriceRange,
+    quantityFor,
+} from '../../features/orders/smartEntryInsights';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
@@ -38,45 +39,69 @@ function optionChipClass(active: boolean): string {
     }`;
 }
 
-function SuffixHighlightPreview({ suffix, gender }: { suffix: string; gender?: Product['gender'] }) {
-    const { finish, stone } = getVariantComponents(suffix, gender);
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-500';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+const euro = (value: number) => `${formatDecimal(value, 2)}€`;
+
+function priceRangeLabel(range: { min: number; max: number } | null): string {
+    if (!range) return '—';
+    return range.min === range.max ? euro(range.min) : `${euro(range.min)} – ${euro(range.max)}`;
+}
+
+/** Central-warehouse availability pill; muted when nothing is free. */
+function StockPill({ available, compact }: { available: number; compact?: boolean }) {
     return (
-        <span className="font-mono font-black tracking-wide text-[11px] leading-tight">
-            {suffix.split('').map((char, i) => {
-                let colorClass = 'text-slate-400';
-                if (finish.code && i < finish.code.length) colorClass = fColor;
-                else if (stone.code && i >= suffix.length - stone.code.length) colorClass = sColor;
-                return (
-                    <span key={i} className={colorClass} style={getSkuStoneLetterStyle(stone.code, i - (suffix.length - stone.code.length))}>
-                        {char}
-                    </span>
-                );
-            })}
+        <span
+            title="Διαθέσιμα στην Κεντρική αποθήκη"
+            className={`inline-flex items-center gap-1 rounded-full font-bold tabular-nums ${compact ? 'text-[9px] px-1.5 py-px' : 'text-[10px] px-2 py-0.5'} ${
+                available > 0 ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100' : 'bg-slate-100 text-slate-400'
+            }`}
+        >
+            <span className={`w-1.5 h-1.5 rounded-full ${available > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            {available > 0 ? `${formatNumber(available)} διαθ.` : 'Χωρίς απόθεμα'}
+        </span>
+    );
+}
+
+/** "Already on this order" marker, so a code is never added twice by accident. */
+function InOrderPill({ qty, compact }: { qty: number; compact?: boolean }) {
+    if (qty <= 0) return null;
+    return (
+        <span
+            title="Ήδη στην παραγγελία"
+            className={`inline-flex items-center gap-1 rounded-full font-black tabular-nums bg-sky-50 text-sky-700 ring-1 ring-sky-100 ${compact ? 'text-[9px] px-1.5 py-px' : 'text-[10px] px-2 py-0.5'}`}
+        >
+            <ShoppingBag size={compact ? 9 : 10} /> ×{formatNumber(qty)}
         </span>
     );
 }
 
 export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }) => {
     const { state, setters, actions, refs } = orderState;
-    const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
-    const [setMatesExpanded, setSetMatesExpanded] = useState(true);
     const [rangeSizesBySku, setRangeSizesBySku] = useState<Record<string, string>>({});
     const [imagePreview, setImagePreview] = useState<{ imageUrl: string; sku: string } | null>(null);
-    const suggestionsScrollRef = useRef<HTMLDivElement>(null);
+    const [highlightIndex, setHighlightIndex] = useState(-1);
+    const matchesListRef = useRef<HTMLDivElement>(null);
 
-    const virtualRows = state.smartSuggestions?.virtualRows ?? [];
-    const rowVirtualizer = useVirtualizer({
-        count: suggestionsExpanded ? virtualRows.length : 0,
-        getScrollElement: () => suggestionsScrollRef.current,
-        estimateSize: (i) => (virtualRows[i]?.kind === 'header' ? 28 : 56),
-        overscan: 12,
-    });
+    const availabilityQuery = useInventoryAvailability();
+    const availability = useMemo(
+        () => buildAvailabilityIndex(availabilityQuery.data, SYSTEM_IDS.CENTRAL),
+        [availabilityQuery.data],
+    );
+    const hasAvailability = Boolean(availabilityQuery.data);
+    const inOrder = useMemo(() => buildOrderQuantityIndex(state.selectedItems), [state.selectedItems]);
+
+    const matches = !state.activeMaster ? state.skuMatches : null;
+    const matchProducts = matches?.products ?? [];
 
     useEffect(() => {
-        setSuggestionsExpanded(false);
-    }, [state.smartSuggestions]);
+        setHighlightIndex(-1);
+    }, [state.skuMatches]);
+
+    useEffect(() => {
+        if (highlightIndex < 0) return;
+        matchesListRef.current
+            ?.querySelector<HTMLElement>(`[data-match-index="${highlightIndex}"]`)
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [highlightIndex]);
 
     useEffect(() => {
         if (!state.pendingOrderRangeReview) {
@@ -92,23 +117,40 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
         });
     }, [state.pendingOrderRangeReview]);
 
-    const hasSuggestionPanel =
-        !state.activeMaster &&
-        state.smartSuggestions &&
-        (state.smartSuggestions.topChips.length > 0 || state.smartSuggestions.virtualRows.length > 0);
+    const clearEntry = () => {
+        setters.setActiveMaster(null);
+        setters.setScanInput('');
+        setters.setFilteredVariants([]);
+        setters.setSelectedSize('');
+        setters.setSelectedCordColor(undefined);
+        setters.setSelectedEnamelColor(undefined);
+        setters.setCandidateProducts([]);
+        setters.setSkuMatches(null);
+        refs.inputRef.current?.focus();
+    };
 
-    const typedVariantFromScanInput = (): string | null => {
-        const sug = state.smartSuggestions?.variantSuffix;
-        if (sug) return sug;
-        const m = state.activeMaster;
-        if (!m) return null;
-        const u = resolveSkuSizeInput(state.scanInput, [m], true).sku;
-        const mu = m.sku.toUpperCase();
-        if (u.startsWith(mu) && u.length > mu.length) {
-            const tail = u.slice(mu.length).trim();
-            return tail.length > 0 ? tail : null;
+    const handleSkuKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (matchProducts.length > 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault();
+            setHighlightIndex((i) =>
+                e.key === 'ArrowDown' ? Math.min(i + 1, matchProducts.length - 1) : Math.max(i - 1, -1),
+            );
+            return;
         }
-        return null;
+        if (e.key === 'Enter') {
+            const picked = highlightIndex >= 0 ? matchProducts[highlightIndex] : undefined;
+            if (picked) {
+                e.preventDefault();
+                actions.handleSelectMaster(picked);
+                return;
+            }
+            actions.executeAddItem();
+            return;
+        }
+        if (e.key === 'Escape' && (state.scanInput || state.activeMaster)) {
+            e.preventDefault();
+            clearEntry();
+        }
     };
 
     const productImage = (product: Product | undefined, className: string, iconSize = 16) => {
@@ -127,54 +169,20 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     setImagePreview({ imageUrl, sku: product.sku });
                 }}
             >
-                <img src={imageUrl} className="w-full h-full object-cover" alt={product.sku} />
+                <img src={imageUrl} className="w-full h-full object-cover" alt={product.sku} loading="lazy" />
                 <ZoomIn size={12} aria-hidden="true" className="absolute bottom-0.5 right-0.5 text-white bg-black/50 rounded-sm opacity-0 group-hover/image:opacity-100 group-focus-visible/image:opacity-100" />
             </button>
         );
     };
 
-    const productRow = (p: Product, dense?: boolean) => {
-        const col = collectionLabel(p, state.collectionNameById);
-        const typed = typedVariantFromScanInput();
-        const cartHint =
-            state.selectedItems.length > 0 && state.resolveOrderLineProduct
-                ? getVariantDisplayHighlightHint(p, state.selectedItems, state.resolveOrderLineProduct, typed)
-                : null;
-        const globalSug =
-            state.smartSuggestions?.highlightVariantSuffix &&
-            productMatchesVariantSuffix(p, state.smartSuggestions.highlightVariantSuffix)
-                ? state.smartSuggestions.highlightVariantSuffix
-                : null;
-        const hint = cartHint ?? globalSug;
-        const onSelect = () => actions.handleSelectMaster(p, hint);
-
+    /** The typed text with the matched part bold, so it is obvious why a code is listed. */
+    const highlightedSku = (sku: string, term: string) => {
+        const n = Math.min(term.length, sku.length);
         return (
-            <div
-                key={p.sku + (dense ? '-d' : '') + (hint || '')}
-                onClick={onSelect}
-                className={`flex items-center gap-3 bg-white rounded-xl border cursor-pointer hover:border-emerald-500 shadow-sm transition-all group active:scale-[0.98] ${
-                    hint ? 'border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1' : 'border-slate-200'
-                } ${dense ? 'p-2 pr-3' : 'p-2'}`}
-            >
-                {productImage(p, `${dense ? 'w-9 h-9' : 'w-10 h-10'} bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100`, dense ? 14 : 16)}
-                <div className="min-w-0 flex-1">
-                    <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors font-mono">
-                        {p.sku}
-                    </div>
-                    {hint ? (
-                        <div className="flex items-baseline gap-0.5 mt-1">
-                            <span className="text-[9px] font-bold text-amber-700/90">+</span>
-                            <SuffixHighlightPreview suffix={hint} gender={p.gender} />
-                        </div>
-                    ) : null}
-                    <div className="text-[10px] text-slate-500 mt-0.5 truncate">{p.category}</div>
-                    {col ? (
-                        <div className="text-[9px] text-emerald-700 font-bold mt-0.5 truncate" title={col}>
-                            {col}
-                        </div>
-                    ) : null}
-                </div>
-            </div>
+            <>
+                <span className="text-slate-900">{sku.slice(0, n)}</span>
+                <span className="text-slate-400">{sku.slice(n)}</span>
+            </>
         );
     };
 
@@ -190,6 +198,16 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
     const invalidRangeCount = rangePreview ? rangePreview.rows.length - readyRangeCount : 0;
     const pendingRange = state.pendingOrderRangeReview;
     const pendingReadyCount = pendingRange?.readyRows.length ?? 0;
+
+    const recentLines = state.selectedItems.slice(0, 6);
+    const isIdle = !state.scanInput.trim() && !state.activeMaster;
+
+    const master = state.activeMaster;
+    const masterInOrder = master ? quantityFor(inOrder, master.sku) : 0;
+    const masterAvailable = master ? quantityFor(availability, master.sku) : 0;
+    const masterPrice = master ? catalogPriceRange(master, state.priceMode) : null;
+    const masterCollection = master ? collectionLabel(master, state.collectionNameById) : null;
+    const variantPricesDiffer = Boolean(masterPrice && masterPrice.min !== masterPrice.max);
 
     // SKU Visualizer: renders the SKU text overlay with colour-coded suffix
     const SkuVisualizer = () => {
@@ -253,9 +271,11 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 type="text"
                                 value={state.scanInput}
                                 onChange={actions.handleSmartInput}
-                                onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
+                                onKeyDown={handleSkuKeyDown}
                                 placeholder="Πληκτρολογήστε..."
                                 aria-label="Κωδικός / SKU"
+                                aria-autocomplete="list"
+                                aria-expanded={matchProducts.length > 0}
                                 autoComplete="off"
                                 spellCheck={false}
                                 className="w-full px-4 py-3 bg-slate-50 focus:bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-wider placeholder:text-slate-300 placeholder:font-sans placeholder:font-semibold placeholder:text-base placeholder:normal-case placeholder:tracking-normal relative z-10 transition-colors"
@@ -278,20 +298,77 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 </div>
 
-                {!state.scanInput.trim() && !state.activeMaster && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-center">
-                        <p className="text-sm font-bold text-slate-600">Πληκτρολογήστε κωδικό για προτάσεις και παραλλαγές</p>
-                        <p className="mt-1 text-[11px] font-medium text-slate-400">
-                            <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-white font-mono text-[10px] text-slate-500">Enter</kbd> για άμεση προσθήκη
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setters.setShowScanner(true)}
-                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
-                        >
-                            <Camera size={13} /> Σάρωση barcode
-                        </button>
-                    </div>
+                {/* Idle: quick repeat of the latest lines + tips */}
+                {isIdle && (
+                    recentLines.length > 0 ? (
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2 px-1">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                    <History size={12} /> Τελευταίες προσθήκες
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-400">πατήστε για +1</span>
+                            </div>
+                            <div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+                                {recentLines.map((item, i) => {
+                                    const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
+                                        item.variant_suffix,
+                                        item.product_details?.gender,
+                                        item.product_details,
+                                    );
+                                    const extra = [item.size_info, item.cord_color, item.enamel_color].filter(Boolean).length;
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${i}`}
+                                            onClick={() => actions.updateQuantity(item, item.quantity + 1)}
+                                            title={`Ακόμη ένα ${item.sku}${item.variant_suffix || ''}${item.size_info ? ` · ${item.size_info}` : ''}`}
+                                            className="flex items-center gap-2.5 p-2 pr-2.5 rounded-xl border border-slate-200 bg-white text-left hover:border-emerald-400 hover:bg-emerald-50/30 active:scale-[0.98] transition-all group"
+                                        >
+                                            <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 border border-slate-100 shrink-0 flex items-center justify-center">
+                                                {item.product_details?.image_url
+                                                    ? <img src={item.product_details.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                                    : <ImageIcon size={14} className="text-slate-300" />}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="font-mono font-black text-[13px] leading-tight truncate">
+                                                    <span className="text-slate-800">{item.sku}</span>
+                                                    {finishCode ? <span className={FINISH_COLORS[finishCode] || 'text-slate-400'}>{finishCode}</span> : null}
+                                                    {stoneCode ? <span className={STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500'}><StoneCodeText code={stoneCode} /></span> : null}
+                                                </div>
+                                                <div className="text-[10px] font-bold text-slate-400 tabular-nums truncate">
+                                                    ×{formatNumber(item.quantity)}{item.size_info ? ` · ${item.size_info}` : ''}{extra > (item.size_info ? 1 : 0) ? ' · επιλογές' : ''}
+                                                </div>
+                                            </div>
+                                            <span className="shrink-0 w-6 h-6 rounded-md bg-slate-100 text-slate-500 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center transition-colors">
+                                                <Plus size={13} />
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="px-1 text-[11px] font-medium text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-white font-mono text-[10px] text-slate-500">Enter</kbd> άμεση προσθήκη
+                                <span className="text-slate-300">·</span>
+                                <button type="button" onClick={() => setters.setShowScanner(true)} className="inline-flex items-center gap-1 font-bold text-slate-500 hover:text-slate-800">
+                                    <Camera size={12} /> Σάρωση barcode
+                                </button>
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-center">
+                            <p className="text-sm font-bold text-slate-600">Πληκτρολογήστε κωδικό για να δείτε παραλλαγές, τιμές και απόθεμα</p>
+                            <p className="mt-1 text-[11px] font-medium text-slate-400">
+                                <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-white font-mono text-[10px] text-slate-500">Enter</kbd> για άμεση προσθήκη
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setters.setShowScanner(true)}
+                                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+                            >
+                                <Camera size={13} /> Σάρωση barcode
+                            </button>
+                        </div>
+                    )
                 )}
 
                 {rangePreview && (
@@ -369,142 +446,115 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 )}
 
-                {/* Smart search suggestions */}
-                {hasSuggestionPanel && (
-                    <div className="animate-in fade-in slide-in-from-top-2 space-y-2">
-                        <div className="flex items-start justify-between gap-2 ml-1">
-                            <div>
-                                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
-                                {state.smartSuggestions?.rangeHint ? (
-                                    <p className="text-[10px] text-slate-500 font-medium mt-1">{state.smartSuggestions.rangeHint}</p>
-                                ) : null}
-                                {state.smartSuggestions?.variantSuffix ? (
-                                    <p className="text-[10px] text-emerald-700 font-bold mt-0.5">Παραλλαγή: {state.smartSuggestions.variantSuffix}</p>
-                                ) : null}
-                                {state.smartSuggestions?.highlightVariantSuffix ? (
-                                    <p className="text-[10px] text-amber-800 font-bold mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                                        <span className="opacity-70 font-bold">Από παραγγελία · έμφαση μετάλλου/πέτρας:</span>
-                                        <SuffixHighlightPreview suffix={state.smartSuggestions.highlightVariantSuffix} />
-                                    </p>
-                                ) : null}
+                {/* Literal code matches: only SKUs that start with what was typed */}
+                {matches && (
+                    matchProducts.length > 0 ? (
+                        <div className="animate-in fade-in duration-150 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2 px-1">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Κωδικοί «<span className="font-mono text-slate-600">{matches.term}</span>…» · {formatNumber(matches.total)}
+                                </span>
+                                <span className="hidden xl:inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                    <ArrowUpDown size={11} /> επιλογή <CornerDownLeft size={11} />
+                                </span>
                             </div>
-                            {virtualRows.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSuggestionsExpanded((v) => !v)}
-                                    className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-colors"
-                                    aria-expanded={suggestionsExpanded}
-                                >
-                                    {suggestionsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                    {suggestionsExpanded ? 'Λιγότερα' : 'Περισσότερα'}
-                                </button>
+                            <div ref={matchesListRef} role="listbox" aria-label="Κωδικοί που ταιριάζουν" className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+                                {matchProducts.map((p, i) => {
+                                    const price = catalogPriceRange(p, state.priceMode);
+                                    const active = i === highlightIndex;
+                                    return (
+                                        <div
+                                            key={p.sku}
+                                            role="option"
+                                            aria-selected={active}
+                                            data-match-index={i}
+                                            onClick={() => actions.handleSelectMaster(p)}
+                                            onMouseEnter={() => setHighlightIndex(i)}
+                                            className={`flex items-center gap-3 px-2.5 py-2 cursor-pointer transition-colors ${active ? 'bg-emerald-50/70' : 'hover:bg-slate-50'}`}
+                                        >
+                                            {productImage(p, 'w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100')}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <span className="font-mono font-black text-sm leading-tight truncate">{highlightedSku(p.sku, matches.term)}</span>
+                                                    <InOrderPill qty={quantityFor(inOrder, p.sku)} compact />
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                                    {p.category}
+                                                    {p.variants?.length ? <span className="text-slate-400"> · {formatNumber(p.variants.length)} παραλλ.</span> : null}
+                                                </div>
+                                            </div>
+                                            <div className="shrink-0 flex flex-col items-end gap-0.5">
+                                                <span className="text-xs font-black text-slate-800 tabular-nums">{priceRangeLabel(price)}</span>
+                                                {hasAvailability && <StockPill available={quantityFor(availability, p.sku)} compact />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {matches.total > matchProducts.length && (
+                                <p className="px-1 text-[10px] font-semibold text-slate-400">
+                                    +{formatNumber(matches.total - matchProducts.length)} ακόμη — συνεχίστε την πληκτρολόγηση για να περιορίσετε.
+                                </p>
                             )}
                         </div>
-                        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-                            {state.smartSuggestions!.topChips.map((p) => (
-                                <div key={p.sku} className="min-w-[158px] shrink-0">
-                                    {productRow(p, false)}
-                                </div>
-                            ))}
+                    ) : (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 flex items-center gap-3">
+                            <SearchX size={18} className="text-amber-600 shrink-0" />
+                            <p className="text-xs font-bold text-amber-900">
+                                Κανένας κωδικός δεν ξεκινά με «<span className="font-mono">{matches.term}</span>».
+                            </p>
                         </div>
-                        {suggestionsExpanded && virtualRows.length > 0 && (
-                            <div
-                                ref={suggestionsScrollRef}
-                                className="max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/80 relative"
-                            >
-                                <div
-                                    className="relative w-full"
-                                    style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-                                >
-                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                        const row = virtualRows[virtualRow.index];
-                                        if (!row) return null;
-                                        if (row.kind === 'header') {
-                                            return (
-                                                <div
-                                                    key={virtualRow.key}
-                                                    className="absolute top-0 left-0 w-full px-3 pt-2 pb-0.5 bg-slate-100/90 border-b border-slate-200/80"
-                                                    style={{
-                                                        height: `${virtualRow.size}px`,
-                                                        transform: `translateY(${virtualRow.start}px)`,
-                                                    }}
-                                                >
-                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{row.label}</span>
-                                                </div>
-                                            );
-                                        }
-                                        return (
-                                            <div
-                                                key={virtualRow.key}
-                                                className="absolute top-0 left-0 w-full px-2 py-1"
-                                                style={{
-                                                    height: `${virtualRow.size}px`,
-                                                    transform: `translateY(${virtualRow.start}px)`,
-                                                }}
-                                            >
-                                                {productRow(row.product, true)}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    )
                 )}
 
                 {/* Active master card */}
-                {state.activeMaster && (
+                {master && (
                     <div className="bg-white p-4 rounded-2xl border border-emerald-200/70 ring-4 ring-emerald-500/5 shadow-sm animate-in zoom-in-95 duration-200 space-y-4">
                         <div className="flex justify-between items-start gap-3">
                             <div className="flex items-center gap-3 min-w-0">
-                                {productImage(state.activeMaster, 'w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200', 24)}
+                                {productImage(master, 'w-16 h-16 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200', 24)}
                                 <div className="min-w-0">
-                                    <h3 className="font-black text-xl text-slate-900 leading-none font-mono truncate">{state.activeMaster.sku}</h3>
-                                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase truncate">{state.activeMaster.category}</p>
+                                    <h3 className="font-black text-xl text-slate-900 leading-none font-mono truncate">{master.sku}</h3>
+                                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase truncate">{master.category}</p>
+                                    {masterCollection && (
+                                        <p className="text-[10px] text-emerald-700 font-bold mt-0.5 truncate" title={masterCollection}>{masterCollection}</p>
+                                    )}
                                 </div>
                             </div>
                             <button
-                                onClick={() => {
-                                    setters.setActiveMaster(null);
-                                    setters.setScanInput('');
-                                    setters.setFilteredVariants([]);
-                                    setters.setSelectedSize('');
-                                    setters.setSelectedCordColor(undefined);
-                                    setters.setSelectedEnamelColor(undefined);
-                                    setters.setCandidateProducts([]);
-                                    setters.setSmartSuggestions(null);
-                                }}
+                                type="button"
+                                onClick={clearEntry}
                                 aria-label="Καθαρισμός επιλογής"
-                                title="Καθαρισμός επιλογής"
+                                title="Καθαρισμός επιλογής (Esc)"
                                 className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors shrink-0"
                             >
                                 <X size={16} />
                             </button>
                         </div>
 
-                        {state.activeMasterSetMates.length > 0 && (
-                            <div className="rounded-2xl border border-slate-100 bg-slate-50/60 overflow-hidden">
-                                <button
-                                    type="button"
-                                    onClick={() => setSetMatesExpanded((v) => !v)}
-                                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-100/80 transition-colors"
-                                >
-                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wide">
-                                        Συνοδευτικά κομμάτια (συλλογή)
-                                    </span>
-                                    {setMatesExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-                                </button>
-                                {setMatesExpanded && (
-                                    <div className="flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide">
-                                        {state.activeMasterSetMates.map((p) => (
-                                            <div key={p.sku} className="min-w-[148px] shrink-0">
-                                                {productRow(p, true)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                        {/* Facts: price, stock, already on this order */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2 min-w-0">
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                    Τιμή {state.priceMode === 'retail' ? 'λιανικής' : 'χονδρικής'}
+                                </div>
+                                <div className="text-sm font-black text-slate-800 tabular-nums truncate" title={priceRangeLabel(masterPrice)}>
+                                    {masterPrice ? (variantPricesDiffer ? `από ${euro(masterPrice.min)}` : euro(masterPrice.min)) : '—'}
+                                </div>
                             </div>
-                        )}
+                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2 min-w-0">
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Διαθέσιμα</div>
+                                <div className={`text-sm font-black tabular-nums ${masterAvailable > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                    {hasAvailability ? formatNumber(masterAvailable) : '—'}
+                                </div>
+                            </div>
+                            <div className={`rounded-xl border px-2.5 py-2 min-w-0 ${masterInOrder > 0 ? 'bg-sky-50 border-sky-100' : 'bg-slate-50 border-slate-100'}`}>
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Στην παραγγελία</div>
+                                <div className={`text-sm font-black tabular-nums ${masterInOrder > 0 ? 'text-sky-700' : 'text-slate-400'}`}>
+                                    {formatNumber(masterInOrder)}
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Size picker */}
                         {state.sizeMode && (
@@ -529,7 +579,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             </div>
                         )}
 
-                        {isXrCordEnamelSku(state.activeMaster) && (
+                        {isXrCordEnamelSku(master) && (
                             <div className="grid grid-cols-1 gap-3">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Κορδόνι</label>
@@ -568,46 +618,37 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             </div>
                         )}
 
-                        {/* Variant grid */}
+                        {/* Variant grid: each button shows its own price, stock and what is already ordered */}
                         {state.filteredVariants.length > 0 && (
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
                                     <Layers size={12} /> ΠΑΡΑΛΛΑΓΕΣ
+                                    <span className="font-semibold normal-case text-slate-300">· πατήστε για προσθήκη</span>
                                 </label>
-                                <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+                                <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
                                     {state.filteredVariants.map((v) => {
                                         const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
                                             v.suffix,
-                                            state.activeMaster!.gender,
-                                            state.activeMaster,
+                                            master.gender,
+                                            master,
                                         );
                                         const label = finishCode || stoneCode ? null : v.suffix?.trim() || '—';
-                                        const typedTail = typedVariantFromScanInput();
-                                        const orderHints =
-                                            state.selectedItems.length > 0 && state.resolveOrderLineProduct && state.activeMaster
-                                                ? buildVariantHintListForRanking(
-                                                      state.activeMaster,
-                                                      state.selectedItems,
-                                                      state.resolveOrderLineProduct,
-                                                      typedTail,
-                                                  )
-                                                : [];
-                                        const orderHintMatch =
-                                            orderHints.length > 0 &&
-                                            variantSuffixMatchesOrderHints(v.suffix, orderHints, state.activeMaster);
+                                        const variantInOrder = quantityFor(inOrder, master.sku, v.suffix);
+                                        const variantAvailable = quantityFor(availability, master.sku, v.suffix);
                                         return (
                                             <button
                                                 type="button"
                                                 key={v.suffix}
                                                 onClick={() => actions.handleAddItem(v.variant)}
                                                 title={v.desc || undefined}
-                                                className={`px-2 py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 active:scale-95 ${
-                                                    orderHintMatch
-                                                        ? 'bg-amber-50/90 border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1 hover:border-amber-500'
-                                                        : 'bg-white border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 hover:shadow-sm'
+                                                className={`relative px-2 pt-2.5 pb-2 rounded-xl border transition-all flex flex-col items-center gap-1 min-w-0 active:scale-95 hover:border-emerald-500 hover:bg-emerald-50/30 hover:shadow-sm ${
+                                                    variantInOrder > 0 ? 'bg-sky-50/40 border-sky-200' : 'bg-white border-slate-200'
                                                 }`}
                                             >
-                                                <span className="text-sm font-black flex items-center justify-center gap-0.5 flex-wrap">
+                                                {variantInOrder > 0 && (
+                                                    <span className="absolute -top-1.5 -right-1.5"><InOrderPill qty={variantInOrder} compact /></span>
+                                                )}
+                                                <span className="text-sm font-black flex items-center justify-center gap-0.5 flex-wrap leading-none">
                                                     {finishCode ? (
                                                         <span className={FINISH_COLORS[finishCode] || 'text-slate-400'}>{finishCode}</span>
                                                     ) : null}
@@ -619,6 +660,24 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                 <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center">
                                                     {v.desc || 'Variant'}
                                                 </span>
+                                                {(variantPricesDiffer || hasAvailability) && (
+                                                    <span className="flex items-center justify-center gap-1 flex-wrap">
+                                                        {variantPricesDiffer && (
+                                                            <span className="text-[10px] font-black text-slate-700 tabular-nums">
+                                                                {euro(getOrderCatalogPrice(master, v.suffix, state.priceMode))}
+                                                            </span>
+                                                        )}
+                                                        {hasAvailability && (
+                                                            <span
+                                                                title="Διαθέσιμα στην Κεντρική αποθήκη"
+                                                                className={`inline-flex items-center gap-0.5 text-[9px] font-bold tabular-nums ${variantAvailable > 0 ? 'text-emerald-600' : 'text-slate-300'}`}
+                                                            >
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${variantAvailable > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                                {formatNumber(variantAvailable)}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                )}
                                             </button>
                                         );
                                     })}
