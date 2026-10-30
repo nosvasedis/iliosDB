@@ -3,7 +3,7 @@
 import { prepareZXingModule } from 'zxing-wasm/reader';
 import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
 import { getFrameDiagnostics } from './scannerEngine';
-import { decodeQrImage } from './qrDecoderPipeline';
+import { decodeQrCandidates } from './qrDecoderPipeline';
 import { DecoderWorkerRequest, DecoderWorkerResponse } from './scannerTypes';
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope;
@@ -32,13 +32,15 @@ workerScope.onmessage = async (event: MessageEvent<DecoderWorkerRequest>) => {
     const pixels = new Uint8ClampedArray(message.rgba);
     const image = new ImageData(pixels, message.width, message.height);
     const diagnostics = getFrameDiagnostics(pixels, message.width, message.height);
-    const text = await decodeQrImage(image, message.enhanced, message.fullFrame);
+    const candidates = await decodeQrCandidates(image, message.enhanced, message.fullFrame);
 
     workerScope.postMessage({
       type: 'result',
       sessionId: message.sessionId,
       requestId: message.requestId,
-      text,
+      candidates,
+      width: message.width,
+      height: message.height,
       durationMs: performance.now() - startedAt,
       ...diagnostics,
       source: message.source,

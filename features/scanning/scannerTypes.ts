@@ -23,6 +23,14 @@ export interface ScannerCapabilities {
   tapToFocus: boolean;
 }
 
+/** A decoded QR code located in the pixel space of the image that was decoded. */
+export interface QrCandidate {
+  text: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
 export interface DecodeFrameMessage {
   type: 'decode';
   sessionId: number;
@@ -44,7 +52,9 @@ export type DecoderWorkerResponse =
       type: 'result';
       sessionId: number;
       requestId: number;
-      text: string;
+      candidates: QrCandidate[];
+      width: number;
+      height: number;
       durationMs: number;
       brightness: number;
       sharpness: number;

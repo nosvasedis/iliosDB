@@ -167,3 +167,144 @@ export function normalizeQrContrast(image: ImageData): ImageData {
   }
   return new ImageData(output, image.width, image.height);
 }
+
+export interface ViewportMappingInput {
+  videoWidth: number;
+  videoHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  digitalZoom?: number;
+}
+
+/** Inverse of {@link computeObjectCoverCrop}: maps a source-video point onto the visible viewport. */
+export function mapVideoPointToViewport(
+  point: { x: number; y: number },
+  { videoWidth, videoHeight, viewportWidth, viewportHeight, digitalZoom = 1 }: ViewportMappingInput,
+): { x: number; y: number; scale: number } {
+  const zoom = Math.max(1, digitalZoom);
+  const coverScale = Math.max(viewportWidth / Math.max(1, videoWidth), viewportHeight / Math.max(1, videoHeight));
+  const coverOffsetX = (videoWidth * coverScale - viewportWidth) / 2;
+  const coverOffsetY = (videoHeight * coverScale - viewportHeight) / 2;
+  const centerX = viewportWidth / 2;
+  const centerY = viewportHeight / 2;
+  const unzoomX = point.x * coverScale - coverOffsetX;
+  const unzoomY = point.y * coverScale - coverOffsetY;
+  return {
+    x: (unzoomX - centerX) * zoom + centerX,
+    y: (unzoomY - centerY) * zoom + centerY,
+    scale: coverScale * zoom,
+  };
+}
+
+export interface AimCandidate {
+  text: string;
+  /** Centre in viewport pixels. */
+  x: number;
+  y: number;
+  /** Approximate side length in viewport pixels. */
+  size: number;
+}
+
+/**
+ * Picks the code the operator is actually pointing at: its centre must sit inside the
+ * aim zone (a circle around the reticle centre), and the closest such code wins. Codes
+ * that merely appear elsewhere in the frame — neighbouring labels — are ignored.
+ */
+export function pickAimedCandidate<T extends AimCandidate>(
+  candidates: T[],
+  aim: { x: number; y: number; radius: number },
+): T | null {
+  let best: T | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    if (!candidate.text) continue;
+    const distance = Math.hypot(candidate.x - aim.x, candidate.y - aim.y);
+    if (distance <= aim.radius && distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+export interface ScanLockState {
+  /** Code currently being held in the aim zone. */
+  text: string | null;
+  startedAt: number;
+  lastSeenAt: number;
+  hits: number;
+  /** Code that was just accepted; it must leave the aim zone before it can be accepted again. */
+  releaseText: string | null;
+  releaseSeenAt: number;
+}
+
+export const SCAN_LOCK_TIMING = {
+  /** How long a code must stay centred before it is accepted. */
+  dwellMs: 450,
+  /** Minimum independent decodes of the same code during the dwell. */
+  minHits: 2,
+  /** Decoders miss frames; a gap shorter than this keeps the lock alive. */
+  graceMs: 280,
+  /** An accepted code must be out of the aim zone this long before it can be re-accepted. */
+  releaseMs: 1000,
+} as const;
+
+export const EMPTY_SCAN_LOCK: ScanLockState = {
+  text: null,
+  startedAt: 0,
+  lastSeenAt: 0,
+  hits: 0,
+  releaseText: null,
+  releaseSeenAt: 0,
+};
+
+/** Drops a lock whose code has not been seen within the grace window. */
+export function expireScanLock(state: ScanLockState, now: number, timing = SCAN_LOCK_TIMING): ScanLockState {
+  let next = state;
+  if (next.text && now - next.lastSeenAt > timing.graceMs) {
+    next = { ...next, text: null, startedAt: 0, lastSeenAt: 0, hits: 0 };
+  }
+  if (next.releaseText && now - next.releaseSeenAt > timing.releaseMs) {
+    next = { ...next, releaseText: null, releaseSeenAt: 0 };
+  }
+  return next;
+}
+
+/**
+ * Feeds one aimed decode into the lock. Returns the new state, the lock progress (0–1)
+ * and whether the code is confirmed for acceptance on this observation.
+ */
+export function observeScanLock(
+  previous: ScanLockState,
+  text: string,
+  now: number,
+  timing = SCAN_LOCK_TIMING,
+): { state: ScanLockState; progress: number; confirmed: boolean } {
+  const state = expireScanLock(previous, now, timing);
+  if (state.releaseText === text) {
+    return { state: { ...state, releaseSeenAt: now }, progress: 0, confirmed: false };
+  }
+
+  const continuing = state.text === text;
+  const next: ScanLockState = {
+    ...state,
+    text,
+    startedAt: continuing ? state.startedAt : now,
+    lastSeenAt: now,
+    hits: continuing ? state.hits + 1 : 1,
+  };
+  const progress = getScanLockProgress(next, now, timing);
+  const confirmed = next.hits >= timing.minHits && now - next.startedAt >= timing.dwellMs;
+  if (!confirmed) return { state: next, progress, confirmed };
+
+  return {
+    state: { ...EMPTY_SCAN_LOCK, releaseText: text, releaseSeenAt: now },
+    progress: 1,
+    confirmed,
+  };
+}
+
+export function getScanLockProgress(state: ScanLockState, now: number, timing = SCAN_LOCK_TIMING): number {
+  if (!state.text) return 0;
+  return clamp((now - state.startedAt) / timing.dwellMs, 0, 1);
+}

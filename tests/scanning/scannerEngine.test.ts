@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_SCAN_LOCK,
+  SCAN_LOCK_TIMING,
   computeObjectCoverCrop,
   describeCameraError,
+  expireScanLock,
   getAdaptiveDecodeInterval,
   getFrameDiagnostics,
   isCurrentScannerSession,
   isDuplicateScan,
+  mapVideoPointToViewport,
+  observeScanLock,
+  pickAimedCandidate,
 } from '../../features/scanning/scannerEngine';
 
 describe('scanner crop geometry', () => {
@@ -90,5 +96,71 @@ describe('scanner diagnostics and camera errors', () => {
     ['UnknownError', 'error'],
   ])('maps %s to a useful scanner state', (name, expected) => {
     expect(describeCameraError({ name }).status).toBe(expected);
+  });
+});
+
+describe('aim-and-hold scan gating', () => {
+  it('maps a source-video point back onto the viewport it was cropped from', () => {
+    const mapping = { videoWidth: 1920, videoHeight: 1080, viewportWidth: 1000, viewportHeight: 1000, digitalZoom: 1.5 };
+    const crop = computeObjectCoverCrop({ ...mapping, target: { x: 400, y: 300, width: 100, height: 100 }, paddingRatio: 0 });
+    const centre = mapVideoPointToViewport({ x: crop.x + crop.width / 2, y: crop.y + crop.height / 2 }, mapping);
+    expect(centre.x).toBeCloseTo(450, -1);
+    expect(centre.y).toBeCloseTo(350, -1);
+  });
+
+  it('ignores neighbouring labels and picks the code under the aim circle', () => {
+    const aim = { x: 200, y: 200, radius: 60 };
+    const candidates = [
+      { text: 'LEFT', x: 90, y: 200, size: 50 },
+      { text: 'AIMED', x: 215, y: 190, size: 50 },
+      { text: 'EDGE', x: 250, y: 200, size: 50 },
+    ];
+    expect(pickAimedCandidate(candidates, aim)?.text).toBe('AIMED');
+    expect(pickAimedCandidate([candidates[0]], aim)).toBeNull();
+  });
+
+  const holdFor = (text: string, from: number, until: number, state = EMPTY_SCAN_LOCK) => {
+    let result = observeScanLock(state, text, from);
+    for (let now = from + 100; now <= until && !result.confirmed; now += 100) {
+      result = observeScanLock(result.state, text, now);
+    }
+    return result;
+  };
+
+  it('only confirms a code after it has been held for the dwell with repeated decodes', () => {
+    const almost = holdFor('RN150P', 1_000, 1_000 + SCAN_LOCK_TIMING.dwellMs - 60);
+    expect(almost.confirmed).toBe(false);
+    expect(almost.progress).toBeGreaterThan(0.5);
+    const held = holdFor('RN150P', 1_000, 1_000 + SCAN_LOCK_TIMING.dwellMs + 100);
+    expect(held.confirmed).toBe(true);
+  });
+
+  it('does not confirm when decodes stop for longer than the grace window', () => {
+    const first = observeScanLock(EMPTY_SCAN_LOCK, 'RN150P', 1_000);
+    const late = observeScanLock(first.state, 'RN150P', 1_000 + SCAN_LOCK_TIMING.dwellMs);
+    expect(late.confirmed).toBe(false);
+    expect(late.state.startedAt).toBe(1_000 + SCAN_LOCK_TIMING.dwellMs);
+  });
+
+  it('restarts the dwell when the aim slides onto a different code', () => {
+    const first = observeScanLock(EMPTY_SCAN_LOCK, 'BR220', 1_000);
+    const switched = observeScanLock(first.state, 'RN150P', 1_000 + SCAN_LOCK_TIMING.dwellMs);
+    expect(switched.confirmed).toBe(false);
+    expect(switched.state.text).toBe('RN150P');
+    expect(switched.state.startedAt).toBe(1_000 + SCAN_LOCK_TIMING.dwellMs);
+  });
+
+  it('drops a lock after the grace window and blocks re-accepting until the code is released', () => {
+    const started = observeScanLock(EMPTY_SCAN_LOCK, 'RN150P', 1_000).state;
+    expect(expireScanLock(started, 1_000 + SCAN_LOCK_TIMING.graceMs + 1).text).toBeNull();
+
+    const held = holdFor('RN150P', 1_000, 3_000);
+    expect(held.confirmed).toBe(true);
+    const acceptedAt = held.state.releaseSeenAt;
+    const stillThere = observeScanLock(held.state, 'RN150P', acceptedAt + 200);
+    expect(stillThere.confirmed).toBe(false);
+    expect(stillThere.progress).toBe(0);
+    const released = expireScanLock(stillThere.state, acceptedAt + 200 + SCAN_LOCK_TIMING.releaseMs + 1);
+    expect(released.releaseText).toBeNull();
   });
 });
