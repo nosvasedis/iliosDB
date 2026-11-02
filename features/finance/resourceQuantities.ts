@@ -1,5 +1,6 @@
 import { MaterialType, type Material, type Product } from '../../types';
 import type { FinanceLineEvent } from '../../utils/financeAnalytics';
+import { getStoneFamily, type StoneFamily } from '../resources/stoneFamilies';
 
 export type ResourceKind = 'stone' | 'material' | 'component';
 export interface RecipeResource {
@@ -8,6 +9,7 @@ export interface RecipeResource {
   name: string;
   description: string;
   kind: ResourceKind;
+  stoneFamily?: StoneFamily | null;
   unit: string;
   quantity: number;
 }
@@ -71,7 +73,7 @@ export function createRecipeResourceResolver(products: readonly Product[], mater
         } else {
           const material = materialById.get(item.id);
           if (!material) { warnings.add(`Λείπει υλικό: ${item.id} (${current.sku})`); continue; }
-          add({ key: `material:${material.id}`, id: material.id, name: material.name, description: material.description || '', kind: material.type === MaterialType.Stone ? 'stone' : 'material', unit: resourceUnit(material.unit), quantity });
+          add({ key: `material:${material.id}`, id: material.id, name: material.name, description: material.description || '', kind: material.type === MaterialType.Stone ? 'stone' : 'material', stoneFamily: getStoneFamily(material), unit: resourceUnit(material.unit), quantity });
         }
       }
     }

@@ -18,6 +18,8 @@ import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 import EmptyState from './ui/EmptyState';
+import { getStoneFamily, stoneFamilyLabel, type StoneFamily } from '../features/resources/stoneFamilies';
+import { StoneFamilyBadge, StoneFamilyFilters, StoneFamilyHint } from './resources/StoneFamily';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -284,6 +286,8 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
                         </div>
                     )}
 
+                    {isStone && <StoneFamilyHint material={{ type: form.type, name: form.name, stones_per_strand: form.isStrand ? 1 : undefined }} />}
+
                     <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500"><Coins size={14} /> Κοστολόγηση</div>
                         {form.isStrand ? (
@@ -395,6 +399,7 @@ const MaterialCard: React.FC<CardProps> = ({ material, supplierName, onEdit, onD
                             {material.name}
                         </button>
                         <div className="mt-1 truncate text-xs text-slate-500">{material.description || MAT_TYPE_MAP[material.type] || material.type}</div>
+                        <div className="mt-1.5"><StoneFamilyBadge material={material} /></div>
                     </div>
                     <div className="flex shrink-0 gap-0.5 opacity-60 transition group-hover:opacity-100">
                         <button onClick={() => onDuplicate(material)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Αντιγραφή"><Copy size={15} /></button>
@@ -493,6 +498,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
 
     const [activeTab, setActiveTab] = useState<MaterialType>(MaterialType.Stone);
     const [stoneSubFilter, setStoneSubFilter] = useState<StoneSubFilter>('all');
+    const [stoneFamily, setStoneFamily] = useState<StoneFamily | 'all'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [supplierFilter, setSupplierFilter] = useState('');
     const [quickFilters, setQuickFilters] = useState<Set<QuickFilter>>(new Set());
@@ -559,6 +565,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
             if (activeTab === MaterialType.Stone && stoneSubFilter !== 'all') {
                 if ((stoneSubFilter === 'strand') !== isStrandMaterial(m)) return false;
             }
+            if (activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && stoneFamily !== 'all' && getStoneFamily(m) !== stoneFamily) return false;
             if (supplierFilter === '__none') { if (m.supplier_id) return false; }
             else if (supplierFilter && m.supplier_id !== supplierFilter) return false;
             if (quickFilters.has('low') && !isLowStock(m)) return false;
@@ -567,7 +574,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
             if (quickFilters.has('variants') && variantCount(m) === 0) return false;
             if (q) {
                 const haystack = [
-                    m.name, m.description, supplierNames.get(m.supplier_id || ''), ...Object.keys(m.variant_prices || {}),
+                    m.name, m.description, stoneFamilyLabel(getStoneFamily(m)), supplierNames.get(m.supplier_id || ''), ...Object.keys(m.variant_prices || {}),
                 ].filter(Boolean).join(' ').toLowerCase();
                 if (!q.split(/\s+/).every(token => haystack.includes(token))) return false;
             }
@@ -583,7 +590,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
             const cmp = typeof va === 'string' ? va.localeCompare(vb as string, 'el') : va - (vb as number);
             return cmp * sortDir || a.name.localeCompare(b.name, 'el');
         });
-    }, [categoryMaterials, activeTab, stoneSubFilter, supplierFilter, quickFilters, searchTerm, sortKey, sortDir, supplierNames]);
+    }, [categoryMaterials, activeTab, stoneSubFilter, stoneFamily, supplierFilter, quickFilters, searchTerm, sortKey, sortDir, supplierNames]);
 
     const stats = useMemo(() => ({
         totalValue: categoryMaterials.reduce((acc, m) => acc + stockValue(m), 0),
@@ -599,8 +606,8 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
         return next;
     });
 
-    const activeFilterCount = quickFilters.size + (supplierFilter ? 1 : 0) + (searchTerm ? 1 : 0);
-    const clearFilters = () => { setQuickFilters(new Set()); setSupplierFilter(''); setSearchTerm(''); };
+    const activeFilterCount = quickFilters.size + (supplierFilter ? 1 : 0) + (searchTerm ? 1 : 0) + (activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && stoneFamily !== 'all' ? 1 : 0);
+    const clearFilters = () => { setQuickFilters(new Set()); setSupplierFilter(''); setSearchTerm(''); setStoneFamily('all'); };
 
     // Actions
     const handleSubmit = async (m: Material) => {
@@ -608,6 +615,11 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
             await api.saveMaterial(m);
             await queryClient.invalidateQueries({ queryKey: ['materials'] });
             if (m.type !== activeTab) setActiveTab(m.type);
+            if (m.type === MaterialType.Stone) {
+                const family = getStoneFamily(m);
+                if (stoneSubFilter !== 'all') setStoneSubFilter(family === 'strand' ? 'strand' : 'standard');
+                if (stoneFamily !== 'all' && family !== 'strand') setStoneFamily(family || 'all');
+            }
             showToast(m.id ? 'Αποθηκεύτηκε.' : 'Το υλικό δημιουργήθηκε.', 'success');
         } catch (e) {
             showToast('Σφάλμα αποθήκευσης.', 'error');
@@ -697,9 +709,9 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
 
     const exportCsv = () => {
         const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const header = ['Όνομα', 'Περιγραφή', 'Κατηγορία', 'Μονάδα', 'Κόστος', 'Πέτρες/Σειρά', 'Απόθεμα', 'Αξία', 'Βάρος (g)', 'Προμηθευτής', 'Ειδικές τιμές'];
+        const header = ['Όνομα', 'Περιγραφή', 'Κατηγορία', 'Ομάδα πέτρας', 'Μονάδα', 'Κόστος', 'Πέτρες/Σειρά', 'Απόθεμα', 'Αξία', 'Βάρος (g)', 'Προμηθευτής', 'Ειδικές τιμές'];
         const rows = filteredMaterials.map(m => [
-            m.name, m.description, MAT_TYPE_MAP[m.type], m.unit, m.cost_per_unit.toFixed(4).replace('.', ','),
+            m.name, m.description, MAT_TYPE_MAP[m.type], stoneFamilyLabel(getStoneFamily(m)), m.unit, m.cost_per_unit.toFixed(4).replace('.', ','),
             m.stones_per_strand ?? '', isStrandMaterial(m) ? '' : m.stock_qty ?? 0, stockValue(m).toFixed(2).replace('.', ','),
             hasWeight(m) ? String(m.unit_weight_g).replace('.', ',') : '', supplierNames.get(m.supplier_id || '') || '',
             Object.entries(m.variant_prices || {}).map(([c, p]) => `${c}:${p}`).join(' '),
@@ -864,6 +876,8 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                     </div>
                 </div>
 
+                {activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && <StoneFamilyFilters value={stoneFamily} onChange={setStoneFamily} materials={categoryMaterials.filter(m => !isStrandMaterial(m))} />}
+
                 {/* Active filters / result summary */}
                 <div className="-mt-1 flex flex-wrap items-center gap-2 px-1">
                     <span className="text-xs font-bold text-slate-500">
@@ -928,6 +942,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                                                 <span className="block font-bold text-slate-800 group-hover:underline">{m.name}</span>
                                                                 <span className="block truncate text-xs text-slate-400">
                                                                     {strand ? `Σειρά ${formatNumber(m.stones_per_strand)} πετρών · ${formatCurrency(m.cost_per_unit * (m.stones_per_strand || 0))}` : (m.description || MAT_TYPE_MAP[m.type])}
+                                                                    <span className="mt-1 block"><StoneFamilyBadge material={m} /></span>
                                                                 </span>
                                                             </span>
                                                         </button>

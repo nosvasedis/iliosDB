@@ -1,6 +1,7 @@
 import { MaterialType, type Material, type Product } from '../../types';
 import type { FinanceCategory, FinanceExpense } from './types';
 import { resourceUnit, type ResourceKind, type ResourceQuantities, type ResourceQuantityRow } from './resourceQuantities';
+import { getStoneFamily } from '../resources/stoneFamilies';
 
 /** Recorded purchase lines only. Never expand recipes or count payments/work charges as purchases. */
 export function summarizeBookedResources(expenses: readonly FinanceExpense[], categories: readonly FinanceCategory[], materials: readonly Material[], products: readonly Product[]): ResourceQuantities {
@@ -36,7 +37,7 @@ export function summarizeBookedResources(expenses: readonly FinanceExpense[], ca
       const key = JSON.stringify([line.material_id ? 'material' : line.sku ? 'sku' : 'label', id, kind, unit]);
       let row = rows.get(key);
       if (!row) {
-        row = { key, id, name: material?.name || line.sku || line.label, description: material?.description || product?.description || '', kind, unit, quantity: 0, products: [] };
+        row = { key, id, name: material?.name || line.sku || line.label, description: material?.description || product?.description || '', kind, stoneFamily: material ? getStoneFamily(material) : null, unit, quantity: 0, products: [] };
         rows.set(key, row);
       }
       row.quantity += line.qty;

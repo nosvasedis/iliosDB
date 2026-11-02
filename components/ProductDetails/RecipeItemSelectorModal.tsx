@@ -3,6 +3,7 @@ import { Gem, Plus, Puzzle, Search, X } from 'lucide-react';
 import { Material, MaterialType, Product } from '../../types';
 import { formatDecimal } from '../../utils/pricingEngine';
 import { getMaterialTypeLabel } from '../../features/products';
+import { StoneFamilyBadge } from '../resources/StoneFamily';
 
 export type RecipeSelection = { type: 'raw', id: string } | { type: 'component', sku: string };
 
@@ -93,6 +94,7 @@ const RecipeItemSelectorModal = React.memo(({
                         <div className="truncate text-xs italic text-slate-400">{isComponent ? 'Χωρίς περιγραφή' : getMaterialTypeLabel(item.type)}</div>
                     )}
                     <div className="mt-0.5 font-mono text-[10px] text-slate-400">{cost}</div>
+                    {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
                 </div>
                 <div className="shrink-0 rounded-full border border-slate-100 bg-white p-2 text-slate-300 shadow-sm transition-all group-hover:border-emerald-200 group-hover:text-emerald-500">
                     <Plus size={16} />

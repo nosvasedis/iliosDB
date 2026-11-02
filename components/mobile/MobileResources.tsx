@@ -11,6 +11,8 @@ import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../../utils/
 import { useUI } from '../UIProvider';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import { ResourceUsageProvider, ResourceUsageStrip } from '../resources/ResourceUsage';
+import { getStoneFamily, stoneFamilyLabel, type StoneFamily } from '../../features/resources/stoneFamilies';
+import { StoneFamilyBadge, StoneFamilyFilters, StoneFamilyHint } from '../resources/StoneFamily';
 
 const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -37,6 +39,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
     // Material State
     const [activeTab, setActiveTab] = useState<MaterialType>(MaterialType.Stone);
     const [stoneSubFilter, setStoneSubFilter] = useState<'standard' | 'strand'>('standard');
+    const [stoneFamily, setStoneFamily] = useState<StoneFamily | 'all'>('all');
     const [search, setSearch] = useState('');
     
     // Edit/Create State
@@ -59,11 +62,12 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                 const isStrand = m.stones_per_strand !== null && m.stones_per_strand !== undefined;
                 if (stoneSubFilter === 'strand' && !isStrand) return false;
                 if (stoneSubFilter === 'standard' && isStrand) return false;
+                if (stoneSubFilter === 'standard' && stoneFamily !== 'all' && getStoneFamily(m) !== stoneFamily) return false;
             }
-            if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
+            if (search && !`${m.name} ${stoneFamilyLabel(getStoneFamily(m))}`.toLowerCase().includes(search.toLowerCase())) return false;
             return true;
         }).sort((a,b) => a.name.localeCompare(b.name));
-    }, [materials, activeTab, stoneSubFilter, search]);
+    }, [materials, activeTab, stoneSubFilter, stoneFamily, search]);
 
     const categoryMolds = useMemo(() => {
         if (!molds) return [];
@@ -104,6 +108,11 @@ export default function MobileResources({ products }: { products?: Product[] }) 
         try {
             await api.saveMaterial(editingMaterial);
             queryClient.invalidateQueries({ queryKey: ['materials'] });
+            if (editingMaterial.type === MaterialType.Stone) {
+                const family = getStoneFamily(editingMaterial);
+                setStoneSubFilter(family === 'strand' ? 'strand' : 'standard');
+                if (stoneFamily !== 'all' && family !== 'strand') setStoneFamily(family || 'all');
+            }
             setEditingMaterial(null);
             showToast("Αποθηκεύτηκε.", "success");
         } catch (e) {
@@ -172,7 +181,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                             <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                             <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Λάστιχα</button>
                         </div>
-                        <button type="button" onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: defaultMoldCode, location: '', description: '' }), setIsCreating(true))} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
+                        <button type="button" aria-label={viewMode === 'materials' ? 'Νέο Υλικό' : 'Νέο Λάστιχο'} onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: defaultMoldCode, location: '', description: '' }), setIsCreating(true))} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
                             <Plus size={20} />
                         </button>
                     </div>
@@ -204,10 +213,11 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                 </div>
                 {viewMode === 'materials' && activeTab === MaterialType.Stone && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
-                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Βασικά</button>
+                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Συμβατικές</button>
                         <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κορδόνι</button>
                     </div>
                 )}
+                {viewMode === 'materials' && activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && <StoneFamilyFilters value={stoneFamily} onChange={setStoneFamily} materials={(materials || []).filter(m => m.type === MaterialType.Stone && getStoneFamily(m) !== 'strand')} />}
                 {viewMode === 'molds' && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
                         <button type="button" onClick={() => { setMoldTab('standard'); setSearch(''); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κανονικά</button>
@@ -228,8 +238,9 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                             <div>
                                 <div className="font-bold text-slate-800 text-sm">{m.name}</div>
                                 <div className="text-[10px] text-slate-400">
-                                    {m.stones_per_strand ? `${formatNumber(m.stones_per_strand)} πέτρες/σειρά` : (m.description || m.type)}
+                                    {m.stones_per_strand ? `${formatNumber(m.stones_per_strand)} πέτρες/σειρά` : (m.description || MAT_TYPE_LABELS[m.type])}
                                 </div>
+                                <div className="mt-1.5"><StoneFamilyBadge material={m} /></div>
                             </div>
                         </div>
                         <div className="text-right">
@@ -271,7 +282,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="text-lg font-black text-slate-800">{isCreating ? 'Νέο Υλικό' : 'Επεξεργασία Υλικού'}</h3>
-                            <button onClick={() => setEditingMaterial(null)}><X size={20} className="text-slate-400"/></button>
+                            <button type="button" aria-label="Κλείσιμο υλικού" onClick={() => setEditingMaterial(null)}><X size={20} className="text-slate-400"/></button>
                         </div>
                         <div className="p-6 overflow-y-auto space-y-4">
                             <div>
@@ -283,6 +294,8 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                                 <input value={editingMaterial.description || ''} onChange={e => setEditingMaterial({...editingMaterial, description: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-medium text-slate-800" placeholder="π.χ. Μέγεθος, χρώμα..."/>
                             </div>
                             
+                            {editingMaterial.type === MaterialType.Stone && <StoneFamilyHint material={editingMaterial} />}
+
                             {/* Strand Calculator Logic */}
                             {editingMaterial.stones_per_strand ? (
                                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-3">

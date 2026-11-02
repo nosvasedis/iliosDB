@@ -5,6 +5,7 @@ import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils
 import { getRecipeMaterialSubtitle } from '../../features/products';
 import { SmartQuantityInput } from './detailsInputs';
 import { DetailsButton, DetailsIconButton, DetailsSection } from './detailsUi';
+import { StoneFamilyBadge } from '../resources/StoneFamily';
 
 function getRecipeItemCost(item: RecipeItem, product: Product, allMaterials: Material[], allProducts: Product[], variantSuffix?: string | null) {
     if (item.type === 'raw') {
@@ -129,6 +130,7 @@ export default function RecipeSection({
                                         </select>
                                     )}
                                     {subtitle ? <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{subtitle}</div> : null}
+                                    {material && <div className="mt-1"><StoneFamilyBadge material={material} /></div>}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <SmartQuantityInput

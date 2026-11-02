@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Product, Material, MaterialType } from '../../types';
 import { Search, Plus, X, Gem, Puzzle } from 'lucide-react';
 import { MAT_TYPE_LABELS } from './constants';
+import { StoneFamilyBadge } from '../resources/StoneFamily';
 
 interface RecipeItemSelectorModalProps {
     type: 'raw' | 'component';
@@ -120,6 +121,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
                     )}
 
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
+                    {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
                 </div>
 
                 <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">

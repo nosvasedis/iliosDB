@@ -8,6 +8,7 @@ import { LaborCostCard } from '../ProductRegistry/LaborCostCard';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { SummaryRow, getMaterialIcon } from '../ProductRegistry/utils';
 import { Panel, StepHeader, StatPill } from './wizardUi';
+import { StoneFamilyBadge } from '../resources/StoneFamily';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -86,6 +87,7 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="truncate text-sm font-bold text-slate-800">{title}</div>
+                                                    {isRaw && itemDetails && <div className="mt-1"><StoneFamilyBadge material={itemDetails as Material} /></div>}
                                                     <div className="truncate text-xs font-medium text-slate-500">
                                                         {subtitle}
                                                         {extraDesc && <span className="italic text-slate-400"> • {extraDesc}</span>}
