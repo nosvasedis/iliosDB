@@ -28,7 +28,7 @@ import {
   Truck,
   Wallet,
 } from 'lucide-react';
-import { buildCategoryTree, categoryColor } from '../../features/finance/categoryTree';
+import { buildCategoryTree, categoryColor, categoryIconKey } from '../../features/finance/categoryTree';
 import type { CashflowForecast } from '../../features/finance/cashflowForecast';
 import { summarizeExpenses, type ExpensePeriodSummary, type PartyBalance } from '../../features/finance/expenseLedger';
 import { formatEuro, monthLabel, resolvePeriod } from '../../features/finance/financeMath';
@@ -218,7 +218,7 @@ export default function OverviewTab({
                 const canDrill = node.children.some((child) => (expenseSummary.byCategory.get(child.category.id) || 0) > 0);
                 return (
                   <button key={node.category.id} type="button" disabled={!canDrill} onClick={() => setDrillId(node.category.id)} className="group flex w-full items-center gap-3 text-left disabled:cursor-default">
-                    <CategoryGlyph icon={node.category.icon} color={color} size="sm" />
+                    <CategoryGlyph icon={categoryIconKey(node.category.id, workspace.categories)} color={color} size="sm" />
                     <span className="min-w-0 flex-1">
                       <span className="mb-1 flex items-center justify-between gap-2 text-sm">
                         <span className="truncate font-bold text-slate-800 group-enabled:group-hover:underline">{node.category.name}</span>

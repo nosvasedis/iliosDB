@@ -50,6 +50,9 @@ export interface Supplier {
   default_billing?: 'T' | 'X' | null;
   color?: string | null;
   is_active?: boolean;
+  website?: string | null;
+  /** Public logo image (R2); falls back to coloured initials. */
+  logo_url?: string | null;
 }
 
 export interface Material {

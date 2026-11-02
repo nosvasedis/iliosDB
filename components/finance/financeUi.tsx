@@ -1,70 +1,17 @@
-import React from 'react';
-import {
-  Banknote,
-  Building2,
-  Car,
-  Droplets,
-  Flame,
-  Gem,
-  Hammer,
-  Handshake,
-  HardHat,
-  Home,
-  Landmark,
-  Loader2,
-  Megaphone,
-  Package,
-  Phone,
-  Plane,
-  Puzzle,
-  Receipt,
-  Shield,
-  ShoppingBag,
-  Sparkles,
-  Store,
-  Truck,
-  UserRound,
-  Wifi,
-  Wrench,
-  X,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
-import { useEscapeToClose } from '../../hooks/useEscapeToClose';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { CATEGORY_ICON_MAP } from './categoryIcons';
+import { HardHat, Loader2, Receipt, Sparkles, Store, UserRound, Wrench, X, Zap, type LucideIcon } from 'lucide-react';
 import { formatEuro } from '../../features/finance/financeMath';
 import type { FinanceBilling, FinancePartyKind } from '../../features/finance/types';
 
-/** Icons the user can pick for a category; stored by key. */
-export const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  building: Building2,
-  zap: Zap,
-  phone: Phone,
-  wifi: Wifi,
-  hammer: Hammer,
-  gem: Gem,
-  puzzle: Puzzle,
-  plane: Plane,
-  car: Car,
-  handshake: Handshake,
-  home: Home,
-  flame: Flame,
-  droplets: Droplets,
-  truck: Truck,
-  package: Package,
-  wrench: Wrench,
-  shield: Shield,
-  megaphone: Megaphone,
-  landmark: Landmark,
-  sparkles: Sparkles,
-  bag: ShoppingBag,
-  receipt: Receipt,
-  worker: HardHat,
-  banknote: Banknote,
-};
+/** Icons the user can pick for a category; stored by key (full grouped library in categoryIcons). */
+export const CATEGORY_ICONS = CATEGORY_ICON_MAP;
 
 export const CATEGORY_COLORS = [
-  '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
-  '#f59e0b', '#84cc16', '#10b981', '#14b8a6', '#64748b', '#0f172a',
+  '#ef4444', '#f43f5e', '#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6',
+  '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308', '#f59e0b',
+  '#f97316', '#b45309', '#78716c', '#64748b', '#334155', '#0f172a',
 ];
 
 export function CategoryGlyph({ icon, color, size = 'md' }: { icon?: string | null; color: string; size?: 'sm' | 'md' | 'lg' }) {
@@ -253,6 +200,28 @@ export function Field({ label, children, hint, className = '' }: { label: string
   );
 }
 
+/** Open finance modals, innermost last: Escape closes only the one on top. */
+const modalStack: symbol[] = [];
+
+function useTopmostEscape(onClose: () => void, disabled: boolean) {
+  const id = useRef(Symbol('finance-modal')).current;
+  const latest = useRef({ onClose, disabled });
+  latest.current = { onClose, disabled };
+  useEffect(() => {
+    modalStack.push(id);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || modalStack[modalStack.length - 1] !== id || latest.current.disabled) return;
+      event.preventDefault();
+      latest.current.onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      modalStack.splice(modalStack.indexOf(id), 1);
+    };
+  }, [id]);
+}
+
 export function FinanceModal({ title, eyebrow, icon: Icon, onClose, busy = false, children, footer, size = 'md' }: {
   title: React.ReactNode;
   eyebrow?: string;
@@ -263,9 +232,10 @@ export function FinanceModal({ title, eyebrow, icon: Icon, onClose, busy = false
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
-  useEscapeToClose(onClose, busy);
+  useTopmostEscape(onClose, busy);
   const width = { sm: 'max-w-md', md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' }[size];
-  return (
+  // Portal: a modal opened from inside another (transformed) modal must still cover the screen.
+  return createPortal(
     <div
       className="fixed inset-0 z-[150] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}
@@ -287,7 +257,8 @@ export function FinanceModal({ title, eyebrow, icon: Icon, onClose, busy = false
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">{children}</div>
         {footer ? <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3">{footer}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -31,13 +31,17 @@ describe('finance module database', () => {
           GRANT USAGE ON SCHEMA public, auth, private TO authenticated, anon, service_role;
         `);
         await db.exec(financeDdl);
+        await db.exec(readFileSync('supabase/migrations/20261102130000_finance_drop_dei_seed.sql', 'utf8'));
+        await db.exec(readFileSync('supabase/migrations/20261102140000_supplier_identity_and_payroll.sql', 'utf8'));
     }, 60000);
     afterAll(async () => { await db?.close(); });
 
     it('seeds an editable category tree with the reference examples', async () => {
         await as(admin);
         const rows = (await db.query<{ name: string }>('SELECT name FROM finance_categories')).rows.map((r) => r.name);
-        expect(rows).toEqual(expect.arrayContaining(['Λειτουργικά', 'ΔΕΗ', 'Κινητό Αλέκου', 'Καρφωτής', 'Μέταλλο', 'Εξαρτήματα (STX)', 'Προμήθειες Πλασιέ']));
+        expect(rows).toEqual(expect.arrayContaining(['Λειτουργικά', 'Ρεύμα', 'Κινητό Αλέκου', 'Καρφωτής', 'Μέταλλο', 'Εξαρτήματα (STX)', 'Προμήθειες Πλασιέ']));
+        expect(rows).not.toContain('ΔΕΗ');
+        expect(rows).toEqual(expect.arrayContaining(['Μισθοδοσία', 'Μισθοί', 'Εισφορές ΕΦΚΑ', 'Δώρα & επιδόματα']));
         await db.exec(`INSERT INTO finance_categories(name) VALUES('Ενοίκιο')`);
     });
 
@@ -52,7 +56,7 @@ describe('finance module database', () => {
 
     it('derives expense status from payments', async () => {
         await as(admin);
-        const category = (await db.query<{ id: string }>(`SELECT id FROM finance_categories WHERE name='ΔΕΗ'`)).rows[0].id;
+        const category = (await db.query<{ id: string }>(`SELECT id FROM finance_categories WHERE name='Ρεύμα'`)).rows[0].id;
         const expense = (await db.query<{ id: string; status: string }>(
             `INSERT INTO finance_expenses(category_id, party_id, amount_net, amount_gross) VALUES($1,$2,100,124) RETURNING id, status`,
             [category, party],

@@ -6,6 +6,8 @@ import {
     Clock,
     Copy,
     Gem,
+    Globe,
+    Hash,
     ImageIcon,
     LayoutDashboard,
     Link2,
@@ -311,6 +313,8 @@ export default function SupplierDetailsModal({
         { icon: Phone, label: 'Τηλέφωνο', value: supplier.phone, href: supplier.phone ? `tel:${supplier.phone}` : undefined },
         { icon: Mail, label: 'Email', value: supplier.email, href: supplier.email ? `mailto:${supplier.email}` : undefined },
         { icon: MapPin, label: 'Διεύθυνση', value: supplier.address, href: supplier.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(supplier.address)}` : undefined },
+        { icon: Globe, label: 'Ιστότοπος', value: supplier.website?.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''), href: supplier.website || undefined },
+        { icon: Hash, label: 'ΑΦΜ', value: supplier.vat_number, href: undefined },
     ];
 
     return (
@@ -320,7 +324,7 @@ export default function SupplierDetailsModal({
                 <aside className="relative hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-100 bg-gradient-to-b from-slate-50 to-white custom-scrollbar lg:flex">
                     <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-emerald-200/30 blur-3xl" />
                     <div className="relative p-6">
-                        <SupplierAvatar name={supplier.name} size="lg" />
+                        <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="lg" />
                         <h2 className="mt-4 text-2xl font-black leading-tight tracking-tight text-slate-900">{supplier.name}</h2>
                         <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500">
                             <UserRound size={14} /> {supplier.contact_person || 'Χωρίς υπεύθυνο'}
@@ -343,7 +347,7 @@ export default function SupplierDetailsModal({
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</span>
                                         {value ? (
-                                            <a href={href} target={label === 'Διεύθυνση' ? '_blank' : undefined} rel="noreferrer" className="block truncate text-sm font-bold text-slate-800 hover:text-emerald-700" title={value}>{value}</a>
+                                            <a href={href} target={label === 'Διεύθυνση' || label === 'Ιστότοπος' ? '_blank' : undefined} rel="noreferrer" className="block truncate text-sm font-bold text-slate-800 hover:text-emerald-700" title={value}>{value}</a>
                                         ) : <span className="block text-sm font-medium italic text-slate-400">—</span>}
                                     </span>
                                     {value && (
@@ -372,7 +376,7 @@ export default function SupplierDetailsModal({
                 <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-4 pt-3 md:px-6">
                         <div className="flex items-center gap-3 pb-3 lg:hidden">
-                            <SupplierAvatar name={supplier.name} size="sm" />
+                            <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="sm" />
                             <div className="min-w-0">
                                 <h2 className="truncate text-lg font-black text-slate-900">{supplier.name}</h2>
                                 <button type="button" onClick={onEdit} className="text-xs font-bold text-emerald-700">Επεξεργασία</button>

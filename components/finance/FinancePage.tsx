@@ -67,15 +67,7 @@ export default function FinancePage({ products, settings, initialTab = 'overview
   const hub = useFinanceHub({ products, settings, period, billingFilter });
   const legalQuery = useQuery({ queryKey: legalKeys.documents(), queryFn: legalRepository.getDocuments });
 
-  if (tab === 'analytics') {
-    return (
-      <div className="flex flex-col gap-4">
-        <FinanceTabs tab={tab} onChange={setTab} />
-        <AnalyticsView products={products} onBack={() => setTab('overview')} onNavigate={onNavigate} onPrint={onPrintAnalytics} />
-      </div>
-    );
-  }
-
+  const isAnalytics = tab === 'analytics';
   const step = PRESETS.find(([key]) => key === preset)![2];
   const shift = (direction: -1 | 1) => setAnchor(addMonths(anchor, direction * step, 1));
 
@@ -87,7 +79,7 @@ export default function FinancePage({ products, settings, initialTab = 'overview
         subtitle="Έσοδα Χ/Τ, έξοδα, συνεργάτες και ταμειακή ροή σε ένα σημείο."
         tail={(
           <>
-            <BillingToggle value={billingFilter} onChange={setBillingFilter} allowAll />
+            <span className={isAnalytics ? 'invisible' : ''} aria-hidden={isAnalytics || undefined}><BillingToggle value={billingFilter} onChange={setBillingFilter} allowAll /></span>
             <button type="button" onClick={() => setQuickExpense({})} className={primaryButton} disabled={!hub.workspace}>
               <Plus size={16} /> Νέο έξοδο
             </button>
@@ -95,27 +87,31 @@ export default function FinancePage({ products, settings, initialTab = 'overview
         )}
         below={(
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <FinanceTabs tab={tab} onChange={setTab} inline />
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-black">
+            <div className="min-w-0"><FinanceTabs tab={tab} onChange={setTab} /></div>
+            {/* Presets and the ‹ period › navigator stay on one line; tabs scroll instead of squeezing them. */}
+            <div className={`flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap ${isAnalytics ? 'invisible' : ''}`} aria-hidden={isAnalytics || undefined}>
+              <div className="inline-flex shrink-0 rounded-xl bg-slate-100 p-0.5 text-xs font-black">
                 {PRESETS.map(([key, label]) => (
                   <button key={key} type="button" onClick={() => setPreset(key)} className={`rounded-lg px-2.5 py-1.5 ${preset === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{label}</button>
                 ))}
               </div>
-              <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 shadow-sm">
+              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 shadow-sm">
                 <button type="button" onClick={() => shift(-1)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Προηγούμενη περίοδος"><ChevronLeft size={16} /></button>
-                <span className="min-w-[9.5rem] text-center text-sm font-black text-slate-800">{periodLabel(preset, anchor)}</span>
+                <span className="min-w-[8.5rem] whitespace-nowrap text-center text-sm font-black text-slate-800">{periodLabel(preset, anchor)}</span>
                 <button type="button" onClick={() => shift(1)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Επόμενη περίοδος"><ChevronRight size={16} /></button>
               </div>
               {anchor.slice(0, 7) !== hub.today.slice(0, 7) && (
-                <button type="button" onClick={() => setAnchor(hub.today)} className="text-xs font-black text-slate-500 hover:text-slate-900">Σήμερα</button>
+                <button type="button" onClick={() => setAnchor(hub.today)} className="shrink-0 whitespace-nowrap text-xs font-black text-slate-500 hover:text-slate-900">Σήμερα</button>
               )}
             </div>
           </div>
         )}
       />
 
-      {hub.error ? (
+      {isAnalytics ? (
+        // Same page header as every other tab; analytics brings only its own toolbar.
+        <AnalyticsView products={products} onNavigate={onNavigate} onPrint={onPrintAnalytics} embedded />
+      ) : hub.error ? (
         <PageErrorState title="Ο Οικονομικός Έλεγχος δεν φορτώθηκε" message={(hub.error as Error).message} onRetry={hub.refetch} />
       ) : hub.isLoading || !hub.workspace || !hub.derived ? (
         <div className="flex justify-center py-24"><IliosLoader /></div>
@@ -183,9 +179,9 @@ export default function FinancePage({ products, settings, initialTab = 'overview
   );
 }
 
-function FinanceTabs({ tab, onChange, inline = false }: { tab: FinanceTab; onChange: (tab: FinanceTab) => void; inline?: boolean }) {
+function FinanceTabs({ tab, onChange }: { tab: FinanceTab; onChange: (tab: FinanceTab) => void }) {
   return (
-    <div className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl ${inline ? 'bg-slate-50' : 'bg-white shadow-sm'} border border-slate-200/60 p-1.5`}>
+    <div className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5`}>
       {TABS.map(([key, label, Icon]) => (
         <button key={key} type="button" onClick={() => onChange(key)} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all ${tab === key ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
           <Icon size={15} /> {label}

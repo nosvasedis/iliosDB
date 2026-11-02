@@ -1,18 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock, ChevronRight, FolderTree, Paperclip, Plus, Repeat, Search } from 'lucide-react';
+import { CalendarClock, ChevronRight, FolderPlus, FolderTree, Paperclip, Pencil, Plus, Repeat, Search } from 'lucide-react';
 import type { GlobalSettings, Supplier } from '../../types';
 import {
   buildCategoryTree,
   categoryBreadcrumb,
   categoryColor,
   descendantIds,
+  categoryIconKey,
+  categoryLevelLabel,
   type FinanceCategoryNode,
 } from '../../features/finance/categoryTree';
 import type { ExpensePeriodSummary } from '../../features/finance/expenseLedger';
 import { formatEuro, inPeriod } from '../../features/finance/financeMath';
 import { FREQUENCY_LABELS } from '../../features/finance/recurring';
-import type { FinanceBilling, FinanceExpense, FinancePeriod, FinanceRecurring, FinanceWorkspace } from '../../features/finance/types';
+import type { FinanceBilling, FinanceCategory, FinanceExpense, FinancePeriod, FinanceRecurring, FinanceWorkspace } from '../../features/finance/types';
 import CategoryManager from './CategoryManager';
+import CategoryEditorModal from './CategoryEditor';
 import ExpenseEditor from './ExpenseEditor';
 import RecurringEditor from './RecurringEditor';
 import AttachmentViewer from './AttachmentViewer';
@@ -41,6 +44,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
   const [editing, setEditing] = useState<Partial<FinanceExpense> | null>(null);
   const [recurringEditing, setRecurringEditing] = useState<Partial<FinanceRecurring> | null>(null);
   const [managingCategories, setManagingCategories] = useState(false);
+  const [categoryEditing, setCategoryEditing] = useState<Partial<FinanceCategory> | null>(null);
   const [viewingAttachment, setViewingAttachment] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -82,7 +86,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
     const budget = (category.monthly_budget || 0) * Math.max(1, summary.byMonth.length);
     return (
       <div key={category.id}>
-        <div className={`group flex items-center gap-1 rounded-xl pr-2 transition ${isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`} style={{ paddingLeft: 4 + node.depth * 16 }}>
+        <div className={`group flex items-center gap-1 rounded-xl pr-1 transition ${isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`} style={{ paddingLeft: 4 + node.depth * 16 }}>
           <button
             type="button"
             onClick={() => setCollapsed((previous) => { const next = new Set(previous); if (next.has(category.id)) next.delete(category.id); else next.add(category.id); return next; })}
@@ -92,7 +96,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
             <ChevronRight size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
           </button>
           <button type="button" onClick={() => setSelectedCategory(isSelected ? null : category.id)} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left">
-            <CategoryGlyph icon={category.icon} color={isSelected ? '#fbbf24' : color} size="sm" />
+            <CategoryGlyph icon={categoryIconKey(category.id, workspace.categories)} color={isSelected ? '#fbbf24' : color} size="sm" />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm ${node.depth === 0 ? 'font-black' : 'font-semibold'} ${isSelected ? '' : 'text-slate-800'}`}>{category.name}</span>
               {node.depth === 0 && total > 0 && (
@@ -104,6 +108,25 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
             </span>
             <span className={`text-xs font-black tabular-nums ${total > 0 ? '' : 'opacity-30'}`}>{formatEuro(total, 0)}</span>
           </button>
+          {/* Always visible on touch screens; on desktop they appear on hover or when selected. */}
+          <div className={`flex shrink-0 items-center transition sm:opacity-0 sm:group-hover:opacity-100 ${isSelected ? 'sm:opacity-100' : ''}`}>
+            <button
+              type="button"
+              title={`Νέα ${categoryLevelLabel(node.depth + 1).toLocaleLowerCase('el')} μέσα στην «${category.name}»`}
+              onClick={() => setCategoryEditing({ parent_id: category.id })}
+              className={`rounded-lg p-1 ${isSelected ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-white hover:text-slate-900'}`}
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              type="button"
+              title="Επεξεργασία: όνομα, εικονίδιο, χρώμα"
+              onClick={() => setCategoryEditing(category)}
+              className={`rounded-lg p-1 ${isSelected ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-white hover:text-slate-900'}`}
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
         </div>
         {!isCollapsed && node.children.map(renderNode)}
       </div>
@@ -116,7 +139,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
         title="Κατηγορίες"
         subtitle={`${formatEuro(summary.total)} στην περίοδο`}
         icon={FolderTree}
-        actions={<button type="button" onClick={() => setManagingCategories(true)} className={ghostButton}>Διαχείριση</button>}
+        actions={<button type="button" onClick={() => setManagingCategories(true)} className={ghostButton}><FolderTree size={13} /> Διαχείριση</button>}
         bodyClassName="p-2"
         className="self-start xl:sticky xl:top-0"
       >
@@ -124,6 +147,9 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
           Όλα τα έξοδα <span className="tabular-nums">{formatEuro(summary.total, 0)}</span>
         </button>
         <div className="max-h-[60vh] space-y-0.5 overflow-y-auto pr-1 custom-scrollbar">{tree.map(renderNode)}</div>
+        <button type="button" onClick={() => setCategoryEditing({ parent_id: null })} className="mt-1 flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs font-black text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800">
+          <FolderPlus size={14} /> Νέο Είδος εξόδων
+        </button>
         <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 p-2 text-xs font-bold text-slate-500">
           <div>Πάγια <div className="text-sm font-black text-slate-800 tabular-nums">{formatEuro(summary.fixed, 0)}</div></div>
           <div>Μεταβλητά <div className="text-sm font-black text-slate-800 tabular-nums">{formatEuro(summary.variable, 0)}</div></div>
@@ -175,7 +201,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
                 const party = partyById.get(expense.party_id || '');
                 return (
                   <div key={expense.id} role="button" tabIndex={0} onClick={() => setEditing(expense)} onKeyDown={(event) => { if (event.key === 'Enter') setEditing(expense); }} className="flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
-                    <CategoryGlyph icon={category?.icon} color={color} />
+                    <CategoryGlyph icon={categoryIconKey(expense.category_id, workspace.categories)} color={color} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-black text-slate-900">{expense.description || category?.name || 'Έξοδο'}</span>
@@ -212,7 +238,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
                 const category = workspace.categories.find((row) => row.id === template.category_id);
                 return (
                   <button key={template.id} type="button" onClick={() => setRecurringEditing(template)} className={`flex items-center gap-3 rounded-2xl border border-slate-100 p-3 text-left transition hover:border-slate-200 hover:bg-slate-50 ${template.is_active ? '' : 'opacity-50'}`}>
-                    <CategoryGlyph icon={category?.icon} color={categoryColor(template.category_id, workspace.categories)} />
+                    <CategoryGlyph icon={categoryIconKey(template.category_id, workspace.categories)} color={categoryColor(template.category_id, workspace.categories)} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-black text-slate-900">{template.description || category?.name}</span>
                       <span className="block text-xs font-semibold text-slate-500">{FREQUENCY_LABELS[template.frequency]} · ~{formatEuro(template.estimated_amount)}</span>
@@ -229,6 +255,19 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
       {editing && <ExpenseEditor workspace={workspace} parties={parties} settings={settings} initial={editing} onClose={() => setEditing(null)} />}
       {recurringEditing && <RecurringEditor workspace={workspace} parties={parties} initial={recurringEditing} onClose={() => setRecurringEditing(null)} />}
       {managingCategories && <CategoryManager workspace={workspace} parties={parties} onClose={() => setManagingCategories(false)} />}
+      {categoryEditing && (
+        <CategoryEditorModal
+          workspace={workspace}
+          parties={parties}
+          initial={categoryEditing}
+          onClose={() => setCategoryEditing(null)}
+          onSaved={(saved) => {
+            // A brand-new category opens straight in the list so its first expense is one tap away.
+            if (!categoryEditing.id) setSelectedCategory(saved.id);
+            setCategoryEditing(null);
+          }}
+        />
+      )}
       {viewingAttachment && <AttachmentViewer attachmentKey={viewingAttachment} onClose={() => setViewingAttachment(null)} />}
     </div>
   );

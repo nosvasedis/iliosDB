@@ -66,6 +66,8 @@ interface Props {
   onBack?: () => void;
   onPrint?: (stats: any) => void;
   onNavigate?: (page: AdminPage) => void;
+  /** Inside the finance hub: no page header of its own, so the hub header never moves. */
+  embedded?: boolean;
 }
 
 type AnalyticsTab = 'overview' | 'profitability' | 'customers' | 'costs';
@@ -104,7 +106,7 @@ function writeStored(key: string, value: string) {
   }
 }
 
-export default function AnalyticsView({ products, onBack, onPrint, onNavigate }: Props) {
+export default function AnalyticsView({ products, onBack, onPrint, onNavigate, embedded = false }: Props) {
   const [periodMode, setPeriodMode] = useState<FinancePeriodMode>(() => readStored(STORAGE.period, PERIODS, 'current_year'));
   const [activeTab, setActiveTab] = useState<AnalyticsTab>(() => readStored(STORAGE.tab, TABS.map((tab) => tab.id), 'overview'));
   const [dimension, setDimension] = useState<ProfitDimension>(() => readStored(STORAGE.dimension, DIMENSIONS, 'category'));
@@ -240,81 +242,92 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate }:
 
   const { totals } = stats;
 
+  const analyticsControls = (
+    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+      <button
+        type="button"
+        onClick={() => setHideAmounts((value) => !value)}
+        aria-pressed={hideAmounts}
+        title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
+        className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
+          hideAmounts
+            ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+        }`}
+      >
+        {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
+        <span className="hidden sm:inline">{hideAmounts ? 'Ποσά κρυφά' : 'Ποσά ορατά'}</span>
+      </button>
+      <button
+        type="button"
+        onClick={refetch}
+        title="Ανανέωση δεδομένων"
+        aria-label="Ανανέωση δεδομένων"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
+      >
+        <RefreshCw size={15} />
+      </button>
+      <FinancePeriodSelector value={periodMode} onChange={setPeriodMode} />
+      <HeaderPrimaryButton icon={Printer} onClick={handlePrint}>
+        Αναφορά PDF
+      </HeaderPrimaryButton>
+    </div>
+  );
+
+  const analyticsTabs = (
+    <nav className={`flex w-full px-1 ${embedded ? 'justify-start' : 'justify-center'}`} aria-label="Ενότητες ανάλυσης">
+      <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const badge = tab.id === 'costs' ? missingCostRows.length + (stats.legal.issuedCount > 0 && Math.abs(stats.legal.netGap) >= 1 ? 1 : 0) : 0;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
+                isActive ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+              }`}
+            >
+              <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
+              {tab.label}
+              {badge > 0 ? <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-black tabular-nums text-amber-700">{badge}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+
   return (
     <DashboardPrivacyContext.Provider value={hideAmounts}>
-      <div className="mx-auto flex max-w-[1600px] flex-col space-y-5 pb-20 print:hidden">
-        <DesktopPageHeader
-          icon={BarChart3}
-          title="Οικονομική Ανάλυση"
-          subtitle={`${stats.period.label}${comparisonLabel ? ` · σύγκριση ${comparisonLabel}` : ''}`}
-          leading={onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label="Πίσω στον πίνακα ελέγχου"
-              className="-ml-1 rounded-2xl p-2.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-800 active:scale-95"
-            >
-              <ArrowLeft size={20} />
-            </button>
-          ) : undefined}
-          tail={(
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+      <div className={`flex flex-col space-y-5 pb-20 print:hidden ${embedded ? '' : 'mx-auto max-w-[1600px]'}`}>
+        {embedded ? (
+          <div className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-white p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">{analyticsTabs}</div>
+            {analyticsControls}
+          </div>
+        ) : (
+          <DesktopPageHeader
+            icon={BarChart3}
+            title="Οικονομική Ανάλυση"
+            subtitle={`${stats.period.label}${comparisonLabel ? ` · σύγκριση ${comparisonLabel}` : ''}`}
+            leading={onBack ? (
               <button
                 type="button"
-                onClick={() => setHideAmounts((value) => !value)}
-                aria-pressed={hideAmounts}
-                title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
-                className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
-                  hideAmounts
-                    ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                }`}
+                onClick={onBack}
+                aria-label="Πίσω στον πίνακα ελέγχου"
+                className="-ml-1 rounded-2xl p-2.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-800 active:scale-95"
               >
-                {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
-                <span className="hidden sm:inline">{hideAmounts ? 'Ποσά κρυφά' : 'Ποσά ορατά'}</span>
+                <ArrowLeft size={20} />
               </button>
-              <button
-                type="button"
-                onClick={refetch}
-                title="Ανανέωση δεδομένων"
-                aria-label="Ανανέωση δεδομένων"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
-              >
-                <RefreshCw size={15} />
-              </button>
-              <FinancePeriodSelector value={periodMode} onChange={setPeriodMode} />
-              <HeaderPrimaryButton icon={Printer} onClick={handlePrint}>
-                Αναφορά PDF
-              </HeaderPrimaryButton>
-            </div>
-          )}
-          tailClassName="flex min-w-0 items-center lg:shrink-0 lg:justify-end"
-          below={(
-            <nav className="flex w-full justify-center px-1" aria-label="Ενότητες ανάλυσης">
-              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
-                {TABS.map((tab) => {
-                  const isActive = activeTab === tab.id;
-                  const badge = tab.id === 'costs' ? missingCostRows.length + (stats.legal.issuedCount > 0 && Math.abs(stats.legal.netGap) >= 1 ? 1 : 0) : 0;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveTab(tab.id)}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
-                        isActive ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                      }`}
-                    >
-                      <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
-                      {tab.label}
-                      {badge > 0 ? <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-black tabular-nums text-amber-700">{badge}</span> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
-          )}
-        />
+            ) : undefined}
+            tail={analyticsControls}
+            tailClassName="flex min-w-0 items-center lg:shrink-0 lg:justify-end"
+            below={analyticsTabs}
+          />
+        )}
 
         {/* ── Executive summary (always visible) ─────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">

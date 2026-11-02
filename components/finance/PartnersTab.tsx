@@ -12,6 +12,7 @@ import ExpenseEditor from './ExpenseEditor';
 import PaymentModal from './PaymentModal';
 import RateCardEditor from './RateCardEditor';
 import StatementBuilder from './StatementBuilder';
+import { SupplierAvatar } from '../suppliers/SupplierCard';
 import {
   AmountInput,
   amountToInput,
@@ -98,7 +99,9 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
               const unbilled = unbilledByParty.get(party.id) || 0;
               return (
                 <button key={party.id} type="button" onClick={() => setSelectedId(party.id)} className={`flex w-full items-center gap-3 rounded-2xl p-2.5 text-left transition ${selected?.id === party.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}>
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${selected?.id === party.id ? 'bg-white/10 text-amber-300 ring-white/10' : meta.tone}`}><KindIcon size={16} /></span>
+                  {party.logo_url
+                    ? <SupplierAvatar name={party.name} logoUrl={party.logo_url} size="sm" />
+                    : <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${selected?.id === party.id ? 'bg-white/10 text-amber-300 ring-white/10' : meta.tone}`}><KindIcon size={16} /></span>}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-black">{party.name}</span>
                     <span className={`block text-[11px] font-semibold ${selected?.id === party.id ? 'text-white/60' : 'text-slate-500'}`}>
@@ -116,6 +119,7 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
           <div className="min-w-0 space-y-4">
             <div className="rounded-3xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center gap-3">
+                <SupplierAvatar name={selected.name} logoUrl={selected.logo_url} size="lg" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">{PARTY_KIND_META[selected.kind || 'supplier'].label}</p>
                   <h2 className="truncate text-2xl font-black text-slate-900">{selected.name}</h2>

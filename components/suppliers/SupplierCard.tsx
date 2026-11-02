@@ -1,15 +1,24 @@
-import React from 'react';
-import { Box, Clock, Gem, Mail, MapPin, Phone, Plus, ShoppingCart, UserRound } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Box, Clock, Gem, Globe, Mail, MapPin, Phone, Plus, ShoppingCart, UserRound } from 'lucide-react';
 import type { Supplier } from '../../types';
 import { formatNumber } from '../../utils/numberFormat';
 import { formatRelativeDay, supplierAvatarTone, supplierInitials, type SupplierStats } from './supplierUi';
 
-export function SupplierAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
+export function SupplierAvatar({ name, logoUrl, size = 'md' }: { name: string; logoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) {
+    const [failed, setFailed] = useState(false);
+    useEffect(() => setFailed(false), [logoUrl]);
     const sizing = {
         sm: 'h-9 w-9 rounded-xl text-xs',
         md: 'h-12 w-12 rounded-2xl text-base',
         lg: 'h-16 w-16 rounded-[1.25rem] text-xl',
     }[size];
+    if (logoUrl && !failed) {
+        return (
+            <div className={`flex shrink-0 items-center justify-center overflow-hidden bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 ${sizing}`}>
+                <img src={logoUrl} alt={name} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-contain" />
+            </div>
+        );
+    }
     return (
         <div className={`flex shrink-0 items-center justify-center bg-gradient-to-br font-black tracking-tight text-white shadow-md ring-1 ring-inset ring-white/20 ${supplierAvatarTone(name || '?')} ${sizing}`}>
             {supplierInitials(name || '?')}
@@ -49,7 +58,7 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
             {stats.pendingOrderCount > 0 && <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400" />}
 
             <div className="flex items-start gap-3">
-                <SupplierAvatar name={supplier.name} />
+                <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} />
                 <div className="min-w-0 flex-1 pt-0.5">
                     <h3 className="truncate text-base font-black leading-tight text-slate-900" title={supplier.name}>{supplier.name}</h3>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-slate-500">
@@ -81,7 +90,12 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
                         <MapPin size={12} className="shrink-0 text-slate-400" /> <span className="truncate">{supplier.address}</span>
                     </div>
                 ) : null}
-                {!supplier.phone && !supplier.email && !supplier.address && (
+                {supplier.website ? (
+                    <a href={supplier.website} target="_blank" rel="noopener noreferrer" onClick={stop} className="flex w-fit max-w-full items-center gap-2 truncate rounded-md hover:text-emerald-700">
+                        <Globe size={12} className="shrink-0 text-slate-400" /> <span className="truncate">{supplier.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                    </a>
+                ) : null}
+                {!supplier.phone && !supplier.email && !supplier.address && !supplier.website && (
                     <p className="italic text-slate-400">Δεν έχουν καταχωριστεί στοιχεία επικοινωνίας.</p>
                 )}
             </div>

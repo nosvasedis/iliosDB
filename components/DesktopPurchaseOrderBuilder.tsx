@@ -631,7 +631,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                 {initialOrder ? `Επεξεργασία Εντολής #${initialOrder.id.slice(0, 6).toUpperCase()}` : 'Νέα Εντολή Αγοράς'}
                             </h2>
                             <div className="mt-0.5 flex items-center gap-2">
-                                <SupplierAvatar name={supplier.name} size="sm" />
+                                <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="sm" />
                                 <span className="truncate text-sm font-bold text-slate-600">{supplier.name}</span>
                                 {isDirty && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">

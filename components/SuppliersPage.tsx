@@ -278,8 +278,9 @@ export default function SuppliersPage() {
                     </>
                 )}
                 below={(
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex">
+                    <div className="flex flex-col gap-3">
+                        {/* KPI tiles share the width evenly and wrap as whole tiles, never mid-label. */}
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
                             {[
                                 { icon: Store, label: 'Προμηθευτές', value: supplierList.length, tone: 'text-slate-700 bg-slate-50 border-slate-100' },
                                 { icon: Clock, label: 'Εκκρεμείς εντολές', value: pendingOrders.length, tone: 'text-amber-800 bg-amber-50 border-amber-100' },
@@ -287,24 +288,24 @@ export default function SuppliersPage() {
                                 { icon: Gem, label: 'Συνδεδεμένα προϊόντα', value: totals.linkedProducts, tone: 'text-violet-800 bg-violet-50 border-violet-100' },
                                 ...(financeQuery.data ? [{ icon: Wallet, label: 'Υποχρεώσεις', value: formatEuro(totalPayables, 0), tone: 'text-rose-800 bg-rose-50 border-rose-100' }] : []),
                             ].map(({ icon: Icon, label, value, tone }) => (
-                                <div key={label} className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 ${tone}`}>
+                                <div key={label} className={`flex min-w-0 items-center gap-3 rounded-2xl border px-4 py-2.5 ${tone}`}>
                                     <Icon size={18} className="shrink-0 opacity-70" />
-                                    <div>
-                                        <div className="text-lg font-black leading-none tabular-nums">{typeof value === 'number' ? formatNumber(value) : value}</div>
-                                        <div className="mt-0.5 whitespace-nowrap text-[10px] font-black uppercase tracking-wide opacity-70">{label}</div>
+                                    <div className="min-w-0">
+                                        <div className="truncate text-lg font-black leading-none tabular-nums">{typeof value === 'number' ? formatNumber(value) : value}</div>
+                                        <div className="mt-0.5 truncate whitespace-nowrap text-[10px] font-black uppercase tracking-wide opacity-70">{label}</div>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <div className={TAIL_TAB_CONTAINER}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className={`${TAIL_TAB_CONTAINER} max-w-full overflow-x-auto custom-scrollbar`}>
                                 {filterChips.map(([key, label, count]) => (
-                                    <button key={key} type="button" onClick={() => setListFilter(key)} className={tailTabButtonCompact(listFilter === key)}>
+                                    <button key={key} type="button" onClick={() => setListFilter(key)} className={`${tailTabButtonCompact(listFilter === key)} shrink-0 whitespace-nowrap`}>
                                         {label}{count !== undefined && <span className="tabular-nums opacity-50">{formatNumber(count)}</span>}
                                     </button>
                                 ))}
                             </div>
-                            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
+                            <label className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
                                 Ταξινόμηση
                                 <select value={listSort} onChange={(event) => setListSort(event.target.value as ListSort)} className="bg-transparent font-black text-slate-800 outline-none">
                                     <option value="name">Αλφαβητικά</option>

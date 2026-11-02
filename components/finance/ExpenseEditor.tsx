@@ -4,11 +4,12 @@ import type { GlobalSettings, Supplier } from '../../types';
 import { useUI } from '../UIProvider';
 import { useFinanceMutation } from '../../hooks/api/useFinance';
 import { financeRepository } from '../../features/finance/repository';
-import { categoryBreadcrumb, categoryColor, flattenTree, buildCategoryTree, inheritedCategoryValue } from '../../features/finance/categoryTree';
+import { categoryBreadcrumb, categoryColor, flattenTree, buildCategoryTree, inheritedCategoryValue, categoryIconKey } from '../../features/finance/categoryTree';
 import { computeAmounts, recentCategoryIds } from '../../features/finance/expenseLedger';
 import { addDays, formatEuro, PAYMENT_METHOD_LABELS, roundMoney, toIsoDate } from '../../features/finance/financeMath';
-import type { FinanceBilling, FinanceExpense, FinanceExpenseLine, FinancePaymentMethod, FinanceWorkspace } from '../../features/finance/types';
+import type { FinanceBilling, FinanceCategory, FinanceExpense, FinanceExpenseLine, FinancePaymentMethod, FinanceWorkspace } from '../../features/finance/types';
 import { uploadFinanceAttachment } from '../../features/finance/attachments';
+import CategoryEditorModal from './CategoryEditor';
 import {
   AmountInput,
   amountToInput,
@@ -57,6 +58,7 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
   const [uploading, setUploading] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   const [pickingCategory, setPickingCategory] = useState(!initial.category_id);
+  const [creatingCategory, setCreatingCategory] = useState<Partial<FinanceCategory> | null>(null);
 
   const flat = useMemo(() => flattenTree(buildCategoryTree(workspace.categories)), [workspace.categories]);
   const recent = useMemo(() => recentCategoryIds(workspace.expenses).filter((id) => flat.some((node) => node.category.id === id)), [workspace.expenses, flat]);
@@ -213,7 +215,7 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
             <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Κατηγορία</span>
             {!pickingCategory && selected ? (
               <button type="button" onClick={() => setPickingCategory(true)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-300">
-                <CategoryGlyph icon={selected.icon} color={color} />
+                <CategoryGlyph icon={categoryIconKey(categoryId, workspace.categories)} color={color} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black text-slate-900">{selected.name}</span>
                   <span className="block truncate text-xs font-semibold text-slate-500">{categoryBreadcrumb(categoryId, workspace.categories)}</span>
@@ -241,20 +243,39 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
                 </div>
                 <div className="max-h-56 space-y-0.5 overflow-y-auto pr-1 custom-scrollbar">
                   {searchResults.map((node) => (
-                    <button
-                      key={node.category.id}
-                      type="button"
-                      onClick={() => chooseCategory(node.category.id)}
-                      className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm transition hover:bg-white ${node.category.id === categoryId ? 'bg-white ring-1 ring-slate-200' : ''}`}
-                      style={{ paddingLeft: categorySearch ? 8 : 8 + node.depth * 18 }}
-                    >
-                      <CategoryGlyph icon={node.category.icon} color={categoryColor(node.category.id, workspace.categories)} size="sm" />
-                      <span className={`truncate ${node.depth === 0 ? 'font-black text-slate-900' : 'font-semibold text-slate-700'}`}>
-                        {categorySearch ? categoryBreadcrumb(node.category.id, workspace.categories) : node.category.name}
-                      </span>
-                    </button>
+                    <div key={node.category.id} className={`group flex items-center rounded-xl transition hover:bg-white ${node.category.id === categoryId ? 'bg-white ring-1 ring-slate-200' : ''}`}>
+                      <button
+                        type="button"
+                        onClick={() => chooseCategory(node.category.id)}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
+                        style={{ paddingLeft: categorySearch ? 8 : 8 + node.depth * 18 }}
+                      >
+                        <CategoryGlyph icon={categoryIconKey(node.category.id, workspace.categories)} color={categoryColor(node.category.id, workspace.categories)} size="sm" />
+                        <span className={`truncate ${node.depth === 0 ? 'font-black text-slate-900' : 'font-semibold text-slate-700'}`}>
+                          {categorySearch ? categoryBreadcrumb(node.category.id, workspace.categories) : node.category.name}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        title={`Νέα υποκατηγορία μέσα στην «${node.category.name}»`}
+                        onClick={() => setCreatingCategory({ parent_id: node.category.id })}
+                        className="mr-1 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 sm:opacity-0 sm:group-hover:opacity-100"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
                   ))}
+                  {searchResults.length === 0 && (
+                    <p className="px-2 py-3 text-center text-xs font-semibold text-slate-400">Δεν υπάρχει «{categorySearch}».</p>
+                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setCreatingCategory({ parent_id: null, name: categorySearch.trim() || undefined })}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-slate-400 hover:bg-white"
+                >
+                  <Plus size={13} /> {categorySearch.trim() ? `Νέα κατηγορία «${categorySearch.trim()}»` : 'Νέα κατηγορία'}
+                </button>
               </div>
             )}
           </div>
@@ -373,6 +394,19 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
           )}
         </div>
       </div>
+      {creatingCategory && (
+        <CategoryEditorModal
+          workspace={workspace}
+          parties={parties}
+          initial={creatingCategory}
+          onClose={() => setCreatingCategory(null)}
+          onSaved={(saved) => {
+            setCreatingCategory(null);
+            setCategorySearch('');
+            chooseCategory(saved.id);
+          }}
+        />
+      )}
     </FinanceModal>
   );
 }

@@ -260,3 +260,17 @@ describe('purchase booking from supplier receipts', () => {
         ]);
     });
 });
+
+describe('category icons', () => {
+    it('inherits the nearest icon and finds icons by Greek words without accents', async () => {
+        const { categoryIconKey } = await import('../../features/finance/categoryTree');
+        const { searchCategoryIcons, CATEGORY_ICON_MAP } = await import('../../components/finance/categoryIcons');
+        const tree = [cat('travel', null, { icon: 'plane' }), cat('thess', 'travel'), cat('hotel', 'thess', { icon: 'hotel' })];
+        expect(categoryIconKey('thess', tree)).toBe('plane');
+        expect(categoryIconKey('hotel', tree)).toBe('hotel');
+        expect(searchCategoryIcons('ταξιδι').flatMap((group) => group.icons.map((icon) => icon.key))).toContain('plane');
+        expect(searchCategoryIcons('δερματα').flatMap((group) => group.icons.map((icon) => icon.key))).toContain('shirt');
+        // Keys stored by the first release must keep resolving.
+        ['building', 'zap', 'phone', 'hammer', 'gem', 'puzzle', 'plane', 'handshake'].forEach((key) => expect(CATEGORY_ICON_MAP[key]).toBeTruthy());
+    });
+});

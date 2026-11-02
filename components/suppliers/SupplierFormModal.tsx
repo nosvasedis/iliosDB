@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Hash, Landmark, Loader2, Mail, MapPin, Phone, StickyNote, Store, UserRound, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Globe, Hash, ImagePlus, Landmark, Loader2, Mail, MapPin, Phone, StickyNote, Store, UserRound, X } from 'lucide-react';
+import { useUI } from '../UIProvider';
+import { uploadSupplierLogo } from '../../features/suppliers/supplierLogo';
 import { PARTY_KIND_META } from '../finance/financeUi';
 import type { FinancePartyKind } from '../../features/finance/types';
 import type { Supplier } from '../../types';
@@ -41,6 +43,21 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
     useRestartDraft('Στοιχεία προμηθευτή', form, { identity: initial.id, busy: isSaving });
     useEscapeToClose(onClose, isSaving);
 
+    const { showToast } = useUI();
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const handleLogo = async (file: File | undefined) => {
+        if (!file) return;
+        setUploadingLogo(true);
+        try {
+            const logo_url = await uploadSupplierLogo(file);
+            setForm((previous) => ({ ...previous, logo_url }));
+        } catch (error) {
+            showToast((error as Error).message, 'error');
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
     const set = (field: keyof Supplier) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         setForm((previous) => ({ ...previous, [field]: event.target.value }));
 
@@ -59,7 +76,7 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
         setIsSaving(true);
         try {
             const cleaned: Partial<Supplier> = { ...form };
-            (['name', 'contact_person', 'phone', 'email', 'address', 'notes', 'vat_number', 'iban'] as const).forEach((key) => {
+            (['name', 'contact_person', 'phone', 'email', 'address', 'notes', 'vat_number', 'iban', 'website'] as const).forEach((key) => {
                 const value = cleaned[key];
                 if (typeof value === 'string') cleaned[key] = value.trim();
             });
@@ -88,9 +105,15 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
                 <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white px-6 py-5">
                     <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-emerald-200/30 blur-3xl" />
                     <div className="relative flex items-center gap-4">
-                        {name ? <SupplierAvatar name={name} /> : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-slate-300"><Store size={22} /></div>
-                        )}
+                        <label className="group relative cursor-pointer" title="Λογότυπο: πατήστε για αλλαγή">
+                            {name || form.logo_url ? <SupplierAvatar name={name || '?'} logoUrl={form.logo_url} /> : (
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-slate-300"><Store size={22} /></div>
+                            )}
+                            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow ring-2 ring-white">
+                                {uploadingLogo ? <Loader2 size={11} className="animate-spin" /> : <ImagePlus size={11} />}
+                            </span>
+                            <input type="file" accept="image/*,.svg" className="hidden" onChange={(event) => { handleLogo(event.target.files?.[0]); event.target.value = ''; }} />
+                        </label>
                         <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">{isNew ? 'Νέος προμηθευτής' : 'Επεξεργασία'}</p>
                             <h2 id="supplier-form-title" className="truncate text-xl font-black text-slate-900">{name || 'Χωρίς επωνυμία'}</h2>
@@ -137,6 +160,20 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
                         <Field label="Διεύθυνση" icon={MapPin}>
                             <input value={form.address || ''} onChange={set('address')} placeholder="Οδός, Πόλη, ΤΚ, Χώρα" className={inputClass} />
                         </Field>
+                        <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                            <Field label="Ιστότοπος" icon={Globe}>
+                                <input type="url" value={form.website || ''} onChange={set('website')} placeholder="https://..." className={inputClass} />
+                            </Field>
+                            <div className="flex items-center gap-2 pb-0.5">
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                    {uploadingLogo ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} {form.logo_url ? 'Αλλαγή λογότυπου' : 'Λογότυπο'}
+                                    <input type="file" accept="image/*,.svg" className="hidden" onChange={(event) => { handleLogo(event.target.files?.[0]); event.target.value = ''; }} />
+                                </label>
+                                {form.logo_url && (
+                                    <button type="button" onClick={() => setForm((previous) => ({ ...previous, logo_url: null }))} className="rounded-xl px-2 py-2.5 text-xs font-bold text-slate-400 hover:text-rose-600">Αφαίρεση</button>
+                                )}
+                            </div>
+                        </div>
                     </section>
 
                     <section className="space-y-4">

@@ -80,6 +80,15 @@ export function categoryColor(categoryId: string | null | undefined, categories:
   return fallback;
 }
 
+/** Inherited icon: the nearest ancestor that defines one (subsections may leave it empty). */
+export function categoryIconKey(categoryId: string | null | undefined, categories: readonly FinanceCategory[]): string | null {
+  const path = categoryPath(categoryId, categories);
+  for (let index = path.length - 1; index >= 0; index -= 1) {
+    if (path[index].icon) return path[index].icon!;
+  }
+  return null;
+}
+
 /** Inherited value from the nearest ancestor (e.g. default party, default Χ/Τ, link kind). */
 export function inheritedCategoryValue<K extends 'default_party_id' | 'default_billing' | 'link_kind' | 'nature'>(
   categoryId: string | null | undefined,
