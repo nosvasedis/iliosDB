@@ -17,7 +17,8 @@ export type RealtimeInvalidationDomain =
     | 'offers'
     | 'inventory'
     | 'legal'
-    | 'customerService';
+    | 'customerService'
+    | 'finance';
 
 const PRODUCT_GRAPH_TABLES = new Set([
     'products',
@@ -89,6 +90,16 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     repair_charges: ['customerService', 'legal'],
     repair_attachments: ['customerService'],
     repair_events: ['customerService'],
+    finance_categories: ['finance'],
+    finance_recurring: ['finance'],
+    finance_expenses: ['finance'],
+    finance_expense_payments: ['finance'],
+    finance_rate_cards: ['finance'],
+    finance_worker_statements: ['finance'],
+    production_stage_assignments: ['finance', 'production'],
+    finance_customer_terms: ['finance'],
+    finance_order_billing: ['finance'],
+    finance_receipts: ['finance'],
 };
 
 export function getRealtimeInvalidationDomainsForTable(tableName: string): RealtimeInvalidationDomain[] {
@@ -425,6 +436,8 @@ function refetchActiveRealtimeDomain(
             ]).then(() => undefined);
         case 'customerService':
             return queryClient.refetchQueries({ queryKey: ['customer-service'], type: 'active' }).then(() => undefined);
+        case 'finance':
+            return queryClient.refetchQueries({ queryKey: ['finance'], type: 'active' }).then(() => undefined);
         default:
             return Promise.resolve();
     }
@@ -472,6 +485,8 @@ export function invalidateRealtimeDomain(
             return invalidateLegal(queryClient);
         case 'customerService':
             return invalidateCustomerService(queryClient);
+        case 'finance':
+            return queryClient.invalidateQueries({ queryKey: ['finance'] }).then(() => undefined);
         default:
             return Promise.resolve();
     }

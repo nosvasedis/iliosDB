@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Check, Loader2, Mail, MapPin, Phone, StickyNote, Store, UserRound, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Hash, Landmark, Loader2, Mail, MapPin, Phone, StickyNote, Store, UserRound, X } from 'lucide-react';
+import { PARTY_KIND_META } from '../finance/financeUi';
+import type { FinancePartyKind } from '../../features/finance/types';
 import type { Supplier } from '../../types';
 import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
@@ -57,7 +59,7 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
         setIsSaving(true);
         try {
             const cleaned: Partial<Supplier> = { ...form };
-            (['name', 'contact_person', 'phone', 'email', 'address', 'notes'] as const).forEach((key) => {
+            (['name', 'contact_person', 'phone', 'email', 'address', 'notes', 'vat_number', 'iban'] as const).forEach((key) => {
                 const value = cleaned[key];
                 if (typeof value === 'string') cleaned[key] = value.trim();
             });
@@ -135,6 +137,50 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
                         <Field label="Διεύθυνση" icon={MapPin}>
                             <input value={form.address || ''} onChange={set('address')} placeholder="Οδός, Πόλη, ΤΚ, Χώρα" className={inputClass} />
                         </Field>
+                    </section>
+
+                    <section className="space-y-4">
+                        <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Οικονομικά</h3>
+                        <div>
+                            <span className={labelClass}>Τύπος</span>
+                            <div className="flex flex-wrap gap-1.5">
+                                {(Object.keys(PARTY_KIND_META) as FinancePartyKind[]).map((kind) => {
+                                    const meta = PARTY_KIND_META[kind];
+                                    const KindIcon = meta.icon;
+                                    const active = (form.kind || 'supplier') === kind;
+                                    return (
+                                        <button key={kind} type="button" onClick={() => setForm((previous) => ({ ...previous, kind }))} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black ring-1 transition ${active ? meta.tone + ' ring-2' : 'bg-white text-slate-500 ring-slate-200 hover:text-slate-800'}`}>
+                                            <KindIcon size={14} /> {meta.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="ΑΦΜ" icon={Hash}>
+                                <input value={form.vat_number || ''} onChange={set('vat_number')} placeholder="123456789" className={inputClass} />
+                            </Field>
+                            <Field label="IBAN" icon={Landmark}>
+                                <input value={form.iban || ''} onChange={set('iban')} placeholder="GR.." className={inputClass} />
+                            </Field>
+                            <Field label="Ημέρες πίστωσης" icon={CalendarClock}>
+                                <input type="number" min={0} value={form.payment_terms_days ?? ''} onChange={(event) => setForm((previous) => ({ ...previous, payment_terms_days: event.target.value === '' ? null : Math.max(0, Number(event.target.value)) }))} placeholder="π.χ. 30" className={inputClass} />
+                            </Field>
+                            <label className="block">
+                                <span className={labelClass}>Συνήθως πληρώνεται</span>
+                                <span className="flex gap-1.5">
+                                    {([['', 'Αδιάφορο'], ['T', 'Τ · τιμολόγιο'], ['X', 'Χ · μετρητά']] as const).map(([value, label]) => (
+                                        <button key={value} type="button" onClick={() => setForm((previous) => ({ ...previous, default_billing: (value || null) as Supplier['default_billing'] }))} className={`flex-1 rounded-xl px-2 py-3 text-xs font-black ring-1 ${(form.default_billing || '') === value ? 'bg-slate-900 text-white ring-slate-900' : 'bg-slate-50 text-slate-600 ring-slate-200'}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </span>
+                            </label>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                            <input type="checkbox" checked={form.is_active !== false} onChange={(event) => setForm((previous) => ({ ...previous, is_active: event.target.checked }))} className="h-4 w-4 accent-emerald-600" />
+                            Ενεργός συνεργάτης
+                        </label>
                     </section>
 
                     <section>

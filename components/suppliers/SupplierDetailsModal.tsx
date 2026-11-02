@@ -23,6 +23,7 @@ import {
     Unlink,
     UserRound,
     X,
+    Wallet,
 } from 'lucide-react';
 import type { Material, Product, Supplier, SupplierOrder } from '../../types';
 import { formatNumber } from '../../utils/numberFormat';
@@ -31,10 +32,11 @@ import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../../features/suppliers/statusPresentation';
 import EmptyState from '../ui/EmptyState';
 import { useUI } from '../UIProvider';
+import SupplierFinancePanel from '../finance/SupplierFinancePanel';
 import { SupplierAvatar } from './SupplierCard';
 import { MATERIAL_TYPE_LABELS, formatRelativeDay, orderPieces, orderShortId, type SupplierStats } from './supplierUi';
 
-export type SupplierDetailsTab = 'overview' | 'products' | 'materials' | 'orders';
+export type SupplierDetailsTab = 'overview' | 'products' | 'materials' | 'orders' | 'finance';
 type OrderFilter = 'all' | SupplierOrder['status'];
 
 interface Props {
@@ -302,6 +304,7 @@ export default function SupplierDetailsModal({
         { id: 'products', label: 'Προϊόντα', icon: Gem, count: assignedProducts.length },
         { id: 'materials', label: 'Υλικά', icon: Box, count: stats.materialCount },
         { id: 'orders', label: 'Εντολές', icon: ShoppingCart, count: orders.length, dot: stats.pendingOrderCount > 0 },
+        { id: 'finance', label: 'Οικονομικά', icon: Wallet },
     ];
 
     const contactRows = [
@@ -596,6 +599,8 @@ export default function SupplierDetailsModal({
                                 ))}
                             </div>
                         )}
+
+                        {tab === 'finance' && <SupplierFinancePanel supplier={supplier} />}
 
                         {tab === 'orders' && (
                             <div className="space-y-4 animate-in fade-in">

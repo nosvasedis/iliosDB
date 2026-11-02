@@ -6,6 +6,7 @@
 
 import { handleSbzRoute } from './sbz.ts';
 import { handleInspectionRoute } from './inspection.ts';
+import { FINANCE_ATTACHMENT_ROUTE, handleFinanceAttachmentRoute } from './financeAttachments.ts';
 import { isInspectionWorkerRouteAllowed } from '../lib/inspectionAllowedTables.ts';
 import {
   CATALOG_PREPARE_FAILED_ERROR,
@@ -93,6 +94,16 @@ const BACKUP_TABLES = [
   'inventory_count_targets',
   'inventory_count_entries',
   'pricing_recalculation_runs',
+  'finance_categories',
+  'finance_recurring',
+  'finance_expenses',
+  'finance_expense_payments',
+  'finance_rate_cards',
+  'finance_worker_statements',
+  'production_stage_assignments',
+  'finance_customer_terms',
+  'finance_order_billing',
+  'finance_receipts',
 ];
 
 export function selectExpiredBackupKeys(keys, dailyRetention = 30, monthlyRetention = 12) {
@@ -1517,6 +1528,12 @@ export default {
         const operation = handleSbzRoute(request, env, CORS_HEADERS, access.userId);
         if (ctx) ctx.waitUntil(operation.then(() => undefined));
         return operation;
+      }
+      if (url.pathname === FINANCE_ATTACHMENT_ROUTE || url.pathname.startsWith(`${FINANCE_ATTACHMENT_ROUTE}/`)) {
+        // Real admin JWT gate (also refuses while an inspection session is locked); never AUTH_KEY_SECRET.
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        return handleFinanceAttachmentRoute(request, env, CORS_HEADERS, access.userId);
       }
       const registryRoutes = new Set(['/aade/credential-status', '/aade/configure-registry-credentials', '/aade/test-registry-connection', '/aade/lookup-vat-registry']);
       if (registryRoutes.has(url.pathname)) {

@@ -78,7 +78,7 @@ const CustomersPage = lazyPage(() => import('./components/CustomersPage'));
 const SuppliersPage = lazyPage(() => import('./components/SuppliersPage'));
 const SellersPage = lazyPage(() => import('./components/SellersPage'));
 const PriceListPage = lazyPage(() => import('./components/PriceListPage'));
-const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
+const FinancePage = lazyPage(() => import('./components/finance/FinancePage'));
 const OffersPage = lazyPage(() => import('./components/OffersPage'));
 const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPage'));
@@ -102,6 +102,7 @@ const adminLoadingDetails: Record<AdminPage, string> = {
   sellers: 'Πλασιέ',
   pricelist: 'Τιμοκατάλογος',
   analytics: 'Οικονομικά',
+  finance: 'Οικονομικός έλεγχος',
   offers: 'Προσφορές',
   deliveries: 'Ημερολόγιο',
   legal: 'Παραστατικά',
@@ -436,7 +437,8 @@ function ErpAppContent() {
     suppliers: <SuppliersPage />,
     sellers: <SellersPage />,
     pricelist: <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />,
-    analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onNavigate={handleNav} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
+    analytics: <FinancePage key="finance-analytics" initialTab="analytics" products={products} settings={settings} onNavigate={handleNav} onPrintAnalytics={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
+    finance: <FinancePage products={products} settings={settings} onNavigate={handleNav} onPrintAnalytics={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
     offers: <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />,
     deliveries: <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />,
     legal: <LegalDocumentsPage products={products} materials={materials} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,

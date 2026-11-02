@@ -23,6 +23,13 @@ describe('backup coverage and restoration of count sessions and pricing history'
         // Match the private restore implementation behind the current SBZ wrapper.
         await db.exec('ALTER FUNCTION public.backup_apply_restore(uuid) SET SCHEMA private; ALTER FUNCTION private.backup_apply_restore(uuid) RENAME TO backup_apply_restore_pre_sbz;');
         await db.exec(read(migration));
+        // Later migrations append tables by redefining the registry and restore function.
+        const latest = readdirSync(new URL('../../supabase/migrations/', import.meta.url)).filter((name) => name.endsWith('.sql')).sort().reverse()
+            .find((name) => /create or replace function private\.backup_allowed_tables\(\)/i.test(read(name)));
+        if (latest && latest !== migration) {
+            const sql = read(latest);
+            await db.exec(sql.slice(sql.search(/create or replace function private\.backup_allowed_tables\(\)/i)));
+        }
     }, 60000);
     afterAll(async () => { await db?.close(); });
 

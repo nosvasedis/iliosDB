@@ -1,3 +1,6 @@
+import { financeRepository } from '../features/finance/repository';
+import { financeKeys } from '../features/finance/keys';
+import type { FinanceBillingMode } from '../features/finance/types';
 import { resolveSkuSizeInput } from '../utils/skuSizeInput';
 import { useRestartDraft } from './useRestartBlocker';
 import { orderItemsDraftSnapshot } from '../lib/editorSnapshots';
@@ -125,6 +128,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [selectedSellerId, setSelectedSellerId] = useState<string | undefined>(initialOrder?.seller_id || (isSeller ? profile?.id : undefined));
     const [selectedSellerName, setSelectedSellerName] = useState<string | undefined>(initialOrder?.seller_name || (isSeller ? (profile?.full_name || profile?.email) : undefined));
     const [sellerCommissionPercent, setSellerCommissionPercent] = useState<number | undefined>(initialOrder?.seller_commission_percent ?? (isSeller ? profile?.commission_percent : undefined));
+    /** Admin-only Χ/Τ override; stored in finance_order_billing (never on the order row) after save. */
+    const [financeSplit, setFinanceSplit] = useState<{ mode: FinanceBillingMode; tPercent: number } | null>(null);
 
     // --- Smart Entry State ---
     const [scanInput, setScanInput] = useState('');
@@ -961,6 +966,16 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         showToast(`Ενημερώθηκαν οι τιμές σε ${preview.updatedCount} είδη.`, 'success');
     };
 
+    const saveFinanceSplit = async (orderId: string) => {
+        if (!financeSplit || profile?.role !== 'admin') return;
+        try {
+            await financeRepository.saveOrderBilling({ order_id: orderId, mode: financeSplit.mode, t_percent: financeSplit.tPercent });
+            await queryClient.invalidateQueries({ queryKey: financeKeys.all });
+        } catch (error) {
+            showToast(`Η παραγγελία αποθηκεύτηκε, αλλά όχι οι όροι Χ/Τ: ${(error as Error).message}`, 'error');
+        }
+    };
+
     // --- Order Save ---
     const handleSaveOrder = async () => {
         if (findSpecialCreationItemsMissingNotes(selectedItems).length > 0) {
@@ -1016,6 +1031,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 }
 
                 await api.updateOrder(updatedOrder, isNewPart);
+                await saveFinanceSplit(updatedOrder.id);
                 showToast('Η παραγγελία ενημερώθηκε.', 'success');
                 dispatchLiveActivity({ type: 'order_updated', userName: profile?.full_name || 'Κάποιος', customerName: effectiveCustomerName });
             } else {
@@ -1039,6 +1055,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     price_change_log: priceChangeLog.length > 0 ? priceChangeLog : undefined,
                 };
                 await api.saveOrder(newOrder);
+                await saveFinanceSplit(newOrderId);
                 showToast('Η παραγγελία δημιουργήθηκε.', 'success');
                 dispatchLiveActivity({ type: 'order_created', userName: profile?.full_name || 'Κάποιος', customerName: effectiveCustomerName, itemCount: selectedItems.length });
             }
@@ -1125,7 +1142,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
             isInternalCustomer: selectedCustomerId === INTERNAL_CUSTOMER_ID || customerName.trim() === INTERNAL_CUSTOMER_NAME,
             // Seller / Πλασιέ
-            selectedSellerId, selectedSellerName, sellerCommissionPercent,
+            selectedSellerId, selectedSellerName, sellerCommissionPercent, financeSplit,
             isSeller,
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
@@ -1154,7 +1171,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setCustomerName, setCustomerPhone, setSelectedCustomerId,
             setOrderNotes, setRetailClientLabel, setVatRate, setDiscountPercent, setTagInput,
             setCustomerSearch, setShowCustomerResults,
-            setSelectedSellerId, setSelectedSellerName, setSellerCommissionPercent,
+            setSelectedSellerId, setSelectedSellerName, setSellerCommissionPercent, setFinanceSplit,
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setDefaultFulfillmentMode,
             setActiveMaster, setFilteredVariants, setSelectedSize: handleSelectSize, setSelectedCordColor, setSelectedEnamelColor,

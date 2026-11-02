@@ -23,6 +23,7 @@ import {
   BookOpen,
   HandHeart,
   Wrench,
+  Wallet,
 } from 'lucide-react';
 import type { AdminPage, EmployeePage, MobileAdminPage, SellerPage } from './pageIds';
 
@@ -70,7 +71,13 @@ export const adminNavSections: NavSection<AdminPage>[] = [
       { id: 'inventory', icon: Warehouse, label: 'Αποθήκη & Στοκ' },
       { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
       { id: 'resources', icon: Layers, label: 'Υλικά & Λάστιχα' },
-      { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },
+      { id: 'suppliers', icon: Globe, label: 'Προμηθευτές & Συνεργάτες' },
+    ],
+  },
+  {
+    title: 'Οικονομικά',
+    items: [
+      { id: 'finance', icon: Wallet, label: 'Οικονομικός Έλεγχος' },
     ],
   },
   {

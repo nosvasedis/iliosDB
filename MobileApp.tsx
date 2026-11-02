@@ -55,6 +55,7 @@ const MobileOffers = lazyMobilePage(() => import('./components/mobile/MobileOffe
 const MobileDeliveries = lazyMobilePage(() => import('./components/mobile/MobileDeliveries'));
 const MobileAnalytics = lazyMobilePage(() => import('./components/mobile/MobileAnalytics'));
 const MobileSellers = lazyMobilePage(() => import('./components/mobile/MobileSellersPage'));
+const MobileFinance = lazyMobilePage(() => import('./components/finance/MobileFinance'));
 const LegalDocumentsPage = lazyMobilePage(() => import('./components/LegalDocumentsPage'));
 const CustomerServiceWorkspace = lazyMobilePage(() => import('./components/CustomerServiceWorkspace'));
 
@@ -73,6 +74,7 @@ const mobileLoadingDetails: Record<MobileAdminPage, string> = {
   resources: 'Υλικά & λάστιχα',
   customers: 'Πελάτες',
   suppliers: 'Προμηθευτές',
+  finance: 'Οικονομικός έλεγχος',
   sellers: 'Πλασιέ',
   pricing: 'Τιμολόγηση',
   'batch-print': 'Μαζική εκτύπωση',
@@ -241,6 +243,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     analytics: <MobileAnalytics products={products} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
     legal: <LegalDocumentsPage products={products} materials={materials} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
     sellers: <MobileSellers />,
+    finance: <MobileFinance products={products} settings={settings} onOpenAnalytics={() => setActivePage('analytics')} />,
   };
 
   return (

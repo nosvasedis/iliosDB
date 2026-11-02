@@ -77,6 +77,7 @@ import {
 } from '../features/production/boardViewModel';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 import PageErrorState from './ui/PageErrorState';
+import { useStageAssignmentPrompt } from './finance/StageAssignmentPrompt';
 
 function compareBatchesBySkuAscending(a: ProductionBatch, b: ProductionBatch): number {
     return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
@@ -2288,6 +2289,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
+    const { promptAssignment, assignmentPrompt } = useStageAssignmentPrompt();
     const { data: batches, isLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBoardBatches();
     const { data: batchStageHistoryEntries = [] } = useProductionBoardBatchStageHistoryEntries();
     const { data: orders } = useProductionBoardOrders();
@@ -2726,6 +2728,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
             dispatchLiveActivity({ type: 'batch_moved', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: batch.quantity, fromStage: batch.current_stage, toStage: targetStage });
+            if (targetStage === ProductionStage.Setting) promptAssignment([batch], ProductionStage.Setting);
+            else if (targetStage === ProductionStage.Polishing && pendingDispatch === false) promptAssignment([batch], ProductionStage.Polishing);
         } catch (e: any) {
             console.error("Move failure:", e);
             rollbackBatchesCache(snapshot);
@@ -3020,6 +3024,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             const count = await productionRepository.markBatchesDispatched(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
             showToast(`${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+            promptAssignment((batches || []).filter((batch) => targetIds.includes(batch.id)), ProductionStage.Polishing);
             dispatchLiveActivity({ type: 'batch_dispatched', userName: profile?.full_name || 'Κάποιος', count });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
@@ -3220,6 +3225,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             await invalidateOrdersAndBatches(queryClient);
             showToast(`${formatNumber(batchesToMove.length)} παρτίδες μετακινήθηκαν.`, 'success');
+            if (bulkMoveTarget === ProductionStage.Setting) promptAssignment(stageChangeBatches, ProductionStage.Setting);
+            else if (bulkMoveTarget === ProductionStage.Polishing && bulkMovePendingDispatch === false) promptAssignment(batchesToMove, ProductionStage.Polishing);
             dispatchLiveActivity({ type: 'batch_bulk_moved', userName: profile?.full_name || 'Κάποιος', count: batchesToMove.length, toStage: bulkMoveTarget ?? undefined });
             setMultiSelectIds(new Set());
             setBulkMoveTarget(null);
@@ -3630,6 +3637,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden md:gap-3">
+            {assignmentPrompt}
 
             <DesktopPageHeader
                 padding="compact"

@@ -87,6 +87,16 @@ export const CORE_REALTIME_TABLES = [
   'repair_charges',
   'repair_attachments',
   'repair_events',
+  'finance_categories',
+  'finance_recurring',
+  'finance_expenses',
+  'finance_expense_payments',
+  'finance_rate_cards',
+  'finance_worker_statements',
+  'production_stage_assignments',
+  'finance_customer_terms',
+  'finance_order_billing',
+  'finance_receipts',
 ] as const;
 
 const CHANNEL_NAME = 'realtime:app-data';
@@ -184,6 +194,22 @@ export const CORE_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
       'repair_charges',
       'repair_attachments',
       'repair_events',
+    ],
+  },
+  {
+    id: 'finance',
+    channelName: `${CHANNEL_NAME}:finance`,
+    tables: [
+      'finance_categories',
+      'finance_recurring',
+      'finance_expenses',
+      'finance_expense_payments',
+      'finance_rate_cards',
+      'finance_worker_statements',
+      'production_stage_assignments',
+      'finance_customer_terms',
+      'finance_order_billing',
+      'finance_receipts',
     ],
   },
   {

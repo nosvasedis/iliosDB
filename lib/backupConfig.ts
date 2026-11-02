@@ -17,6 +17,7 @@ export type BackupCategoryId =
     | 'legal'
     | 'commerce'
     | 'pricing'
+    | 'finance'
     | 'history';
 
 export interface BackupCategory {
@@ -34,6 +35,7 @@ export const BACKUP_CATEGORIES: BackupCategory[] = [
     { id: 'legal', label: 'Νομικά & Proforma' },
     { id: 'commerce', label: 'Εμπόριο' },
     { id: 'pricing', label: 'Τιμολόγηση' },
+    { id: 'finance', label: 'Οικονομικός Έλεγχος' },
     { id: 'history', label: 'Ιστορικό' },
 ];
 
@@ -124,6 +126,16 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'inventory_count_targets', displayName: 'Inventory_Count_Targets', label: 'Κωδικοί Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['inventory_count_batches', 'products'] },
     { table: 'inventory_count_entries', displayName: 'Inventory_Count_Entries', label: 'Καταμετρήσεις Απογραφής', category: 'catalog', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['inventory_count_targets', 'inventory_count_batches', 'inventory_count_sessions', 'warehouses', 'inventory_events'] },
     { table: 'pricing_recalculation_runs', displayName: 'Pricing_Recalculation_Runs', label: 'Ιστορικό Επανυπολογισμού Τιμών', category: 'pricing', primaryKey: 'id', primaryKeyType: 'integer', includeInCsv: false },
+    { table: 'finance_categories',       displayName: 'Finance_Categories',       label: 'Κατηγορίες Εξόδων',           category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['suppliers'] },
+    { table: 'finance_recurring',        displayName: 'Finance_Recurring',        label: 'Επαναλαμβανόμενα Έξοδα',      category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['finance_categories', 'suppliers'] },
+    { table: 'finance_expenses',         displayName: 'Finance_Expenses',         label: 'Έξοδα',                       category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['finance_categories', 'finance_recurring', 'suppliers', 'profiles'] },
+    { table: 'finance_expense_payments', displayName: 'Finance_Expense_Payments', label: 'Πληρωμές Εξόδων',             category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['finance_expenses', 'suppliers'] },
+    { table: 'finance_rate_cards',       displayName: 'Finance_Rate_Cards',       label: 'Τιμοκατάλογοι Συνεργατών',    category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['suppliers'] },
+    { table: 'finance_worker_statements', displayName: 'Finance_Worker_Statements', label: 'Εκκαθαρίσεις Συνεργατών',   category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['suppliers', 'finance_expenses'] },
+    { table: 'production_stage_assignments', displayName: 'Production_Stage_Assignments', label: 'Αναθέσεις Σταδίων σε Συνεργάτες', category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['suppliers', 'finance_worker_statements'] },
+    { table: 'finance_customer_terms',   displayName: 'Finance_Customer_Terms',   label: 'Όροι Χ/Τ Πελατών',            category: 'finance', primaryKey: 'customer_id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['customers'] },
+    { table: 'finance_order_billing',    displayName: 'Finance_Order_Billing',    label: 'Χ/Τ Παραγγελιών',             category: 'finance', primaryKey: 'order_id', primaryKeyType: 'string', includeInCsv: true, dependsOn: ['orders'] },
+    { table: 'finance_receipts',         displayName: 'Finance_Receipts',         label: 'Εισπράξεις',                  category: 'finance', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['customers', 'orders', 'legal_documents', 'profiles'] },
 ];
 
 export const ALL_BACKUP_TABLE_NAMES = BACKUP_TABLE_REGISTRY.map((e) => e.table);

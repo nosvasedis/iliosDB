@@ -62,13 +62,14 @@ describe('sidebar chrome', () => {
 });
 
 describe('admin sidebar grouping', () => {
-  it('orders destinations into sales, workshop, catalog, and pricing', async () => {
+  it('orders destinations into sales, workshop, catalog, finance, and pricing', async () => {
     const { adminNavSections, adminFooterNavItems } = await import('../../surfaces/navConfig');
     expect(adminNavSections.map((section) => section.title)).toEqual([
       'Επισκόπηση',
       'Πωλήσεις',
       'Εργαστήριο',
       'Κατάλογος',
+      'Οικονομικά',
       'Τιμές',
     ]);
     expect(adminNavSections.find((section) => section.title === 'Πωλήσεις')?.items.map((item) => item.id)).toEqual([

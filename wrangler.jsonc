@@ -16,6 +16,10 @@
     {
       "binding": "R2_BACKUPS",
       "bucket_name": "ilios-erp-backups"
+    },
+    {
+      "binding": "R2_FINANCE",
+      "bucket_name": "ilios-erp-finance"
     }
   ],
   "triggers": {

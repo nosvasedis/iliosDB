@@ -6,6 +6,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant, AssemblyPrintData, StageBatchPrintData } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Image as ImageIcon, Gem, Package, Truck, Layers } from 'lucide-react';
+import { useStageAssignmentPrompt } from '../finance/StageAssignmentPrompt';
 import MobileScreenHeader from './MobileScreenHeader';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
@@ -951,6 +952,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const queryClient = useQueryClient();
     const { showToast } = useUI();
+    const { promptAssignment, assignmentPrompt } = useStageAssignmentPrompt();
     const [timingNow, setTimingNow] = useState(() => Date.now());
 
     const [openStage, setOpenStage] = useState<string | null>(null);
@@ -1148,6 +1150,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             await productionRepository.updateBatchStage(batch.id, nextStage, undefined, nextStage === ProductionStage.Polishing ? true : undefined);
             await invalidateProductionBatches(queryClient);
             showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
+            if (nextStage === ProductionStage.Setting) promptAssignment([batch], ProductionStage.Setting);
         } catch (error) {
             rollbackMobileBatchCaches(snapshot);
             showToast("Σφάλμα μετακίνησης.", "error");
@@ -1246,6 +1249,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const count = await productionRepository.markBatchesDispatched(ids);
             await invalidateProductionBatches(queryClient);
             showToast(`${formatNumber(count)} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+            promptAssignment(enrichedBatches.filter((b) => ids.includes(b.id)), ProductionStage.Polishing);
         } catch (e: any) {
             rollbackMobileBatchCaches(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -1459,6 +1463,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     return (
         <div className="flex min-h-0 flex-col bg-slate-50 pb-24">
+            {assignmentPrompt}
             <MobileScreenHeader
                 icon={Factory}
                 title="Παραγωγή"

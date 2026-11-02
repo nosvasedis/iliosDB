@@ -41,6 +41,15 @@ export interface Supplier {
   email?: string;
   address?: string;
   notes?: string;
+  /** Προμηθευτής, συνεργάτης (καρφωτής, χρυσωτής), πάροχος (ΔΕΗ), υπηρεσία ή πρόσωπο. */
+  kind?: 'supplier' | 'worker' | 'utility' | 'service' | 'person';
+  vat_number?: string | null;
+  iban?: string | null;
+  payment_terms_days?: number | null;
+  default_category_id?: string | null;
+  default_billing?: 'T' | 'X' | null;
+  color?: string | null;
+  is_active?: boolean;
 }
 
 export interface Material {

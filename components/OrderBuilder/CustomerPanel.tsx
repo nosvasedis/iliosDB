@@ -7,6 +7,7 @@ import { useOrderState } from '../../hooks/useOrderState';
 import { getTagColor } from '../../features/orders/tagColors';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { SellerPicker } from './SellerPicker';
+import OrderBillingPicker from '../finance/OrderBillingPicker';
 import OrderTerritoryAlert from '../customers/OrderTerritoryAlert';
 import OrderPriceModeToggle from './OrderPriceModeToggle';
 
@@ -183,6 +184,14 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         }}
                         onCommissionChange={setters.setSellerCommissionPercent}
                     />
+                    <div className="mt-4">
+                        <OrderBillingPicker
+                            orderId={state.orderId}
+                            customerId={state.selectedCustomerId}
+                            value={state.financeSplit}
+                            onChange={setters.setFinanceSplit}
+                        />
+                    </div>
                 </section>
             )}
 

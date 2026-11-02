@@ -2,7 +2,7 @@ import { protectOperation } from '../lib/appUpdates';
 import { formatNumber } from '../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Supplier, SupplierOrder } from '../types';
-import { ArrowRight, Clock, Gem, Globe, PackageCheck, Plus, Printer, Search, Store, X } from 'lucide-react';
+import { ArrowRight, Clock, Gem, Globe, PackageCheck, Plus, Printer, Search, Store, Wallet, X } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -20,8 +20,14 @@ import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { tailTabButtonCompact, TAIL_TAB_CONTAINER } from './ui/designTokens';
 import PageErrorState from './ui/PageErrorState';
 import EmptyState from './ui/EmptyState';
+import { useAuth } from './AuthContext';
+import { useFinanceWorkspace } from '../hooks/api/useFinance';
+import { buildPartyBalances } from '../features/finance/expenseLedger';
+import { formatEuro, toIsoDate } from '../features/finance/financeMath';
+import type { FinancePartyKind } from '../features/finance/types';
+import { PARTY_KIND_META } from './finance/financeUi';
 
-type ListFilter = 'all' | 'pending' | 'unlinked';
+type ListFilter = 'all' | 'pending' | 'unlinked' | 'owed' | FinancePartyKind;
 type ListSort = 'name' | 'activity' | 'products';
 
 function PrintPreview({ order, onClose, onPrint }: { order: SupplierOrder; onClose: () => void; onPrint: () => void }) {
@@ -92,12 +98,24 @@ export default function SuppliersPage() {
         linkedProducts: (products || []).filter((product) => product.supplier_id && suppliersById.has(product.supplier_id)).length,
     }), [pendingOrders, products, suppliersById]);
 
+    // Payables come from the finance hub (admins only); everyone else simply does not see them.
+    const { profile } = useAuth();
+    const financeQuery = useFinanceWorkspace(profile?.role === 'admin');
+    const balanceBySupplier = useMemo(() => {
+        if (!financeQuery.data) return new Map<string, number>();
+        const balances = buildPartyBalances(financeQuery.data.expenses, financeQuery.data.expensePayments, supplierList, toIsoDate(new Date()));
+        return new Map(balances.map((balance) => [balance.partyId, balance.balance]));
+    }, [financeQuery.data, supplierList]);
+    const totalPayables = [...balanceBySupplier.values()].reduce((sum, value) => sum + Math.max(0, value), 0);
+
     const filteredSuppliers = useMemo(() => {
         const q = searchTerm.trim().toLowerCase();
         const list = supplierList.filter((supplier) => {
             const s = getSupplierStats(stats, supplier.id);
             if (listFilter === 'pending' && s.pendingOrderCount === 0) return false;
             if (listFilter === 'unlinked' && (s.productCount > 0 || s.materialCount > 0)) return false;
+            if (listFilter === 'owed' && (balanceBySupplier.get(supplier.id) || 0) <= 0.01) return false;
+            if (listFilter in PARTY_KIND_META && (supplier.kind || 'supplier') !== listFilter) return false;
             if (!q) return true;
             return [supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address]
                 .some((value) => value?.toLowerCase().includes(q));
@@ -112,7 +130,7 @@ export default function SuppliersPage() {
             }
             return a.name.localeCompare(b.name, 'el');
         });
-    }, [supplierList, stats, searchTerm, listFilter, listSort]);
+    }, [supplierList, stats, searchTerm, listFilter, listSort, balanceBySupplier]);
 
     const openSupplier = (supplier: Supplier, tab: SupplierDetailsTab = 'overview', orderId: string | null = null) => {
         setSelectedId(supplier.id);
@@ -225,14 +243,18 @@ export default function SuppliersPage() {
         ['all', 'Όλοι', supplierList.length],
         ['pending', 'Με εκκρεμείς', supplierList.filter((supplier) => getSupplierStats(stats, supplier.id).pendingOrderCount > 0).length],
         ['unlinked', 'Χωρίς συνδέσεις'],
+        ...(financeQuery.data ? [['owed', 'Με υπόλοιπο', supplierList.filter((supplier) => (balanceBySupplier.get(supplier.id) || 0) > 0.01).length] as [ListFilter, string, number]] : []),
+        ...(['worker', 'utility', 'service'] as FinancePartyKind[])
+            .filter((kind) => supplierList.some((supplier) => supplier.kind === kind))
+            .map((kind) => [kind, PARTY_KIND_META[kind].label, supplierList.filter((supplier) => supplier.kind === kind).length] as [ListFilter, string, number]),
     ];
 
     return (
         <div className="flex h-[calc(100vh-100px)] flex-col gap-6">
             <DesktopPageHeader
                 icon={Globe}
-                title="Προμηθευτές"
-                subtitle="Συνεργάτες, συνδεδεμένα είδη και εντολές αγοράς."
+                title="Προμηθευτές & Συνεργάτες"
+                subtitle="Προμηθευτές, εξωτερικοί συνεργάτες, πάροχοι, εντολές αγοράς και υπόλοιπα."
                 tail={(
                     <>
                         <div className="relative min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
@@ -263,11 +285,12 @@ export default function SuppliersPage() {
                                 { icon: Clock, label: 'Εκκρεμείς εντολές', value: pendingOrders.length, tone: 'text-amber-800 bg-amber-50 border-amber-100' },
                                 { icon: PackageCheck, label: 'Τεμ. σε αναμονή', value: totals.pendingPieces, tone: 'text-emerald-800 bg-emerald-50 border-emerald-100' },
                                 { icon: Gem, label: 'Συνδεδεμένα προϊόντα', value: totals.linkedProducts, tone: 'text-violet-800 bg-violet-50 border-violet-100' },
+                                ...(financeQuery.data ? [{ icon: Wallet, label: 'Υποχρεώσεις', value: formatEuro(totalPayables, 0), tone: 'text-rose-800 bg-rose-50 border-rose-100' }] : []),
                             ].map(({ icon: Icon, label, value, tone }) => (
                                 <div key={label} className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 ${tone}`}>
                                     <Icon size={18} className="shrink-0 opacity-70" />
                                     <div>
-                                        <div className="text-lg font-black leading-none tabular-nums">{formatNumber(value)}</div>
+                                        <div className="text-lg font-black leading-none tabular-nums">{typeof value === 'number' ? formatNumber(value) : value}</div>
                                         <div className="mt-0.5 whitespace-nowrap text-[10px] font-black uppercase tracking-wide opacity-70">{label}</div>
                                     </div>
                                 </div>

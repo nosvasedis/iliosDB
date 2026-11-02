@@ -119,6 +119,8 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
   analytics: FinanceAnalytics | null;
   /** Every realized line event regardless of period (not deduped) — for trends and period comparisons. */
   allRealizedEvents: FinanceLineEvent[];
+  /** Unshipped order lines (for pending seller commission). */
+  backlogEvents: FinanceLineEvent[];
   isLoading: boolean;
   isError: boolean;
   error: unknown;
@@ -211,5 +213,5 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
     if (!settings) settingsQuery.refetch();
   };
 
-  return { analytics, allRealizedEvents: eventBundle?.realized ?? NO_EVENTS, isLoading, isError, error, refetch };
+  return { analytics, allRealizedEvents: eventBundle?.realized ?? NO_EVENTS, backlogEvents: eventBundle?.backlog ?? NO_EVENTS, isLoading, isError, error, refetch };
 }

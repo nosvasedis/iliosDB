@@ -25,6 +25,7 @@ import {
   HandHeart,
   Wrench,
   type LucideIcon,
+  Wallet,
 } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -190,6 +191,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   ];
 
   const toolsAccount: MenuItem[] = [
+    { id: 'finance', label: 'Οικονομικός Έλεγχος', description: 'Έσοδα Χ/Τ, έξοδα, οφειλές', icon: Wallet, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'analytics', label: 'Ανάλυση', description: 'Οικονομικά στοιχεία και τάσεις', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { id: 'settings', label: 'Ρυθμίσεις', description: 'Λογαριασμός & εφαρμογή', icon: Settings, color: 'text-slate-600', bg: 'bg-slate-100' },
   ];
