@@ -46,6 +46,7 @@ import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { DashboardPrivacyContext, KpiTile, Money } from './dashboard/DashboardKit';
 import MissingCostsModal from './dashboard/MissingCostsModal';
+import ResourceQuantitiesPanel from './finance/ResourceQuantitiesPanel';
 import {
   CostStructurePanel,
   CustomersPanel,
@@ -450,6 +451,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
 
         {activeTab === 'costs' && (
           <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 lg:grid-cols-2">
+            <div className="lg:col-span-2"><ResourceQuantitiesPanel realized={stats.resourceQuantities} backlog={stats.backlogResourceQuantities} periodLabel={stats.period.label} /></div>
             <CostStructurePanel finance={stats} missingCostCount={missingCostRows.length} onOpenMissingCosts={() => setMissingCostsOpen(true)} />
             <ProfitBridgePanel lines={profitLoss} />
             <LegalReconciliationPanel finance={stats} onOpenLegal={onNavigate ? () => onNavigate('legal') : undefined} />

@@ -8,7 +8,9 @@ import { financeRepository } from '../../features/finance/repository';
 import { buildCashflowForecast } from '../../features/finance/cashflowForecast';
 import { buildSellerCommissions } from '../../features/finance/commissions';
 import { budgetUsage, buildPartyBalances, summarizeExpenses } from '../../features/finance/expenseLedger';
-import { previousPeriod, toIsoDate } from '../../features/finance/financeMath';
+import { inPeriod, previousPeriod, toIsoDate } from '../../features/finance/financeMath';
+import { summarizeResourceQuantities } from '../../features/finance/resourceQuantities';
+import { dedupeIdenticalFinanceEvents } from '../../utils/financeAnalytics';
 import {
   buildCustomerBalances,
   buildOrderIncome,
@@ -51,7 +53,11 @@ export function useFinanceHub(params: {
   const batchesQuery = useProductionBatches();
   const offersQuery = useQuery({ queryKey: ['offers'], queryFn: api.getOffers });
   const legalQuery = useQuery({ queryKey: legalKeys.documents(), queryFn: legalRepository.getDocuments });
-  const { allRealizedEvents, backlogEvents } = useFinanceAnalytics({ products: params.products, settings: params.settings });
+  const { allRealizedEvents, backlogEvents, isLoading: resourcesLoading, isError: resourcesError, refetch: refetchResources } = useFinanceAnalytics({ products: params.products, settings: params.settings });
+  const resourceQuantities = useMemo(() => ({
+    realized: summarizeResourceQuantities(dedupeIdenticalFinanceEvents(allRealizedEvents.filter((event) => inPeriod(event.date, params.period)))),
+    backlog: summarizeResourceQuantities(backlogEvents),
+  }), [allRealizedEvents, backlogEvents, params.period.from, params.period.to]);
 
   const workspace = workspaceQuery.data;
   const parties = suppliersQuery.data || EMPTY;
@@ -140,6 +146,10 @@ export function useFinanceHub(params: {
   return {
     workspace,
     derived,
+    resourceQuantities,
+    resourcesLoading,
+    resourcesError,
+    refetchResources,
     today,
     parties,
     customers,

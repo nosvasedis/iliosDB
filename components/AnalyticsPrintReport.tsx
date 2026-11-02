@@ -6,6 +6,7 @@ import { Award, Boxes, FileText, UserCheck, Users, Wallet } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
 import SpecialCreationNote from './SpecialCreationNote';
+import { ResourceQuantitiesPrint } from './finance/ResourceQuantitiesPanel';
 
 interface Props {
     stats: any;
@@ -161,6 +162,9 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                     <span>Υλικά: <b>{formatCurrency(costBreakdown.materials)}</b></span>
                 </div>
             </div>
+
+            <ResourceQuantitiesPrint report={stats.resourceQuantities} />
+            <ResourceQuantitiesPrint report={stats.backlogResourceQuantities} title="Πέτρες, υλικά & STX · Εκκρεμή (όλα)" />
 
             {stats.isSingleOrder ? (
                 <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 break-avoid">

@@ -15,7 +15,7 @@ import SupplierReceiptModal from './suppliers/SupplierReceiptModal';
 import SupplierCard from './suppliers/SupplierCard';
 import SupplierFormModal from './suppliers/SupplierFormModal';
 import SupplierDetailsModal, { type SupplierDetailsTab } from './suppliers/SupplierDetailsModal';
-import { buildSupplierStats, formatRelativeDay, getSupplierStats, orderPieces, orderShortId } from './suppliers/supplierUi';
+import { buildSupplierStats, countSupplierKinds, formatRelativeDay, getSupplierStats, orderPieces, orderShortId } from './suppliers/supplierUi';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { tailTabButtonCompact, TAIL_TAB_CONTAINER } from './ui/designTokens';
 import PageErrorState from './ui/PageErrorState';
@@ -84,6 +84,7 @@ export default function SuppliersPage() {
     const [receiptOrder, setReceiptOrder] = useState<SupplierOrder | null>(null);
 
     const supplierList = suppliers || [];
+    const kindCounts = useMemo(() => countSupplierKinds(suppliers), [suppliers]);
     const orders = supplierOrders || [];
     const suppliersById = useMemo(() => new Map(supplierList.map((supplier) => [supplier.id, supplier])), [supplierList]);
     const stats = useMemo(() => buildSupplierStats(supplierList, products, materials, orders), [supplierList, products, materials, orders]);
@@ -244,9 +245,9 @@ export default function SuppliersPage() {
         ['pending', 'Με εκκρεμείς', supplierList.filter((supplier) => getSupplierStats(stats, supplier.id).pendingOrderCount > 0).length],
         ['unlinked', 'Χωρίς συνδέσεις'],
         ...(financeQuery.data ? [['owed', 'Με υπόλοιπο', supplierList.filter((supplier) => (balanceBySupplier.get(supplier.id) || 0) > 0.01).length] as [ListFilter, string, number]] : []),
-        ...(['worker', 'utility', 'service'] as FinancePartyKind[])
-            .filter((kind) => supplierList.some((supplier) => supplier.kind === kind))
-            .map((kind) => [kind, PARTY_KIND_META[kind].label, supplierList.filter((supplier) => supplier.kind === kind).length] as [ListFilter, string, number]),
+        ...(Object.keys(PARTY_KIND_META) as FinancePartyKind[])
+            .filter((kind) => kind === 'supplier' || kindCounts[kind] > 0 || listFilter === kind)
+            .map((kind) => [kind, PARTY_KIND_META[kind].pluralLabel, kindCounts[kind]] as [ListFilter, string, number]),
     ];
 
     return (
@@ -282,7 +283,7 @@ export default function SuppliersPage() {
                         {/* KPI tiles share the width evenly and wrap as whole tiles, never mid-label. */}
                         <div className="grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
                             {[
-                                { icon: Store, label: 'Προμηθευτές', value: supplierList.length, tone: 'text-slate-700 bg-slate-50 border-slate-100' },
+                                { icon: Store, label: 'Προμηθευτές', value: kindCounts.supplier, tone: 'text-slate-700 bg-slate-50 border-slate-100' },
                                 { icon: Clock, label: 'Εκκρεμείς εντολές', value: pendingOrders.length, tone: 'text-amber-800 bg-amber-50 border-amber-100' },
                                 { icon: PackageCheck, label: 'Τεμ. σε αναμονή', value: totals.pendingPieces, tone: 'text-emerald-800 bg-emerald-50 border-emerald-100' },
                                 { icon: Gem, label: 'Συνδεδεμένα προϊόντα', value: totals.linkedProducts, tone: 'text-violet-800 bg-violet-50 border-violet-100' },
@@ -300,7 +301,7 @@ export default function SuppliersPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className={`${TAIL_TAB_CONTAINER} max-w-full overflow-x-auto custom-scrollbar`}>
                                 {filterChips.map(([key, label, count]) => (
-                                    <button key={key} type="button" onClick={() => setListFilter(key)} className={`${tailTabButtonCompact(listFilter === key)} shrink-0 whitespace-nowrap`}>
+                                    <button key={key} type="button" aria-pressed={listFilter === key} onClick={() => setListFilter(key)} className={`${tailTabButtonCompact(listFilter === key)} shrink-0 whitespace-nowrap`}>
                                         {label}{count !== undefined && <span className="tabular-nums opacity-50">{formatNumber(count)}</span>}
                                     </button>
                                 ))}
@@ -370,7 +371,7 @@ export default function SuppliersPage() {
                 ) : (
                     <EmptyState
                         icon={Globe}
-                        title={supplierList.length === 0 ? 'Δεν υπάρχουν προμηθευτές ακόμη.' : 'Δεν βρέθηκαν προμηθευτές.'}
+                        title={supplierList.length === 0 ? 'Δεν υπάρχουν επαφές ακόμη.' : 'Δεν βρέθηκαν επαφές.'}
                         hint={supplierList.length === 0 ? 'Πατήστε «Νέος Προμηθευτής» για να προσθέσετε τον πρώτο.' : 'Δοκιμάστε διαφορετική αναζήτηση ή φίλτρο.'}
                         action={supplierList.length > 0 && (searchTerm || listFilter !== 'all') ? (
                             <button type="button" onClick={() => { setSearchTerm(''); setListFilter('all'); }} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Καθαρισμός φίλτρων</button>

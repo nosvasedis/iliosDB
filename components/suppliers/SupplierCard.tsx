@@ -3,6 +3,13 @@ import { Box, Clock, Gem, Globe, Mail, MapPin, Phone, Plus, ShoppingCart, UserRo
 import type { Supplier } from '../../types';
 import { formatNumber } from '../../utils/numberFormat';
 import { formatRelativeDay, supplierAvatarTone, supplierInitials, type SupplierStats } from './supplierUi';
+import { PARTY_KIND_META } from '../finance/financeUi';
+
+export function SupplierKindBadge({ kind }: { kind: Supplier['kind'] }) {
+    const meta = PARTY_KIND_META[kind || 'supplier'];
+    const Icon = meta.icon;
+    return <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black ring-1 ${meta.tone}`}><Icon size={11} />{meta.label}</span>;
+}
 
 export function SupplierAvatar({ name, logoUrl, size = 'md' }: { name: string; logoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) {
     const [failed, setFailed] = useState(false);
@@ -61,6 +68,7 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
                 <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} />
                 <div className="min-w-0 flex-1 pt-0.5">
                     <h3 className="truncate text-base font-black leading-tight text-slate-900" title={supplier.name}>{supplier.name}</h3>
+                    <div className="mt-1.5"><SupplierKindBadge kind={supplier.kind} /></div>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-slate-500">
                         <UserRound size={12} className="shrink-0 text-slate-400" />
                         {supplier.contact_person || <span className="italic text-slate-400">Χωρίς υπεύθυνο</span>}

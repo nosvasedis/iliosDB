@@ -7,6 +7,7 @@ import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
 import SpecialCreationNote from './SpecialCreationNote';
+import { ResourceQuantitiesPrint } from './finance/ResourceQuantitiesPanel';
 
 interface Props {
     stats: any;
@@ -211,6 +212,9 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                     </div>
                 </div>
             </div>
+
+            <ResourceQuantitiesPrint report={stats.resourceQuantities} />
+            <ResourceQuantitiesPrint report={stats.backlogResourceQuantities} title="Πέτρες, υλικά & STX · Υπόλοιπο προς αποστολή" />
 
             <div className="space-y-5">
                 <LineTable title="Αποσταλμένη απόδοση" rows={shippedRows} empty="Δεν υπάρχουν αποστολές για αυτή την παραγγελία." />

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AlertTriangle, BarChart3, Camera, CheckCircle2, HandCoins, Info, Landmark, Receipt, Scale, Wallet } from 'lucide-react';
 import type { GlobalSettings, Product } from '../../types';
 import MobileScreenHeader from '../mobile/MobileScreenHeader';
 import IliosLoader from '../ui/IliosLoader';
 import { useFinanceHub } from '../../hooks/api/useFinanceHub';
-import { formatEuro, resolvePeriod, toIsoDate, type FinancePeriodPreset } from '../../features/finance/financeMath';
+import { formatEuro, inPeriod, resolvePeriod, toIsoDate, type FinancePeriodPreset } from '../../features/finance/financeMath';
+import BookedResourceQuantitiesPanel from './BookedResourceQuantitiesPanel';
 import type { OrderIncome } from '../../features/finance/incomeLedger';
 import ExpenseEditor from './ExpenseEditor';
+import ResourceQuantitiesPanel from './ResourceQuantitiesPanel';
 import { ReceiptModal } from './IncomeModals';
 import { BillingToggle, SplitBar } from './financeUi';
 import type { FinanceBilling } from '../../features/finance/types';
@@ -27,6 +29,7 @@ export default function MobileFinance({ products, settings, onOpenAnalytics }: {
   const period = resolvePeriod(preset, toIsoDate(new Date()));
   const hub = useFinanceHub({ products, settings, period, billingFilter });
   const derived = hub.derived;
+  const purchaseExpenses = useMemo(() => (hub.workspace?.expenses || []).filter((expense) => inPeriod(expense.expense_date, period) && (billingFilter === 'all' || expense.billing === billingFilter)), [hub.workspace?.expenses, period.from, period.to, billingFilter]);
 
   const owed = derived?.orderIncome
     .filter((income) => income.outstanding.T + income.outstanding.X > 0.01)
@@ -73,6 +76,10 @@ export default function MobileFinance({ products, settings, onOpenAnalytics }: {
                 </div>
               ))}
             </div>
+
+            {hub.resourcesError ? <button type="button" onClick={hub.refetchResources} className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Δεν φορτώθηκαν οι ποσότητες υλικών · Επανάληψη</button> : hub.resourcesLoading ? <p className="p-3 text-sm text-slate-500">Φόρτωση ποσοτήτων υλικών…</p> : <ResourceQuantitiesPanel realized={hub.resourceQuantities.realized} backlog={hub.resourceQuantities.backlog} periodLabel={`${period.from} – ${period.to}`} note="Οι φυσικές ποσότητες περιλαμβάνουν Χ και Τ, ανεξάρτητα από το φίλτρο ποσών." />}
+
+            <details className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><summary className="cursor-pointer p-4 text-sm font-black text-slate-800">Ποσότητες καταγεγραμμένων αγορών ▾</summary><BookedResourceQuantitiesPanel expenses={purchaseExpenses} categories={hub.workspace.categories} materials={hub.materials} products={products} periodLabel={`${period.from} – ${period.to} · τρέχον φίλτρο Χ/Τ`} /></details>
 
             {derived.insights.slice(0, 4).map((insight) => {
               const meta = TONES[insight.tone];

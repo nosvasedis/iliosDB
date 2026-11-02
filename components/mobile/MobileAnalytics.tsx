@@ -33,6 +33,7 @@ import SpecialCreationNote from '../SpecialCreationNote';
 import FinancePeriodSelector from '../FinancePeriodSelector';
 import MobileScreenHeader from './MobileScreenHeader';
 import IliosLoader from '../ui/IliosLoader';
+import ResourceQuantitiesPanel from '../finance/ResourceQuantitiesPanel';
 
 interface Props {
   products: Product[];
@@ -178,6 +179,8 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
             />
           </div>
         </div>
+
+        <ResourceQuantitiesPanel realized={stats.resourceQuantities} backlog={stats.backlogResourceQuantities} periodLabel={stats.period.label} />
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">

@@ -19,6 +19,7 @@ import { resolveOrderSeller } from './orderSeller';
 import { buildItemIdentityKey } from './itemIdentity';
 
 import { isInternalOrder } from './orderCustomer';
+import { createRecipeResourceResolver, summarizeResourceQuantities, type RecipeResources, type ResourceQuantities } from '../features/finance/resourceQuantities';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
@@ -50,6 +51,8 @@ export interface FinanceAnalyticsInput {
 }
 
 export interface FinanceLineEvent {
+  /** Current catalogue recipe per finished piece; shared between equivalent lines. */
+  recipeResources?: RecipeResources;
   source: 'shipment' | 'legacy_delivered_order' | 'backlog';
   orderId: string;
   shipmentId?: string | null;
@@ -189,6 +192,8 @@ export interface FinanceLegalReconciliation {
 }
 
 export interface FinanceAnalytics {
+  resourceQuantities: ResourceQuantities;
+  backlogResourceQuantities: ResourceQuantities;
   period: ResolvedFinancePeriod;
   labels: Record<
     | 'realizedRevenue'
@@ -390,6 +395,7 @@ function buildLineEvent(params: {
   productsMap: Map<string, Product>;
   materialsMap: Map<string, Material>;
   sellerById: Map<string, UserProfile>;
+  resolveResources: (sku: string) => RecipeResources;
   itemNote?: string | null;
 }): FinanceLineEvent {
   const {
@@ -449,6 +455,9 @@ function buildLineEvent(params: {
 
   return {
     source,
+    recipeResources: isSpecialLine
+      ? { items: [], warnings: ['Ειδική δημιουργία χωρίς καταγεγραμμένη συνταγή'] }
+      : params.resolveResources(resolvedSku.masterSku),
     orderId: order.id,
     shipmentId: shipment?.id || null,
     shipmentNumber: shipment?.shipment_number || null,
@@ -596,6 +605,7 @@ export function buildFinanceLineEvents(
   const shipmentItems = input.shipmentItems || [];
   const productsMap = new Map(products.map((product) => [product.sku, product]));
   const materialsMap = new Map(materials.map((material) => [material.id, material]));
+  const resolveResources = createRecipeResourceResolver(products, materials);
   const collectionById = new Map((input.collections || []).map((collection) => [collection.id, collection]));
   const sellerById = new Map((input.sellers || []).map((seller) => [seller.id, seller]));
   const { shipmentsById, shipmentsByOrderId, itemsByOrderId } = indexShipmentsForFinance(shipments, shipmentItems);
@@ -617,6 +627,7 @@ export function buildFinanceLineEvents(
         const product = productsMap.get(shipmentItem.sku);
         allRealizedEvents.push(buildLineEvent({
           source: 'shipment',
+          resolveResources,
           order,
           item: shipmentItem,
           quantity: shipmentItem.quantity,
@@ -638,6 +649,7 @@ export function buildFinanceLineEvents(
         orderItems.forEach((item) => {
           allRealizedEvents.push(buildLineEvent({
             source: 'legacy_delivered_order',
+            resolveResources,
             order,
             item,
             quantity: item.quantity,
@@ -664,6 +676,7 @@ export function buildFinanceLineEvents(
         if (remainingQty <= 0) return;
         backlogEvents.push(buildLineEvent({
           source: 'backlog',
+          resolveResources,
           order,
           item,
           quantity: remainingQty,
@@ -997,6 +1010,8 @@ export function rankFinanceAnalyticsFromEvents(
 
   return {
     period: effectivePeriod,
+    resourceQuantities: summarizeResourceQuantities(dedupedRealizedEvents),
+    backlogResourceQuantities: summarizeResourceQuantities(backlogEvents),
     labels: GREEK_LABELS,
     totals: roundedTotals,
     costBreakdown: {

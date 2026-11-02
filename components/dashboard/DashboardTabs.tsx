@@ -41,6 +41,7 @@ import {
 import { DASHBOARD_TERM_HINTS } from '../../features/dashboard/dashboardTermHints';
 import SkuColorizedText from '../SkuColorizedText';
 import SpecialCreationNote from '../SpecialCreationNote';
+import ResourceQuantitiesPanel from '../finance/ResourceQuantitiesPanel';
 import { BarList, DeltaBadge, EmptyNote, KpiTile, MiniStat, Money, Panel, RankRow, Segmented } from './DashboardKit';
 import { StageLoadPanel, StuckBatchesPanel } from './DashboardOverviewPanels';
 
@@ -372,7 +373,6 @@ interface FinanceTabProps {
   trend: MonthlyTrendPoint[];
   activeOrderCount: number;
   silverPrice: number;
-  stonesSold: number;
   silverForProduction: Record<SilverOrderScope, number>;
   silverScope: SilverOrderScope;
   onSilverScopeChange: (scope: SilverOrderScope) => void;
@@ -388,7 +388,6 @@ export const FinanceTab = memo(function FinanceTab({
   trend,
   activeOrderCount,
   silverPrice,
-  stonesSold,
   silverForProduction,
   silverScope,
   onSilverScopeChange,
@@ -609,7 +608,7 @@ export const FinanceTab = memo(function FinanceTab({
                 sub={<span>≈ <Money value={(totals?.silverWeightGrams ?? 0) * silverPrice} decimals={false} /></span>}
                 tone="slate"
               />
-              <MiniStat label="Πέτρες & υλικά" value={`${formatNumber(stonesSold)} τεμ.`} sub="σε πωληθέντα είδη" tone="violet" />
+              <MiniStat label="Πέτρες" value={`${formatNumber(finance?.resourceQuantities.stonePieces ?? 0)} τεμ.`} sub="από συνταγές αποσταλμένων" tone="violet" />
             </div>
             {finance ? (
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -682,6 +681,7 @@ export const FinanceTab = memo(function FinanceTab({
           </button>
         </div>
       </div>
+      {!isLoading && finance && <ResourceQuantitiesPanel realized={finance.resourceQuantities} backlog={finance.backlogResourceQuantities} periodLabel={periodLabel} />}
     </div>
   );
 });

@@ -40,7 +40,6 @@ import {
   buildOrderPipeline,
   buildStageLoad,
   buildStuckBatches,
-  countStonesSold,
   inHouseSilverGrams,
   percentDelta,
   resolvePeriodComparison,
@@ -263,10 +262,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const topVariants = useMemo(() => (finance ? buildTopVariantRows(finance.topVariants, products, 8) : []), [finance, products]);
 
   // ── Materials ────────────────────────────────────────────────────────────
-  const stonesSold = useMemo(
-    () => (realizedEvents ? countStonesSold(realizedEvents, productBySku) : 0),
-    [realizedEvents, productBySku],
-  );
   const silverForProduction = useMemo(() => {
     const customer = (orders ?? []).filter((order) => order.status !== OrderStatus.Cancelled);
     const active = customer.filter(
@@ -541,7 +536,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
             trend={trend}
             activeOrderCount={activeOrderCount}
             silverPrice={settings.silver_price_gram}
-            stonesSold={stonesSold}
             silverForProduction={silverForProduction}
             silverScope={silverOrderScope}
             onSilverScopeChange={setSilverOrderScope}

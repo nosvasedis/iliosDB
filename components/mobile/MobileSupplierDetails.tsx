@@ -11,6 +11,7 @@ import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierO
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { useUI } from '../UIProvider';
 import SupplierReceiptModal from '../suppliers/SupplierReceiptModal';
+import { SupplierKindBadge } from '../suppliers/SupplierCard';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     Stone: 'Πέτρα',
@@ -162,6 +163,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                     </button>
                     <div className="min-w-0">
                         <h2 className="text-lg font-black text-slate-800 leading-tight truncate">{supplier.name}</h2>
+                        <SupplierKindBadge kind={supplier.kind} />
                         {supplier.contact_person && <p className="text-xs text-slate-500 truncate">{supplier.contact_person}</p>}
                     </div>
                 </div>

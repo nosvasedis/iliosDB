@@ -12,6 +12,7 @@ import ExpenseEditor from './ExpenseEditor';
 import PaymentModal from './PaymentModal';
 import RateCardEditor from './RateCardEditor';
 import StatementBuilder from './StatementBuilder';
+import BookedResourceQuantitiesPanel from './BookedResourceQuantitiesPanel';
 import { SupplierAvatar } from '../suppliers/SupplierCard';
 import {
   AmountInput,
@@ -183,6 +184,7 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
                 <RateCardEditor partyId={selected.id} cards={workspace.rateCards.filter((card) => card.party_id === selected.id)} materials={materials} />
               </SectionCard>
             )}
+            {view === 'statement' && <BookedResourceQuantitiesPanel expenses={workspace.expenses.filter((expense) => expense.party_id === selected.id)} categories={workspace.categories} materials={materials} products={products} periodLabel="Όλες οι καταγεγραμμένες αγορές αυτού του συνεργάτη / προμηθευτή" />}
             {view === 'settlement' && (
               <SectionCard title="Εκκαθάριση εργασιών" subtitle="Παρτίδες Παραγωγής × τιμοκατάλογος = έξοδο" icon={ClipboardList}>
                 <StatementBuilder party={selected} workspace={workspace} products={products} materials={materials} batches={batches} />

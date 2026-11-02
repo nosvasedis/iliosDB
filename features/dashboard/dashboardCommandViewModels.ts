@@ -443,18 +443,6 @@ export function buildInventoryValuation(
 
 // ─── Materials ─────────────────────────────────────────────────────────────────
 
-/** Stones/raw materials consumed by the realized sales of the period. */
-export function countStonesSold(events: FinanceLineEvent[], productBySku: Map<string, Product>): number {
-  let stones = 0;
-  events.forEach((event) => {
-    const product = productBySku.get(event.sku);
-    product?.recipe.forEach((recipeItem) => {
-      if (recipeItem.type === 'raw') stones += recipeItem.quantity * event.quantity;
-    });
-  });
-  return stones;
-}
-
 /** In-house silver (grams) needed for a set of orders — imported & component items excluded. */
 export function inHouseSilverGrams(orders: Order[], productBySku: Map<string, Product>): number {
   return orders.reduce(

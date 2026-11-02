@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Tags, Wallet } from 'lucide-react';
-import type { Supplier } from '../../types';
+import type { Product, Supplier } from '../../types';
+import BookedResourceQuantitiesPanel from './BookedResourceQuantitiesPanel';
 import { useAuth } from '../AuthContext';
 import { useFinanceWorkspace } from '../../hooks/api/useFinance';
 import { useMaterials } from '../../hooks/api/useMaterials';
@@ -15,7 +16,7 @@ import RateCardEditor from './RateCardEditor';
 import { BillingBadge, EmptyNote, primaryButton, secondaryButton } from './financeUi';
 
 /** «Οικονομικά» tab of a supplier: balance, καρτέλα, payment and (for partners) rate card. */
-export default function SupplierFinancePanel({ supplier }: { supplier: Supplier }) {
+export default function SupplierFinancePanel({ supplier, products }: { supplier: Supplier; products: Product[] }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const workspaceQuery = useFinanceWorkspace(isAdmin);
@@ -34,6 +35,7 @@ export default function SupplierFinancePanel({ supplier }: { supplier: Supplier 
       || { partyId: supplier.id, party: supplier, billed: 0, paid: 0, balance: 0, credit: 0, open: [], overdue: 0 };
   }, [workspace, parties, supplier]);
   const statement = useMemo(() => (workspace ? buildPartyStatement(supplier.id, workspace.expenses, workspace.expensePayments, workspace.categories) : []), [workspace, supplier.id]);
+  const purchaseExpenses = useMemo(() => workspace?.expenses.filter((expense) => expense.party_id === supplier.id) || [], [workspace, supplier.id]);
 
   if (!isAdmin) return <EmptyNote title="Μόνο για διαχειριστές" />;
   if (!workspace || !balance) return <div className="py-10 text-center text-sm font-semibold text-slate-400">Φόρτωση…</div>;
@@ -68,6 +70,8 @@ export default function SupplierFinancePanel({ supplier }: { supplier: Supplier 
           </div>
         )}
       </section>
+
+      {materialsQuery.isSuccess && <BookedResourceQuantitiesPanel expenses={purchaseExpenses} categories={workspace.categories} materials={materialsQuery.data} products={products} periodLabel="Όλες οι καταγεγραμμένες αγορές αυτού του προμηθευτή" />}
 
       {supplier.kind === 'worker' && (
         <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">

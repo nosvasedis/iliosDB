@@ -1,4 +1,12 @@
 import type { Material, Product, Supplier, SupplierOrder } from '../../types';
+import type { FinancePartyKind } from '../../features/finance/types';
+
+/** Legacy contacts without a kind retain their original supplier classification. */
+export function countSupplierKinds(suppliers: Supplier[] = []): Record<FinancePartyKind, number> {
+    const counts = { supplier: 0, worker: 0, utility: 0, service: 0, person: 0 };
+    for (const supplier of suppliers) counts[supplier.kind || 'supplier'] += 1;
+    return counts;
+}
 
 export const MATERIAL_TYPE_LABELS: Record<string, string> = {
     Stone: 'Πέτρα',

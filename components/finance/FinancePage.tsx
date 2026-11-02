@@ -18,6 +18,7 @@ import ExpensesTab from './ExpensesTab';
 import IncomeTab from './IncomeTab';
 import OverviewTab from './OverviewTab';
 import PartnersTab from './PartnersTab';
+import ResourceQuantitiesPanel from './ResourceQuantitiesPanel';
 import { BillingToggle, primaryButton } from './financeUi';
 
 export type FinanceTab = 'overview' | 'income' | 'expenses' | 'partners' | 'analytics';
@@ -147,8 +148,11 @@ export default function FinancePage({ products, settings, initialTab = 'overview
               billingFilter={billingFilter}
             />
           )}
+          {tab === 'overview' && (hub.resourcesError ? <PageErrorState title="Δεν φορτώθηκαν οι ποσότητες υλικών" message="Ελέγξτε τη σύνδεση και δοκιμάστε ξανά." onRetry={hub.refetchResources} /> : hub.resourcesLoading ? <p className="p-4 text-sm text-slate-500">Φόρτωση ποσοτήτων υλικών…</p> : <ResourceQuantitiesPanel realized={hub.resourceQuantities.realized} backlog={hub.resourceQuantities.backlog} periodLabel={`${period.from} – ${period.to}`} note="Οι φυσικές ποσότητες περιλαμβάνουν Χ και Τ, ανεξάρτητα από το φίλτρο ποσών." />)}
           {tab === 'expenses' && (
             <ExpensesTab
+              materials={hub.materials}
+              products={products}
               workspace={hub.workspace}
               summary={hub.derived.expenseSummary}
               parties={hub.parties}

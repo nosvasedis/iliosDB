@@ -54,6 +54,10 @@ import { GREEK_PERIFERIES } from '../../features/customers/greekRegions';
 import { CountryMismatchHint, CountrySelect, CustomerBranchesEditor, OverseasVatSuggestion, withCustomerCountry } from '../customers/customerProfileFields';
 import { isDomesticCountry } from '../../features/customers/customerLocation';
 import { isInspectionModeActive } from '../../lib/inspectionMode';
+import { PARTY_KIND_META } from '../finance/financeUi';
+import type { FinancePartyKind } from '../../features/finance/types';
+import { countSupplierKinds } from '../suppliers/supplierUi';
+import { SupplierKindBadge } from '../suppliers/SupplierCard';
 
 const CustomersMap = lazyWithChunkRecovery(() => import('../customers/CustomersMap'));
 
@@ -71,6 +75,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
     // Internal search state still needed
     const [search, setSearch] = useState('');
+    const [supplierKind, setSupplierKind] = useState<FinancePartyKind | 'all'>('all');
+    const supplierKindCounts = useMemo(() => countSupplierKinds(suppliers), [suppliers]);
 
     // Edit/Create State
     const [isEditing, setIsEditing] = useState(false);
@@ -148,11 +154,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         } else {
             if (!suppliers) return [];
             return suppliers.filter(s =>
-                s.name.toLowerCase().includes(search.toLowerCase()) ||
-                s.contact_person?.toLowerCase().includes(search.toLowerCase())
+                (supplierKind === 'all' || (s.kind || 'supplier') === supplierKind) && (
+                    s.name.toLowerCase().includes(search.toLowerCase()) ||
+                    s.contact_person?.toLowerCase().includes(search.toLowerCase()))
             );
         }
-    }, [customers, suppliers, mode, search, directory, filteredEntries, regionSelection, categories, purchaseMatches]);
+    }, [customers, suppliers, mode, search, supplierKind, directory, filteredEntries, regionSelection, categories, purchaseMatches]);
 
     const retailStats = useMemo(() => {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
@@ -488,6 +495,14 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-sm">
+                        {editType === 'supplier' && (
+                            <label className="block">
+                                <span className="mb-1 block text-xs font-bold text-slate-500">Τύπος</span>
+                                <select value={editData.kind || 'supplier'} onChange={event => setEditData({ ...editData, kind: event.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-800">
+                                    {(Object.keys(PARTY_KIND_META) as FinancePartyKind[]).map(kind => <option key={kind} value={kind}>{PARTY_KIND_META[kind].label}</option>)}
+                                </select>
+                            </label>
+                        )}
                         {editType === 'customer' && (
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 block">Χωρα φορολογικης εδρας</label>
@@ -674,8 +689,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
             <MobileScreenHeader
                 icon={mode === 'customers' ? Users : Globe}
-                title={mode === 'customers' ? 'Πελάτες' : 'Προμηθευτές'}
-                subtitle={mode === 'customers' ? 'Επαφές & στοιχεία τιμολόγησης' : 'Προμηθευτές & εντολές αγοράς'}
+                title={mode === 'customers' ? 'Πελάτες' : 'Προμηθευτές & Συνεργάτες'}
+                subtitle={mode === 'customers' ? 'Επαφές & στοιχεία τιμολόγησης' : 'Προμηθευτές, πάροχοι & υπηρεσίες'}
                 iconClassName={mode === 'customers' ? 'text-cyan-600' : 'text-purple-600'}
                 right={
                     <button
@@ -700,6 +715,18 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
                 />
             </div>
+
+            {mode === 'suppliers' && (
+                <div className="mt-3 flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Φίλτρο τύπου επαφής">
+                    {(['all', ...Object.keys(PARTY_KIND_META)] as Array<FinancePartyKind | 'all'>)
+                        .filter(kind => kind === 'all' || kind === 'supplier' || supplierKindCounts[kind] > 0 || supplierKind === kind)
+                        .map(kind => (
+                            <button key={kind} type="button" aria-pressed={supplierKind === kind} onClick={() => setSupplierKind(kind)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${supplierKind === kind ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>
+                                {kind === 'all' ? 'Όλοι' : PARTY_KIND_META[kind].pluralLabel} <span className="tabular-nums opacity-60">{formatNumber(kind === 'all' ? suppliers?.length || 0 : supplierKindCounts[kind])}</span>
+                            </button>
+                        ))}
+                </div>
+            )}
 
             {mode === 'customers' && (
                 <div className="mt-3 shrink-0 space-y-2">
@@ -830,6 +857,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                         )}
                                     </div>
                                     {mode === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
+                                    {mode === 'suppliers' && <div className="mt-1"><SupplierKindBadge kind={item.kind} /></div>}
                                 </div>
                             </div>
                             <button

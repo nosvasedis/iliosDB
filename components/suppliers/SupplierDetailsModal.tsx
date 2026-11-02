@@ -35,7 +35,7 @@ import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierO
 import EmptyState from '../ui/EmptyState';
 import { useUI } from '../UIProvider';
 import SupplierFinancePanel from '../finance/SupplierFinancePanel';
-import { SupplierAvatar } from './SupplierCard';
+import { SupplierAvatar, SupplierKindBadge } from './SupplierCard';
 import { MATERIAL_TYPE_LABELS, formatRelativeDay, orderPieces, orderShortId, type SupplierStats } from './supplierUi';
 
 export type SupplierDetailsTab = 'overview' | 'products' | 'materials' | 'orders' | 'finance';
@@ -326,6 +326,7 @@ export default function SupplierDetailsModal({
                     <div className="relative p-6">
                         <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="lg" />
                         <h2 className="mt-4 text-2xl font-black leading-tight tracking-tight text-slate-900">{supplier.name}</h2>
+                        <div className="mt-2"><SupplierKindBadge kind={supplier.kind} /></div>
                         <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500">
                             <UserRound size={14} /> {supplier.contact_person || 'Χωρίς υπεύθυνο'}
                         </p>
@@ -379,6 +380,7 @@ export default function SupplierDetailsModal({
                             <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="sm" />
                             <div className="min-w-0">
                                 <h2 className="truncate text-lg font-black text-slate-900">{supplier.name}</h2>
+                                <SupplierKindBadge kind={supplier.kind} />
                                 <button type="button" onClick={onEdit} className="text-xs font-bold text-emerald-700">Επεξεργασία</button>
                             </div>
                         </div>
@@ -604,7 +606,7 @@ export default function SupplierDetailsModal({
                             </div>
                         )}
 
-                        {tab === 'finance' && <SupplierFinancePanel supplier={supplier} />}
+                        {tab === 'finance' && <SupplierFinancePanel supplier={supplier} products={products} />}
 
                         {tab === 'orders' && (
                             <div className="space-y-4 animate-in fade-in">

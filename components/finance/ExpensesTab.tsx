@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarClock, ChevronRight, FolderPlus, FolderTree, Paperclip, Pencil, Plus, Repeat, Search } from 'lucide-react';
-import type { GlobalSettings, Supplier } from '../../types';
+import type { GlobalSettings, Material, Product, Supplier } from '../../types';
+import BookedResourceQuantitiesPanel from './BookedResourceQuantitiesPanel';
 import {
   buildCategoryTree,
   categoryBreadcrumb,
@@ -30,7 +31,9 @@ const STATUS_META: Record<FinanceExpense['status'], { label: string; tone: strin
   expected: { label: 'Αναμενόμενο', tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
 };
 
-export default function ExpensesTab({ workspace, summary, parties, settings, period, billingFilter }: {
+export default function ExpensesTab({ workspace, summary, parties, settings, period, billingFilter, materials, products }: {
+  materials: Material[];
+  products: Product[];
   workspace: FinanceWorkspace;
   summary: ExpensePeriodSummary;
   parties: Supplier[];
@@ -222,6 +225,8 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
             </div>
           )}
         </SectionCard>
+
+        <BookedResourceQuantitiesPanel expenses={rows} categories={workspace.categories} materials={materials} products={products} periodLabel={status === 'open' ? 'Ανοιχτά έξοδα · όλες οι ημερομηνίες · τρέχοντα φίλτρα' : `${period.from} – ${period.to} · τρέχοντα φίλτρα`} />
 
         <SectionCard
           title="Επαναλαμβανόμενα έξοδα"

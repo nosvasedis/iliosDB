@@ -24,12 +24,12 @@ export function CategoryGlyph({ icon, color, size = 'md' }: { icon?: string | nu
   );
 }
 
-export const PARTY_KIND_META: Record<FinancePartyKind, { label: string; icon: LucideIcon; tone: string }> = {
-  supplier: { label: 'Προμηθευτής', icon: Store, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
-  worker: { label: 'Συνεργάτης', icon: HardHat, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
-  utility: { label: 'Πάροχος', icon: Zap, tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
-  service: { label: 'Υπηρεσία', icon: Wrench, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
-  person: { label: 'Πρόσωπο', icon: UserRound, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
+export const PARTY_KIND_META: Record<FinancePartyKind, { label: string; pluralLabel: string; icon: LucideIcon; tone: string }> = {
+  supplier: { label: 'Προμηθευτής', pluralLabel: 'Προμηθευτές', icon: Store, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  worker: { label: 'Συνεργάτης', pluralLabel: 'Συνεργάτες', icon: HardHat, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
+  utility: { label: 'Πάροχος', pluralLabel: 'Πάροχοι', icon: Zap, tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
+  service: { label: 'Υπηρεσία', pluralLabel: 'Υπηρεσίες', icon: Wrench, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
+  person: { label: 'Πρόσωπο', pluralLabel: 'Πρόσωπα', icon: UserRound, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
 };
 
 export const BILLING_TONE: Record<FinanceBilling, { chip: string; bar: string; text: string; hex: string }> = {
