@@ -13,6 +13,7 @@ import { Printer, Loader2, Check, AlertCircle, Camera, FileUp, Plus, Lightbulb, 
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractSkusFromImage } from '../lib/gemini';
 import { getVariantComponents, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -25,8 +26,8 @@ import LabelPreviewEditModal from './printing/LabelPreviewEditModal';
 import { getSizingInfo } from '../utils/sizing';
 import EmptyState from './ui/EmptyState';
 
-// Set workerSrc for pdf.js.
-GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
+// Bundle the worker from the installed pdfjs-dist so its version always matches the API.
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface Props {
     allProducts: Product[];
@@ -544,21 +545,18 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         try {
             const arrayBuffer = await file.arrayBuffer();
             const typedArray = new Uint8Array(arrayBuffer);
-            const pdf = await getDocument(typedArray).promise;
+            const pdf = await getDocument({ data: typedArray }).promise;
 
             const pagePromises: Promise<string>[] = [];
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const viewport = page.getViewport({ scale: 2.0 });
                 const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-                if (context) {
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-                    const base64Image = canvas.toDataURL('image/jpeg', 0.9);
-                    pagePromises.push(extractSkusFromImage(base64Image));
-                }
+                await page.render({ canvas, viewport }).promise;
+                const base64Image = canvas.toDataURL('image/jpeg', 0.9);
+                pagePromises.push(extractSkusFromImage(base64Image));
             }
 
             const pagesText = await Promise.all(pagePromises);
