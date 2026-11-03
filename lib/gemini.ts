@@ -1,10 +1,12 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GEMINI_API_KEY } from "./supabase";
 
 // Helper to clean Base64 string
 const cleanBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
 
 const getClient = () => {
-    const key = process.env.API_KEY;
+    // VITE_GEMINI_API_KEY or the key saved in Settings (changing it restarts the app).
+    const key = GEMINI_API_KEY;
     if (!key) {
         throw new Error("Το κλειδί Gemini API λείπει από το περιβάλλον.");
     }

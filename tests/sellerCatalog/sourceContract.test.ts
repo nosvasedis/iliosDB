@@ -27,7 +27,7 @@ describe('seller catalogue source contracts', () => {
   it('caches only product images requested through the immutable image handler', () => {
     const serviceWorker = source('public/sw.js');
     expect(serviceWorker).toContain("request.destination === 'image'");
-    expect(serviceWorker).toContain("'ilios-viewed-product-images-v1'");
+    expect(serviceWorker).toContain("'ilios-viewed-product-images-v2'");
     expect(serviceWorker).not.toContain('cache.addAll(PRECACHE_URLS.concat');
   });
 });
