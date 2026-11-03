@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square150x150logo src="/icons/ilios-sun-v1/mstile-150x150.png" />
+      <TileColor>#222d13</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>

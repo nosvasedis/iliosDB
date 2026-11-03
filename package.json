@@ -11,7 +11,8 @@
     "typecheck": "tsc --project tsconfig.json",
     "check:greek": "vitest run tests/customerService/greekPresentation.test.ts",
     "check": "npm run typecheck && npm run check:greek && npm run build",
-    "deploy:worker": "wrangler deploy"
+    "deploy:worker": "wrangler deploy",
+    "icons:generate": "node scripts/generate-app-icons.mjs"
   },
   "engines": {
     "node": "24.x"
@@ -48,6 +49,7 @@
     "fake-indexeddb": "^6.2.4",
     "postcss": "^8.4.38",
     "react-test-renderer": "^19.3.1",
+    "sharp": "0.35.5",
     "tailwindcss": "^4.3.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

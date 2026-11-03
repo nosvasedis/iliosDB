@@ -54,6 +54,28 @@ describe('service worker live-build compatibility', () => {
     await w.dispatch(new Request('https://ilios.test/version.json?check=1'));
     expect(w.caches.match).not.toHaveBeenCalled(); expect(w.fetch.mock.calls[0][0].cache).toBe('no-store');
   });
+  it('refreshes a cached install manifest so installed apps can discover new icons', async () => {
+    const w = worker(); const url = 'https://ilios.test/manifest.json';
+    w.stores.set('ilios-runtime-safe-v1', new Map([[url, new Response('{"icons":["old"]}')]]));
+    w.fetch.mockResolvedValue(new Response('{"icons":["new"]}', { headers: { 'Content-Type': 'application/manifest+json' } }));
+    const response = await w.dispatch(new Request(url));
+    expect(await response.text()).toBe('{"icons":["new"]}');
+    expect(w.fetch.mock.calls[0][0].cache).toBe('no-cache');
+    expect(await w.stores.get('ilios-runtime-safe-v1')!.get(url)!.text()).toBe('{"icons":["new"]}');
+  });
+  it('uses the precached manifest offline even for a new versioned URL', async () => {
+    const w = worker();
+    w.stores.set('ilios-runtime-safe-v1', new Map([['/manifest.json', new Response('offline manifest')]]));
+    w.fetch.mockRejectedValue(new Error('Offline'));
+    expect(await (await w.dispatch(new Request('https://ilios.test/manifest.json?v=ilios-sun-v1'))).text()).toBe('offline manifest');
+  });
+  it('does not replace a good manifest with a successful HTML fallback', async () => {
+    const w = worker(); const url = 'https://ilios.test/manifest.json';
+    w.stores.set('ilios-runtime-safe-v1', new Map([[url, new Response('good manifest')]]));
+    w.fetch.mockResolvedValue(new Response('<html>fallback</html>', { headers: { 'Content-Type': 'text/html' } }));
+    expect(await (await w.dispatch(new Request(url))).text()).toBe('good manifest');
+    expect(await w.stores.get('ilios-runtime-safe-v1')!.get(url)!.text()).toBe('good manifest');
+  });
   it('preserves the last valid application shell when navigation receives a server error', async () => {
     const w = worker();
     w.stores.set('ilios-runtime-safe-v1', new Map([['/index.html', new Response('last valid app')]]));

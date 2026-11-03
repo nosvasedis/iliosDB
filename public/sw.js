@@ -3,7 +3,16 @@ const CACHE_NAME = 'ilios-runtime-safe-v1';
 // v1 cached opaque responses, including undetectable HTTP errors. Start fresh.
 const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v2';
 const IMAGE_CACHE_LIMIT = 200;
-const PRECACHE_URLS = ['/manifest.json'];
+const ICON_PATH = '/icons/ilios-sun-v1/';
+const PRECACHE_URLS = [
+  '/manifest.json', '/manifest.json?v=ilios-sun-v1', '/favicon.ico', '/apple-touch-icon.png', '/browserconfig.xml',
+  ...[
+    'favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'favicon-48x48.png',
+    'apple-touch-icon-152x152.png', 'apple-touch-icon-167x167.png', 'apple-touch-icon-180x180.png',
+    'android-chrome-192x192.png', 'android-chrome-512x512.png',
+    'maskable-192x192.png', 'maskable-512x512.png', 'mstile-150x150.png', 'safari-pinned-tab.svg',
+  ].map(file => ICON_PATH + file),
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -43,6 +52,26 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin === self.location.origin && (url.pathname === '/version.json' || url.pathname === '/sw.js')) {
     event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+    return;
+  }
+
+  // Installed apps revisit the canonical manifest URL. Refresh it online so an
+  // old cache-first manifest cannot pin them to obsolete device icons forever.
+  if (url.origin === self.location.origin && url.pathname === '/manifest.json') {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(new Request(event.request, { cache: 'no-cache' }));
+        if (!response.ok || !/(?:application\/(?:manifest\+)?json|text\/json)/i.test(response.headers.get('Content-Type') || '')) {
+          throw new Error('Manifest unavailable');
+        }
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {}));
+        return response;
+      } catch {
+        return await caches.match(event.request) || await caches.match('/manifest.json')
+          || new Response('Manifest unavailable offline', { status: 503 });
+      }
+    })());
     return;
   }
 
