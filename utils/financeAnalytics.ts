@@ -467,7 +467,8 @@ function buildLineEvent(params: {
   return {
     source,
     recipeResources: isSpecialLine
-      ? { items: [], warnings: ['Ειδική δημιουργία χωρίς καταγεγραμμένη συνταγή'] }
+      // SP special creations have no recipe by design; that is not missing data.
+      ? { items: [], warnings: [] }
       : params.resolveResources(resolvedSku.masterSku),
     orderId: order.id,
     shipmentId: shipment?.id || null,

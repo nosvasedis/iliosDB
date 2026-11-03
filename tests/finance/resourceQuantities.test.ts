@@ -102,3 +102,18 @@ describe('finance resource quantities', () => {
     expect(outsidePeriod.backlogResourceQuantities.stonePieces).toBe(75);
   });
 });
+
+describe('special creations', () => {
+    it('treats SP lines as recipe-less by design: counted pieces, no missing-recipe warning', () => {
+        const order = { id: 'sp-order', customer_name: 'Πελάτης', created_at: '2026-03-01T10:00:00Z', status: OrderStatus.Delivered, total_price: 0,
+            items: [{ sku: 'SP', quantity: 3, price_at_order: 40, notes: 'Ειδικό δαχτυλίδι', line_id: 'sp' }, { sku: 'DA001', variant_suffix: 'X', quantity: 1, price_at_order: 10, line_id: 'da' }] } as Order;
+        const stats = buildFinanceAnalytics({
+            orders: [order], products, materials,
+            settings: { silver_price_gram: 1, loss_percentage: 0, barcode_width_mm: 50, barcode_height_mm: 30, retail_barcode_width_mm: 72, retail_barcode_height_mm: 10, last_calc_silver_price: 1 },
+            shipments: [], shipmentItems: [], period: { mode: 'all_time' as const }, now: new Date('2026-03-10T10:00:00Z'),
+        });
+        expect(stats.resourceQuantities.warnings).toEqual([]);
+        expect(stats.resourceQuantities.pieces).toBe(4);
+        expect(stats.resourceQuantities.stonePieces).toBe(25);
+    });
+});
