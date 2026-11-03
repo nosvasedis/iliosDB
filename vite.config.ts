@@ -22,7 +22,11 @@ export default defineConfig({
     },
   }],
   // Claude session worktrees live under .claude/; their test copies are not this checkout's tests.
-  test: { exclude: [...configDefaults.exclude, '.claude/**'] },
+  test: {
+    exclude: [...configDefaults.exclude, '.claude/**'],
+    // Each PGlite suite boots its own WASM Postgres; more workers time out or run out of memory.
+    maxWorkers: 4,
+  },
   build: {
     rollupOptions: {
       output: {

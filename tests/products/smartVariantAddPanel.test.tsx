@@ -1,9 +1,11 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SmartVariantAddPanel from '../../components/ProductDetails/SmartVariantAddPanel';
-import StoneCodeText from '../../components/StoneCodeText';
 import { Gender, PlatingType, ProductionType, type Product } from '../../types';
+
+vi.mock('../../components/StoneCodeText', () => ({ default: ({ code }: { code: string }) => <span data-stone-code={code}>{code}</span> }));
 
 const product = {
   sku: 'DA100', prefix: 'DA', category: 'Δαχτυλίδι', gender: Gender.Men,
@@ -11,8 +13,8 @@ const product = {
   weight_g: 1, recipe: [], labor: {}, selling_price: 10,
 } as Product;
 
-let renderer: ReactTestRenderer;
-afterEach(() => act(() => renderer?.unmount()));
+let view: ReturnType<typeof render>;
+afterEach(cleanup);
 
 function mount(suffixes: string[] = []) {
   const props = {
@@ -20,74 +22,74 @@ function mount(suffixes: string[] = []) {
     existingVariants: suffixes.map((suffix) => ({ suffix, description: suffix, stock_qty: 0 })),
     onAddVariants: vi.fn(), showToast: vi.fn(),
   };
-  act(() => { renderer = create(<SmartVariantAddPanel {...props} />); });
+  view = render(<SmartVariantAddPanel {...props} />);
   return props;
 }
 
-const textOf = (node: any): string =>
-  (node.children || []).map((child: any) => (typeof child === 'string' ? child : textOf(child))).join('');
-const buttons = () => renderer.root.findAllByType('button');
-const finish = (label: string) => buttons().find((b) => 'aria-pressed' in b.props && textOf(b).startsWith(label) && !b.props['aria-label']);
-const stone = (name: string) => buttons().find((b) => b.props['aria-label'] === `Πέτρα ${name}`);
+const textOf = (node: Element) => node.textContent || '';
+const buttons = () => Array.from(view.container.querySelectorAll('button'));
+const finish = (label: string) => buttons().find((b) => b.hasAttribute('aria-pressed') && textOf(b).startsWith(label) && !b.getAttribute('aria-label'));
+const stone = (name: string) => buttons().find((b) => b.getAttribute('aria-label') === `Πέτρα ${name}`);
 const plain = () => buttons().find((b) => textOf(b).includes('Σκέτο μέταλλο'))!;
 const createButton = () => buttons().find((b) => textOf(b).includes('Δημιουργία'))!;
-const selectAllButton = () => buttons().find((b) => typeof b.props.title === 'string' && b.props.title.startsWith('Επιλογή όλων'))!;
+const selectAllButton = () => buttons().find((b) => b.title.startsWith('Επιλογή όλων'))!;
+const pressed = (b: Element) => b.getAttribute('aria-pressed') === 'true';
 const created = (props: ReturnType<typeof mount>, call = 0) => props.onAddVariants.mock.calls[call][0].map((v: any) => v.suffix);
-const visibleStoneCodes = () => renderer.root.findAllByType(StoneCodeText).map((s) => s.props.code);
+const visibleStoneCodes = () => Array.from(view.container.querySelectorAll('[data-stone-code]')).map((s) => s.getAttribute('data-stone-code'));
 
 describe('registry smart variant add', () => {
   it('starts without a finish and creates plain lustre once one is picked', () => {
     const props = mount();
-    expect(createButton().props.disabled).toBe(true);
-    act(() => finish('Λουστρέ')!.props.onClick());
-    expect(createButton().props.disabled).toBe(false);
-    act(() => createButton().props.onClick());
+    expect(createButton().disabled).toBe(true);
+    fireEvent.click(finish('Λουστρέ')!);
+    expect(createButton().disabled).toBe(false);
+    fireEvent.click(createButton());
     expect(created(props)).toEqual(['']);
   });
 
   it('creates every finish × stone combination for several stones at once', () => {
     const props = mount();
-    act(() => finish('Πατίνα')!.props.onClick());
-    act(() => finish('Επίχρυσο')!.props.onClick());
-    act(() => plain().props.onClick());
-    act(() => stone('Μάτι Τίγρης')!.props.onClick());
-    act(() => stone('Όνυχας')!.props.onClick());
-    act(() => createButton().props.onClick());
+    fireEvent.click(finish('Πατίνα')!);
+    fireEvent.click(finish('Επίχρυσο')!);
+    fireEvent.click(plain());
+    fireEvent.click(stone('Μάτι Τίγρης')!);
+    fireEvent.click(stone('Όνυχας')!);
+    fireEvent.click(createButton());
     expect(created(props).sort()).toEqual(['PQN', 'PTG', 'XQN', 'XTG']);
   });
 
   it('treats plain metal and stones as mutually exclusive', () => {
     const props = mount();
-    act(() => finish('Επίχρυσο')!.props.onClick());
-    expect(plain().props['aria-pressed']).toBe(true);
-    act(() => stone('Μάτι Τίγρης')!.props.onClick());
-    expect(plain().props['aria-pressed']).toBe(false);
-    act(() => createButton().props.onClick());
+    fireEvent.click(finish('Επίχρυσο')!);
+    expect(pressed(plain())).toBe(true);
+    fireEvent.click(stone('Μάτι Τίγρης')!);
+    expect(pressed(plain())).toBe(false);
+    fireEvent.click(createButton());
     expect(created(props)).toEqual(['XTG']);
-    act(() => stone('Όνυχας')!.props.onClick());
-    act(() => plain().props.onClick());
-    expect(stone('Όνυχας')!.props['aria-pressed']).toBe(false);
-    expect(plain().props['aria-pressed']).toBe(true);
+    fireEvent.click(stone('Όνυχας')!);
+    fireEvent.click(plain());
+    expect(pressed(stone('Όνυχας')!)).toBe(false);
+    expect(pressed(plain())).toBe(true);
   });
 
   it('skips combinations that already exist', () => {
     const props = mount(['XTG']);
-    act(() => finish('Πατίνα')!.props.onClick());
-    act(() => finish('Επίχρυσο')!.props.onClick());
-    act(() => plain().props.onClick());
-    act(() => stone('Μάτι Τίγρης')!.props.onClick());
-    act(() => createButton().props.onClick());
+    fireEvent.click(finish('Πατίνα')!);
+    fireEvent.click(finish('Επίχρυσο')!);
+    fireEvent.click(plain());
+    fireEvent.click(stone('Μάτι Τίγρης')!);
+    fireEvent.click(createButton());
     expect(created(props)).toEqual(['PTG']);
   });
 
   it('selects all stones of the active group with one click', () => {
     const props = mount();
-    act(() => finish('Λουστρέ')!.props.onClick());
-    act(() => plain().props.onClick());
+    fireEvent.click(finish('Λουστρέ')!);
+    fireEvent.click(plain());
     const suleman = buttons().find((b) => textOf(b).startsWith('Σουλεμάνηδες'))!;
-    act(() => suleman.props.onClick());
-    act(() => selectAllButton().props.onClick());
-    act(() => createButton().props.onClick());
+    fireEvent.click(suleman);
+    fireEvent.click(selectAllButton());
+    fireEvent.click(createButton());
     expect(created(props).sort()).toEqual(['BSU', 'GSU', 'RSU']);
   });
 
@@ -99,14 +101,14 @@ describe('registry smart variant add', () => {
 
   it('adds a fully typed suffix and rejects an existing one', () => {
     const props = mount(['XTG']);
-    act(() => buttons().find((b) => textOf(b).includes('Χειροκίνητη προσθήκη'))!.props.onClick());
-    const suffixInput = () => renderer.root.findAll((n) => n.type === 'input' && n.props['aria-label'] === 'Πλήρες suffix')[0];
-    const form = () => renderer.root.findByType('form');
-    act(() => suffixInput().props.onChange({ target: { value: 'XTG' } }));
-    act(() => form().props.onSubmit({ preventDefault() {} }));
+    fireEvent.click(buttons().find((b) => textOf(b).includes('Χειροκίνητη προσθήκη'))!);
+    const suffixInput = () => view.getByLabelText('Πλήρες suffix');
+    const form = () => view.container.querySelector('form')!;
+    fireEvent.change(suffixInput(), { target: { value: 'XTG' } });
+    fireEvent.submit(form());
     expect(props.onAddVariants).not.toHaveBeenCalled();
-    act(() => suffixInput().props.onChange({ target: { value: 'PTG' } }));
-    act(() => form().props.onSubmit({ preventDefault() {} }));
+    fireEvent.change(suffixInput(), { target: { value: 'PTG' } });
+    fireEvent.submit(form());
     expect(created(props)).toEqual(['PTG']);
   });
 });

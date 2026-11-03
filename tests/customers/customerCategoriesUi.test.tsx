@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OrderStatus, type Customer, type Order } from '../../types';
 import { buildCustomerDirectory, categorySelectionLabel, matchesCategory } from '../../features/customers/customerLocation';
 import CustomerCard from '../../components/customers/CustomerCard';
@@ -19,6 +20,8 @@ const orders: Order[] = [10000, 5000, 2000, 500, 100, 4000].map((net, index) => 
   status: OrderStatus.Delivered, total_price: net * 1.24, vat_rate: 0.24, items: [],
 }));
 const entries = buildCustomerDirectory(customers, orders, { now, systemCustomerId: 'system' });
+
+afterEach(cleanup);
 
 describe('customer category presentation', () => {
   it('shows each active tier on cards and in the list with the same annual net turnover', () => {
@@ -54,23 +57,19 @@ describe('customer category presentation', () => {
 
   it('multi-selects activities and narrows active tiers', () => {
     const onChange = vi.fn();
-    let renderer: ReturnType<typeof create>;
-    act(() => { renderer = create(<CustomerCategoryFilter entries={entries} value={{ activities: ['active'], tiers: ['key'] }} onChange={onChange} />); });
-    const quietButton = renderer!.root.findAllByType('button').find(button => button.props.title?.includes('κάτω από 500'))!;
-    act(() => quietButton.props.onClick());
+    const view = render(<CustomerCategoryFilter entries={entries} value={{ activities: ['active'], tiers: ['key'] }} onChange={onChange} />);
+    const buttons = (root: HTMLElement = view.container) => Array.from(root.querySelectorAll('button'));
+    fireEvent.click(buttons().find(button => button.title?.includes('κάτω από 500'))!);
     expect(onChange).toHaveBeenLastCalledWith({ activities: ['active', 'quiet'], tiers: ['key'] });
-    const tierGroup = renderer!.root.findByProps({ 'aria-label': 'Υποκατηγορίες ενεργών πελατών' });
-    const steady = tierGroup.findAllByType('button').find(button => button.props.title?.startsWith('2.000'))!;
-    act(() => steady.props.onClick());
+    const tierGroup = view.getByLabelText('Υποκατηγορίες ενεργών πελατών');
+    fireEvent.click(buttons(tierGroup).find(button => button.title?.startsWith('2.000'))!);
     expect(onChange).toHaveBeenLastCalledWith({ activities: ['active'], tiers: ['key', 'steady'] });
-    const activeButton = renderer!.root.findAllByType('button').find(button => button.props.title === 'Αγορές από 500 € φέτος, χωρίς ΦΠΑ')!;
-    act(() => activeButton.props.onClick());
+    fireEvent.click(buttons().find(button => button.title === 'Αγορές από 500 € φέτος, χωρίς ΦΠΑ')!);
     expect(onChange).toHaveBeenLastCalledWith({ activities: [], tiers: [] });
-    act(() => renderer!.update(<CustomerCategoryFilter entries={entries} value={{ activities: ['quiet'], tiers: [] }} onChange={onChange} />));
-    expect(renderer!.root.findAllByProps({ 'aria-label': 'Υποκατηγορίες ενεργών πελατών' })).toHaveLength(0);
-    act(() => renderer!.root.findAllByType('button')[0].props.onClick());
+    view.rerender(<CustomerCategoryFilter entries={entries} value={{ activities: ['quiet'], tiers: [] }} onChange={onChange} />);
+    expect(view.queryAllByLabelText('Υποκατηγορίες ενεργών πελατών')).toHaveLength(0);
+    fireEvent.click(buttons()[0]);
     expect(onChange).toHaveBeenLastCalledWith({ activities: [], tiers: [] });
-    act(() => renderer!.unmount());
   });
 
   it('matches several categories and keeps tiers to active customers only', () => {

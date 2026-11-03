@@ -1,10 +1,10 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestInstance } from 'react-test-renderer';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Supplier } from '../../types';
 import SuppliersPage from '../../components/SuppliersPage';
 import SupplierFormModal from '../../components/suppliers/SupplierFormModal';
-import SupplierCard from '../../components/suppliers/SupplierCard';
 import MobileCustomers from '../../components/mobile/MobileCustomers';
 import { countSupplierKinds } from '../../components/suppliers/supplierUi';
 
@@ -33,10 +33,18 @@ vi.mock('../../components/customers/useCustomerTerritory', () => ({ useAssortmen
 vi.mock('../../components/customers/useCustomerVatLookup', () => ({ useCustomerVatLookup: () => ({ isSearching: false }) }));
 vi.mock('../../components/mobile/MobileSupplierDetails', () => ({ default: ({ onEditSupplier }: { onEditSupplier: () => void }) => <button onClick={onEditSupplier}>edit supplier</button> }));
 vi.mock('../../components/mobile/MobileCustomerDetails', () => ({ default: () => null }));
+// Tag each real card with its supplier id so the tests can see which cards render.
+vi.mock('../../components/suppliers/SupplierCard', async importOriginal => {
+    const original = await importOriginal<typeof import('../../components/suppliers/SupplierCard')>();
+    const Card = original.default as React.ComponentType<any>;
+    return { ...original, default: (props: any) => <div data-supplier-card={props.supplier.id}><Card {...props} /></div> };
+});
 
-const roots: ReturnType<typeof create>[] = [];
-const textOf = (node: ReactTestInstance): string => node.children.map(child => typeof child === 'string' ? child : textOf(child)).join('');
-const button = (root: ReactTestInstance, label: string) => root.findAllByType('button').find(node => textOf(node).trim() === label)!;
+const textOf = (node: Element | null = document.body) => node?.textContent ?? '';
+const button = (label: string) => Array.from(document.body.querySelectorAll('button')).find(node => textOf(node).trim() === label)!;
+const cards = () => Array.from(document.body.querySelectorAll<HTMLElement>('[data-supplier-card]'));
+const cardIds = () => cards().map(card => card.dataset.supplierCard);
+const click = (element: Element) => act(async () => { fireEvent.click(element); });
 const fixture: Supplier[] = [
     { id: 'gold', name: 'Gold Market', kind: 'supplier' },
     { id: 'legacy', name: 'Κοκκινίδης Νίκος' },
@@ -45,12 +53,10 @@ const fixture: Supplier[] = [
     { id: 'aade', name: 'ΑΑΔΕ', kind: 'service' },
 ];
 async function mount(element: React.ReactElement) {
-    let renderer!: ReturnType<typeof create>;
-    await act(async () => { renderer = create(element); roots.push(renderer); });
-    return renderer;
+    await act(async () => { render(element); });
 }
 beforeEach(() => { state.suppliers = fixture; state.orders = []; state.save.mockReset(); state.invalidate.mockReset(); });
-afterEach(async () => { await act(async () => roots.splice(0).forEach(root => root.unmount())); });
+afterEach(cleanup);
 
 describe('supplier and partner classification', () => {
     it('counts saved types separately and retains suppliers without a legacy kind', () => {
@@ -59,65 +65,65 @@ describe('supplier and partner classification', () => {
     });
 
     it('shows the correct supplier KPI, all five contacts, type badges, and a supplier filter', async () => {
-        const { root } = await mount(<SuppliersPage />);
-        expect(root.findAllByType(SupplierCard)).toHaveLength(5);
-        expect(root.findAllByType('div').some(node => textOf(node) === '2Προμηθευτές')).toBe(true);
-        expect(button(root, 'Όλοι5').props['aria-pressed']).toBe(true);
-        const vodafone = root.findAllByType(SupplierCard).find(card => card.props.supplier.id === 'vodafone')!;
+        await mount(<SuppliersPage />);
+        expect(cards()).toHaveLength(5);
+        expect(Array.from(document.body.querySelectorAll('div')).some(node => textOf(node) === '2Προμηθευτές')).toBe(true);
+        expect(button('Όλοι5').getAttribute('aria-pressed')).toBe('true');
+        const vodafone = cards().find(card => card.dataset.supplierCard === 'vodafone')!;
         expect(textOf(vodafone)).toContain('Πάροχος');
-        await act(async () => button(root, 'Προμηθευτές2').props.onClick());
-        expect(root.findAllByType(SupplierCard).map(card => card.props.supplier.id).sort()).toEqual(['gold', 'legacy']);
-        await act(async () => button(root, 'Πάροχοι2').props.onClick());
-        expect(root.findAllByType(SupplierCard).map(card => card.props.supplier.id).sort()).toEqual(['dei', 'vodafone']);
-        await act(async () => button(root, 'Υπηρεσίες1').props.onClick());
-        expect(root.findAllByType(SupplierCard).map(card => card.props.supplier.id)).toEqual(['aade']);
+        await click(button('Προμηθευτές2'));
+        expect(cardIds().sort()).toEqual(['gold', 'legacy']);
+        await click(button('Πάροχοι2'));
+        expect(cardIds().sort()).toEqual(['dei', 'vodafone']);
+        await click(button('Υπηρεσίες1'));
+        expect(cardIds()).toEqual(['aade']);
     });
 
     it('includes people and workers and keeps search scoped to the selected type', async () => {
         state.suppliers = [...fixture, { id: 'person', name: 'Επαφή', kind: 'person' }, { id: 'worker', name: 'Τεχνίτης', kind: 'worker' }];
-        const { root } = await mount(<SuppliersPage />);
-        expect(button(root, 'Πρόσωπα1')).toBeDefined();
-        expect(button(root, 'Συνεργάτες1')).toBeDefined();
-        await act(async () => button(root, 'Πάροχοι2').props.onClick());
-        await act(async () => root.findByType('input').props.onChange({ target: { value: 'Vodafone' } }));
-        expect(root.findAllByType(SupplierCard).map(card => card.props.supplier.id)).toEqual(['vodafone']);
-        await act(async () => button(root, 'Προμηθευτές2').props.onClick());
-        expect(root.findAllByType(SupplierCard)).toHaveLength(0);
-        expect(textOf(root)).toContain('Δεν βρέθηκαν επαφές.');
+        await mount(<SuppliersPage />);
+        expect(button('Πρόσωπα1')).toBeDefined();
+        expect(button('Συνεργάτες1')).toBeDefined();
+        await click(button('Πάροχοι2'));
+        await act(async () => { fireEvent.change(document.body.querySelector('input')!, { target: { value: 'Vodafone' } }); });
+        expect(cardIds()).toEqual(['vodafone']);
+        await click(button('Προμηθευτές2'));
+        expect(cards()).toHaveLength(0);
+        expect(textOf()).toContain('Δεν βρέθηκαν επαφές.');
     });
 
     it('keeps the supplier selector available in an empty list', async () => {
         state.suppliers = [];
-        const { root } = await mount(<SuppliersPage />);
-        expect(button(root, 'Προμηθευτές0')).toBeDefined();
-        expect(button(root, 'Όλοι0')).toBeDefined();
+        await mount(<SuppliersPage />);
+        expect(button('Προμηθευτές0')).toBeDefined();
+        expect(button('Όλοι0')).toBeDefined();
     });
 
     it('edits a provider to a supplier without dropping existing contact fields', async () => {
         const onSave = vi.fn();
         const initial = { ...fixture[2], phone: '2100000000', iban: 'GR-test' };
-        const { root } = await mount(<SupplierFormModal initial={initial} existingSuppliers={fixture} onSave={onSave} onClose={() => {}} />);
-        await act(async () => button(root, 'Προμηθευτής').props.onClick());
-        await act(async () => button(root, 'Αποθήκευση').props.onClick());
+        await mount(<SupplierFormModal initial={initial} existingSuppliers={fixture} onSave={onSave} onClose={() => {}} />);
+        await click(button('Προμηθευτής'));
+        await click(button('Αποθήκευση'));
         expect(onSave).toHaveBeenCalledWith({ ...initial, kind: 'supplier' });
     });
 
     it('filters mobile contacts by type and saves a changed type through the existing API', async () => {
-        const { root } = await mount(<MobileCustomers mode="suppliers" />);
-        await act(async () => button(root, 'Προμηθευτές 2').props.onClick());
-        expect(textOf(root)).toContain('Gold Market');
-        expect(textOf(root)).not.toContain('Vodafone');
-        await act(async () => button(root, 'Πάροχοι 2').props.onClick());
-        expect(textOf(root)).toContain('Vodafone');
-        expect(textOf(root)).toContain('ΔΕΗ');
-        expect(textOf(root)).not.toContain('Gold Market');
+        await mount(<MobileCustomers mode="suppliers" />);
+        await click(button('Προμηθευτές 2'));
+        expect(textOf()).toContain('Gold Market');
+        expect(textOf()).not.toContain('Vodafone');
+        await click(button('Πάροχοι 2'));
+        expect(textOf()).toContain('Vodafone');
+        expect(textOf()).toContain('ΔΕΗ');
+        expect(textOf()).not.toContain('Gold Market');
         // Open the provider, then use the real mobile editor.
-        const editButtons = root.findAllByType('button').filter(node => node.props['aria-label'] === 'Προβολή προμηθευτή');
-        await act(async () => editButtons[0].props.onClick({ stopPropagation() {} }));
-        await act(async () => button(root, 'edit supplier').props.onClick());
-        expect(root.findByType('select').props.value).toBe('utility');
-        await act(async () => root.findByType('select').props.onChange({ target: { value: 'supplier' } }));
-        await act(async () => root.findAllByType('button').find(node => textOf(node).includes('Αποθήκευση'))!.props.onClick());
+        const editButtons = Array.from(document.body.querySelectorAll('button')).filter(node => node.getAttribute('aria-label') === 'Προβολή προμηθευτή');
+        await click(editButtons[0]);
+        await click(button('edit supplier'));
+        expect(document.body.querySelector('select')!.value).toBe('utility');
+        await act(async () => { fireEvent.change(document.body.querySelector('select')!, { target: { value: 'supplier' } }); });
+        await click(Array.from(document.body.querySelectorAll('button')).find(node => textOf(node).includes('Αποθήκευση'))!);
         expect(state.save).toHaveBeenCalledWith({ ...fixture[2], kind: 'supplier' });
         expect(state.invalidate).toHaveBeenCalledWith({ queryKey: ['suppliers'] });
     });

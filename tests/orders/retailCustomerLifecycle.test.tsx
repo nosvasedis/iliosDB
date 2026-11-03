@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildOrderCustomerFields, getOrderCustomerName, getOrderCustomerPhone, ordersHaveSameCustomer } from '../../utils/orderCustomer';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../../utils/retailConstants';
@@ -14,6 +15,8 @@ const makeOrder = (id: string, name: string): Order => ({
     status: OrderStatus.Ready, created_at: '2026-10-15T10:00:00Z', total_price: 10,
     items: [{ sku: 'RN001', quantity: 1, price_at_order: 10, line_id: 'line-1' }],
 });
+
+afterEach(cleanup);
 
 describe('retail customer lifecycle', () => {
     it('keeps name, phone and normal notes across save, edit, and offer conversion', () => {
@@ -78,18 +81,13 @@ describe('retail customer lifecycle', () => {
     it('provides one labelled name input and an explicit customer change action', () => {
         const onChange = vi.fn();
         const onChangeCustomer = vi.fn();
-        let renderer: ReturnType<typeof create>;
-        act(() => { renderer = create(<RetailClientField value="Μαρία" onChange={onChange} onChangeCustomer={onChangeCustomer} />); });
-        const input = renderer!.root.findByType('input');
-        expect(input.props.value).toBe('Μαρία');
-        expect(renderer!.root.findByType('label').props.htmlFor).toBe(input.props.id);
-        act(() => input.props.onChange({ target: { value: 'Ελένη' } }));
+        const view = render(<RetailClientField value="Μαρία" onChange={onChange} onChangeCustomer={onChangeCustomer} />);
+        const input = view.container.querySelector('input')!;
+        expect(input.value).toBe('Μαρία');
+        expect(view.container.querySelector('label')!.htmlFor).toBe(input.id);
+        fireEvent.change(input, { target: { value: 'Ελένη' } });
         expect(onChange).toHaveBeenCalledWith('Ελένη');
-        act(() => renderer!.root.findByType('button').props.onClick());
+        fireEvent.click(view.getByRole('button'));
         expect(onChangeCustomer).toHaveBeenCalledOnce();
-        // HoverTooltip only accesses window in events/cleanup; provide the browser timer used on unmount.
-        vi.stubGlobal('window', { clearTimeout });
-        act(() => renderer!.unmount());
-        vi.unstubAllGlobals();
     });
 });

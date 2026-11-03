@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Gender, PlatingType, ProductionType, type Product } from '../../types';
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   loadLegalCatalog: vi.fn(), mutateAsync: vi.fn(), showToast: vi.fn(), confirm: vi.fn(),
   profile: { id: 'owner', role: 'admin', full_name: 'Owner', is_approved: true },
   emptyQuery: { data: [], isLoading: false, isError: false, isPending: false, refetch: vi.fn() },
+  pickerProps: vi.fn(),
 }));
 vi.mock('../../lib/supabase', () => ({ api: {}, supabase: {}, isLocalMode: false }));
 vi.mock('../../components/AuthContext', () => ({ useAuth: () => ({ profile: mocks.profile }) }));
@@ -29,9 +31,8 @@ vi.mock('../../hooks/api/useLegalDocuments', async (importOriginal) => {
   };
 });
 vi.mock('../../components/legal/SbzSettings', () => ({ default: () => null, useSbzStatus: () => ({ data: undefined }) }));
-vi.mock('../../components/legal/SkuProductPicker', () => ({ default: () => <div data-testid="sku-picker" /> }));
+vi.mock('../../components/legal/SkuProductPicker', () => ({ default: (props: any) => { mocks.pickerProps(props); return <div data-testid="sku-picker" />; } }));
 import LegalDocumentsPage from '../../components/LegalDocumentsPage';
-import SkuProductPicker from '../../components/legal/SkuProductPicker';
 import { legalCatalogProducts } from '../../features/inspection/catalog';
 
 const item: LegalCatalogItem = {
@@ -52,21 +53,20 @@ function deferred<T>() {
 
 describe('legal document page catalog loading', () => {
   let client: QueryClient;
-  let renderer: ReactTestRenderer | undefined;
+  let view: ReturnType<typeof render> | undefined;
   const page = (props: Partial<React.ComponentProps<typeof LegalDocumentsPage>> = {}) => (
     <QueryClientProvider client={client}><LegalDocumentsPage products={[]} onPrintLegalDocument={() => {}} {...props} /></QueryClientProvider>
   );
-  const text = () => JSON.stringify(renderer!.toJSON());
-  const content = (node: ReactTestInstance | string): string => typeof node === 'string'
-    ? node : node.children.map(content).join('');
-  const button = (label: string) => renderer!.root.findAllByType('button').find((node) =>
-    content(node).includes(label),
+  const text = () => view!.container.textContent ?? '';
+  const button = (label: string) => Array.from(view!.container.querySelectorAll('button')).find((node) =>
+    (node.textContent ?? '').includes(label),
   )!;
+  const click = (label: string) => settle(() => { fireEvent.click(button(label)); });
   async function settle(run: () => void | Promise<void>) {
     await act(async () => { await run(); await vi.advanceTimersByTimeAsync(5); });
   }
   async function mount(props: Parameters<typeof page>[0] = {}) {
-    await settle(() => { renderer = create(page(props)); });
+    await settle(() => { view = render(page(props)); });
     // React 19 starts the catalog query in a later effect flush; let it settle.
     await settle(() => {});
   }
@@ -77,12 +77,12 @@ describe('legal document page catalog loading', () => {
     mocks.loadLegalCatalog.mockReset();
     mocks.mutateAsync.mockRejectedValue(new Error('This render test must not issue or save a document'));
     client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
-    vi.stubGlobal('localStorage', { getItem: () => null });
-    vi.stubGlobal('sessionStorage', { getItem: () => null });
+    localStorage.clear();
+    sessionStorage.clear();
   });
   afterEach(async () => {
-    if (renderer) await act(async () => { renderer!.unmount(); });
-    renderer = undefined;
+    cleanup();
+    view = undefined;
     client.clear();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -98,10 +98,10 @@ describe('legal document page catalog loading', () => {
     await settle(() => { response.resolve(catalog()); });
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
     expect(text()).not.toContain('Ανανέωση καταλόγου');
-    await settle(() => { button('Χειροκίνητα').props.onClick(); });
-    await settle(() => { button('Έναρξη καταχώρισης').props.onClick(); });
-    const picker = renderer!.root.findByType(SkuProductPicker);
-    expect(picker.props.products.find((product: Product) => product.sku === item.sku)).toMatchObject({
+    await click('Χειροκίνητα');
+    await click('Έναρξη καταχώρισης');
+    expect(view!.queryByTestId('sku-picker')).not.toBeNull();
+    expect(mocks.pickerProps.mock.calls.at(-1)![0].products.find((product: Product) => product.sku === item.sku)).toMatchObject({
       selling_price: 100, resolved_invoice_weight: { value: 9 }, variants: [{ suffix: 'H', selling_price: 120 }],
     });
     expect(mocks.mutateAsync).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe('legal document page catalog loading', () => {
     await mount();
     expect(text()).toContain('Δεν ανακτήθηκε ο κατάλογος έκδοσης');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
-    await settle(() => { button('Ανανέωση καταλόγου').props.onClick(); });
+    await click('Ανανέωση καταλόγου');
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
   });
 
@@ -129,7 +129,7 @@ describe('legal document page catalog loading', () => {
     await mount();
     expect(text()).toContain('Χρησιμοποιείται αποθηκευμένος κατάλογος');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
-    await settle(() => { button('Ανανέωση καταλόγου').props.onClick(); });
+    await click('Ανανέωση καταλόγου');
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
   });
 
@@ -137,7 +137,7 @@ describe('legal document page catalog loading', () => {
     await mount({ presentation: 'inspection', products: legalCatalogProducts([item]), inspectionCatalogReady: false });
     expect(text()).toContain('Για νέα δημιουργία απαιτούνται σύνδεση');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
-    await settle(() => { renderer!.update(page({ presentation: 'inspection', products: legalCatalogProducts([item]), inspectionCatalogReady: true })); });
+    await settle(() => { view!.rerender(page({ presentation: 'inspection', products: legalCatalogProducts([item]), inspectionCatalogReady: true })); });
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
     expect(mocks.loadLegalCatalog).not.toHaveBeenCalled();
     expect(mocks.mutateAsync).not.toHaveBeenCalled();

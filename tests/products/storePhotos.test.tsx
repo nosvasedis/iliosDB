@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, create } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import CatalogProductCard from '../../components/catalog/CatalogProductCard';
 import { getStoreCatalogIndex, selectStoreCatalog } from '../../components/employee/storeCatalog';
 import { mapProductsWithRelations } from '../../features/products/mappers';
@@ -12,6 +13,8 @@ const products = mapProductsWithRelations([{
     image_url: 'https://legacy-bucket.r2.dev/BDA002.jpg', weight_g: 1,
     plating_type: PlatingType.None, production_type: ProductionType.InHouse,
 }], {}, { publicImageBaseUrl: 'https://ilios-image-handler.iliosdb.workers.dev', centralWarehouseId: '', showroomWarehouseId: '' });
+
+afterEach(cleanup);
 
 describe('redesigned store photo wiring', () => {
     it('preserves the mapped image through catalog indexing and filtering into the card', () => {
@@ -24,13 +27,11 @@ describe('redesigned store photo wiring', () => {
     });
 
     it('does not keep a failed-image placeholder when the product photo changes', () => {
-        let view!: ReturnType<typeof create>;
-        act(() => { view = create(<CatalogProductCard product={products[0]} density="regular" onOpen={() => {}} />); });
-        act(() => view.root.findByType('img').props.onError());
-        expect(view.root.findAllByType('img')).toHaveLength(0);
+        const view = render(<CatalogProductCard product={products[0]} density="regular" onOpen={() => {}} />);
+        fireEvent.error(view.container.querySelector('img')!);
+        expect(view.container.querySelectorAll('img')).toHaveLength(0);
         const updated = { ...products[0], image_url: 'https://ilios-image-handler.iliosdb.workers.dev/BDA002-new.webp' };
-        act(() => view.update(<CatalogProductCard product={updated} density="regular" onOpen={() => {}} />));
-        expect(view.root.findByType('img').props.src).toBe(updated.image_url);
-        act(() => view.unmount());
+        view.rerender(<CatalogProductCard product={updated} density="regular" onOpen={() => {}} />);
+        expect(view.container.querySelector('img')!.getAttribute('src')).toBe(updated.image_url);
     });
 });

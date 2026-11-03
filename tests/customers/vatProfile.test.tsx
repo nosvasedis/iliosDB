@@ -1,16 +1,12 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Customer, CustomerVatLookupResult } from '../../types';
 import { applyGeographicVat, suggestGeographicVat } from '../../features/customers/vatProfile';
 import CustomerVatProfileSuggestion from '../../components/customers/CustomerVatProfileSuggestion';
 
-// React 19's create() only renders inside act().
-function mount(element: React.ReactElement) {
-  let view!: ReturnType<typeof create>;
-  act(() => { view = create(element); });
-  return view;
-}
+afterEach(cleanup);
 
 const customer = (address: string): Customer => ({ id: 'new', full_name: 'Δοκιμή', address, vat_number: '987654324', vat_rate: 0.24 });
 
@@ -60,23 +56,23 @@ describe('fiscal profile suggestion UI', () => {
 
   it('requires an explicit click and passes the actual rate to the customer form', () => {
     const onChange = vi.fn();
-    const view = mount(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={onChange} lookup={lookup} />);
+    const view = render(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={onChange} lookup={lookup} />);
     expect(onChange).not.toHaveBeenCalled();
-    expect(JSON.stringify(view.toJSON())).toContain('δεν σημαίνει ότι ο πελάτης αγοράζει χωρίς ΦΠΑ');
-    act(() => view.root.findByType('button').props.onClick());
+    expect(view.container.textContent).toContain('δεν σημαίνει ότι ο πελάτης αγοράζει χωρίς ΦΠΑ');
+    fireEvent.click(view.getByRole('button'));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ vat_rate: 0.17 }));
-    act(() => view.update(<CustomerVatProfileSuggestion customer={onChange.mock.calls[0][0]} onChange={onChange} lookup={lookup} />));
-    expect(JSON.stringify(view.toJSON())).toContain('Εφαρμόζεται στο προφίλ');
-    expect(view.root.findAllByType('button')).toHaveLength(0);
+    view.rerender(<CustomerVatProfileSuggestion customer={onChange.mock.calls[0][0]} onChange={onChange} lookup={lookup} />);
+    expect(view.container.textContent).toContain('Εφαρμόζεται στο προφίλ');
+    expect(view.container.querySelectorAll('button')).toHaveLength(0);
   });
 
   it('disables applying a suggestion for an inactive AFM', () => {
-    const view = mount(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={vi.fn()} lookup={{ ...lookup, active: false }} />);
-    expect(view.root.findByType('button').props.disabled).toBe(true);
+    const view = render(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={vi.fn()} lookup={{ ...lookup, active: false }} />);
+    expect((view.getByRole('button') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('hides registry evidence belonging to a different AFM', () => {
-    const view = mount(<CustomerVatProfileSuggestion customer={{ ...customer('Αθήνα'), vat_number: '094259216' }} onChange={vi.fn()} lookup={lookup} />);
-    expect(JSON.stringify(view.toJSON())).not.toContain('ΑΑΔΕ: εκτός');
+    const view = render(<CustomerVatProfileSuggestion customer={{ ...customer('Αθήνα'), vat_number: '094259216' }} onChange={vi.fn()} lookup={lookup} />);
+    expect(view.container.textContent).not.toContain('ΑΑΔΕ: εκτός');
   });
 });

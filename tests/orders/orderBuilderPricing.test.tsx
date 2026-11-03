@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OrderStatus, type Order, type Product } from '../../types';
@@ -30,21 +31,22 @@ const order: Order = {
     created_at: '2026-10-22T00:00:00Z', vat_rate: 0.24, total_price: 12.4,
     items: [{ sku: 'BDA001', quantity: 1, price_at_order: 10, size_info: '52', line_id: 'line-1' }],
 };
-let renderer: ReturnType<typeof create>;
 const mount = (children: React.ReactNode) => {
-    act(() => { renderer = create(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>); });
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>);
 };
+const buttons = () => Array.from(document.body.querySelectorAll('button'));
+const priceSwitch = () => document.body.querySelector<HTMLInputElement>('[role="switch"]')!;
+// The first two controls in the mobile header are back and save.
+const save = () => act(async () => { fireEvent.click(buttons()[1]); });
 beforeEach(() => {
-    const storage = { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() };
-    vi.stubGlobal('sessionStorage', storage);
-    vi.stubGlobal('localStorage', storage);
-    vi.stubGlobal('window', { clearTimeout });
+    // Start every test without saved drafts.
+    sessionStorage.clear();
+    localStorage.clear();
     vi.spyOn(api, 'updateOrder').mockResolvedValue(undefined);
 });
 afterEach(() => {
-    act(() => renderer?.unmount());
+    cleanup();
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
 });
 
 describe('order builder pricing controls', () => {
@@ -90,15 +92,15 @@ describe('order builder pricing controls', () => {
     it('keeps mobile rings editable through the dash and saves the selected size', async () => {
         const sizedProducts = [{ ...products[0], sku: 'RN001', prefix: 'RN', variants: [{ suffix: 'P', description: 'Πατίνα', selling_price: 10 }] }] as Product[];
         mount(<MobileOrderBuilder onBack={vi.fn()} initialOrder={{ ...order, items: [] }} products={sizedProducts} />);
-        const input = () => renderer.root.findAllByType('input').find(i => i.props.placeholder?.startsWith('Κωδικός ή πλήρης'))!;
+        const input = () => Array.from(document.body.querySelectorAll('input')).find(i => i.placeholder?.startsWith('Κωδικός ή πλήρης'))!;
         for (const value of ['RN001P', 'RN001P-', 'RN001P-6', 'RN001P-62']) {
-            act(() => input().props.onChange({ target: { value } }));
-            expect(input().props.value).toBe(value);
+            fireEvent.change(input(), { target: { value } });
+            expect(input().value).toBe(value);
         }
-        expect(renderer.root.findByProps({ title: 'Μέγεθος 62' }).props.className).toContain('text-blue-600');
-        act(() => input().props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() }));
-        act(() => renderer.root.findAllByType('button').find(b => b.props.className?.includes('bg-emerald-600') && b.props.onClick)!.props.onClick());
-        await act(async () => { await renderer.root.findAllByType('button')[1].props.onClick(); });
+        expect(document.body.querySelector('[title="Μέγεθος 62"]')!.className).toContain('text-blue-600');
+        fireEvent.keyDown(input(), { key: 'Enter' });
+        fireEvent.click(buttons().find(b => b.className.includes('bg-emerald-600'))!);
+        await save();
         expect(api.updateOrder).toHaveBeenCalledWith(expect.objectContaining({
             items: [expect.objectContaining({ sku: 'RN001', variant_suffix: 'P', size_info: '62' })],
         }), undefined);
@@ -110,7 +112,7 @@ describe('order builder pricing controls', () => {
             return <OrderPriceModeToggle value={builder.state.priceMode} onChange={builder.actions.handlePriceModeChange} />;
         }
         mount(<Harness />);
-        act(() => renderer.root.findByProps({ role: 'switch' }).props.onChange({ target: { checked: true } }));
+        fireEvent.click(priceSwitch());
         expect(builder!.state.selectedItems[0].price_at_order).toBe(30);
         act(() => builder!.actions.handleScanInOrder('ΒΔΑ001'));
         expect(builder!.state.selectedItems.map(item => item.price_at_order)).toEqual([30, 30]);
@@ -126,17 +128,17 @@ describe('order builder pricing controls', () => {
             items: expect.arrayContaining([expect.objectContaining({ sku: 'ΒΔΑ001', size_info: '54', price_mode: 'retail', price_at_order: 30 })]),
             total_price: 74.4,
         }), undefined);
-        act(() => renderer.root.findByProps({ role: 'switch' }).props.onChange({ target: { checked: false } }));
+        expect(priceSwitch().checked).toBe(true);
+        fireEvent.click(priceSwitch());
         expect(builder!.state.selectedItems.map(item => item.price_at_order)).toEqual([10, 10]);
     });
 
     it('restores the mobile switch on reopen and saves wholesale prices after switching back', async () => {
         mount(<MobileOrderBuilder onBack={vi.fn()} initialOrder={{ ...order, items: [{ ...order.items[0], price_at_order: 30, price_mode: 'retail' }] }} products={products} />);
-        expect(renderer.root.findByProps({ role: 'switch' }).props.checked).toBe(true);
-        act(() => renderer.root.findByProps({ role: 'switch' }).props.onChange({ target: { checked: false } }));
-        expect(renderer.root.findByType(OrderPriceModeToggle).props.value).toBe('wholesale');
-        // The first two controls in the mobile header are back and save.
-        await act(async () => { await renderer.root.findAllByType('button')[1].props.onClick(); });
+        expect(priceSwitch().checked).toBe(true);
+        fireEvent.click(priceSwitch());
+        expect(priceSwitch().checked).toBe(false);
+        await save();
         expect(api.updateOrder).toHaveBeenCalledWith(expect.objectContaining({
             items: [expect.objectContaining({ price_at_order: 10, price_mode: 'wholesale', size_info: '52' })],
             total_price: 12.4,

@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
 import type { UserProfile } from '../../types';
@@ -39,7 +40,7 @@ const profile = (id = 'owner'): UserProfile => ({ id, role: 'admin', is_approved
 type Auth = ReturnType<typeof useAuth>;
 
 describe('profile startup coordination', () => {
-  let renderer: ReactTestRenderer | undefined;
+  let renderer: ReturnType<typeof render> | undefined;
   let current: Auth;
   let screens: string[];
   let notify: (event: string, session: Session | null) => void;
@@ -60,7 +61,7 @@ describe('profile startup coordination', () => {
     return <div>{screen}{screen.startsWith('ready:') && <Workspace />}</div>;
   }
   async function mount() {
-    await act(async () => { renderer = create(<AuthProvider><Probe /></AuthProvider>); });
+    await act(async () => { renderer = render(<AuthProvider><Probe /></AuthProvider>); });
   }
   async function emit(event: string, value: Session | null) {
     await act(async () => { notify(event, value); await vi.advanceTimersByTimeAsync(0); });

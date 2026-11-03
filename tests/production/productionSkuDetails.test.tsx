@@ -1,10 +1,10 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Gender, OrderStatus, ProductionStage, ProductionType, type Order, type Product, type ProductionBatch } from '../../types';
 import ProductionSendModal from '../../components/ProductionSendModal';
-import ProductDetails from '../../components/ProductDetails';
 import { STAGES } from '../../components/production/stageConstants';
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     settings: vi.fn(() => ({ data: { silver_price_gram: 2.5 }, isError: false })),
     molds: vi.fn(() => ({ data: [], isError: false })),
     print: vi.fn(),
+    details: vi.fn(),
 }));
 vi.mock('../../components/UIProvider', () => ({ useUI: () => ({ showToast: mocks.showToast, confirm: mocks.confirm }) }));
 vi.mock('../../hooks/api/useOrders', () => ({ useOrderShipmentsForOrder: () => ({ data: mocks.shipments, isLoading: false }) }));
@@ -19,7 +20,7 @@ vi.mock('../../hooks/api/useProductionBatches', () => ({ useBatchStageHistoryEnt
 vi.mock('../../hooks/api/useSettings', () => ({ useSettings: mocks.settings }));
 vi.mock('../../hooks/api/useMolds', () => ({ useMolds: mocks.molds }));
 vi.mock('../../components/PrintContext', () => ({ usePrint: () => ({ setPrintItems: mocks.print }) }));
-vi.mock('../../components/ProductDetails', () => ({ default: (props: any) => <div data-testid="sku-details"><button aria-label="Κλείσιμο στοιχείων SKU" onClick={props.onClose}>Κλείσιμο</button></div> }));
+vi.mock('../../components/ProductDetails', () => ({ default: (props: any) => { mocks.details(props); return <div data-testid="sku-details"><button aria-label="Κλείσιμο στοιχείων SKU" onClick={props.onClose}>Κλείσιμο</button></div>; } }));
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: ({ count }: { count: number }) => ({
     getTotalSize: () => count * 100,
     getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 100 })),
@@ -40,37 +41,33 @@ const batch = {
     id: 'batch-1', order_id: order.id, sku: product.sku, variant_suffix: 'X', line_id: 'line-1',
     quantity: 1, current_stage: ProductionStage.Waxing, created_at: order.created_at, updated_at: order.created_at,
 } as ProductionBatch;
-let renderer: ReactTestRenderer;
+let view: ReturnType<typeof render>;
 let client: QueryClient;
-let listeners: Set<(event: { key: string }) => void>;
 const onClose = vi.fn();
 beforeEach(() => {
     vi.clearAllMocks();
-    listeners = new Set();
-    vi.stubGlobal('window', {
-        addEventListener: (type: string, listener: any) => { if (type === 'keydown') listeners.add(listener); },
-        removeEventListener: (type: string, listener: any) => { if (type === 'keydown') listeners.delete(listener); },
-        setInterval, clearInterval, setTimeout, clearTimeout,
-    });
-    vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 afterEach(() => {
-    act(() => renderer?.unmount());
+    cleanup();
     client.clear();
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
 });
-const mount = () => act(() => {
-    renderer = create(<QueryClientProvider client={client}><ProductionSendModal order={order} products={[product]} materials={[]} collections={[]} existingBatches={[batch]} onClose={onClose} /></QueryClientProvider>);
-});
+const mount = () => {
+    view = render(<QueryClientProvider client={client}><ProductionSendModal order={order} products={[product]} materials={[]} collections={[]} existingBatches={[batch]} onClose={onClose} /></QueryClientProvider>);
+};
+const skuButtons = () => view.queryAllByLabelText('Προβολή στοιχείων BDA001X');
+const detailsOpen = () => view.queryAllByTestId('sku-details').length > 0;
+const lastDetailsProps = () => mocks.details.mock.calls.at(-1)![0];
 const openSku = async (last = false) => {
-    const stopPropagation = vi.fn();
-    const buttons = renderer.root.findAllByProps({ 'aria-label': 'Προβολή στοιχείων BDA001X' });
+    const stopPropagation = vi.spyOn(Event.prototype, 'stopPropagation');
+    const buttons = skuButtons();
     await act(async () => {
-        buttons[last ? buttons.length - 1 : 0].props.onClick({ stopPropagation });
+        fireEvent.click(buttons[last ? buttons.length - 1 : 0]);
         await import('../../components/production/ProductionSkuDetails');
     });
     expect(stopPropagation).toHaveBeenCalledOnce();
+    stopPropagation.mockRestore();
 };
 
 describe('production management SKU details', () => {
@@ -79,25 +76,27 @@ describe('production management SKU details', () => {
         expect(mocks.settings).not.toHaveBeenCalled();
         expect(mocks.molds).not.toHaveBeenCalled();
         await openSku();
-        expect(renderer.root.findByType(ProductDetails).props).toMatchObject({
+        expect(detailsOpen()).toBe(true);
+        expect(lastDetailsProps()).toMatchObject({
             product, initialVariantSuffix: 'X', zIndex: 650, allProducts: [product],
         });
-        act(() => renderer.root.findByProps({ 'aria-label': 'Κλείσιμο στοιχείων SKU' }).props.onClick());
-        expect(renderer.root.findAllByType(ProductDetails)).toHaveLength(0);
-        expect(renderer.root.findAllByProps({ 'aria-label': 'Προβολή στοιχείων BDA001X' })).toHaveLength(1);
+        fireEvent.click(view.getByLabelText('Κλείσιμο στοιχείων SKU'));
+        expect(detailsOpen()).toBe(false);
+        expect(skuButtons()).toHaveLength(1);
         expect(onClose).not.toHaveBeenCalled();
     });
 
     it('opens SKU details from the stage popup and Escape leaves the popup in place', async () => {
         mount();
         const stageLabel = STAGES.find(stage => stage.id === ProductionStage.Waxing)!.label;
-        act(() => renderer.root.findAllByType('button').find(button => button.props.title?.startsWith(`${stageLabel}:`))!.props.onClick());
-        expect(renderer.root.findAllByProps({ 'aria-label': 'Προβολή στοιχείων BDA001X' })).toHaveLength(2);
+        fireEvent.click(Array.from(view.container.querySelectorAll('button')).find(button => button.title?.startsWith(`${stageLabel}:`))!);
+        expect(skuButtons()).toHaveLength(2);
         await openSku(true);
-        expect(renderer.root.findByType(ProductDetails).props.initialVariantSuffix).toBe('X');
-        act(() => { for (const listener of [...listeners]) listener({ key: 'Escape' }); });
-        expect(renderer.root.findAllByType(ProductDetails)).toHaveLength(0);
-        expect(renderer.root.findAllByProps({ 'aria-label': 'Προβολή στοιχείων BDA001X' })).toHaveLength(2);
+        expect(detailsOpen()).toBe(true);
+        expect(lastDetailsProps().initialVariantSuffix).toBe('X');
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(detailsOpen()).toBe(false);
+        expect(skuButtons()).toHaveLength(2);
         expect(onClose).not.toHaveBeenCalled();
     });
 });
