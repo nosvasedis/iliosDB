@@ -1,3 +1,4 @@
+import { getProductTheme, getReligiousCollectionIds, productThemeLabel, type ProductTheme } from '../features/products/productThemes';
 import {
   Collection,
   Gender,
@@ -81,6 +82,7 @@ export interface FinanceLineEvent {
   margin: number;
   category: string;
   gender?: Gender;
+  theme?: ProductTheme;
   collectionId: number | null;
   collectionName: string;
   productImage: string | null;
@@ -231,6 +233,7 @@ export interface FinanceAnalytics {
   topSellers: FinanceSellerRanking[];
   categoryChartData: FinanceCategoryRanking[];
   subcategoryChartData: FinanceCategoryRanking[];
+  themeChartData: FinanceCategoryRanking[];
   timeChartData: FinanceTimePoint[];
   costWarnings: string[];
   isSingleOrder: boolean;
@@ -395,6 +398,7 @@ function buildLineEvent(params: {
   shipment?: OrderShipment | null;
   product?: Product;
   collectionById: Map<number, Collection>;
+  religiousCollectionIds: ReadonlySet<number>;
   settings: GlobalSettings;
   materials: Material[];
   products: Product[];
@@ -451,6 +455,7 @@ function buildLineEvent(params: {
   const productCollections = effectiveProduct?.collections || product?.collections || [];
   const collectionId = productCollections.length > 0 ? productCollections[0] : null;
   const collectionName = collectionId !== null ? (collectionById.get(collectionId)?.name || 'Χωρίς όνομα') : 'Χωρίς συλλογή';
+  const theme = getProductTheme(effectiveProduct || product || {}, params.religiousCollectionIds);
   const category = isSpecialCreationSku(resolvedSku.masterSku)
     ? 'Ειδική δημιουργία'
     : (effectiveProduct?.category || product?.category || 'Χωρίς προϊόν');
@@ -488,6 +493,7 @@ function buildLineEvent(params: {
     margin: net > 0 ? (profit / net) * 100 : 0,
     category,
     gender: effectiveProduct?.gender || product?.gender,
+    theme,
     collectionId,
     collectionName,
     productImage: effectiveProduct?.image_url || product?.image_url || null,
@@ -614,6 +620,7 @@ export function buildFinanceLineEvents(
   const materialsMap = new Map(materials.map((material) => [material.id, material]));
   const resolveResources = createRecipeResourceResolver(products, materials);
   const collectionById = new Map((input.collections || []).map((collection) => [collection.id, collection]));
+  const religiousCollectionIds = getReligiousCollectionIds(input.collections || []);
   const sellerById = new Map((input.sellers || []).map((seller) => [seller.id, seller]));
   const { shipmentsById, shipmentsByOrderId, itemsByOrderId } = indexShipmentsForFinance(shipments, shipmentItems);
 
@@ -642,6 +649,7 @@ export function buildFinanceLineEvents(
           shipment,
           product,
           collectionById,
+          religiousCollectionIds,
           settings,
           materials,
           products,
@@ -664,6 +672,7 @@ export function buildFinanceLineEvents(
             shipment: null,
             product: productsMap.get(item.sku),
             collectionById,
+          religiousCollectionIds,
             settings,
             materials,
             products,
@@ -691,6 +700,7 @@ export function buildFinanceLineEvents(
           shipment: null,
           product: productsMap.get(item.sku),
           collectionById,
+          religiousCollectionIds,
           settings,
           materials,
           products,
@@ -848,6 +858,7 @@ export function rankFinanceAnalyticsFromEvents(
   const topSellersMap = new Map<string, FinanceSellerRanking>();
   const categoryMap = new Map<string, FinanceCategoryRanking>();
   const subcategoryMap = new Map<string, FinanceCategoryRanking>();
+  const themeMap = new Map<ProductTheme, FinanceCategoryRanking>();
   const timeMap = new Map<string, FinanceTimePoint>();
   const timeOrderMap = new Map<string, number>();
 
@@ -919,6 +930,10 @@ export function rankFinanceAnalyticsFromEvents(
       };
       addRankingTotals(subcategoryRow, event);
       subcategoryMap.set(detail, subcategoryRow);
+      const theme = event.theme || getProductTheme(event);
+      const themeRow = themeMap.get(theme) || { name: productThemeLabel(theme), revenue: 0, estimatedCost: 0, profit: 0, margin: 0, quantity: 0 };
+      addRankingTotals(themeRow, event);
+      themeMap.set(theme, themeRow);
     }
 
     const shouldRankCustomer = !(event.customerId === RETAIL_CUSTOMER_ID || event.customerName === RETAIL_CUSTOMER_NAME);
@@ -1060,6 +1075,7 @@ export function rankFinanceAnalyticsFromEvents(
       .sort((a, b) => b.revenue + b.pendingRevenue - (a.revenue + a.pendingRevenue)),
     categoryChartData: sortRankings(Array.from(categoryMap.values())),
     subcategoryChartData: sortRankings(Array.from(subcategoryMap.values())),
+    themeChartData: sortRankings(Array.from(themeMap.values())),
     timeChartData: sortedTime,
     costWarnings,
     isSingleOrder: orders.filter((order) => order.status !== OrderStatus.Cancelled).length === 1,

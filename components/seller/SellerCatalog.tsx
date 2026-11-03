@@ -1,3 +1,5 @@
+import { ThemeFilter } from '../catalog/ProductClassificationFilters';
+import { productThemeLabel, type ProductTheme } from '../../features/products/productThemes';
 import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
 import { getProductCollectionOptions } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
@@ -46,6 +48,7 @@ type FacetFilters = Omit<SellerCatalogFilters, 'search' | 'categoryGroup'>;
 
 const DEFAULT_FACETS: FacetFilters = {
     gender: 'All',
+    theme: 'all',
     collection: 'All',
     finish: null,
     stone: null,
@@ -86,11 +89,11 @@ export default function SellerCatalog({ products, collections }: Props) {
         categoryGroup: group,
     }), [facets, search, group]));
 
-    const filteredProducts = useMemo(() => selectSellerCatalogProducts(catalogIndex, filters), [catalogIndex, filters]);
+    const filteredProducts = useMemo(() => selectSellerCatalogProducts(catalogIndex, filters, collections), [catalogIndex, filters, collections]);
     const resetKey = JSON.stringify(filters);
 
     const activeCount = [
-        facets.gender !== 'All', facets.collection !== 'All', facets.finish !== null, facets.stone !== null,
+        facets.theme !== 'all', facets.gender !== 'All', facets.collection !== 'All', facets.finish !== null, facets.stone !== null,
         facets.stoneMode !== 'All', facets.productionType !== 'All', facets.onlyInStock,
     ].filter(Boolean).length;
 
@@ -119,6 +122,7 @@ export default function SellerCatalog({ products, collections }: Props) {
             {facets.stoneMode !== 'All' && <ActiveChip label={facets.stoneMode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'} onClear={() => setFacet('stoneMode', 'All')} />}
             {facets.productionType !== 'All' && <ActiveChip label={facets.productionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setFacet('productionType', 'All')} />}
             {facets.collection !== 'All' && <ActiveChip label={collectionOptions.find((c) => c.id === String(facets.collection))?.name || 'Συλλογή'} onClear={() => setFacet('collection', 'All')} />}
+            {facets.theme !== 'all' && <ActiveChip label={productThemeLabel(facets.theme as ProductTheme)} onClear={() => setFacet('theme', 'all')} />}
             {facets.onlyInStock && <ActiveChip label="Διαθέσιμα" onClear={() => setFacet('onlyInStock', false)} />}
         </ActiveChipsRow>
     );
@@ -232,6 +236,7 @@ export default function SellerCatalog({ products, collections }: Props) {
                                 </FilterSection>
                             )}
 
+                            <ThemeFilter value={facets.theme} onChange={value => setFacet('theme', value)} />
                             <FilterSection title="Τύπος παραγωγής">
                                 {(['All', ProductionType.InHouse, ProductionType.Imported] as const).map((pt) => (
                                     <button key={pt} type="button" onClick={() => setFacet('productionType', pt)} className={optionClass(facets.productionType === pt)}>

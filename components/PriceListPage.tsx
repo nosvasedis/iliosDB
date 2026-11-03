@@ -1,3 +1,5 @@
+import { ThemeFilter } from './catalog/ProductClassificationFilters';
+import { getProductTheme, getReligiousCollectionIds, productThemeLabel, type ProductTheme } from '../features/products/productThemes';
 import ProductCategorySelection from './catalog/ProductCategorySelection';
 import { getProductCollectionOptions, matchesProductCollection } from '../utils/productCollectionScopes';
 import StoneCodeText from './StoneCodeText';
@@ -149,6 +151,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     // New Toggle State
     const [excludeCollections, setExcludeCollections] = useState(false);
     const [unassignedScope, setUnassignedScope] = useState('all');
+    const [themeFilter, setThemeFilter] = useState('all');
+    const religiousIds = useMemo(() => getReligiousCollectionIds(collections), [collections]);
     const unassignedOptions = useMemo(() => getProductCollectionOptions(products, []).filter(option => option.id !== 'none'), [products]);
     
     const [searchTerm, setSearchTerm] = useState('');
@@ -407,6 +411,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category) && matchesProductCollection(p, unassignedScope);
                 }
 
+                if (themeFilter !== 'all' && getProductTheme(p, religiousIds) !== themeFilter) shouldInclude = false;
+
                 // EXCLUDE COLLECTIONS LOGIC
                 // Only applies if NOT manually added
                 if (shouldInclude && excludeCollections && p.collections && p.collections.length > 0) {
@@ -491,7 +497,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections, selectedCategoriesInCollections, unassignedScope]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections, selectedCategoriesInCollections, unassignedScope, themeFilter, religiousIds]);
 
     const listParentRef = useRef<HTMLDivElement>(null);
     const rowCount = Math.ceil(filteredItems.length / 3) || 0;
@@ -578,6 +584,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             if (unassignedScope !== 'all' && filtersInfo) title = filtersInfo;
         }
         
+        if (themeFilter !== 'all') filtersInfo = [filtersInfo, `Θέμα: ${productThemeLabel(themeFilter as ProductTheme)}`].filter(Boolean).join(' · ');
         const finalTitle = customPdfTitle.trim() || title;
 
         onPrint({
@@ -633,6 +640,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                             {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"/>}
                         </button>
                     </div>
+
+                    <div className="border-b border-slate-100 px-6 py-3"><ThemeFilter value={themeFilter} onChange={setThemeFilter} /></div>
 
                     {/* TAB CONTENT */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative">

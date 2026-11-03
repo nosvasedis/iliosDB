@@ -17,6 +17,7 @@ const ROOTS = [
   { label: 'Καρφίτσα', aliases: ['Καρφίτσα', 'Καρφίτσες'] },
   // Ροζάριο deliberately stays its own category, as confirmed by the user.
   { label: 'Ροζάριο', aliases: ['Ροζάριο'] },
+  { label: 'Αξεσουάρ', aliases: ['Αξεσουάρ'] },
 ].map((root) => ({ ...root, keys: root.aliases.map(normalizeProductCategory) }));
 
 const BRACELET_SUBPARENTS = ['Βραχιόλι Δερμάτινο', 'Βραχιόλι Μακραμέ'];
@@ -26,6 +27,7 @@ const isWithin = (value: string, parent: string): boolean => value === parent ||
 export function getProductCategoryRoot(category?: string | null): string {
   const value = (category || '').trim().replace(/\s+/g, ' ');
   const key = normalizeProductCategory(value);
+  if (['καδενα', 'κουμπωμα'].some(accessory => isWithin(key, accessory))) return 'Αξεσουάρ';
   return ROOTS.find((root) => root.keys.some((alias) => isWithin(key, alias)))?.label || value;
 }
 

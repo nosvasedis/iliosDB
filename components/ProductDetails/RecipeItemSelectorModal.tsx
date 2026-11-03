@@ -1,3 +1,5 @@
+import { ComponentFamilyBadge, ComponentFamilyFilter } from '../catalog/ProductClassificationFilters';
+import { componentFamilyLabel, getComponentFamily } from '../../features/resources/componentFamilies';
 import React, { useMemo, useState } from 'react';
 import { Gem, Plus, Puzzle, Search, X } from 'lucide-react';
 import { Material, MaterialType, Product } from '../../types';
@@ -26,6 +28,7 @@ const RecipeItemSelectorModal = React.memo(({
     onSelect: (item: RecipeSelection) => void
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [componentFamily, setComponentFamily] = useState('all');
 
     const { suggestions, others } = useMemo(() => {
         const keywords = Object.entries(SUGGESTION_KEYWORDS).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
@@ -40,8 +43,9 @@ const RecipeItemSelectorModal = React.memo(({
         });
 
         const filterFn = (item: any) => {
+            if (type === 'component' && componentFamily !== 'all' && getComponentFamily(item) !== componentFamily) return false;
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = (item.description || '').toLowerCase();
+            const description = `${item.description || ''} ${type === 'component' ? componentFamilyLabel(getComponentFamily(item)) : ''}`.toLowerCase();
             const search = searchTerm.toLowerCase();
             return name.includes(search) || description.includes(search);
         };
@@ -51,7 +55,7 @@ const RecipeItemSelectorModal = React.memo(({
             suggestions: suggestedItems.filter(filterFn).sort(sortFn),
             others: otherItems.filter(filterFn).sort(sortFn)
         };
-    }, [type, productCategory, allMaterials, allProducts, searchTerm]);
+    }, [type, productCategory, allMaterials, allProducts, searchTerm, componentFamily]);
 
     const handleSelect = (item: any) => {
         onSelect(type === 'raw' ? { type: 'raw', id: item.id } : { type: 'component', sku: item.sku });
@@ -95,6 +99,7 @@ const RecipeItemSelectorModal = React.memo(({
                     )}
                     <div className="mt-0.5 font-mono text-[10px] text-slate-400">{cost}</div>
                     {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
+                    {isComponent && <div className="mt-1"><ComponentFamilyBadge product={item} /></div>}
                 </div>
                 <div className="shrink-0 rounded-full border border-slate-100 bg-white p-2 text-slate-300 shadow-sm transition-all group-hover:border-emerald-200 group-hover:text-emerald-500">
                     <Plus size={16} />
@@ -122,6 +127,7 @@ const RecipeItemSelectorModal = React.memo(({
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 pl-10 outline-none focus:ring-2 focus:ring-emerald-500/20"
                         />
                     </div>
+                    {type === 'component' && <div className="mt-3"><ComponentFamilyFilter value={componentFamily} onChange={setComponentFamily} /></div>}
                 </div>
                 <div className="custom-scrollbar flex-1 overflow-y-auto p-4">
                     {suggestions.length > 0 && (

@@ -1,3 +1,4 @@
+import { getProductTheme, productThemeLabel } from '../products/productThemes';
 import {
   dedupeIdenticalFinanceEvents,
   FinanceAnalytics,
@@ -25,11 +26,12 @@ export function eventsInWindow(events: FinanceLineEvent[], window: PeriodWindow)
 
 // ─── Profitability by dimension ────────────────────────────────────────────────
 
-export type ProfitDimension = 'category' | 'subcategory' | 'collection' | 'product' | 'customer';
+export type ProfitDimension = 'category' | 'subcategory' | 'theme' | 'collection' | 'product' | 'customer';
 
 export const PROFIT_DIMENSIONS: Array<{ value: ProfitDimension; label: string; singular: string }> = [
   { value: 'category', label: 'Κατηγορίες', singular: 'Κατηγορία' },
   { value: 'subcategory', label: 'Υποκατηγορίες', singular: 'Υποκατηγορία' },
+  { value: 'theme', label: 'Θέματα', singular: 'Θέμα' },
   { value: 'collection', label: 'Συλλογές', singular: 'Συλλογή' },
   { value: 'product', label: 'Κωδικοί', singular: 'Κωδικός' },
   { value: 'customer', label: 'Πελάτες', singular: 'Πελάτης' },
@@ -68,6 +70,10 @@ function dimensionKey(event: FinanceLineEvent, dimension: ProfitDimension): { ke
       return special ? { key: '__sp__', label: SPECIAL_CREATIONS_LABEL } : { key: getProductCategoryRoot(event.category) || '—', label: getProductCategoryRoot(event.category) || 'Χωρίς κατηγορία' };
     case 'subcategory':
       return special ? { key: '__sp__', label: SPECIAL_CREATIONS_LABEL } : { key: event.category || '—', label: event.category || 'Χωρίς κατηγορία' };
+    case 'theme': {
+      const theme = event.theme || getProductTheme(event);
+      return special ? { key: '__sp__', label: SPECIAL_CREATIONS_LABEL } : { key: theme, label: productThemeLabel(theme) };
+    }
     case 'collection': {
       if (special) return { key: '__sp__', label: SPECIAL_CREATIONS_LABEL };
       if (event.collectionId !== null) return { key: String(event.collectionId), label: event.collectionName };

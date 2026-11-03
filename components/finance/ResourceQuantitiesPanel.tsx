@@ -30,7 +30,7 @@ function ResourceRow({ row, booked, share }: { row: ResourceQuantityRow; booked:
   const [limit, setLimit] = useState(PAGE_SIZE);
   const meta = KIND_META[row.kind];
   const Icon = meta.icon;
-  const family = STONE_FAMILIES.find((entry) => entry.id === row.stoneFamily) || (row.componentFamily ? { label: componentFamilyLabel(row.componentFamily), tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' } : undefined);
+  const family = STONE_FAMILIES.find((entry) => entry.id === row.stoneFamily) || (row.componentFamily ? { label: componentFamilyLabel(row.componentFamily), shortLabel: componentFamilyLabel(row.componentFamily), tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' } : undefined);
   const sourceLabel = booked ? (row.products.length === 1 ? 'εγγραφή' : 'εγγραφές') : (row.products.length === 1 ? 'κωδικός' : 'κωδικοί');
   return (
     <div className={`border-b border-slate-100 last:border-0 ${open ? 'bg-slate-50/60' : ''}`}>
@@ -166,7 +166,7 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
     const csv = [
       cells(['Περίοδος', 'Εύρος', 'Είδος', 'Περιγραφή', 'Κατηγορία', 'Ομάδα πέτρας', 'Ομάδα STX', 'Ποσότητα', 'Μονάδα', 'Βάση υπολογισμού']),
       ...filtered.map((row) => cells([periodLabel, scopeLabel, row.name, row.description, KINDS.find(([key]) => key === row.kind)![1], stoneFamilyLabel(row.stoneFamily), componentFamilyLabel(row.componentFamily), formatNumber(row.quantity), row.unit, basisLabel])),
-      ...report.warnings.map((warning) => cells([periodLabel, scopeLabel, 'ΕΛΕΓΧΟΣ', warning, '', '', '', '', basisLabel])),
+      ...report.warnings.map((warning) => cells([periodLabel, scopeLabel, 'ΕΛΕΓΧΟΣ', warning, '', '', '', '', '', basisLabel])),
     ].join('\r\n');
     const url = URL.createObjectURL(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `posotites-${booked ? 'agores' : scope}.csv`; link.click();

@@ -1,7 +1,8 @@
 import { MaterialType, type Material, type Product } from '../../types';
 import type { FinanceCategory, FinanceExpense } from './types';
 import { resourceUnit, type ResourceKind, type ResourceQuantities, type ResourceQuantityRow } from './resourceQuantities';
-import { getStoneFamily } from '../resources/stoneFamilies';
+import { getStoneFamily, isStoneResource } from '../resources/stoneFamilies';
+import { getComponentFamily } from '../resources/componentFamilies';
 
 /** Recorded purchase lines only. Never expand recipes or count payments/work charges as purchases. */
 export function summarizeBookedResources(expenses: readonly FinanceExpense[], categories: readonly FinanceCategory[], materials: readonly Material[], products: readonly Product[]): ResourceQuantities {
@@ -28,7 +29,7 @@ export function summarizeBookedResources(expenses: readonly FinanceExpense[], ca
       if (line.sku && product && !component) continue;
       if (!Number.isFinite(line.qty) || line.qty <= 0) { warnings.add(`Μη έγκυρη ποσότητα: ${line.label}`); continue; }
       const kind: ResourceKind = component || (!line.material_id && link === 'stx') ? 'component'
-        : material ? (material.type === MaterialType.Stone ? 'stone' : 'material') : link === 'stones' ? 'stone' : 'material';
+        : material ? (isStoneResource(material) ? 'stone' : 'material') : link === 'stones' ? 'stone' : 'material';
       const unit = resourceUnit(line.unit || (component ? 'τεμ.' : material?.unit || ''));
       const id = line.material_id || line.sku || (line.label || 'Χωρίς περιγραφή').trim();
       if (!line.material_id && !line.sku) warnings.add(`Χωρίς σύνδεση μητρώου: ${line.label}`);
@@ -37,7 +38,7 @@ export function summarizeBookedResources(expenses: readonly FinanceExpense[], ca
       const key = JSON.stringify([line.material_id ? 'material' : line.sku ? 'sku' : 'label', id, kind, unit]);
       let row = rows.get(key);
       if (!row) {
-        row = { key, id, name: material?.name || line.sku || line.label, description: material?.description || product?.description || '', kind, stoneFamily: material ? getStoneFamily(material) : null, unit, quantity: 0, products: [] };
+        row = { key, id, name: material?.name || line.sku || line.label, description: material?.description || product?.description || '', kind, stoneFamily: material ? getStoneFamily(material) : null, componentFamily: kind === 'component' ? getComponentFamily(product || { is_component: true, description: line.label }) : null, unit, quantity: 0, products: [] };
         rows.set(key, row);
       }
       row.quantity += line.qty;

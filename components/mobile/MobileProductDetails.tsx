@@ -1,3 +1,5 @@
+import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
+import { StoneFamilyBadge } from '../resources/StoneFamily';
 import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -679,7 +681,9 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                                   <div className="min-w-0 flex-1">
                                                       <div className="font-black text-purple-800 text-xs leading-tight">{r.sku}</div>
                                                       {compDescription ? (
-                                                          <div className="text-[11px] text-purple-600 font-medium mt-0.5 leading-snug line-clamp-2">{compDescription}</div>
+                                                          <><div className="text-[11px] text-purple-600 font-medium mt-0.5 leading-snug line-clamp-2">{compDescription}</div>
+                                                          {comp && <ComponentFamilyBadge product={comp} />}
+                                                          </>
                                                       ) : null}
                                                   </div>
                                                   <span className="font-mono font-black text-purple-700 text-xs shrink-0">×{formatNumber(r.quantity)}</span>
@@ -692,6 +696,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                           <div key={idx} className="flex justify-between items-start gap-3 text-sm p-2 bg-slate-50 rounded-lg">
                                               <div className="min-w-0 flex-1">
                                                   <div className="font-bold text-slate-700 break-words">{name}</div>
+                                                  {material && <StoneFamilyBadge material={material} />}
                                                   {material?.description?.trim() ? (
                                                       <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 whitespace-pre-wrap break-words">{material.description}</p>
                                                   ) : null}

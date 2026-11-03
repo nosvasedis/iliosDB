@@ -746,6 +746,8 @@ export const getPrevalentVariant = (variants: ProductVariant[] | undefined): Pro
 export const parseSku = (sku: string) => {
     const prefix = sku.substring(0, 2).toUpperCase();
     const triPrefix = sku.substring(0, 3).toUpperCase();
+    if (prefix === 'KD') return { gender: Gender.Unisex, category: 'Καδένα' };
+    if (triPrefix === 'KOU') return { gender: Gender.Unisex, category: 'Κούμπωμα' };
     if (triPrefix === 'BDA' || triPrefix === 'ΒΔΑ') return { gender: Gender.Women, category: 'Δαχτυλίδι' };
     const numPart = parseInt(sku.replace(/[A-Z-]/g, ''), 10);
     if (triPrefix === 'STX') return { gender: Gender.Unisex, category: 'Εξάρτημα (STX)' };

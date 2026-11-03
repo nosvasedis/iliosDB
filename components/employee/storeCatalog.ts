@@ -1,3 +1,5 @@
+import { getProductTheme, getReligiousCollectionIds } from '../../features/products/productThemes';
+import { isVisibleProductCatalogRow } from '../../features/products/catalogVisibility';
 import { Gender, Material, MaterialType, PlatingType, Product, ProductVariant } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getCategoryGroup, skuCollator } from '../catalog/catalogUi';
@@ -14,6 +16,7 @@ export interface StoreCatalogFilters {
     search: string;
     group: string;
     gender: 'All' | Gender;
+    theme?: string;
     stones: StonesFilter;
     plating: PlatingFilter;
     onlyInStock: boolean;
@@ -53,7 +56,7 @@ function buildIndex(products: readonly Product[], materials: readonly Material[]
     const stoneIds = new Set(materials.filter((m) => m.type === MaterialType.Stone).map((m) => m.id));
     const groups = new Set<string>();
 
-    const entries = products.filter((p) => !p.is_component).map((source) => {
+    const entries = products.filter((p) => !p.is_component && isVisibleProductCatalogRow(p)).map((source) => {
         const variants = sortStoreVariants(source.variants || [], source.gender);
         const product: Product = { ...source, variants };
         const finishes = new Set<string>();
@@ -97,11 +100,13 @@ export function getStoreCatalogIndex(products: readonly Product[], materials: re
     return index;
 }
 
-export function selectStoreCatalog(index: StoreCatalogIndex, f: StoreCatalogFilters): Product[] {
+export function selectStoreCatalog(index: StoreCatalogIndex, f: StoreCatalogFilters, collections: readonly { id: number; name: string }[] = []): Product[] {
     const q = f.search.trim().toLowerCase();
+    const religiousIds = getReligiousCollectionIds(collections);
     const out = index.entries.filter((e) => {
         if (q && !e.search.includes(q)) return false;
         if (f.group !== 'All' && e.group !== f.group) return false;
+        if (f.theme && f.theme !== 'all' && getProductTheme(e.product, religiousIds) !== f.theme) return false;
         if (f.gender !== 'All' && e.product.gender !== f.gender) return false;
         if (f.stones === 'with' && !e.hasStones) return false;
         if (f.stones === 'without' && e.hasStones) return false;

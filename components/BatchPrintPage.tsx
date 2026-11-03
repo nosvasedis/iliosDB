@@ -1,3 +1,5 @@
+import { ThemeFilter } from './catalog/ProductClassificationFilters';
+import { getProductTheme, getReligiousCollectionIds } from '../features/products/productThemes';
 import { getProductCategoryOptions, matchesProductCategory } from '../utils/productCategories';
 import { getProductCollectionOptions, matchesProductCollection } from '../utils/productCollectionScopes';
 import { resolveSkuSizeInput, splitSkuSizeInput } from '../utils/skuSizeInput';
@@ -120,6 +122,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     const [catalogCategory, setCatalogCategory] = useState('');
     const collectionOptions = useMemo(() => getProductCollectionOptions(allProducts || [], allCollections), [allProducts, allCollections]);
     const [catalogGender, setCatalogGender] = useState('');
+    const [catalogTheme, setCatalogTheme] = useState('all');
+    const religiousIds = useMemo(() => getReligiousCollectionIds(allCollections), [allCollections]);
     const [catalogOnlyWithImage, setCatalogOnlyWithImage] = useState(false);
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
 
@@ -141,10 +145,11 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 if (!matchesProductCollection(p, catalogCollectionId)) return false;
             }
             if (!matchesProductCategory(p.category, catalogCategory)) return false;
+            if (catalogTheme !== 'all' && getProductTheme(p, religiousIds) !== catalogTheme) return false;
             if (catalogGender && p.gender !== catalogGender) return false;
             return true;
         }).sort((a, b) => a.sku.localeCompare(b.sku));
-    }, [allProducts, catalogSearch, catalogCollectionId, catalogCategory, catalogGender, catalogOnlyWithImage]);
+    }, [allProducts, catalogSearch, catalogCollectionId, catalogCategory, catalogGender, catalogOnlyWithImage, catalogTheme, religiousIds]);
 
     const handleToggleSelectAll = () => {
         if (selectedSkus.size === catalogProducts.length) {
@@ -1153,6 +1158,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     </select>
                                 </div>
                             </div>
+
+                            <ThemeFilter value={catalogTheme} onChange={setCatalogTheme} />
 
                             {/* Gender */}
                             <div>

@@ -1,4 +1,5 @@
 import { getProductCategoryBreadcrumb } from '../../utils/productCategories';
+import { productThemeLabel, type ProductTheme } from '../../features/products/productThemes';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -454,6 +455,7 @@ function TopVariantsModalBody({
         .map((item) => item.name);
       if (names.length) parts.push(`Συλλογή: ${names.join(', ')}`);
     }
+    if (deferredFilters.themes?.size) parts.push(`Θέμα: ${[...deferredFilters.themes].map(theme => productThemeLabel(theme as ProductTheme)).join(', ')}`);
     if (jewelleryTypes.size > 0) {
       parts.push(ORION_TYPE_CHIPS.filter((chip) => jewelleryTypes.has(chip.id)).map((chip) => chip.label).join(', '));
     }

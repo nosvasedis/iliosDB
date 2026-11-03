@@ -1,3 +1,4 @@
+import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
 import { getProductCategoryBreadcrumb, getProductCategoryPath } from '../../utils/productCategories';
 import React from 'react';
 import { Hammer, Globe, Tag, ImageIcon, Lightbulb, Info, Scale, AlertTriangle, RotateCcw, Upload, Palette, ClipboardList, Check } from 'lucide-react';
@@ -162,6 +163,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                     className={npInputClass}
                                     placeholder="π.χ. Μοτίφ πεταλούδα, Κρίκος σύνδεσης..."
                                 />
+                                <div className="mt-2"><ComponentFamilyBadge product={{ is_component: true, description: state.stxDescription }} /></div>
                             </div>
                         )}
 

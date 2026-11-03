@@ -1,3 +1,4 @@
+import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
 import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Edit3, Info, Palette, Scale, Tag, Users, Weight } from 'lucide-react';
@@ -96,6 +97,7 @@ export default function OverviewInHousePanel({
                         {product.is_component && (
                             <DetailsField label="Περιγραφή STX" icon={Edit3} className="col-span-2">
                                 <input className={detailsInputClass} value={product.description || ''} onChange={e => setProduct(prev => ({ ...prev, description: e.target.value }))} placeholder="π.χ. Μικρή Πεταλούδα" />
+                                <div className="mt-2"><ComponentFamilyBadge product={product} /></div>
                             </DetailsField>
                         )}
                     </div>

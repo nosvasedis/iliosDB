@@ -1,3 +1,4 @@
+import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
 import { formatNumber } from '../../utils/numberFormat';
 import React from 'react';
 import { Plus, Trash2, PackageOpen, Calculator, Hammer, Coins, Gem, FlaskConical, Boxes } from 'lucide-react';
@@ -88,6 +89,7 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                                                 <div className="min-w-0">
                                                     <div className="truncate text-sm font-bold text-slate-800">{title}</div>
                                                     {isRaw && itemDetails && <div className="mt-1"><StoneFamilyBadge material={itemDetails as Material} /></div>}
+                                {!isRaw && itemDetails && <div className="mt-1"><ComponentFamilyBadge product={itemDetails as Product} /></div>}
                                                     <div className="truncate text-xs font-medium text-slate-500">
                                                         {subtitle}
                                                         {extraDesc && <span className="italic text-slate-400"> • {extraDesc}</span>}

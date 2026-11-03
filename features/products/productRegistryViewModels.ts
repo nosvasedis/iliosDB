@@ -1,4 +1,7 @@
-import { Material, MaterialType, PlatingType, Product, ProductVariant, Gender } from '../../types';
+import { Material, MaterialType, PlatingType, Product, ProductVariant, Gender, Collection } from '../../types';
+import { getProductTheme, getReligiousCollectionIds, type ProductTheme } from './productThemes';
+import { getComponentFamily, type ComponentFamily } from '../resources/componentFamilies';
+import { isVisibleProductCatalogRow } from './catalogVisibility';
 import {
   calculateProductCost,
   estimateVariantCost,
@@ -18,6 +21,8 @@ export interface RegistrySearchableProduct {
   variantStoneCodeSet: Set<string>;
   collectionIds: Set<number>;
   hasStoneInRecipe: boolean;
+  theme: ProductTheme;
+  componentFamily: ComponentFamily | null;
 }
 
 export type RegistrySortMode =
@@ -48,6 +53,8 @@ export interface ProductRegistryFilters {
   productionType: string;
   collection: string;
   sortBy: RegistrySortMode;
+  theme?: string;
+  componentFamily?: string;
 }
 
 export interface ProductRegistryTableVariant {
@@ -68,8 +75,10 @@ export interface ProductRegistryTableVariant {
 export function buildSearchableProducts(
   products: Product[],
   stoneMaterialIds: Set<string>,
+  collections: readonly Collection[] = [],
 ): RegistrySearchableProduct[] {
-  return products.map((product) => {
+  const religiousIds = getReligiousCollectionIds(collections);
+  return products.filter(isVisibleProductCatalogRow).map((product) => {
     const platingTypes = new Set<string>();
     const { finish: masterFinish } = getVariantComponents(product.sku, product.gender);
 
@@ -88,6 +97,8 @@ export function buildSearchableProducts(
 
     return {
       product,
+      theme: getProductTheme(product, religiousIds),
+      componentFamily: getComponentFamily(product),
       skuUpper: product.sku.toUpperCase(),
       categoryLower: product.category.toLowerCase(),
       platingTypes,
@@ -102,7 +113,7 @@ export function buildSearchableProducts(
 export function getGroupedProductCategories(products: Product[]) {
   const parents = new Set<string>();
   const children = new Map<string, Set<string>>();
-  getProductCategoryOptions(products.map((product) => product.category)).forEach(({ value, root, depth }) => {
+  getProductCategoryOptions(products.filter(isVisibleProductCatalogRow).map((product) => product.category)).forEach(({ value, root, depth }) => {
     parents.add(root);
     if (depth > 0) {
       if (!children.has(root)) children.set(root, new Set());
@@ -167,7 +178,9 @@ export function filterRegistryProducts(
   const normalizedSearchTerm = filters.searchTerm.trim().toLowerCase();
   const normalizedSearchSku = filters.searchTerm.trim().toUpperCase();
 
-  const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, hasStoneInRecipe }) => {
+  const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, hasStoneInRecipe, theme, componentFamily }) => {
+    if (filters.theme && filters.theme !== 'all' && theme !== filters.theme) return false;
+    if (filters.componentFamily && filters.componentFamily !== 'all' && componentFamily !== filters.componentFamily) return false;
     const matchesGender = filters.gender === 'All' || product.gender === filters.gender;
     const matchesSearch = !normalizedSearchTerm || skuUpper.includes(normalizedSearchSku) || categoryLower.includes(normalizedSearchTerm);
     const matchesCategory = matchesProductCategory(product.category, filters.category);

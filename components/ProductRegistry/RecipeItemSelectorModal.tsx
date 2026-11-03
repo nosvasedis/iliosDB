@@ -1,3 +1,5 @@
+import { ComponentFamilyBadge, ComponentFamilyFilter } from '../catalog/ProductClassificationFilters';
+import { componentFamilyLabel, getComponentFamily } from '../../features/resources/componentFamilies';
 import { formatDecimal } from '../../utils/numberFormat';
 import React, { useState, useMemo } from 'react';
 import { Product, Material, MaterialType } from '../../types';
@@ -18,6 +20,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
     type, productCategory, allMaterials, allProducts, onClose, onSelect
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [componentFamily, setComponentFamily] = useState('all');
 
     const suggestionKeywords: Record<string, { types: MaterialType[], names: string[] }> = {
         'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
@@ -52,9 +55,10 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
         });
 
         const filterFn = (item: any) => {
+            if (type === 'component' && componentFamily !== 'all' && getComponentFamily(item) !== componentFamily) return false;
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
             const description = (item.description || '').toLowerCase();
-            const category = type === 'component' ? (item.category || '').toLowerCase() : '';
+            const category = type === 'component' ? `${item.category || ''} ${componentFamilyLabel(getComponentFamily(item))}`.toLowerCase() : '';
             const search = searchTerm.toLowerCase();
 
             return name.includes(search) || description.includes(search) || category.includes(search);
@@ -64,7 +68,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
             suggestions: suggestedItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku)),
             others: otherItems.filter(filterFn).sort((a, b) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku))
         };
-    }, [type, productCategory, allMaterials, allProducts, searchTerm]);
+    }, [type, productCategory, allMaterials, allProducts, searchTerm, componentFamily]);
 
     const handleSelect = (item: any) => {
         if (type === 'raw') {
@@ -122,6 +126,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
 
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
                     {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
+                    {isComponent && <div className="mt-1"><ComponentFamilyBadge product={item} /></div>}
                 </div>
 
                 <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
@@ -150,6 +155,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
                             className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
                         />
                     </div>
+                    {type === 'component' && <div className="mt-3"><ComponentFamilyFilter value={componentFamily} onChange={setComponentFamily} /></div>}
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                     {suggestions.length > 0 && (

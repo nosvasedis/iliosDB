@@ -2890,6 +2890,7 @@ export default function LegalDocumentsPage({
                               sku={line.sku}
                               variantSuffix={line.variant_suffix}
                               products={legalCatalogProducts}
+                              legalDocument
                               onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
                               onEnterCommit={() => appendLegalLineAfter(line.id)}
                               autoFocus={legalSkuFocusLineId === line.id}
@@ -3569,6 +3570,7 @@ export default function LegalDocumentsPage({
                         sku={line.sku}
                         variantSuffix={line.variant_suffix}
                         products={legalCatalogProducts}
+                              legalDocument
                         onSelect={(selection) => applyCatalogToProformaLine(line.id, selection)}
                         onEnterCommit={() => appendProformaLineAfter(line.id)}
                         autoFocus={proformaSkuFocusLineId === line.id}

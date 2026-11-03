@@ -1,3 +1,7 @@
+import { ThemeFilter, ComponentFamilyFilter, ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
+import { isStoneResource } from '../../features/resources/stoneFamilies';
+import { productThemeLabel } from '../../features/products/productThemes';
+import { componentFamilyLabel, type ComponentFamily } from '../../features/resources/componentFamilies';
 import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
 import { getProductCollectionOptions } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
@@ -191,6 +195,7 @@ const RegistryCard: React.FC<{
             </div>
 
             <div className="mt-auto">
+                <ComponentFamilyBadge product={product} />
                 <div className="flex justify-between items-center">
                     <div className="font-black text-slate-800 text-sm truncate">{displaySku}</div>
 
@@ -227,7 +232,7 @@ function countActiveRegistryFilters(params: {
     showStxOnly: boolean;
     filterCategory: string;
     filterGender: 'All' | Gender;
-    subFilters: { stone: string; plating: string; productionType: string; collection: string };
+    subFilters: { stone: string; plating: string; productionType: string; collection: string; theme: string; componentFamily: string };
 }) {
     const { showStxOnly, filterCategory, filterGender, subFilters } = params;
     let n = 0;
@@ -237,6 +242,8 @@ function countActiveRegistryFilters(params: {
     if (subFilters.plating !== 'all') n++;
     if (!showStxOnly && subFilters.productionType !== 'all') n++;
     if (!showStxOnly && subFilters.collection !== 'all') n++;
+    if (!showStxOnly && subFilters.theme !== 'all') n++;
+    if (showStxOnly && subFilters.componentFamily !== 'all') n++;
     return n;
 }
 
@@ -265,7 +272,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
         stone: 'all',
         plating: 'all',
         productionType: 'all',
-        collection: 'all',
+        collection: 'all', theme: 'all', componentFamily: 'all',
     });
     const [sortBy, setSortBy] = useState<RegistrySortMode>('sku_asc');
 
@@ -283,12 +290,12 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
 
     const stoneMaterialIds = useMemo(() => {
         if (!materials) return new Set<string>();
-        return new Set(materials.filter((m) => m.type === MaterialType.Stone).map((m) => m.id));
+        return new Set(materials.filter((m) => isStoneResource(m)).map((m) => m.id));
     }, [materials]);
 
     const searchableProducts = useMemo(() => {
-        return buildSearchableProducts(baseProducts, stoneMaterialIds);
-    }, [baseProducts, stoneMaterialIds]);
+        return buildSearchableProducts(baseProducts, stoneMaterialIds, collections || []);
+    }, [baseProducts, stoneMaterialIds, collections]);
 
     const groupedCategories = useMemo(() => getGroupedProductCategories(baseProducts), [baseProducts]);
 
@@ -306,6 +313,8 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             plating: subFilters.plating,
             productionType: subFilters.productionType,
             collection: subFilters.collection,
+            theme: showStxOnly ? 'all' : subFilters.theme,
+            componentFamily: showStxOnly ? subFilters.componentFamily : 'all',
             sortBy,
         });
     }, [searchableProducts, materials, deferredSearch, filterCategory, filterGender, subFilters, sortBy]);
@@ -341,7 +350,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
     const resetAllFilters = () => {
         setFilterGender('All');
         setFilterCategory('All');
-        setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+        setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all', theme: 'all', componentFamily: 'all' });
     };
 
     const stoneQuickActive =
@@ -577,6 +586,10 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                     ))}
                                 </div>
                             </div>
+
+                            {showStxOnly
+                                ? <ComponentFamilyFilter value={subFilters.componentFamily} onChange={value => setSubFilters(previous => ({ ...previous, componentFamily: value }))} />
+                                : <ThemeFilter value={subFilters.theme} onChange={value => setSubFilters(previous => ({ ...previous, theme: value }))} />}
 
                             <div className="space-y-2">
                                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">

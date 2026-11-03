@@ -233,6 +233,8 @@ export default function SkuModalFiltersPanel({ facets, filters, onChange, open, 
             onToggle={(key) => onChange({ ...filters, categories: toggleInSet(filters.categories, key) })}
           />
 
+          <FilterGroup title="Θέμα" scheme={SCHEMES.categories} items={(facets.themes || []).map(theme => ({ key: theme.id, label: theme.label }))} selected={filters.themes || new Set()} onToggle={key => onChange({ ...filters, themes: toggleInSet(filters.themes || new Set(), key) })} />
+
           <FilterGroup
             title="Συλλογή"
             scheme={SCHEMES.collections}

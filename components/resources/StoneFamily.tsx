@@ -27,6 +27,6 @@ export function StoneFamilyFilters({ value, onChange, materials }: { value: Ston
 export function StoneFamilyHint({ material }: { material: Pick<Material, 'type' | 'name' | 'stones_per_strand'> }) {
   return <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3">
     <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-slate-600">Ομάδα πέτρας</span><StoneFamilyBadge material={material} /></div>
-    <p className="text-[11px] leading-relaxed text-slate-500">Αυτόματη ταξινόμηση: ονόματα με «ζιργκόν» → Ζιργκόν, Κορδόνι Αιματίτης / Όνυχας → πέτρες για κολιέ, υπόλοιπες συμβατικές → Διπλέτες. Οι πέτρες σε σειρά παραμένουν στο Κορδόνι. Οι ειδικές τιμές διατηρούνται ανά κωδικό.</p>
+    <p className="text-[11px] leading-relaxed text-slate-500">Αυτόματη ταξινόμηση: Πέρλες / Μαργαριτάρια έχουν δική τους ομάδα, ονόματα με «ζιργκόν» → Ζιργκόν, Κορδόνι Αιματίτης / Όνυχας → πέτρες για κολιέ, υπόλοιπες συμβατικές → Διπλέτες. Οι πέτρες σε σειρά παραμένουν στο Κορδόνι. Οι ειδικές τιμές και ο αποθηκευμένος τύπος υλικού διατηρούνται ανά κωδικό.</p>
   </div>;
 }

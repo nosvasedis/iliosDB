@@ -88,7 +88,7 @@ const STORAGE = {
 };
 
 const PERIODS: FinancePeriodMode[] = ['current_month', 'current_quarter', 'current_year', 'all_time'];
-const DIMENSIONS: ProfitDimension[] = ['category', 'subcategory', 'collection', 'product', 'customer'];
+const DIMENSIONS: ProfitDimension[] = ['category', 'subcategory', 'theme', 'collection', 'product', 'customer'];
 
 function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -147,10 +147,11 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
   );
   const categoryRows = useMemo(() => rowsFor('category'), [rowsFor]);
   const subcategoryRows = useMemo(() => rowsFor('subcategory'), [rowsFor]);
+  const themeRows = useMemo(() => rowsFor('theme'), [rowsFor]);
   const collectionRows = useMemo(() => rowsFor('collection'), [rowsFor]);
   const productRows = useMemo(() => rowsFor('product'), [rowsFor]);
   const customerRows = useMemo(() => rowsFor('customer'), [rowsFor]);
-  const dimensionRows = { category: categoryRows, subcategory: subcategoryRows, collection: collectionRows, product: productRows, customer: customerRows }[dimension];
+  const dimensionRows = { category: categoryRows, subcategory: subcategoryRows, theme: themeRows, collection: collectionRows, product: productRows, customer: customerRows }[dimension];
   const pareto = useMemo(() => summarizePareto(dimensionRows), [dimensionRows]);
 
   const missingCostRows = useMemo(

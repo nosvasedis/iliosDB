@@ -11,7 +11,7 @@ import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../../utils/
 import { useUI } from '../UIProvider';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import { ResourceUsageProvider, ResourceUsageStrip } from '../resources/ResourceUsage';
-import { getStoneFamily, stoneFamilyLabel, type StoneFamily } from '../../features/resources/stoneFamilies';
+import { getStoneFamily, stoneFamilyLabel, materialResourceTab, isStoneResource, type StoneFamily } from '../../features/resources/stoneFamilies';
 import { StoneFamilyBadge, StoneFamilyFilters, StoneFamilyHint } from '../resources/StoneFamily';
 
 const MAT_TYPE_LABELS: Record<string, string> = {
@@ -57,7 +57,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
     const filteredMaterials = useMemo(() => {
         if (!materials) return [];
         return materials.filter(m => {
-            if (m.type !== activeTab) return false;
+            if (materialResourceTab(m) !== activeTab) return false;
             if (activeTab === MaterialType.Stone) {
                 const isStrand = m.stones_per_strand !== null && m.stones_per_strand !== undefined;
                 if (stoneSubFilter === 'strand' && !isStrand) return false;
@@ -107,8 +107,9 @@ export default function MobileResources({ products }: { products?: Product[] }) 
         if (!editingMaterial || !editingMaterial.name) return;
         try {
             await api.saveMaterial(editingMaterial);
+            setActiveTab(materialResourceTab(editingMaterial));
             queryClient.invalidateQueries({ queryKey: ['materials'] });
-            if (editingMaterial.type === MaterialType.Stone) {
+            if (isStoneResource(editingMaterial)) {
                 const family = getStoneFamily(editingMaterial);
                 setStoneSubFilter(family === 'strand' ? 'strand' : 'standard');
                 if (stoneFamily !== 'all' && family !== 'strand') setStoneFamily(family || 'all');
@@ -217,7 +218,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                         <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κορδόνι</button>
                     </div>
                 )}
-                {viewMode === 'materials' && activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && <StoneFamilyFilters value={stoneFamily} onChange={setStoneFamily} materials={(materials || []).filter(m => m.type === MaterialType.Stone && getStoneFamily(m) !== 'strand')} />}
+                {viewMode === 'materials' && activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && <StoneFamilyFilters value={stoneFamily} onChange={setStoneFamily} materials={(materials || []).filter(m => isStoneResource(m) && getStoneFamily(m) !== 'strand')} />}
                 {viewMode === 'molds' && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
                         <button type="button" onClick={() => { setMoldTab('standard'); setSearch(''); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κανονικά</button>
@@ -232,8 +233,8 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     <div key={m.id} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
                     <div onClick={() => handleEditMaterial(m)} className="p-4 active:scale-[0.98] transition-all flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${m.type === MaterialType.Stone ? (m.stones_per_strand ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600') : 'bg-slate-100 text-slate-500'}`}>
-                                {m.type === MaterialType.Stone ? <Gem size={18}/> : <Box size={18}/>}
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isStoneResource(m) ? (m.stones_per_strand ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600') : 'bg-slate-100 text-slate-500'}`}>
+                                {isStoneResource(m) ? <Gem size={18}/> : <Box size={18}/>}
                             </div>
                             <div>
                                 <div className="font-bold text-slate-800 text-sm">{m.name}</div>
@@ -294,7 +295,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                                 <input value={editingMaterial.description || ''} onChange={e => setEditingMaterial({...editingMaterial, description: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-medium text-slate-800" placeholder="π.χ. Μέγεθος, χρώμα..."/>
                             </div>
                             
-                            {editingMaterial.type === MaterialType.Stone && <StoneFamilyHint material={editingMaterial} />}
+                            {isStoneResource(editingMaterial) && <StoneFamilyHint material={editingMaterial} />}
 
                             {/* Strand Calculator Logic */}
                             {editingMaterial.stones_per_strand ? (

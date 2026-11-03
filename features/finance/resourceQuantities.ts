@@ -1,6 +1,7 @@
 import { MaterialType, type Material, type Product } from '../../types';
 import type { FinanceLineEvent } from '../../utils/financeAnalytics';
-import { getStoneFamily, type StoneFamily } from '../resources/stoneFamilies';
+import { getStoneFamily, isStoneResource, type StoneFamily } from '../resources/stoneFamilies';
+import { getComponentFamily, type ComponentFamily } from '../resources/componentFamilies';
 
 export type ResourceKind = 'stone' | 'material' | 'component';
 export interface RecipeResource {
@@ -10,6 +11,7 @@ export interface RecipeResource {
   description: string;
   kind: ResourceKind;
   stoneFamily?: StoneFamily | null;
+  componentFamily?: ComponentFamily | null;
   unit: string;
   quantity: number;
 }
@@ -52,7 +54,7 @@ export function createRecipeResourceResolver(products: readonly Product[], mater
       else items.set(resource.key, resource);
     };
     const root = productBySku.get(sku);
-    if (root?.is_component) add({ key: `component:${sku}`, id: sku, name: sku, description: root.description || '', kind: 'component', unit: 'τεμ.', quantity: 1 });
+    if (root?.is_component) add({ key: `component:${sku}`, id: sku, name: sku, description: root.description || '', kind: 'component', componentFamily: getComponentFamily(root), unit: 'τεμ.', quantity: 1 });
     while (stack.length) {
       const current = stack.pop()!;
       if (current.exit) { path.delete(current.sku); continue; }
@@ -68,12 +70,12 @@ export function createRecipeResourceResolver(products: readonly Product[], mater
         if (item.type === 'component') {
           const component = productBySku.get(item.sku);
           if (path.has(item.sku)) { warnings.add(`Κυκλική συνταγή: ${item.sku}`); continue; }
-          add({ key: `component:${item.sku}`, id: item.sku, name: item.sku, description: component?.description || '', kind: 'component', unit: 'τεμ.', quantity });
+          add({ key: `component:${item.sku}`, id: item.sku, name: item.sku, description: component?.description || '', kind: 'component', componentFamily: getComponentFamily(component || { is_component: true }), unit: 'τεμ.', quantity });
           stack.push({ sku: item.sku, quantity });
         } else {
           const material = materialById.get(item.id);
           if (!material) { warnings.add(`Λείπει υλικό: ${item.id} (${current.sku})`); continue; }
-          add({ key: `material:${material.id}`, id: material.id, name: material.name, description: material.description || '', kind: material.type === MaterialType.Stone ? 'stone' : 'material', stoneFamily: getStoneFamily(material), unit: resourceUnit(material.unit), quantity });
+          add({ key: `material:${material.id}`, id: material.id, name: material.name, description: material.description || '', kind: isStoneResource(material) ? 'stone' : 'material', stoneFamily: getStoneFamily(material), unit: resourceUnit(material.unit), quantity });
         }
       }
     }

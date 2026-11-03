@@ -1,3 +1,5 @@
+import { ThemeFilter } from '../catalog/ProductClassificationFilters';
+import { getProductTheme, getReligiousCollectionIds, productThemeLabel, type ProductTheme } from '../../features/products/productThemes';
 import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
 import { getProductCollectionOptions, matchesProductCollection } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
@@ -20,6 +22,8 @@ export default function MobilePriceList({ onPrint }: Props) {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     
     const collectionOptions = useMemo(() => getProductCollectionOptions(products || [], collections || []), [products, collections]);
+    const [themeFilter, setThemeFilter] = useState('all');
+    const religiousIds = useMemo(() => getReligiousCollectionIds(collections || []), [collections]);
     const [mode, setMode] = useState<'collections' | 'custom'>('collections');
     
     // Updated to array for multiple selections
@@ -34,6 +38,7 @@ export default function MobilePriceList({ onPrint }: Props) {
         let list = products.filter(p => !p.is_component);
 
         if (mode === 'collections') {
+            if (themeFilter !== 'all') list = list.filter(product => getProductTheme(product, religiousIds) === themeFilter);
             if (selectedCollectionIds.length > 0) {
                 // If collections are selected, check if product belongs to ANY of them
                 list = list.filter(p => selectedCollectionIds.some(id => matchesProductCollection(p, id)));
@@ -51,7 +56,7 @@ export default function MobilePriceList({ onPrint }: Props) {
             }
         }
         return list.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    }, [products, mode, selectedCollectionIds, customList, search]);
+    }, [products, mode, selectedCollectionIds, customList, search, themeFilter, religiousIds]);
 
     const toggleCustomItem = (sku: string) => {
         setCustomList(prev => prev.includes(sku) ? prev.filter(s => s !== sku) : [...prev, sku]);
@@ -106,7 +111,7 @@ export default function MobilePriceList({ onPrint }: Props) {
         }
 
         if (items.length === 0) { showToast("Δεν υπάρχουν είδη.", "error"); return; }
-        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${formatNumber(items.length)} Κωδικοί`, filtersInfo: mode === 'collections' ? collectionOptions.filter(option => selectedCollectionIds.includes(option.id)).map(option => option.name).join(', ') : undefined, date: dateStr, items });
+        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${formatNumber(items.length)} Κωδικοί`, filtersInfo: mode === 'collections' ? collectionOptions.filter(option => selectedCollectionIds.includes(option.id)).map(option => option.name).concat(themeFilter === 'all' ? [] : [`Θέμα: ${productThemeLabel(themeFilter as ProductTheme)}`]).join(', ') : undefined, date: dateStr, items });
     };
 
     return (
@@ -159,6 +164,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                                 );
                             })}
                         </div>
+                        <ThemeFilter value={themeFilter} onChange={setThemeFilter} />
                         <UnassignedCollectionSelect options={collectionOptions} value={selectedCollectionIds.find(id => id.startsWith('none')) || ''} onChange={value => setSelectedCollectionIds(previous => [...previous.filter(id => !id.startsWith('none')), ...(value.startsWith('none') ? [value] : [])])} />
                     </div>
                 )}

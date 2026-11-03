@@ -202,6 +202,9 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                         <RankingTable title="Κύριες κατηγορίες" icon={<Boxes size={11} />} rows={stats.categoryChartData || []} empty="Δεν υπάρχουν αποστολές για την περίοδο." />
                         <RankingTable title="Αναλυτικές υποκατηγορίες" icon={<Boxes size={11} />} rows={stats.subcategoryChartData || []} empty="Δεν υπάρχουν αποστολές για την περίοδο." />
                     </div>
+                    <div className="mb-5 ">
+                        <RankingTable title="Θέματα" icon={<Boxes size={11} />} rows={stats.themeChartData || []} empty="Δεν υπάρχουν αποστολές για την περίοδο." />
+                    </div>
                     <div className="mb-5 grid grid-cols-2 gap-4">
                         <RankingTable title="Πιο δυνατά προϊόντα" icon={<Award size={11} />} rows={(stats.topProducts || []).slice(0, 10)} empty="Δεν υπάρχουν αποστολές προϊόντων για την περίοδο." />
                         <RankingTable title="Συλλογές που ξεχώρισαν" icon={<Boxes size={11} />} rows={stats.topCollections || []} empty="Δεν υπάρχουν αποστολές συλλογών για την περίοδο." />

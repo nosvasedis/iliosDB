@@ -18,7 +18,7 @@ import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceUsage';
 import EmptyState from './ui/EmptyState';
-import { getStoneFamily, stoneFamilyLabel, type StoneFamily } from '../features/resources/stoneFamilies';
+import { getStoneFamily, stoneFamilyLabel, materialResourceTab, isStoneResource, type StoneFamily } from '../features/resources/stoneFamilies';
 import { StoneFamilyBadge, StoneFamilyFilters, StoneFamilyHint } from './resources/StoneFamily';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
@@ -286,7 +286,7 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
                         </div>
                     )}
 
-                    {isStone && <StoneFamilyHint material={{ type: form.type, name: form.name, stones_per_strand: form.isStrand ? 1 : undefined }} />}
+                    {(isStone || isStoneResource({ type: form.type, name: form.name })) && <StoneFamilyHint material={{ type: form.type, name: form.name, stones_per_strand: form.isStrand ? 1 : undefined }} />}
 
                     <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500"><Coins size={14} /> Κοστολόγηση</div>
@@ -548,11 +548,11 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
 
     const tabCounts = useMemo(() => {
         const counts: Record<string, number> = {};
-        (materials || []).forEach(m => { counts[m.type] = (counts[m.type] || 0) + 1; });
+        (materials || []).forEach(m => { const tab = materialResourceTab(m); counts[tab] = (counts[tab] || 0) + 1; });
         return counts;
     }, [materials]);
 
-    const categoryMaterials = useMemo(() => (materials || []).filter(m => m.type === activeTab), [materials, activeTab]);
+    const categoryMaterials = useMemo(() => (materials || []).filter(m => materialResourceTab(m) === activeTab), [materials, activeTab]);
 
     const stoneCounts = useMemo(() => {
         const strand = categoryMaterials.filter(isStrandMaterial).length;
@@ -614,8 +614,8 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
         try {
             await api.saveMaterial(m);
             await queryClient.invalidateQueries({ queryKey: ['materials'] });
-            if (m.type !== activeTab) setActiveTab(m.type);
-            if (m.type === MaterialType.Stone) {
+            if (materialResourceTab(m) !== activeTab) setActiveTab(materialResourceTab(m));
+            if (isStoneResource(m)) {
                 const family = getStoneFamily(m);
                 if (stoneSubFilter !== 'all') setStoneSubFilter(family === 'strand' ? 'strand' : 'standard');
                 if (stoneFamily !== 'all' && family !== 'strand') setStoneFamily(family || 'all');

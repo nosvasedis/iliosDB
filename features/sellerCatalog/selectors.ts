@@ -1,3 +1,5 @@
+import { getProductTheme, getReligiousCollectionIds } from '../products/productThemes';
+import { isVisibleProductCatalogRow } from '../products/catalogVisibility';
 import { Gender, ProductionType } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { SellerCatalogCollection, SellerCatalogProduct, SellerCatalogVariant } from './types';
@@ -29,6 +31,7 @@ export interface SellerCatalogFilters {
   categoryGroup: string;
   gender: 'All' | Gender;
   collection: string | number;
+  theme?: string;
   finish: string | null;
   stone: string | null;
   stoneMode: 'All' | 'with' | 'without';
@@ -62,7 +65,7 @@ export function buildSellerCatalogIndex(
   const finishes = new Set<string>();
   const stones = new Map<string, { name: string; count: number }>();
 
-  const entries = products.map((sourceProduct) => {
+  const entries = products.filter(isVisibleProductCatalogRow).map((sourceProduct) => {
     const product = {
       ...sourceProduct,
       variants: sortSellerCatalogVariants(sourceProduct.variants, sourceProduct.gender),
@@ -115,14 +118,17 @@ export function buildSellerCatalogIndex(
 export function selectSellerCatalogProducts(
   index: SellerCatalogIndex,
   filters: SellerCatalogFilters,
+  collections: readonly SellerCatalogCollection[] = [],
 ): SellerCatalogProduct[] {
   const normalizedSearch = filters.search.trim().toLowerCase();
+  const religiousIds = getReligiousCollectionIds(collections);
   const entries = index.entries.filter((entry) => {
     const product = entry.product;
     return (!normalizedSearch || entry.normalizedSearch.includes(normalizedSearch))
       && matchesProductCategory(product.category, filters.categoryGroup)
       && (filters.gender === 'All' || product.gender === filters.gender)
       && matchesProductCollection(product, filters.collection)
+      && (!filters.theme || filters.theme === 'all' || getProductTheme(product, religiousIds) === filters.theme)
       && (!filters.finish || entry.finishCodes.has(filters.finish))
       && (!filters.stone || entry.stoneCodes.has(filters.stone))
       && (filters.stoneMode === 'All'

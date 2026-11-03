@@ -1,3 +1,4 @@
+import { getProductTheme, productThemeLabel, type ProductTheme } from '../products/productThemes';
 import { getProductCategoryPath, matchesProductCategory } from '../../utils/productCategories';
 import { getUnassignedCollectionPath, matchesProductCollection } from '../../utils/productCollectionScopes';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
@@ -52,6 +53,7 @@ export type SkuModalFilterFacets = {
   tags: string[];
   sellers: Array<{ id: string; name: string }>;
   categories: string[];
+  themes?: Array<{ id: ProductTheme; label: string }>;
   collections: Array<{ id: number | null; name: string; key?: string }>;
   finishes: string[];
   genders: Array<{ id: Gender; label: string }>;
@@ -62,6 +64,7 @@ export type SkuModalFilterSelection = {
   tags: Set<string>;
   sellers: Set<string>;
   categories: Set<string>;
+  themes?: Set<string>;
   collections: Set<string>;
   finishes: Set<string>;
   genders: Set<Gender>;
@@ -73,6 +76,7 @@ export function createEmptySkuModalFilters(): SkuModalFilterSelection {
     tags: new Set(),
     sellers: new Set(),
     categories: new Set(),
+    themes: new Set(),
     collections: new Set(),
     finishes: new Set(),
     genders: new Set(),
@@ -85,6 +89,7 @@ export function countActiveSkuModalFilters(filters: SkuModalFilterSelection): nu
     + filters.tags.size
     + filters.sellers.size
     + filters.categories.size
+    + (filters.themes?.size || 0)
     + filters.collections.size
     + filters.finishes.size
     + filters.genders.size
@@ -163,6 +168,7 @@ export function buildFilterFacets(
   const tags = new Set<string>();
   const sellers = new Map<string, string>();
   const categories = new Set<string>();
+  const themes = new Set<ProductTheme>();
   const collections = new Map<string, { id: number | null; name: string; key?: string }>();
   const finishes = new Set<string>();
   const genders = new Set<Gender>();
@@ -173,6 +179,7 @@ export function buildFilterFacets(
 
     if (isSpecialCreationSku(event.sku)) return;
 
+    themes.add(event.theme || getProductTheme(productsBySku.get(event.sku) || event));
     getProductCategoryPath(event.category).forEach((category) => categories.add(category));
 
     if (event.collectionId === null) {
@@ -205,6 +212,7 @@ export function buildFilterFacets(
     sellers: Array.from(sellers.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, 'el')),
+    themes: [...themes].map(id => ({ id, label: productThemeLabel(id) })),
     categories: Array.from(categories).sort((a, b) => a.localeCompare(b, 'el')),
     collections: Array.from(collections.values()).sort((a, b) => a.name.localeCompare(b.name, 'el')),
     finishes: Array.from(finishes).sort((a, b) => a.localeCompare(b, 'el')),
@@ -238,6 +246,8 @@ export function eventPassesSkuModalFilters(
   if (filters.categories.size > 0) {
     if (![...filters.categories].some((category) => matchesProductCategory(event.category, category))) return false;
   }
+
+  if (filters.themes?.size && !filters.themes.has(event.theme || getProductTheme(productsBySku.get(event.sku) || event))) return false;
 
   if (filters.collections.size > 0) {
     const product = { ...event, gender: event.gender || productsBySku.get(event.sku)?.gender, collections: event.collectionId === null ? [] : [event.collectionId] };

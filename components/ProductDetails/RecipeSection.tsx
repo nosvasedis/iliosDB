@@ -1,3 +1,4 @@
+import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
 import React from 'react';
 import { Box, Coins, Gem, Plus, Puzzle, Trash2 } from 'lucide-react';
 import { GlobalSettings, Material, Product, RecipeItem } from '../../types';
@@ -131,6 +132,7 @@ export default function RecipeSection({
                                     )}
                                     {subtitle ? <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{subtitle}</div> : null}
                                     {material && <div className="mt-1"><StoneFamilyBadge material={material} /></div>}
+                                {component && <div className="mt-1"><ComponentFamilyBadge product={component} /></div>}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <SmartQuantityInput

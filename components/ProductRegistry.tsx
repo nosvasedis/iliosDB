@@ -1,3 +1,7 @@
+import { ThemeFilter, ComponentFamilyFilter, ComponentFamilyBadge } from './catalog/ProductClassificationFilters';
+import { isStoneResource } from '../features/resources/stoneFamilies';
+import { productThemeLabel } from '../features/products/productThemes';
+import { componentFamilyLabel, type ComponentFamily } from '../features/resources/componentFamilies';
 import UnassignedCollectionSelect from './catalog/UnassignedCollectionSelect';
 import { getProductCollectionOptions } from '../utils/productCollectionScopes';
 import { useRestartDraft } from '../hooks/useRestartBlocker';
@@ -213,7 +217,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         stone: 'all',          // 'all' | 'with' | 'without' | materialId
         plating: 'all',
         productionType: 'all', // 'all' | 'InHouse' | 'Imported'
-        collection: 'all',     // 'all' | collectionId string
+        collection: 'all', theme: 'all', componentFamily: 'all',     // 'all' | collectionId string
     });
 
     const [sortBy, setSortBy] = useState<RegistrySortMode>('sku_asc');
@@ -303,12 +307,12 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const stoneMaterialIds = useMemo(() => {
         if (!materials) return new Set<string>();
-        return new Set(materials.filter(m => m.type === 'Stone').map(m => m.id));
+        return new Set(materials.filter(m => isStoneResource(m)).map(m => m.id));
     }, [materials]);
 
     const searchableProducts = useMemo(() => {
-        return buildSearchableProducts(baseProducts, stoneMaterialIds);
-    }, [baseProducts, stoneMaterialIds]);
+        return buildSearchableProducts(baseProducts, stoneMaterialIds, collections || []);
+    }, [baseProducts, stoneMaterialIds, collections]);
 
     const deferredSearchTerm = React.useDeferredValue(searchTerm);
 
@@ -330,6 +334,8 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             plating: subFilters.plating,
             productionType: subFilters.productionType,
             collection: subFilters.collection,
+            theme: showStxOnly ? 'all' : subFilters.theme,
+            componentFamily: showStxOnly ? subFilters.componentFamily : 'all',
             sortBy,
         });
         return linkedOnly ? result.filter((product) => linkIndex.bySku.has(product.sku)) : result;
@@ -655,12 +661,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     });
     if (subFilters.plating !== 'all') activeFilterChips.push({ key: 'plating', label: platingFilters.find(f => f.value === subFilters.plating)?.label || subFilters.plating, clear: () => setSubFilters(p => ({ ...p, plating: 'all' })) });
     if (subFilters.productionType !== 'all') activeFilterChips.push({ key: 'productionType', label: subFilters.productionType === 'InHouse' ? 'Ιδιοπαραγωγή' : 'Εισαγωγή', clear: () => setSubFilters(p => ({ ...p, productionType: 'all' })) });
+    if (!showStxOnly && subFilters.theme !== 'all') activeFilterChips.push({ key: 'theme', label: productThemeLabel(subFilters.theme as any), clear: () => setSubFilters(previous => ({ ...previous, theme: 'all' })) });
+    if (showStxOnly && subFilters.componentFamily !== 'all') activeFilterChips.push({ key: 'componentFamily', label: componentFamilyLabel(subFilters.componentFamily as ComponentFamily), clear: () => setSubFilters(previous => ({ ...previous, componentFamily: 'all' })) });
     if (subFilters.collection !== 'all') activeFilterChips.push({ key: 'collection', label: collectionOptions.find(c => c.id === subFilters.collection)?.name || 'Συλλογή', clear: () => setSubFilters(p => ({ ...p, collection: 'all' })) });
     if (linkedOnly) activeFilterChips.push({ key: 'linked', label: 'Σε σετ', clear: () => setLinkedOnly(false) });
     const clearAllFilters = () => {
         setFilterGender('All');
         setFilterCategory('All');
-        setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
+        setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all', theme: 'all', componentFamily: 'all' });
         setLinkedOnly(false);
     };
 
@@ -890,7 +898,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     <div className="text-xs text-slate-500 truncate flex items-center gap-2">
                                                         {isFirstInTeam && (
                                                             <>
-                                                                <span>{item.product.category}</span>
+                                                                <span>{item.product.category}</span><ComponentFamilyBadge product={item.product} />
                                                                 <span className="text-slate-300">•</span>
                                                             </>
                                                         )}
@@ -924,7 +932,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     {/* Detailed Cost Tooltip */}
                                                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover/cost:block z-[100] w-56 bg-[#060b00] text-white p-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 border border-white/10 ring-1 ring-white/5">
                                                         <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-3 border-b border-white/10 pb-1.5">Ανάλυση Κόστους</div>
-                                                        <div className="space-y-2">
+                                                        {showStxOnly
+                                ? <ComponentFamilyFilter value={subFilters.componentFamily} onChange={value => setSubFilters(previous => ({ ...previous, componentFamily: value }))} />
+                                : <ThemeFilter value={subFilters.theme} onChange={value => setSubFilters(previous => ({ ...previous, theme: value }))} />}
+
+                            <div className="space-y-2">
                                                             <div className="flex justify-between text-[11px]">
                                                                 <span className="text-white/50">Μέταλλο:</span>
                                                                 <span className="font-bold">{formatCurrency(item.costBreakdown.silver)}</span>

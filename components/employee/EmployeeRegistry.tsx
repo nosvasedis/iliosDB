@@ -1,3 +1,6 @@
+import { ThemeFilter } from '../catalog/ProductClassificationFilters';
+import { useCollections } from '../../hooks/api/useCollections';
+import { productThemeLabel, type ProductTheme } from '../../features/products/productThemes';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { Database, PackageOpen, ScanLine, SlidersHorizontal } from 'lucide-react';
@@ -20,7 +23,7 @@ interface Props {
 }
 
 type Facets = Omit<StoreCatalogFilters, 'search' | 'group'>;
-const DEFAULT_FACETS: Facets = { gender: 'All', stones: 'all', plating: 'all', onlyInStock: false, sortBy: 'sku' };
+const DEFAULT_FACETS: Facets = { gender: 'All', theme: 'all', stones: 'all', plating: 'all', onlyInStock: false, sortBy: 'sku' };
 
 const GENDER_OPTS: Array<{ v: 'All' | Gender; l: string }> = [
     { v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Ουδέτερα' },
@@ -35,6 +38,7 @@ const EMPTY: Product[] = [];
 export default function EmployeeRegistry({ setPrintItems }: Props) {
     const { data: products, isLoading } = useProducts();
     const { data: materials } = useMaterials();
+    const { data: collections } = useCollections();
     const { showToast } = useUI();
     const { isDesktop } = useViewport();
 
@@ -52,10 +56,10 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
 
     const index = useMemo(() => getStoreCatalogIndex(products || EMPTY, materials || []), [products, materials]);
     const filters = useDeferredValue(useMemo<StoreCatalogFilters>(() => ({ ...facets, search, group }), [facets, search, group]));
-    const filtered = useMemo(() => selectStoreCatalog(index, filters), [index, filters]);
+    const filtered = useMemo(() => selectStoreCatalog(index, filters, collections || []), [index, filters, collections]);
     const resetKey = JSON.stringify(filters);
 
-    const activeCount = [facets.gender !== 'All', facets.stones !== 'all', facets.plating !== 'all', facets.onlyInStock].filter(Boolean).length;
+    const activeCount = [facets.theme !== 'all', facets.gender !== 'All', facets.stones !== 'all', facets.plating !== 'all', facets.onlyInStock].filter(Boolean).length;
     const clearAll = () => setFacets((prev) => ({ ...DEFAULT_FACETS, sortBy: prev.sortBy }));
 
     const openProduct = useCallback((product: Product) => setSelectedProduct(product), []);
@@ -98,6 +102,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
                         <CategoryChips groups={index.groups} value={group} onChange={setGroup} />
                         {activeCount > 0 && (
                             <ActiveChipsRow onClearAll={clearAll}>
+                                {facets.theme !== 'all' && <ActiveChip label={productThemeLabel(facets.theme as ProductTheme)} onClear={() => setFacet('theme', 'all')} />}
                                 {facets.gender !== 'All' && <ActiveChip label={GENDER_OPTS.find((g) => g.v === facets.gender)?.l || ''} onClear={() => setFacet('gender', 'All')} />}
                                 {facets.stones !== 'all' && <ActiveChip label={STONE_OPTS.find((o) => o.v === facets.stones)?.l || ''} onClear={() => setFacet('stones', 'all')} />}
                                 {facets.plating !== 'all' && <ActiveChip label={PLATING_OPTS.find((o) => o.v === facets.plating)?.l || ''} onClear={() => setFacet('plating', 'all')} />}
@@ -143,6 +148,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
                             <button key={g.v} type="button" onClick={() => setFacet('gender', g.v)} className={optionClass(facets.gender === g.v)}>{g.l}</button>
                         ))}
                     </FilterSection>
+                    <ThemeFilter value={facets.theme} onChange={value => setFacet('theme', value)} />
                     <FilterSection title="Πέτρες">
                         {STONE_OPTS.map((o) => (
                             <button key={o.v} type="button" onClick={() => setFacet('stones', o.v)} className={optionClass(facets.stones === o.v)}>{o.l}</button>

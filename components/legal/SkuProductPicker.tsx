@@ -20,6 +20,7 @@ import {
 } from '../../utils/skuProductPicker';
 import { findProductByScannedCode, formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
+import { getLegalDocumentItemKind, LEGAL_DOCUMENT_ITEM_KINDS, type LegalDocumentItemKind } from '../../utils/legalItemCodes';
 
 export type { SkuProductSelection } from '../../utils/skuProductPicker';
 export { searchSkuProductOptions } from '../../utils/skuProductPicker';
@@ -44,6 +45,8 @@ interface SkuProductPickerProps {
   scope?: SkuCatalogScope;
   /** Reject free text that is not backed by a product in the loaded catalog. */
   catalogOnly?: boolean;
+  /** Only Παραστατικά may enable the virtual service/shipping groups. */
+  legalDocument?: boolean;
 }
 
 export default function SkuProductPicker({
@@ -60,6 +63,7 @@ export default function SkuProductPicker({
   compact = false,
   scope = 'products',
   catalogOnly = false,
+  legalDocument = false,
 }: SkuProductPickerProps) {
   const { showToast } = useUI();
   const listboxId = useId();
@@ -72,6 +76,7 @@ export default function SkuProductPicker({
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [legalKind, setLegalKind] = useState<LegalDocumentItemKind | 'all'>('all');
 
   useEffect(() => {
     setInputValue(displayValue);
@@ -87,8 +92,8 @@ export default function SkuProductPicker({
   }, [autoFocus]);
 
   const options = useMemo(
-    () => searchSkuProductOptions(products, inputValue, 16, { scope }),
-    [inputValue, products, scope],
+    () => searchSkuProductOptions(legalDocument && legalKind !== 'all' ? products.filter(product => getLegalDocumentItemKind(product.sku) === legalKind) : products, inputValue, 16, { scope }),
+    [inputValue, products, scope, legalDocument, legalKind],
   );
 
   const liveColorParts = useMemo(
@@ -281,6 +286,9 @@ export default function SkuProductPicker({
       style={dropdownStyle}
       className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl ring-1 ring-slate-900/5"
     >
+      {legalDocument && <div className="mb-1 flex flex-wrap gap-1 border-b border-slate-100 p-1" role="group" aria-label="Είδος γραμμής παραστατικού">
+        {[{ id: 'all' as const, label: 'Όλα' }, ...LEGAL_DOCUMENT_ITEM_KINDS].map(kind => <button key={kind.id} type="button" aria-pressed={legalKind === kind.id} onMouseDown={event => event.preventDefault()} onClick={() => { setLegalKind(kind.id); setHighlightIndex(0); }} className={`rounded-lg px-2 py-1.5 text-[10px] font-bold ${legalKind === kind.id ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-50 text-slate-500'}`}>{kind.label}</button>)}
+      </div>}
       {inputValue.trim() ? (
         <div className="mb-1 flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5">
           <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Πληκτρολόγηση</span>
@@ -336,6 +344,7 @@ export default function SkuProductPicker({
               />
             </div>
             {option.hint ? <div className="truncate text-[11px] font-medium text-slate-500">{option.hint}</div> : null}
+            {legalDocument && getLegalDocumentItemKind(option.sku) !== 'goods' && <span className="mt-1 inline-flex rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">{LEGAL_DOCUMENT_ITEM_KINDS.find(kind => kind.id === getLegalDocumentItemKind(option.sku))?.label}</span>}
           </div>
           {typeof option.price === 'number' && option.price > 0 ? (
             <div className="shrink-0 text-[11px] font-black text-emerald-700">{formatCurrency(option.price)}</div>

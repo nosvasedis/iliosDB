@@ -250,6 +250,14 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-black text-slate-900">Θέματα</h3>
+          <div className="space-y-2">{stats.themeChartData.map(row => <div key={row.name} className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-800">{row.name}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatNumber(row.quantity)} τεμ. · Έσοδα {formatCurrency(row.revenue)} · Κέρδος {formatCurrency(row.profit)}</p>
+          </div>)}</div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Boxes size={16} className="text-fuchsia-600" /> Συλλογές που ξεχώρισαν</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Έσοδα</span>
