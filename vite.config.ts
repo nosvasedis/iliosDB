@@ -1,4 +1,6 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { randomUUID } from 'node:crypto';
 
@@ -19,6 +21,8 @@ export default defineConfig({
       this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId }) });
     },
   }],
+  // Claude session worktrees live under .claude/; their test copies are not this checkout's tests.
+  test: { exclude: [...configDefaults.exclude, '.claude/**'] },
   build: {
     rollupOptions: {
       output: {
@@ -36,7 +40,7 @@ export default defineConfig({
           if (id.includes('/recharts/')) return 'charts_vendor';
           if (id.includes('/pdfjs-dist/')) return 'pdf_vendor';
           if (id.includes('/html2canvas/') || id.includes('/jsbarcode/') || id.includes('/qrcode/')) return 'print_vendor';
-          if (id.includes('@supabase/supabase-js') || id.includes('/appwrite/') || id.includes('@google/genai')) {
+          if (id.includes('@supabase/supabase-js') || id.includes('@google/genai')) {
             return 'backend_vendor';
           }
         }
