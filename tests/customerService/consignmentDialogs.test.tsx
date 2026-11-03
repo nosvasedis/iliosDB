@@ -5,6 +5,13 @@ import ConsignmentOfferDialog from '../../components/customerService/consignment
 import DeleteConsignmentDialog from '../../components/customerService/consignments/DeleteConsignmentDialog';
 import type { ServiceController } from '../../components/customerService/useServiceController';
 
+// React 19's create() only renders inside act().
+function mount(element: React.ReactElement) {
+  let view!: ReturnType<typeof create>;
+  act(() => { view = create(element); });
+  return view;
+}
+
 vi.mock('../../components/customerService/shared/serviceUi', async importOriginal => {
   const original = await importOriginal<any>();
   return { ...original, ServiceModal: ({ children, footer }: any) => <div>{children}<footer>{footer}</footer></div> };
@@ -22,7 +29,7 @@ function controller(overrides: any = {}) {
 describe('consignment pricing and deletion controls', () => {
   it('saves an exact offer using Greek decimal input and a reason', async () => {
     const ctl = controller();
-    const view = create(<ConsignmentOfferDialog ctl={ctl} entry={entry} />);
+    const view = mount(<ConsignmentOfferDialog ctl={ctl} entry={entry} />);
     act(() => view.root.findByProps({ 'aria-label': 'Συνολικό ποσό προσφοράς (€)' }).props.onChange({ target: { value: '300,00' } }));
     act(() => view.root.findByType('textarea').props.onChange({ target: { value: 'Συμφωνία 300 €' } }));
     const save = view.root.findByType('button');
@@ -33,7 +40,7 @@ describe('consignment pricing and deletion controls', () => {
   });
   it('rejects blank, negative, non-finite and excess decimal amounts', () => {
     const ctl = controller();
-    const view = create(<ConsignmentOfferDialog ctl={ctl} entry={entry} />);
+    const view = mount(<ConsignmentOfferDialog ctl={ctl} entry={entry} />);
     act(() => view.root.findByType('textarea').props.onChange({ target: { value: 'Συμφωνία' } }));
     for (const value of ['', '-1', '1,001', '1.0000001', 'Infinity', 'abc']) {
       act(() => view.root.findByType('input').props.onChange({ target: { value } }));
@@ -43,7 +50,7 @@ describe('consignment pricing and deletion controls', () => {
   });
   it('requires both the deletion reason and confirmation that outstanding goods returned', async () => {
     const ctl = controller();
-    const view = create(<DeleteConsignmentDialog ctl={ctl} entry={entry} />);
+    const view = mount(<DeleteConsignmentDialog ctl={ctl} entry={entry} />);
     act(() => view.root.findByType('textarea').props.onChange({ target: { value: 'Διόρθωση' } }));
     expect(view.root.findAllByType('button')[1].props.disabled).toBe(true);
     act(() => view.root.findByType('input').props.onChange({ target: { checked: true } }));
@@ -53,7 +60,7 @@ describe('consignment pricing and deletion controls', () => {
     view.unmount();
   });
   it.each([{ due: 12 }, { openReturns: 1 }])('blocks deletion of an unresolved record %j', status => {
-    const view = create(<DeleteConsignmentDialog ctl={controller(status)} entry={entry} />);
+    const view = mount(<DeleteConsignmentDialog ctl={controller(status)} entry={entry} />);
     expect(view.root.findAllByType('button')[1].props.disabled).toBe(true);
     expect(view.root.findByProps({ role: 'alert' })).toBeTruthy();
     view.unmount();

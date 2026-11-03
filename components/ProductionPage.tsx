@@ -1944,7 +1944,7 @@ const StageInspectorModal: React.FC<{
                 <div className={`flex-shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-center justify-between gap-4 rounded-t-3xl`}>
                     <div className="flex items-center gap-3">
                         <div className={`p-2.5 bg-white rounded-xl shadow-sm ${colors.text}`}>
-                            {React.cloneElement(stage.icon as React.ReactElement, { size: 22 })}
+                            {React.cloneElement(stage.icon as React.ReactElement<{ size?: number }>, { size: 22 })}
                         </div>
                         <div>
                             <h3 className="font-black text-slate-900 text-xl">{stage.label}</h3>

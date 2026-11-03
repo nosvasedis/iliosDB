@@ -5,6 +5,13 @@ import type { Customer, CustomerVatLookupResult } from '../../types';
 import { applyGeographicVat, suggestGeographicVat } from '../../features/customers/vatProfile';
 import CustomerVatProfileSuggestion from '../../components/customers/CustomerVatProfileSuggestion';
 
+// React 19's create() only renders inside act().
+function mount(element: React.ReactElement) {
+  let view!: ReturnType<typeof create>;
+  act(() => { view = create(element); });
+  return view;
+}
+
 const customer = (address: string): Customer => ({ id: 'new', full_name: 'Δοκιμή', address, vat_number: '987654324', vat_rate: 0.24 });
 
 describe('fiscal profile geographic suggestions', () => {
@@ -53,7 +60,7 @@ describe('fiscal profile suggestion UI', () => {
 
   it('requires an explicit click and passes the actual rate to the customer form', () => {
     const onChange = vi.fn();
-    const view = create(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={onChange} lookup={lookup} />);
+    const view = mount(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={onChange} lookup={lookup} />);
     expect(onChange).not.toHaveBeenCalled();
     expect(JSON.stringify(view.toJSON())).toContain('δεν σημαίνει ότι ο πελάτης αγοράζει χωρίς ΦΠΑ');
     act(() => view.root.findByType('button').props.onClick());
@@ -64,12 +71,12 @@ describe('fiscal profile suggestion UI', () => {
   });
 
   it('disables applying a suggestion for an inactive AFM', () => {
-    const view = create(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={vi.fn()} lookup={{ ...lookup, active: false }} />);
+    const view = mount(<CustomerVatProfileSuggestion customer={customer('83100 Σάμος')} onChange={vi.fn()} lookup={{ ...lookup, active: false }} />);
     expect(view.root.findByType('button').props.disabled).toBe(true);
   });
 
   it('hides registry evidence belonging to a different AFM', () => {
-    const view = create(<CustomerVatProfileSuggestion customer={{ ...customer('Αθήνα'), vat_number: '094259216' }} onChange={vi.fn()} lookup={lookup} />);
+    const view = mount(<CustomerVatProfileSuggestion customer={{ ...customer('Αθήνα'), vat_number: '094259216' }} onChange={vi.fn()} lookup={lookup} />);
     expect(JSON.stringify(view.toJSON())).not.toContain('ΑΑΔΕ: εκτός');
   });
 });

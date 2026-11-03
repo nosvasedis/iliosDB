@@ -6,6 +6,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { customerPhones, splitCustomerPhone, withCustomerPhones } from '../../features/customers/customerPhones';
 import CustomerPhoneFields from '../../components/customers/CustomerPhoneFields';
 
+// React 19's create() only renders inside act().
+function mount(element: React.ReactElement) {
+  let view!: ReturnType<typeof create>;
+  act(() => { view = create(element); });
+  return view;
+}
+
 const cases = [
   ['6912345678', 'GR', '6912345678', '', ''],
   ['2101234567 / 6912345678 (Μαρία)', 'GR', '6912345678 (Μαρία)', '2101234567', ''],
@@ -30,7 +37,7 @@ describe('customer mobile / landline split', () => {
   });
   it('edits two independent fields and keeps the compatibility phone current', () => {
     const change = vi.fn();
-    const view = create(<CustomerPhoneFields customer={{ id: 'c', full_name: 'Test', phone: '2101234567', created_at: '' }} onChange={change} />);
+    const view = mount(<CustomerPhoneFields customer={{ id: 'c', full_name: 'Test', phone: '2101234567', created_at: '' }} onChange={change} />);
     expect(view.root.findAllByType('input')).toHaveLength(2);
     act(() => view.root.findAllByType('input')[0].props.onChange({ target: { value: '6912345678' } }));
     expect(change).toHaveBeenCalledWith(expect.objectContaining({ mobile_phone: '6912345678', landline_phone: '2101234567', phone: '6912345678 / 2101234567' }));

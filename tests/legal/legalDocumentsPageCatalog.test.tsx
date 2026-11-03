@@ -67,6 +67,8 @@ describe('legal document page catalog loading', () => {
   }
   async function mount(props: Parameters<typeof page>[0] = {}) {
     await settle(() => { renderer = create(page(props)); });
+    // React 19 starts the catalog query in a later effect flush; let it settle.
+    await settle(() => {});
   }
 
   beforeEach(() => {

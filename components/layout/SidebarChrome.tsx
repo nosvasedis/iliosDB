@@ -94,8 +94,8 @@ export function SidebarHoverTooltip({
   className?: string;
 }) {
   const triggerRef = useRef<HTMLDivElement>(null);
-  const hideTimer = useRef<number>();
-  const showTimer = useRef<number>();
+  const hideTimer = useRef<number | undefined>(undefined);
+  const showTimer = useRef<number | undefined>(undefined);
   const tooltipId = useId();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });

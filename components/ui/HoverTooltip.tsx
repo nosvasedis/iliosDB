@@ -15,7 +15,7 @@ type Props = {
  */
 export function HoverTooltip({ label, hint, children }: Props) {
   const triggerRef = useRef<HTMLSpanElement>(null);
-  const showTimer = useRef<number>();
+  const showTimer = useRef<number | undefined>(undefined);
   const tooltipId = useId();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
