@@ -1,5 +1,6 @@
 import {
   Collection,
+  Gender,
   GlobalSettings,
   LegalDocument,
   Material,
@@ -20,6 +21,8 @@ import { buildItemIdentityKey } from './itemIdentity';
 
 import { isInternalOrder } from './orderCustomer';
 import { createRecipeResourceResolver, summarizeResourceQuantities, type RecipeResources, type ResourceQuantities } from '../features/finance/resourceQuantities';
+import { getProductCategoryRoot } from './productCategories';
+import { getUnassignedCollectionGroup } from './productCollectionScopes';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
@@ -77,6 +80,7 @@ export interface FinanceLineEvent {
   profit: number;
   margin: number;
   category: string;
+  gender?: Gender;
   collectionId: number | null;
   collectionName: string;
   productImage: string | null;
@@ -152,6 +156,7 @@ export interface FinanceVariantRanking extends FinanceRankingBase {
 }
 
 export interface FinanceCollectionRanking extends FinanceRankingBase {
+  key?: string;
   id: number | null;
   name: string;
 }
@@ -225,6 +230,7 @@ export interface FinanceAnalytics {
   topCustomers: FinanceCustomerRanking[];
   topSellers: FinanceSellerRanking[];
   categoryChartData: FinanceCategoryRanking[];
+  subcategoryChartData: FinanceCategoryRanking[];
   timeChartData: FinanceTimePoint[];
   costWarnings: string[];
   isSingleOrder: boolean;
@@ -481,6 +487,7 @@ function buildLineEvent(params: {
     profit,
     margin: net > 0 ? (profit / net) * 100 : 0,
     category,
+    gender: effectiveProduct?.gender || product?.gender,
     collectionId,
     collectionName,
     productImage: effectiveProduct?.image_url || product?.image_url || null,
@@ -840,6 +847,7 @@ export function rankFinanceAnalyticsFromEvents(
   const topCustomersMap = new Map<string, FinanceCustomerRanking>();
   const topSellersMap = new Map<string, FinanceSellerRanking>();
   const categoryMap = new Map<string, FinanceCategoryRanking>();
+  const subcategoryMap = new Map<string, FinanceCategoryRanking>();
   const timeMap = new Map<string, FinanceTimePoint>();
   const timeOrderMap = new Map<string, number>();
 
@@ -879,10 +887,12 @@ export function rankFinanceAnalyticsFromEvents(
     topVariantsMap.set(variantKey, variantRow);
 
     if (!isSpecialLine) {
-      const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
+      const unassigned = event.collectionId === null ? getUnassignedCollectionGroup(event) : null;
+      const collectionKey = unassigned?.id || String(event.collectionId);
       const collectionRow = topCollectionsMap.get(collectionKey) || {
+        key: collectionKey,
         id: event.collectionId,
-        name: event.collectionName,
+        name: unassigned?.name || event.collectionName,
         revenue: 0,
         estimatedCost: 0,
         profit: 0,
@@ -892,8 +902,9 @@ export function rankFinanceAnalyticsFromEvents(
       addRankingTotals(collectionRow, event);
       topCollectionsMap.set(collectionKey, collectionRow);
 
-      const categoryRow = categoryMap.get(event.category) || {
-        name: event.category,
+      const root = getProductCategoryRoot(event.category) || 'Χωρίς κατηγορία';
+      const categoryRow = categoryMap.get(root) || {
+        name: root,
         revenue: 0,
         estimatedCost: 0,
         profit: 0,
@@ -901,7 +912,13 @@ export function rankFinanceAnalyticsFromEvents(
         quantity: 0,
       };
       addRankingTotals(categoryRow, event);
-      categoryMap.set(event.category, categoryRow);
+      categoryMap.set(root, categoryRow);
+      const detail = event.category || 'Χωρίς κατηγορία';
+      const subcategoryRow = subcategoryMap.get(detail) || {
+        name: detail, revenue: 0, estimatedCost: 0, profit: 0, margin: 0, quantity: 0,
+      };
+      addRankingTotals(subcategoryRow, event);
+      subcategoryMap.set(detail, subcategoryRow);
     }
 
     const shouldRankCustomer = !(event.customerId === RETAIL_CUSTOMER_ID || event.customerName === RETAIL_CUSTOMER_NAME);
@@ -1042,6 +1059,7 @@ export function rankFinanceAnalyticsFromEvents(
       }))
       .sort((a, b) => b.revenue + b.pendingRevenue - (a.revenue + a.pendingRevenue)),
     categoryChartData: sortRankings(Array.from(categoryMap.values())),
+    subcategoryChartData: sortRankings(Array.from(subcategoryMap.values())),
     timeChartData: sortedTime,
     costWarnings,
     isSingleOrder: orders.filter((order) => order.status !== OrderStatus.Cancelled).length === 1,

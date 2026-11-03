@@ -1,3 +1,4 @@
+import { getProductCategoryBreadcrumb } from '../../utils/productCategories';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -171,7 +172,7 @@ const VariantListRow = memo(function VariantListRow({
             </span>
           </div>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-medium text-slate-400">
-            <span className="truncate">{row.category.split(' ')[0]}</span>
+            <span className="truncate">{getProductCategoryBreadcrumb(row.category)}</span>
             {(row.giftQuantity ?? 0) > 0 && (
               <span className="inline-flex items-center gap-0.5 font-bold text-fuchsia-600" title="Δώρα με τιμή 0€">
                 <Gift size={10} />
@@ -449,7 +450,7 @@ function TopVariantsModalBody({
     const parts: string[] = [];
     if (deferredFilters.collections.size > 0) {
       const names = facets.collections
-        .filter((item) => deferredFilters.collections.has(item.id == null ? 'none' : String(item.id)))
+        .filter((item) => deferredFilters.collections.has(item.key || (item.id == null ? 'none' : String(item.id))))
         .map((item) => item.name);
       if (names.length) parts.push(`Συλλογή: ${names.join(', ')}`);
     }

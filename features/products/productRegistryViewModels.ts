@@ -6,6 +6,8 @@ import {
   getVariantComponents,
 } from '../../utils/pricingEngine';
 import { resolveInvoiceTotalWeight, type InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
+import { getProductCategoryOptions, matchesProductCategory } from '../../utils/productCategories';
+import { matchesProductCollection } from '../../utils/productCollectionScopes';
 
 export interface RegistrySearchableProduct {
   product: Product;
@@ -100,17 +102,11 @@ export function buildSearchableProducts(
 export function getGroupedProductCategories(products: Product[]) {
   const parents = new Set<string>();
   const children = new Map<string, Set<string>>();
-  const allCategories = new Set(products.map((product) => product.category));
-  const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός', 'Κολιέ'];
-
-  allCategories.forEach((category) => {
-    const parent = parentKeywords.find((keyword) => category.startsWith(keyword));
-    if (parent) {
-      parents.add(parent);
-      if (!children.has(parent)) children.set(parent, new Set());
-      if (category !== parent) children.get(parent)!.add(category);
-    } else {
-      parents.add(category);
+  getProductCategoryOptions(products.map((product) => product.category)).forEach(({ value, root, depth }) => {
+    parents.add(root);
+    if (depth > 0) {
+      if (!children.has(root)) children.set(root, new Set());
+      children.get(root)!.add(value);
     }
   });
 
@@ -171,10 +167,10 @@ export function filterRegistryProducts(
   const normalizedSearchTerm = filters.searchTerm.trim().toLowerCase();
   const normalizedSearchSku = filters.searchTerm.trim().toUpperCase();
 
-  const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, collectionIds, hasStoneInRecipe }) => {
+  const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, hasStoneInRecipe }) => {
     const matchesGender = filters.gender === 'All' || product.gender === filters.gender;
     const matchesSearch = !normalizedSearchTerm || skuUpper.includes(normalizedSearchSku) || categoryLower.includes(normalizedSearchTerm);
-    const matchesCategory = filters.category === 'All' || product.category === filters.category || product.category.startsWith(filters.category);
+    const matchesCategory = matchesProductCategory(product.category, filters.category);
     if (!matchesGender || !matchesSearch || !matchesCategory) return false;
 
     if (filters.stone === 'with') {
@@ -197,10 +193,7 @@ export function filterRegistryProducts(
       if (filters.productionType === 'Imported' && product.production_type !== 'Imported') return false;
     }
 
-    if (filters.collection !== 'all') {
-      const colId = parseInt(filters.collection);
-      if (!collectionIds.has(colId)) return false;
-    }
+    if (!matchesProductCollection(product, filters.collection)) return false;
 
     return true;
   }).map(({ product }) => product);

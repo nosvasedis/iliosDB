@@ -138,7 +138,7 @@ export default function SkuModalFiltersPanel({ facets, filters, onChange, open, 
 
   const collectionItems = useMemo(
     () => facets.collections.map((c) => ({
-      key: c.id === null ? 'none' : String(c.id),
+      key: c.key || (c.id === null ? 'none' : String(c.id)),
       label: c.name,
     })),
     [facets.collections],

@@ -1,3 +1,4 @@
+import { getUnassignedCollectionGroup } from '../../utils/productCollectionScopes';
 import { AssemblyPrintRow, Collection, EnhancedProductionBatch, Material, MaterialType, Order, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage, StageBatchPrintData } from '../../types';
 import { formatOrderId } from '../../utils/orderUtils';
 import { compareFinderPolishingSubStage } from '../../utils/productionFinderStageJump';
@@ -176,11 +177,11 @@ export function groupProductionBatchesForDisplay(
         ? batch.customer_name || 'Χωρίς Πελάτη'
         : batch.product_details?.gender || 'Unknown';
 
-    let collectionName = 'Γενικά';
+    let collectionName = getUnassignedCollectionGroup(batch.product_details || {}).name;
     const collectionIds = batch.product_details?.collections || [];
     if (collectionIds.length > 0) {
       const collection = collectionsMap.get(collectionIds[0]);
-      if (collection) collectionName = collection.name;
+      collectionName = collection?.name || `Συλλογή #${collectionIds[0]}`;
     }
 
     if (!groups[level1Key]) groups[level1Key] = {};

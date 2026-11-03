@@ -1,3 +1,5 @@
+import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
+import { getProductCollectionOptions, matchesProductCollection } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo } from 'react';
@@ -17,10 +19,11 @@ export default function MobilePriceList({ onPrint }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
     
+    const collectionOptions = useMemo(() => getProductCollectionOptions(products || [], collections || []), [products, collections]);
     const [mode, setMode] = useState<'collections' | 'custom'>('collections');
     
     // Updated to array for multiple selections
-    const [selectedCollectionIds, setSelectedCollectionIds] = useState<number[]>([]);
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
     
     const [customList, setCustomList] = useState<string[]>([]);
     const [search, setSearch] = useState('');
@@ -33,7 +36,7 @@ export default function MobilePriceList({ onPrint }: Props) {
         if (mode === 'collections') {
             if (selectedCollectionIds.length > 0) {
                 // If collections are selected, check if product belongs to ANY of them
-                list = list.filter(p => p.collections?.some(id => selectedCollectionIds.includes(id)));
+                list = list.filter(p => selectedCollectionIds.some(id => matchesProductCollection(p, id)));
             }
             if (search) {
                 const lower = search.toLowerCase();
@@ -55,7 +58,7 @@ export default function MobilePriceList({ onPrint }: Props) {
         if (search) showToast(customList.includes(sku) ? 'Αφαιρέθηκε.' : 'Προστέθηκε.', 'success');
     };
 
-    const toggleCollection = (id: number) => {
+    const toggleCollection = (id: string) => {
         setSelectedCollectionIds(prev => 
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
         );
@@ -96,14 +99,14 @@ export default function MobilePriceList({ onPrint }: Props) {
         if (mode === 'custom') title = 'Επιλεγμένα Είδη';
         else if (selectedCollectionIds.length > 0) {
             if (selectedCollectionIds.length === 1) {
-                title = collections?.find(c => c.id === selectedCollectionIds[0])?.name || 'Συλλογή';
+                title = collectionOptions.find(c => c.id === selectedCollectionIds[0])?.name || 'Συλλογή';
             } else {
-                title = `${formatNumber(selectedCollectionIds.length)} Συλλογές`;
+                title = 'Επιλεγμένες συλλογές / ομάδες ειδών';
             }
         }
 
         if (items.length === 0) { showToast("Δεν υπάρχουν είδη.", "error"); return; }
-        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${formatNumber(items.length)} Κωδικοί`, date: dateStr, items });
+        if (onPrint) onPrint({ title: `${title} - ${dateStr}`, subtitle: `${formatNumber(items.length)} Κωδικοί`, filtersInfo: mode === 'collections' ? collectionOptions.filter(option => selectedCollectionIds.includes(option.id)).map(option => option.name).join(', ') : undefined, date: dateStr, items });
     };
 
     return (
@@ -142,7 +145,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                             >
                                 Όλα
                             </button>
-                            {collections?.map(c => {
+                            {collectionOptions.filter(option => !option.id.startsWith('none')).map(c => {
                                 const isSelected = selectedCollectionIds.includes(c.id);
                                 return (
                                     <button 
@@ -156,6 +159,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                                 );
                             })}
                         </div>
+                        <UnassignedCollectionSelect options={collectionOptions} value={selectedCollectionIds.find(id => id.startsWith('none')) || ''} onChange={value => setSelectedCollectionIds(previous => [...previous.filter(id => !id.startsWith('none')), ...(value.startsWith('none') ? [value] : [])])} />
                     </div>
                 )}
 

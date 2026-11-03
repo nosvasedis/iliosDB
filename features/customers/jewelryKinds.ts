@@ -1,6 +1,7 @@
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { isSpecialRingSku } from '../../utils/sizing';
+import { getProductCategoryRoot } from '../../utils/productCategories';
 
 /** A jewellery kind (Δαχτυλίδια, Σκουλαρίκια…): the top level of «τι πουλάμε σε ποιον». */
 export interface JewelryKind {
@@ -42,7 +43,7 @@ function skuLetters(sku: string): string {
 
 /** Kind from a product category («Βραχιόλι Δερμάτινο» → Βραχιόλια). Unknown categories become their own kind. */
 export function kindFromCategory(category?: string | null): JewelryKind | null {
-  const text = (category ?? '').trim();
+  const text = getProductCategoryRoot(category);
   if (!text) return null;
   const key = normalizeGreekForSearch(text);
   const known = KNOWN_KINDS.find(kind => kind.stems.some(stem => key.startsWith(stem)));

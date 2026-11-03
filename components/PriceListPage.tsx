@@ -1,3 +1,5 @@
+import ProductCategorySelection from './catalog/ProductCategorySelection';
+import { getProductCollectionOptions, matchesProductCollection } from '../utils/productCollectionScopes';
 import StoneCodeText from './StoneCodeText';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
@@ -146,6 +148,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     
     // New Toggle State
     const [excludeCollections, setExcludeCollections] = useState(false);
+    const [unassignedScope, setUnassignedScope] = useState('all');
+    const unassignedOptions = useMemo(() => getProductCollectionOptions(products, []).filter(option => option.id !== 'none'), [products]);
     
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -199,12 +203,6 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         );
     };
 
-    const toggleCategory = (c: string) => {
-        setSelectedCategories(prev => 
-            prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
-        );
-    };
-
     const toggleAllCategories = () => {
         if (selectedCategories.length === allCategories.length) {
             setSelectedCategories([]);
@@ -216,12 +214,6 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
     const toggleCollection = (id: number) => {
         setSelectedCollectionIds(prev => 
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-        );
-    };
-
-    const toggleCategoryInCollection = (category: string) => {
-        setSelectedCategoriesInCollections(prev => 
-            prev.includes(category) ? prev.filter(x => x !== category) : [...prev, category]
         );
     };
 
@@ -406,13 +398,13 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         }
                         
                         // NEW: Also check if product's category is selected in collection filters
-                        if (selectedCategoriesInCollections.length > 0 && !selectedCategoriesInCollections.includes(p.category)) {
+                        if (!selectedCategoriesInCollections.includes(p.category)) {
                             shouldInclude = false;
                         }
                     }
                 } else {
                     // Fallback to standard filters if no collection is selected
-                    shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category);
+                    shouldInclude = selectedGenders.includes(p.gender) && selectedCategories.includes(p.category) && matchesProductCollection(p, unassignedScope);
                 }
 
                 // EXCLUDE COLLECTIONS LOGIC
@@ -499,7 +491,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             };
         }).sort((a, b) => a.skuBase.localeCompare(b.skuBase, undefined, { numeric: true }));
 
-    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections, selectedCategoriesInCollections]);
+    }, [products, selectedGenders, selectedCategories, searchTerm, selectedCollectionIds, manualSkus, excludedSkus, collections, excludeCollections, selectedCategoriesInCollections, unassignedScope]);
 
     const listParentRef = useRef<HTMLDivElement>(null);
     const rowCount = Math.ceil(filteredItems.length / 3) || 0;
@@ -515,7 +507,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
         let title = '';
         let subtitle = `${formatNumber(filteredItems.length)} Κωδικοί`;
         let collectionNames: string | undefined = undefined;
-        let filtersInfo: string | undefined = undefined;
+        let filtersInfo: string | undefined = unassignedScope === 'all' || selectedCollectionIds.length ? undefined : getProductCollectionOptions(products, []).find(option => option.id === unassignedScope)?.name;
 
         if (selectedCollectionIds.length > 0) {
             // Join all selected collection names for the main title
@@ -582,7 +574,8 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
             }
 
             title = catStr;
-            if (excludeCollections) filtersInfo = 'ΕΚΤΟΣ ΣΥΛΛΟΓΩΝ';
+            if (excludeCollections && unassignedScope === 'all') filtersInfo = 'ΕΚΤΟΣ ΣΥΛΛΟΓΩΝ';
+            if (unassignedScope !== 'all' && filtersInfo) title = filtersInfo;
         }
         
         const finalTitle = customPdfTitle.trim() || title;
@@ -677,20 +670,18 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                         </button>
                                     </div>
                                     <div className="space-y-1.5">
-                                        {allCategories.map(cat => (
-                                            <button
-                                                key={cat}
-                                                onClick={() => toggleCategory(cat)}
-                                                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${selectedCategories.includes(cat) ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-50 border border-transparent'}`}
-                                            >
-                                                <div className={`w-5 h-5 rounded flex items-center justify-center transition-all shrink-0 ${selectedCategories.includes(cat) ? 'bg-indigo-600 text-white' : 'border-2 border-slate-200 bg-white'}`}>
-                                                    {selectedCategories.includes(cat) && <Check size={14} strokeWidth={3} />}
-                                                </div>
-                                                {cat}
-                                            </button>
-                                        ))}
+                                        <ProductCategorySelection available={allCategories} selected={selectedCategories} onChange={setSelectedCategories} />
                                     </div>
                                 </div>
+
+                                {unassignedOptions.length > 0 && <label className="block space-y-2 text-xs font-bold text-slate-500">
+                                    <span>Χωρίς συλλογή · Αναλυτική επιλογή</span>
+                                    <select aria-label="Χωρίς συλλογή · Αναλυτική επιλογή" className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs" value={unassignedScope} onChange={event => setUnassignedScope(event.target.value)}>
+                                        <option value="all">Όλα τα προϊόντα</option>
+                                        <option value="none">Χωρίς συλλογή — όλα</option>
+                                        {unassignedOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+                                    </select>
+                                </label>}
 
                                 {/* EXCLUDE COLLECTIONS TOGGLE */}
                                 <div className="pt-4 border-t border-slate-100">
@@ -773,26 +764,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                     }
                                                 });
                                                 
-                                                return Array.from(catsInCollections).sort().map(cat => (
-                                                    <button
-                                                        key={cat}
-                                                        onClick={() => toggleCategoryInCollection(cat)}
-                                                        className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 border ${
-                                                            selectedCategoriesInCollections.includes(cat) 
-                                                                ? 'bg-pink-50 border-pink-200 text-pink-700' 
-                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                                        }`}
-                                                    >
-                                                        <div className={`w-4 h-4 rounded flex items-center justify-center transition-all shrink-0 ${
-                                                            selectedCategoriesInCollections.includes(cat) 
-                                                                ? 'bg-pink-500 text-white' 
-                                                                : 'border-2 border-slate-300 bg-white'
-                                                        }`}>
-                                                            {selectedCategoriesInCollections.includes(cat) && <Check size={12} strokeWidth={3} />}
-                                                        </div>
-                                                        <span className="flex-1">{pluralizeCategory(cat)}</span>
-                                                    </button>
-                                                ));
+                                                return <ProductCategorySelection available={Array.from(catsInCollections).sort()} selected={selectedCategoriesInCollections} onChange={setSelectedCategoriesInCollections} />;
                                             })()}
                                         </div>
                                         {selectedCategoriesInCollections.length === 0 && (

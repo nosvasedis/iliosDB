@@ -101,7 +101,7 @@ export default function RateCardEditor({ partyId, cards, materials }: { partyId:
                     {stones.map((stone) => <option key={stone.id} value={stone.id}>{stone.name}{stone.description ? ` ${stone.description}` : ''}</option>)}
                   </select>
                 ) : (
-                  <input value={row.match?.category || ''} onChange={(event) => updateMatch(index, 'category', event.target.value)} placeholder="Κατηγορία (π.χ. Δαχτυλίδι)" className={`${inputClass} py-1.5 text-xs`} />
+                  <input value={row.match?.category || ''} onChange={(event) => updateMatch(index, 'category', event.target.value)} title="Η κύρια κατηγορία περιλαμβάνει τις υποκατηγορίες της. Στην ίδια προτεραιότητα υπερισχύει ο πιο συγκεκριμένος κανόνας." placeholder="Κατηγορία ή υποκατηγορία" className={`${inputClass} py-1.5 text-xs`} />
                 )}
                 <input value={row.match?.sku_prefix || ''} onChange={(event) => updateMatch(index, 'sku_prefix', event.target.value)} placeholder="Πρόθεμα κωδικού" className={`${inputClass} py-1.5 text-xs`} />
                 <input value={row.match?.stone_code || ''} onChange={(event) => updateMatch(index, 'stone_code', event.target.value)} placeholder="Κωδ. πέτρας παραλλαγής" className={`${inputClass} py-1.5 text-xs`} />

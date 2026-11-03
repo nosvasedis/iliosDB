@@ -1,6 +1,8 @@
 import { Gender, ProductionType } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { SellerCatalogCollection, SellerCatalogProduct, SellerCatalogVariant } from './types';
+import { matchesProductCategory } from '../../utils/productCategories';
+import { matchesProductCollection } from '../../utils/productCollectionScopes';
 
 export const SELLER_FINISH_ORDER = ['', 'P', 'X', 'D', 'H'] as const;
 
@@ -26,7 +28,7 @@ export interface SellerCatalogFilters {
   search: string;
   categoryGroup: string;
   gender: 'All' | Gender;
-  collection: 'All' | number;
+  collection: string | number;
   finish: string | null;
   stone: string | null;
   stoneMode: 'All' | 'with' | 'without';
@@ -118,9 +120,9 @@ export function selectSellerCatalogProducts(
   const entries = index.entries.filter((entry) => {
     const product = entry.product;
     return (!normalizedSearch || entry.normalizedSearch.includes(normalizedSearch))
-      && (filters.categoryGroup === 'All' || entry.categoryGroup === filters.categoryGroup)
+      && matchesProductCategory(product.category, filters.categoryGroup)
       && (filters.gender === 'All' || product.gender === filters.gender)
-      && (filters.collection === 'All' || product.collections.includes(filters.collection))
+      && matchesProductCollection(product, filters.collection)
       && (!filters.finish || entry.finishCodes.has(filters.finish))
       && (!filters.stone || entry.stoneCodes.has(filters.stone))
       && (filters.stoneMode === 'All'

@@ -1,3 +1,5 @@
+import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
+import { getProductCollectionOptions } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
@@ -75,6 +77,7 @@ export default function SellerCatalog({ products, collections }: Props) {
 
     const catalogIndex = useMemo(() => getCatalogIndex(products), [products]);
     const categoryGroups = catalogIndex.categoryGroups;
+    const collectionOptions = useMemo(() => getProductCollectionOptions(products, collections), [products, collections]);
 
     // Typing and chip taps stay instant; the filter pass runs at lower priority.
     const filters = useDeferredValue(useMemo<SellerCatalogFilters>(() => ({
@@ -115,7 +118,7 @@ export default function SellerCatalog({ products, collections }: Props) {
             {facets.stone !== null && <ActiveChip label={stoneName(facets.stone)} onClear={() => setFacet('stone', null)} />}
             {facets.stoneMode !== 'All' && <ActiveChip label={facets.stoneMode === 'with' ? 'Με πέτρες' : 'Χωρίς πέτρες'} onClear={() => setFacet('stoneMode', 'All')} />}
             {facets.productionType !== 'All' && <ActiveChip label={facets.productionType === ProductionType.InHouse ? 'Εγχώρια' : 'Εισαγόμενα'} onClear={() => setFacet('productionType', 'All')} />}
-            {facets.collection !== 'All' && <ActiveChip label={collections.find((c) => c.id === facets.collection)?.name || 'Συλλογή'} onClear={() => setFacet('collection', 'All')} />}
+            {facets.collection !== 'All' && <ActiveChip label={collectionOptions.find((c) => c.id === String(facets.collection))?.name || 'Συλλογή'} onClear={() => setFacet('collection', 'All')} />}
             {facets.onlyInStock && <ActiveChip label="Διαθέσιμα" onClear={() => setFacet('onlyInStock', false)} />}
         </ActiveChipsRow>
     );
@@ -237,14 +240,15 @@ export default function SellerCatalog({ products, collections }: Props) {
                                 ))}
                             </FilterSection>
 
-                            {collections.length > 0 && (
+                            {collectionOptions.length > 0 && (
                                 <FilterSection title="Συλλογή">
                                     <button type="button" onClick={() => setFacet('collection', 'All')} className={optionClass(facets.collection === 'All')}>Όλες</button>
-                                    {collections.map((col) => (
-                                        <button key={col.id} type="button" onClick={() => setFacet('collection', col.id)} className={optionClass(facets.collection === col.id)}>
+                                    {collectionOptions.filter(option => !option.id.startsWith('none')).map((col) => (
+                                        <button key={col.id} type="button" onClick={() => setFacet('collection', col.id)} className={optionClass(String(facets.collection) === col.id)}>
                                             {col.name}
                                         </button>
                                     ))}
+                                    <UnassignedCollectionSelect options={collectionOptions} value={facets.collection} onChange={value => setFacet('collection', value)} allValue="All" />
                                 </FilterSection>
                             )}
                 </FilterSheet>

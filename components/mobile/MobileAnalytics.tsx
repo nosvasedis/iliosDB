@@ -77,6 +77,7 @@ function EmptyState({ text }: { text: string }) {
 
 export default function MobileAnalytics({ products, onPrint }: Props) {
   const [periodMode, setPeriodMode] = useState<FinancePeriodMode>('current_year');
+  const [categoryDetail, setCategoryDetail] = useState(false);
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
   const { analytics: stats, isLoading, isError, error, refetch } = useFinanceAnalytics({
     products,
@@ -84,7 +85,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
   });
 
   const topProducts = useMemo(() => (stats?.topProducts || []).slice(0, 5), [stats]);
-  const topCollections = useMemo(() => (stats?.topCollections || []).slice(0, 5), [stats]);
+  const topCollections = useMemo(() => (stats?.topCollections || []), [stats]);
   const topCustomers = useMemo(() => (stats?.topCustomers || []).slice(0, 5), [stats]);
   const salesTrend = useMemo(() => (stats?.timeChartData || []).slice(-6), [stats]);
 
@@ -235,23 +236,31 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-black text-slate-900">Κατηγορίες SKU</h3>
+            <button type="button" aria-pressed={categoryDetail} onClick={() => setCategoryDetail(value => !value)} className="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">{categoryDetail ? 'Κύριες κατηγορίες' : 'Αναλυτικές υποκατηγορίες'}</button>
+          </div>
+          <p className="mb-3 text-xs text-slate-500">{categoryDetail ? 'Ανά αναλυτική κατηγορία' : 'Ανά κύρια κατηγορία'}</p>
+          <div className="max-h-80 space-y-2 overflow-y-auto">
+            {(categoryDetail ? stats.subcategoryChartData : stats.categoryChartData).map(row => <div key={row.name} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-800">{row.name}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatNumber(row.quantity)} τεμ. · Έσοδα {formatCurrency(row.revenue)} · Κέρδος {formatCurrency(row.profit)}</p>
+            </div>)}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Boxes size={16} className="text-fuchsia-600" /> Συλλογές που ξεχώρισαν</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Έσοδα</span>
           </div>
-          {topCollections.length > 0 ? (
-            <div className="h-60">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topCollections} layout="vertical" margin={{ top: 0, right: 16, left: 12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f7" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 700 }} width={96} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                  <Bar dataKey="revenue" radius={[0, 8, 8, 0]} fill="#7c3aed" name="Έσοδα" barSize={18} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : <EmptyState text="Δεν υπάρχουν πωλήσεις συλλογών για την περίοδο." />}
+          <p className="mb-3 text-xs text-slate-500">Τα είδη χωρίς συλλογή εμφανίζονται ανά φύλο και αναλυτική κατηγορία.</p>
+          <div className="max-h-80 space-y-2 overflow-y-auto">
+            {topCollections.length ? topCollections.map((row) => <div key={row.key || String(row.id)} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="break-words text-xs font-bold text-slate-800">{row.name}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatNumber(row.quantity)} τεμ. · Έσοδα {formatCurrency(row.revenue)} · Κέρδος {formatCurrency(row.profit)}</p>
+            </div>) : <EmptyState text="Δεν υπάρχουν πωλήσεις για την περίοδο." />}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">

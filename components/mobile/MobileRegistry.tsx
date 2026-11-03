@@ -1,3 +1,5 @@
+import UnassignedCollectionSelect from '../catalog/UnassignedCollectionSelect';
+import { getProductCollectionOptions } from '../../utils/productCollectionScopes';
 import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
@@ -241,6 +243,7 @@ function countActiveRegistryFilters(params: {
 export default function MobileRegistry({ products, onProductSelect }: Props) {
     const { data: materials } = useMaterials();
     const { data: collections } = useCollections();
+    const collectionOptions = useMemo(() => getProductCollectionOptions(products || [], collections || []), [products, collections]);
     const linkIndex = useProductLinkIndex(products);
     const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
     const quickViews = useProductQuickViews<Product>({
@@ -670,7 +673,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                 </div>
                             )}
 
-                            {!showStxOnly && collections && collections.length > 0 && (
+                            {!showStxOnly && collectionOptions.length > 0 && (
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
                                         <FolderOpen size={14} className="text-blue-600" />
@@ -683,7 +686,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                             activeValue={subFilters.collection}
                                             onClick={(v) => setSubFilters((p) => ({ ...p, collection: v }))}
                                         />
-                                        {collections.map((col) => (
+                                        {collectionOptions.filter(option => !option.id.startsWith('none')).map((col) => (
                                             <SubFilterButton
                                                 key={col.id}
                                                 label={col.name}
@@ -692,6 +695,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                                 onClick={(v) => setSubFilters((p) => ({ ...p, collection: v }))}
                                             />
                                         ))}
+                                        <UnassignedCollectionSelect options={collectionOptions} value={subFilters.collection} onChange={value => setSubFilters(previous => ({ ...previous, collection: value }))} />
                                     </div>
                                 </div>
                             )}

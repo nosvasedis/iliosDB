@@ -795,7 +795,8 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
           </div>
         </div>
 
-        <ParetoStrip summary={pareto} dimensionLabel={dimensionMeta.label} />
+        {dimension === 'collection' && <p className="mb-3 text-xs leading-relaxed text-slate-500">Οι ονομασμένες συλλογές εμφανίζονται χωριστά. Τα είδη χωρίς συλλογή αναλύονται ανά φύλο και κατηγορία, χωρίς να δημιουργούνται νέες συλλογές.</p>}
+        <ParetoStrip summary={pareto} dimensionLabel={dimension === 'collection' ? 'ομάδες συλλογών / ειδών' : dimensionMeta.label} />
 
         {filtered.length === 0 ? (
           <div className="mt-3"><EmptyNote message="Δεν βρέθηκαν εγγραφές." icon={Search} /></div>
@@ -835,7 +836,7 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
                               <ArrowUpRight size={12} className="shrink-0 text-slate-300 group-hover:text-emerald-600" />
                             </button>
                           ) : (
-                            <span className="truncate font-bold text-slate-800" title={row.label}>{row.label}</span>
+                            <span className="whitespace-normal break-words font-bold text-slate-800" title={row.label}>{row.label}</span>
                           )}
                           {row.missingCost ? <AlertTriangle size={12} className="shrink-0 text-amber-500" aria-label="Ελλιπές κόστος" /> : null}
                         </span>

@@ -1,3 +1,5 @@
+import UnassignedCollectionSelect from './catalog/UnassignedCollectionSelect';
+import { getProductCollectionOptions } from '../utils/productCollectionScopes';
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
@@ -199,6 +201,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const { data: molds, isLoading: loadingMolds } = useMolds();
     const { data: settings, isLoading: loadingSettings } = useSettings();
     const { data: collections, isLoading: loadingCollections } = useCollections();
+    const collectionOptions = useMemo(() => getProductCollectionOptions(products || [], collections || []), [products, collections]);
 
     const [handoffSku] = useState(() => consumeRegistrySku());
     const [searchTerm, setSearchTerm] = useState(handoffSku ?? '');
@@ -652,7 +655,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     });
     if (subFilters.plating !== 'all') activeFilterChips.push({ key: 'plating', label: platingFilters.find(f => f.value === subFilters.plating)?.label || subFilters.plating, clear: () => setSubFilters(p => ({ ...p, plating: 'all' })) });
     if (subFilters.productionType !== 'all') activeFilterChips.push({ key: 'productionType', label: subFilters.productionType === 'InHouse' ? 'Ιδιοπαραγωγή' : 'Εισαγωγή', clear: () => setSubFilters(p => ({ ...p, productionType: 'all' })) });
-    if (subFilters.collection !== 'all') activeFilterChips.push({ key: 'collection', label: collections.find(c => String(c.id) === subFilters.collection)?.name || 'Συλλογή', clear: () => setSubFilters(p => ({ ...p, collection: 'all' })) });
+    if (subFilters.collection !== 'all') activeFilterChips.push({ key: 'collection', label: collectionOptions.find(c => c.id === subFilters.collection)?.name || 'Συλλογή', clear: () => setSubFilters(p => ({ ...p, collection: 'all' })) });
     if (linkedOnly) activeFilterChips.push({ key: 'linked', label: 'Σε σετ', clear: () => setLinkedOnly(false) });
     const clearAllFilters = () => {
         setFilterGender('All');
@@ -1298,12 +1301,12 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             )}
 
                             {/* ── Συλλογή ── */}
-                            {!showStxOnly && collections && collections.length > 0 && (
+                            {!showStxOnly && collectionOptions.length > 0 && (
                                 <div className="space-y-3">
                                     <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1"><FolderOpen size={14} /> Συλλογή</label>
                                     <div className="flex flex-wrap gap-2">
                                         <SubFilterButton label="Όλες" value="all" activeValue={subFilters.collection} onClick={(v) => setSubFilters(p => ({ ...p, collection: v }))} />
-                                        {collections.map(col => (
+                                        {collectionOptions.filter(option => !option.id.startsWith('none')).map(col => (
                                             <SubFilterButton
                                                 key={col.id}
                                                 label={col.name}
@@ -1312,6 +1315,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 onClick={(v) => setSubFilters(p => ({ ...p, collection: v }))}
                                             />
                                         ))}
+                                        <UnassignedCollectionSelect options={collectionOptions} value={subFilters.collection} onChange={value => setSubFilters(previous => ({ ...previous, collection: value }))} />
                                     </div>
                                 </div>
                             )}

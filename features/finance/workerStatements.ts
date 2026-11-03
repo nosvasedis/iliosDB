@@ -1,3 +1,4 @@
+import { getProductCategoryPath, matchesProductCategory } from '../../utils/productCategories';
 import { MaterialType, type Material, type Product, type ProductionBatch } from '../../types';
 import { roundMoney } from './financeMath';
 import type {
@@ -68,7 +69,7 @@ function cardMatches(card: FinanceRateCard, context: MatchContext): boolean {
   const match = card.match || {};
   if (match.stage && match.stage !== context.stage) return false;
   if (match.sku_prefix && !context.sku.toUpperCase().startsWith(match.sku_prefix.toUpperCase())) return false;
-  if (match.category && match.category.localeCompare(context.category, 'el', { sensitivity: 'base' }) !== 0) return false;
+  if (match.category && !matchesProductCategory(context.category, match.category)) return false;
   if (match.stone_code && !context.variantSuffix.toUpperCase().includes(match.stone_code.toUpperCase())) return false;
   if (match.material_id && match.material_id !== context.materialId) return false;
   if (card.unit === 'per_stone' && !context.materialId) return false;
@@ -83,7 +84,8 @@ const specificity = (card: FinanceRateCard): number =>
 export function pickRateCard(cards: readonly FinanceRateCard[], context: MatchContext): FinanceRateCard | undefined {
   return cards
     .filter((card) => card.is_active && cardMatches(card, context))
-    .sort((a, b) => b.priority - a.priority || specificity(b) - specificity(a))[0];
+    .sort((a, b) => b.priority - a.priority || specificity(b) - specificity(a)
+      || getProductCategoryPath(b.match?.category).length - getProductCategoryPath(a.match?.category).length)[0];
 }
 
 export interface StatementSuggestion {

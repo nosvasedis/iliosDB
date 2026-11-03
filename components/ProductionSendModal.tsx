@@ -1,3 +1,4 @@
+import { getProductCollectionOptions, matchesProductCollection } from '../utils/productCollectionScopes';
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { lazyWithChunkRecovery } from '../lib/chunkLoadRecovery';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
@@ -127,7 +128,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     // Filters
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
-    const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
+    const [filterCollection, setFilterCollection] = useState<string>('All');
     const [filterStage, setFilterStage] = useState<ProductionSendStageFilter>(PRODUCTION_SEND_STAGE_FILTER_ALL);
     const [searchInput, setSearchInput] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -348,7 +349,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             const product = products.find(p => p.sku === item.sku);
             product?.collections?.forEach(id => ids.add(id));
         });
-        return collections.filter(c => ids.has(c.id));
+        return getProductCollectionOptions(products.filter(product => order.items.some(item => item.sku === product.sku) && !isSpecialCreationSku(product.sku)), collections.filter(c => ids.has(c.id)));
     }, [collections, order.items, products]);
 
     // Close zoom overlay on Escape
@@ -365,7 +366,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             if (filterCollection !== 'All') {
                 if (isSpecialCreationSku(row.sku)) return true;
                 const product = products.find(p => p.sku === row.sku);
-                if (!product?.collections?.includes(filterCollection)) return false;
+                if (!product || !matchesProductCollection(product, filterCollection)) return false;
             }
             return true;
         });
@@ -1323,7 +1324,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             {relevantCollections.length > 0 && (
                                 <select
                                     value={filterCollection}
-                                    onChange={(e) => setFilterCollection(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
+                                    onChange={(e) => setFilterCollection(e.target.value)}
                                     className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold py-1.5 pl-2.5 pr-7 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[140px]"
                                 >
                                     <option value="All">Συλλογές</option>

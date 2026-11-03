@@ -1,17 +1,12 @@
 import React, { useEffect } from 'react';
 import { RotateCcw, X } from 'lucide-react';
 import { formatNumber } from '../../utils/numberFormat';
+import { getProductCategoryRoot } from '../../utils/productCategories';
 
 // ─── Category grouping ────────────────────────────────────────────────────────
-const CATEGORY_PREFIXES = ['Βραχιόλι', 'Κολιέ', 'Σκουλαρίκι', 'Δαχτυλίδι', 'Τσόκερ', 'Σετ', 'Αλυσίδα', 'Τσάντα', 'Καρφίτσα'];
 
 /** Collapses "Βραχιόλι δερμάτινο", "Βραχιόλι αλυσίδα"… into one "Βραχιόλι" chip. */
-export const getCategoryGroup = (category: string): string => {
-    for (const prefix of CATEGORY_PREFIXES) {
-        if (category.startsWith(prefix)) return prefix;
-    }
-    return category;
-};
+export const getCategoryGroup = getProductCategoryRoot;
 
 export const skuCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 

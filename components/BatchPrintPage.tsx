@@ -1,3 +1,5 @@
+import { getProductCategoryOptions, matchesProductCategory } from '../utils/productCategories';
+import { getProductCollectionOptions, matchesProductCollection } from '../utils/productCollectionScopes';
 import { resolveSkuSizeInput, splitSkuSizeInput } from '../utils/skuSizeInput';
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { getSkuStoneLetterStyle } from '../utils/skuColoring';
@@ -114,8 +116,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     // ---- CATALOG TAB STATE ----
     const [catalogSearch, setCatalogSearch] = useState('');
-    const [catalogCollectionId, setCatalogCollectionId] = useState<number | ''>('');
+    const [catalogCollectionId, setCatalogCollectionId] = useState<string>('');
     const [catalogCategory, setCatalogCategory] = useState('');
+    const collectionOptions = useMemo(() => getProductCollectionOptions(allProducts || [], allCollections), [allProducts, allCollections]);
     const [catalogGender, setCatalogGender] = useState('');
     const [catalogOnlyWithImage, setCatalogOnlyWithImage] = useState(false);
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
@@ -135,9 +138,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 if (!p.sku.toUpperCase().includes(q) && !(p.description || '').toUpperCase().includes(q)) return false;
             }
             if (catalogCollectionId !== '') {
-                if (!p.collections?.includes(catalogCollectionId as number)) return false;
+                if (!matchesProductCollection(p, catalogCollectionId)) return false;
             }
-            if (catalogCategory && p.category !== catalogCategory) return false;
+            if (!matchesProductCategory(p.category, catalogCategory)) return false;
             if (catalogGender && p.gender !== catalogGender) return false;
             return true;
         }).sort((a, b) => a.sku.localeCompare(b.sku));
@@ -1122,11 +1125,11 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <FolderKanban size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <select
                                         value={catalogCollectionId}
-                                        onChange={e => setCatalogCollectionId(e.target.value === '' ? '' : Number(e.target.value))}
+                                        onChange={e => setCatalogCollectionId(e.target.value)}
                                         className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
                                     >
                                         <option value="">Όλες</option>
-                                        {allCollections.map(c => (
+                                        {collectionOptions.map(c => (
                                             <option key={c.id} value={c.id}>{c.name}</option>
                                         ))}
                                     </select>
@@ -1144,8 +1147,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
                                     >
                                         <option value="">Όλες</option>
-                                        {allCategories.map(c => (
-                                            <option key={c} value={c}>{c}</option>
+                                        {getProductCategoryOptions(allCategories).map(c => (
+                                            <option key={c.value} value={c.value}>{'　'.repeat(c.depth)}{c.label}</option>
                                         ))}
                                     </select>
                                 </div>

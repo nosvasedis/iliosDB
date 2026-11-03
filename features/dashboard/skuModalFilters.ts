@@ -1,3 +1,5 @@
+import { getProductCategoryPath, matchesProductCategory } from '../../utils/productCategories';
+import { getUnassignedCollectionPath, matchesProductCollection } from '../../utils/productCollectionScopes';
 import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import { Gender, Order, Product, UserProfile } from '../../types';
 import { FinanceLineEvent, FinanceVariantRanking } from '../../utils/financeAnalytics';
@@ -50,7 +52,7 @@ export type SkuModalFilterFacets = {
   tags: string[];
   sellers: Array<{ id: string; name: string }>;
   categories: string[];
-  collections: Array<{ id: number | null; name: string }>;
+  collections: Array<{ id: number | null; name: string; key?: string }>;
   finishes: string[];
   genders: Array<{ id: Gender; label: string }>;
 };
@@ -161,7 +163,7 @@ export function buildFilterFacets(
   const tags = new Set<string>();
   const sellers = new Map<string, string>();
   const categories = new Set<string>();
-  const collections = new Map<string, { id: number | null; name: string }>();
+  const collections = new Map<string, { id: number | null; name: string; key?: string }>();
   const finishes = new Set<string>();
   const genders = new Set<Gender>();
 
@@ -171,10 +173,13 @@ export function buildFilterFacets(
 
     if (isSpecialCreationSku(event.sku)) return;
 
-    categories.add(event.category.split(' ')[0]);
+    getProductCategoryPath(event.category).forEach((category) => categories.add(category));
 
-    const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
-    collections.set(collectionKey, { id: event.collectionId, name: event.collectionName });
+    if (event.collectionId === null) {
+      getUnassignedCollectionPath({ ...event, gender: event.gender || productsBySku.get(event.sku)?.gender }).forEach((scope) => collections.set(scope.id, { key: scope.id, id: null, name: scope.name }));
+    } else {
+      collections.set(String(event.collectionId), { key: String(event.collectionId), id: event.collectionId, name: event.collectionName });
+    }
 
     const product = productsBySku.get(event.sku);
     const { finish } = getVariantComponents(event.variantSuffix || '', product?.gender);
@@ -231,13 +236,12 @@ export function eventPassesSkuModalFilters(
   }
 
   if (filters.categories.size > 0) {
-    const cat = event.category.split(' ')[0];
-    if (!filters.categories.has(cat)) return false;
+    if (![...filters.categories].some((category) => matchesProductCategory(event.category, category))) return false;
   }
 
   if (filters.collections.size > 0) {
-    const key = event.collectionId === null ? 'none' : String(event.collectionId);
-    if (!filters.collections.has(key)) return false;
+    const product = { ...event, gender: event.gender || productsBySku.get(event.sku)?.gender, collections: event.collectionId === null ? [] : [event.collectionId] };
+    if (![...filters.collections].some((scope) => matchesProductCollection(product, scope))) return false;
   }
 
   if (filters.finishes.size > 0) {

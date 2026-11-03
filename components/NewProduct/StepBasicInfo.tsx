@@ -1,3 +1,4 @@
+import { getProductCategoryBreadcrumb, getProductCategoryPath } from '../../utils/productCategories';
 import React from 'react';
 import { Hammer, Globe, Tag, ImageIcon, Lightbulb, Info, Scale, AlertTriangle, RotateCcw, Upload, Palette, ClipboardList, Check } from 'lucide-react';
 import { ProductionType, Gender, PlatingType } from '../../types';
@@ -132,6 +133,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                             <div>
                                 <label className={npLabelClass}>Κατηγορία *</label>
                                 <input type="text" value={state.category} onChange={(e) => { setters.setCategory(e.target.value); setters.setIsCategoryManuallySet(true); }} className={npInputClass} placeholder="π.χ. Δαχτυλίδι" />
+                                {getProductCategoryPath(state.category).length > 1 && <p className="mt-1.5 text-xs font-medium text-indigo-600">{getProductCategoryBreadcrumb(state.category)}</p>}
                             </div>
                         </div>
                     </Panel>

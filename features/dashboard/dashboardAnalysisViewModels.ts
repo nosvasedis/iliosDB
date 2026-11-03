@@ -1,3 +1,5 @@
+import { getProductCategoryRoot } from '../../utils/productCategories';
+import { getUnassignedCollectionGroup } from '../../utils/productCollectionScopes';
 import { Gender, Product, Collection } from '../../types';
 import {
   FinanceCollectionRanking,
@@ -34,7 +36,7 @@ export function buildCategoryChartData(
     const product = bySku.get(event.sku);
     if (product?.is_component) return;
     if (genderFilter !== 'All' && product && product.gender !== genderFilter) return;
-    const cat = (event.category || product?.category || 'Άλλο').split(' ')[0];
+    const cat = getProductCategoryRoot(event.category || product?.category || 'Άλλο');
     counts[cat] = (counts[cat] || 0) + event.quantity;
   });
 
@@ -153,7 +155,7 @@ export function buildEnrichedVariantAnalyticsRows(
       (product?.collections || [])
         .map((id) => collectionById.get(id))
         .filter(Boolean)
-        .join(' · ') || '—';
+        .join(' · ') || getUnassignedCollectionGroup(product || { category: row.category }).name;
 
     return {
       ...row,

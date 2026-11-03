@@ -52,7 +52,7 @@ describe('buildProfitabilityRows', () => {
     const previous = [event({ category: 'Δαχτυλίδι', net: 400 }), event({ category: 'Σκουλαρίκι', net: 300 })];
     const rows = buildProfitabilityRows(current, previous, 'category');
 
-    expect(rows.map((row) => row.label)).toEqual(['Δαχτυλίδι', 'Σκουλαρίκι', 'Βραχιόλι']);
+    expect(rows.map((row) => row.label)).toEqual(['Δαχτυλίδι', 'Σκουλαρίκια', 'Βραχιόλι']);
     expect(rows[0].share).toBeCloseTo(80);
     expect(rows[0].margin).toBeCloseTo(50);
     expect(rows[0].delta).toBeCloseTo(100);
