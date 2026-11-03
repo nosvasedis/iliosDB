@@ -119,7 +119,7 @@ export default function ConsignmentDrawer({ ctl, bundle, onClose, onEdit }: { ct
                 <div className="min-w-0">
                   <div className={`truncate text-sm font-bold ${line.pending_quantity === 0 && line.returned_quantity > 0 ? 'opacity-50' : ''}`}><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={product?.gender} /></div>
                   <div className="truncate text-[11px] text-slate-500">{details.join(' · ')}</div>
-                  {line.returned_quantity > 0 && <span className="mt-1 inline-flex rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">{line.pending_quantity === 0 ? 'Επιστράφηκε' : 'Μερική επιστροφή'} · {formatGreekNumber(line.returned_quantity)} τεμ.</span>}
+                  {line.returned_quantity > 0 && <span className="mt-1 inline-flex rounded-sm bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">{line.pending_quantity === 0 ? 'Επιστράφηκε' : 'Μερική επιστροφή'} · {formatGreekNumber(line.returned_quantity)} τεμ.</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-14 text-right">

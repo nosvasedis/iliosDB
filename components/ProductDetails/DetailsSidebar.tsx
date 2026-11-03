@@ -47,8 +47,8 @@ export default function DetailsSidebar({
 
     return (
         <div className="space-y-4">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-                <label className="group relative block aspect-square cursor-pointer overflow-hidden rounded-xl bg-gradient-to-b from-slate-50 to-white">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xs">
+                <label className="group relative block aspect-square cursor-pointer overflow-hidden rounded-xl bg-linear-to-b from-slate-50 to-white">
                     {imageUrl ? (
                         <img src={imageUrl} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]" alt={sku} />
                     ) : (
@@ -87,7 +87,7 @@ export default function DetailsSidebar({
                 </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div className="mb-3 flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         <PieChart size={13} className="text-slate-400" /> Σύνθεση κόστους
@@ -111,7 +111,7 @@ export default function DetailsSidebar({
                         return (
                             <li key={part.key} className="flex items-center justify-between gap-2 text-xs">
                                 <span className="flex items-center gap-2 text-slate-600">
-                                    <span className={`h-2 w-2 rounded-sm ${part.color}`} /> {part.label}
+                                    <span className={`h-2 w-2 rounded-xs ${part.color}`} /> {part.label}
                                 </span>
                                 <span className="flex items-baseline gap-2">
                                     <span className="w-9 text-right text-[10px] font-semibold text-slate-400">{formatDecimal(share, 0)}%</span>
@@ -124,7 +124,7 @@ export default function DetailsSidebar({
                 <p className="mt-3 truncate border-t border-slate-100 pt-2 text-[10px] font-medium text-slate-400">Αφορά: {scopeLabel}</p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xs">
                 <h3 className="mb-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <ScrollText size={13} className="text-slate-400" /> Στοιχεία εγγραφής
                 </h3>

@@ -38,7 +38,7 @@ export default function CustomerCard({ entry, onOpen, onShowOnMap, insight }: Cu
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white p-5 shadow-sm outline-none transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-sky-400"
+      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white p-5 shadow-xs outline-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-sky-400"
     >
       <span className="absolute inset-x-0 top-0 h-1 opacity-70" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} aria-hidden />
 
@@ -122,9 +122,9 @@ export function SystemCustomerCard({ entry, onOpen }: { entry: CustomerDirectory
     <button
       type="button"
       onClick={onOpen}
-      className={`group relative flex w-full items-center gap-4 overflow-hidden rounded-3xl border bg-gradient-to-r via-white to-white p-4 text-left shadow-sm transition hover:shadow-md ${internal ? 'border-teal-100 from-teal-50 hover:border-teal-200' : 'border-fuchsia-100 from-fuchsia-50 hover:border-fuchsia-200'}`}
+      className={`group relative flex w-full items-center gap-4 overflow-hidden rounded-3xl border bg-linear-to-r via-white to-white p-4 text-left shadow-xs transition hover:shadow-md ${internal ? 'border-teal-100 from-teal-50 hover:border-teal-200' : 'border-fuchsia-100 from-fuchsia-50 hover:border-fuchsia-200'}`}
     >
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ${internal ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-sm ${internal ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
         {internal ? <Warehouse size={22} /> : <Store size={22} />}
       </div>
       <div className="min-w-0 flex-1">

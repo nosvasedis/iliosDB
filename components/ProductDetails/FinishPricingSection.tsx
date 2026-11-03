@@ -8,11 +8,11 @@ import { DetailsButton, DetailsSection, getMarginTone } from './detailsUi';
 import type { SkuPricing } from './useSkuPricing';
 
 const FINISH_COLORS: Record<string, { bg: string, border: string, label: string, input: string, euro: string, dot: string }> = {
-    '':  { bg: 'bg-slate-50/80',  border: 'border-slate-200',  label: 'text-slate-600',  input: 'border-slate-200 text-slate-800 focus:ring-slate-400/20',  euro: 'text-slate-400',  dot: 'bg-gradient-to-br from-slate-300 to-slate-500' },
-    'P': { bg: 'bg-stone-50/80',  border: 'border-stone-200',  label: 'text-stone-700',  input: 'border-stone-200 text-stone-800 focus:ring-stone-400/20',  euro: 'text-stone-400',  dot: 'bg-gradient-to-br from-stone-400 to-stone-600' },
-    'X': { bg: 'bg-amber-50/80',  border: 'border-amber-200',  label: 'text-amber-700',  input: 'border-amber-200 text-amber-900 focus:ring-amber-400/20',  euro: 'text-amber-400',  dot: 'bg-gradient-to-br from-amber-400 to-yellow-600' },
-    'D': { bg: 'bg-orange-50/80', border: 'border-orange-200', label: 'text-orange-700', input: 'border-orange-200 text-orange-900 focus:ring-orange-400/20', euro: 'text-orange-400', dot: 'bg-gradient-to-br from-orange-400 to-rose-500' },
-    'H': { bg: 'bg-cyan-50/80',   border: 'border-cyan-200',   label: 'text-cyan-700',   input: 'border-cyan-200 text-cyan-900 focus:ring-cyan-400/20',   euro: 'text-cyan-400',   dot: 'bg-gradient-to-br from-cyan-300 to-sky-500' },
+    '':  { bg: 'bg-slate-50/80',  border: 'border-slate-200',  label: 'text-slate-600',  input: 'border-slate-200 text-slate-800 focus:ring-slate-400/20',  euro: 'text-slate-400',  dot: 'bg-linear-to-br from-slate-300 to-slate-500' },
+    'P': { bg: 'bg-stone-50/80',  border: 'border-stone-200',  label: 'text-stone-700',  input: 'border-stone-200 text-stone-800 focus:ring-stone-400/20',  euro: 'text-stone-400',  dot: 'bg-linear-to-br from-stone-400 to-stone-600' },
+    'X': { bg: 'bg-amber-50/80',  border: 'border-amber-200',  label: 'text-amber-700',  input: 'border-amber-200 text-amber-900 focus:ring-amber-400/20',  euro: 'text-amber-400',  dot: 'bg-linear-to-br from-amber-400 to-yellow-600' },
+    'D': { bg: 'bg-orange-50/80', border: 'border-orange-200', label: 'text-orange-700', input: 'border-orange-200 text-orange-900 focus:ring-orange-400/20', euro: 'text-orange-400', dot: 'bg-linear-to-br from-orange-400 to-rose-500' },
+    'H': { bg: 'bg-cyan-50/80',   border: 'border-cyan-200',   label: 'text-cyan-700',   input: 'border-cyan-200 text-cyan-900 focus:ring-cyan-400/20',   euro: 'text-cyan-400',   dot: 'bg-linear-to-br from-cyan-300 to-sky-500' },
 };
 
 function FinishPriceCard({
@@ -45,10 +45,10 @@ function FinishPriceCard({
         <div className={`${fc.bg} rounded-xl border ${fc.border} p-3.5 transition-shadow hover:shadow-md`}>
             <div className="mb-2 flex items-center justify-between gap-2">
                 <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${fc.label}`}>
-                    <span className={`h-2.5 w-2.5 rounded-full ${fc.dot} shadow-sm`} /> {label}
+                    <span className={`h-2.5 w-2.5 rounded-full ${fc.dot} shadow-xs`} /> {label}
                 </span>
                 {typeof variantCount === 'number' && (
-                    <span className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/70">
+                    <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200/70">
                         {formatNumber(variantCount)} κωδ.
                     </span>
                 )}
@@ -57,7 +57,7 @@ function FinishPriceCard({
                 <input
                     type="number" step="0.01"
                     aria-label={`Χονδρική ${label}`}
-                    className={`w-full rounded-lg border bg-white p-2.5 pr-7 font-mono text-base font-bold shadow-sm outline-none focus:ring-2 ${fc.input}`}
+                    className={`w-full rounded-lg border bg-white p-2.5 pr-7 font-mono text-base font-bold shadow-xs outline-hidden focus:ring-2 ${fc.input}`}
                     value={price}
                     onChange={e => onChange(parseFloat(e.target.value) || 0, true)}
                 />
@@ -68,7 +68,7 @@ function FinishPriceCard({
             </div>
             <div className="mt-1 flex items-center justify-between text-[11px]">
                 <span className="text-slate-500">Κόστος <span className="font-mono font-bold text-slate-700">{formatCurrency(cost)}</span></span>
-                {price > 0 && <span className={`rounded px-1.5 py-0.5 font-bold ${tone.bg} ${tone.text}`}>{formatDecimal(margin, 0)}%</span>}
+                {price > 0 && <span className={`rounded-sm px-1.5 py-0.5 font-bold ${tone.bg} ${tone.text}`}>{formatDecimal(margin, 0)}%</span>}
             </div>
             {showSuggestion && (
                 <button
@@ -174,7 +174,7 @@ export default function FinishPricingSection({
                                 onChange={e => setTargetMargin(parseInt(e.target.value))}
                                 className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-emerald-500"
                             />
-                            <span className="w-14 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-center text-xs font-bold text-slate-700 shadow-sm">{formatNumber(targetMargin)}%</span>
+                            <span className="w-14 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-center text-xs font-bold text-slate-700 shadow-xs">{formatNumber(targetMargin)}%</span>
                         </div>
                     </div>
                     <div className="flex flex-col justify-end gap-2 md:w-64">

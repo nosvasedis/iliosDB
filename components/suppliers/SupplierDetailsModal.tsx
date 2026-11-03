@@ -113,7 +113,7 @@ function OrderCard({
     const pieces = orderPieces(order);
 
     return (
-        <div id={`supplier-order-${order.id}`} className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all ${expanded ? 'border-slate-300 shadow-md' : 'border-slate-100 hover:border-slate-200'}`}>
+        <div id={`supplier-order-${order.id}`} className={`overflow-hidden rounded-2xl border bg-white shadow-xs transition-all ${expanded ? 'border-slate-300 shadow-md' : 'border-slate-100 hover:border-slate-200'}`}>
             <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center">
                 <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-4 text-left" aria-expanded={expanded}>
                     <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${STATUS_ACCENT[order.status]}`}>
@@ -141,7 +141,7 @@ function OrderCard({
                     )}
                     <button type="button" onClick={onDelete} title="Διαγραφή" className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 size={17} /></button>
                     {pending && (
-                        <button type="button" onClick={onReceive} className="ml-1 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm transition-colors hover:bg-emerald-700">
+                        <button type="button" onClick={onReceive} className="ml-1 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-xs transition-colors hover:bg-emerald-700">
                             <PackageCheck size={15} /> Παραλαβή
                         </button>
                     )}
@@ -171,8 +171,8 @@ function OrderCard({
                                         <td className="px-3 py-2">
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 <span className="font-mono text-xs font-black text-slate-800">{item.item_name}</span>
-                                                {item.size_info && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-700">#{item.size_info}</span>}
-                                                {item.item_type === 'Material' && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700">Υλικό</span>}
+                                                {item.size_info && <span className="rounded-sm bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-700">#{item.size_info}</span>}
+                                                {item.item_type === 'Material' && <span className="rounded-sm bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700">Υλικό</span>}
                                             </div>
                                         </td>
                                         <td className="px-3 py-2 text-xs font-semibold text-slate-600">{item.customer_reference || <span className="text-slate-300">—</span>}</td>
@@ -318,10 +318,10 @@ export default function SupplierDetailsModal({
     ];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm animate-in fade-in md:p-6 lg:p-10" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-            <div role="dialog" aria-modal="true" aria-label={supplier.name} className="flex h-full max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-xs animate-in fade-in md:p-6 lg:p-10" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+            <div role="dialog" aria-modal="true" aria-label={supplier.name} className="flex h-full max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-4xl border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95">
                 {/* Identity sidebar */}
-                <aside className="relative hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-100 bg-gradient-to-b from-slate-50 to-white custom-scrollbar lg:flex">
+                <aside className="relative hidden w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-100 bg-linear-to-b from-slate-50 to-white custom-scrollbar lg:flex">
                     <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-emerald-200/30 blur-3xl" />
                     <div className="relative p-6">
                         <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} size="lg" />
@@ -332,10 +332,10 @@ export default function SupplierDetailsModal({
                         </p>
 
                         <div className="mt-5 flex gap-2">
-                            <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
+                            <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50">
                                 <Pencil size={15} /> Επεξεργασία
                             </button>
-                            <button type="button" onClick={onDelete} title="Διαγραφή προμηθευτή" className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-400 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                            <button type="button" onClick={onDelete} title="Διαγραφή προμηθευτή" className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-400 shadow-xs transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600">
                                 <Trash2 size={17} />
                             </button>
                         </div>
@@ -344,7 +344,7 @@ export default function SupplierDetailsModal({
                             <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Επικοινωνία</h3>
                             {contactRows.map(({ icon: Icon, label, value, href }) => (
                                 <div key={label} className="group flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-white">
-                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm ring-1 ring-slate-100"><Icon size={15} /></span>
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-xs ring-1 ring-slate-100"><Icon size={15} /></span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</span>
                                         {value ? (
@@ -397,7 +397,7 @@ export default function SupplierDetailsModal({
                                     <Icon size={16} /> {label}
                                     {count !== undefined && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-black tabular-nums ${tab === id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>{formatNumber(count)}</span>}
                                     {dot && <span className="h-2 w-2 rounded-full bg-amber-400" />}
-                                    {tab === id && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />}
+                                    {tab === id && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-linear-to-r from-emerald-500 to-teal-500" />}
                                 </button>
                             ))}
                         </nav>
@@ -427,7 +427,7 @@ export default function SupplierDetailsModal({
                                 </div>
 
                                 <div className="grid gap-6 xl:grid-cols-5">
-                                    <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm xl:col-span-3">
+                                    <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs xl:col-span-3">
                                         <div className="mb-4 flex items-center justify-between">
                                             <h3 className="text-sm font-black text-slate-800">Πρόσφατες εντολές</h3>
                                             {orders.length > 0 && <button type="button" onClick={() => setTab('orders')} className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800">Όλες <ArrowRight size={13} /></button>}
@@ -452,21 +452,21 @@ export default function SupplierDetailsModal({
                                         )}
                                     </section>
 
-                                    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-6 text-white shadow-lg xl:col-span-2">
+                                    <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-6 text-white shadow-lg xl:col-span-2">
                                         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
                                         <ShoppingCart size={28} className="text-emerald-300" />
                                         <h3 className="mt-3 text-lg font-black">Χρειάζεστε απόθεμα;</h3>
                                         <p className="mt-1 text-sm font-medium text-white/70">
                                             Η νέα εντολή συγκεντρώνει αυτόματα τις ανάγκες παραγωγής και τις εκκρεμείς παραγγελίες πελατών για αυτόν τον προμηθευτή.
                                         </p>
-                                        <button type="button" onClick={onNewOrder} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 shadow transition-transform hover:-translate-y-px">
+                                        <button type="button" onClick={onNewOrder} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 shadow-sm transition-transform hover:-translate-y-px">
                                             <Plus size={16} strokeWidth={2.75} /> Νέα εντολή αγοράς
                                         </button>
                                     </section>
                                 </div>
 
                                 {/* Sidebar content repeated for narrow screens */}
-                                <section className="space-y-3 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm lg:hidden">
+                                <section className="space-y-3 rounded-3xl border border-slate-100 bg-white p-5 shadow-xs lg:hidden">
                                     {contactRows.map(({ icon: Icon, label, value, href }) => (
                                         <div key={label} className="flex items-center gap-3 text-sm">
                                             <Icon size={15} className="text-slate-400" />
@@ -481,14 +481,14 @@ export default function SupplierDetailsModal({
                         {tab === 'products' && (
                             <div className="space-y-4 animate-in fade-in">
                                 <div className="flex flex-wrap items-center gap-3">
-                                    <div className="relative min-w-[14rem] flex-1">
+                                    <div className="relative min-w-56 flex-1">
                                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input value={productFilter} onChange={(event) => setProductFilter(event.target.value)} placeholder="Φιλτράρισμα συνδεδεμένων (κωδικός, ref, κατηγορία)…" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm font-semibold outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10" />
+                                        <input value={productFilter} onChange={(event) => setProductFilter(event.target.value)} placeholder="Φιλτράρισμα συνδεδεμένων (κωδικός, ref, κατηγορία)…" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm font-semibold outline-hidden focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10" />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => { setLinkOpen((open) => !open); setLinkSearch(''); }}
-                                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-colors ${linkOpen ? 'bg-slate-200 text-slate-800' : 'bg-violet-600 text-white hover:bg-violet-700'}`}
+                                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-xs transition-colors ${linkOpen ? 'bg-slate-200 text-slate-800' : 'bg-violet-600 text-white hover:bg-violet-700'}`}
                                     >
                                         {linkOpen ? <X size={16} /> : <Link2 size={16} />} {linkOpen ? 'Κλείσιμο σύνδεσης' : 'Σύνδεση προϊόντων'}
                                     </button>
@@ -498,7 +498,7 @@ export default function SupplierDetailsModal({
                                     <div className="rounded-3xl border border-violet-100 bg-white p-4 shadow-lg shadow-violet-900/5 animate-in fade-in slide-in-from-top-2">
                                         <div className="relative">
                                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400" />
-                                            <input autoFocus value={linkSearch} onChange={(event) => setLinkSearch(event.target.value)} placeholder="Αναζήτηση κωδικού ή κωδικού προμηθευτή για σύνδεση…" className="w-full rounded-xl border border-violet-200 bg-violet-50/40 py-3 pl-9 pr-3 text-sm font-bold outline-none focus:bg-white focus:ring-4 focus:ring-violet-500/10" />
+                                            <input autoFocus value={linkSearch} onChange={(event) => setLinkSearch(event.target.value)} placeholder="Αναζήτηση κωδικού ή κωδικού προμηθευτή για σύνδεση…" className="w-full rounded-xl border border-violet-200 bg-violet-50/40 py-3 pl-9 pr-3 text-sm font-bold outline-hidden focus:bg-white focus:ring-4 focus:ring-violet-500/10" />
                                         </div>
                                         <div className="mt-3 max-h-80 space-y-1 overflow-y-auto custom-scrollbar">
                                             {!linkSearch.trim() && <p className="py-6 text-center text-xs font-bold text-slate-400">Πληκτρολογήστε για να βρείτε προϊόντα. Όσα δεν έχουν προμηθευτή εμφανίζονται πρώτα.</p>}
@@ -542,12 +542,12 @@ export default function SupplierDetailsModal({
                                 ) : (
                                     <div className="grid gap-2 xl:grid-cols-2">
                                         {visibleProducts.map((product) => (
-                                            <div key={product.sku} className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-colors hover:border-slate-200">
+                                            <div key={product.sku} className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-xs transition-colors hover:border-slate-200">
                                                 <ProductThumb url={product.image_url} />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="font-mono text-sm font-black text-slate-900">{product.sku}</span>
-                                                        {product.supplier_sku && <span className="rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 text-[10px] font-black uppercase text-violet-700">Ref: {product.supplier_sku}</span>}
+                                                        {product.supplier_sku && <span className="rounded-sm border border-violet-100 bg-violet-50 px-1.5 py-0.5 text-[10px] font-black uppercase text-violet-700">Ref: {product.supplier_sku}</span>}
                                                     </div>
                                                     <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] font-semibold text-slate-500">
                                                         <span>{product.category}</span>
@@ -582,11 +582,11 @@ export default function SupplierDetailsModal({
                                     <section key={type}>
                                         <h3 className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
                                             {MATERIAL_TYPE_LABELS[type] || type}
-                                            <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] text-slate-600">{formatNumber(list.length)}</span>
+                                            <span className="rounded-sm bg-slate-200/70 px-1.5 py-0.5 text-[10px] text-slate-600">{formatNumber(list.length)}</span>
                                         </h3>
                                         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                                             {list.map((material) => (
-                                                <div key={material.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                                                <div key={material.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
                                                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Box size={18} /></span>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="truncate text-sm font-black text-slate-800" title={material.name}>{material.name}</div>
@@ -622,7 +622,7 @@ export default function SupplierDetailsModal({
                                                 key={key}
                                                 type="button"
                                                 onClick={() => setOrderFilter(key)}
-                                                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${orderFilter === key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
+                                                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${orderFilter === key ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
                                             >
                                                 {label} <span className="tabular-nums opacity-60">{formatNumber(orderCounts[key])}</span>
                                             </button>

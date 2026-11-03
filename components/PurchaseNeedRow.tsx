@@ -106,10 +106,10 @@ export default function PurchaseNeedRow({
                             {n.variant}
                         </span>
                         {n.size && (
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${sizeBadge[accent]}`}>{n.size}</span>
+                            <span className={`px-1.5 py-0.5 rounded-sm text-[10px] font-black ${sizeBadge[accent]}`}>{n.size}</span>
                         )}
-                        {n.cordColor && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Κορδόνι: {n.cordColor}</span>}
-                        {n.enamelColor && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Σμάλτο: {n.enamelColor}</span>}
+                        {n.cordColor && <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Κορδόνι: {n.cordColor}</span>}
+                        {n.enamelColor && <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Σμάλτο: {n.enamelColor}</span>}
                     </div>
                     <p className={`text-slate-700 font-bold mt-1 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
                         <span className="text-slate-900 font-black tabular-nums">{formatNumber(n.totalQty)}</span> τμχ συνολικά
@@ -166,7 +166,7 @@ export default function PurchaseNeedRow({
                                                         type="checkbox"
                                                         checked={selectedRequirementIds.has(r.id)}
                                                         onChange={() => toggleRequirement(r.id)}
-                                                        className="rounded border-slate-300 w-4 h-4 shrink-0 accent-slate-800"
+                                                        className="rounded-sm border-slate-300 w-4 h-4 shrink-0 accent-slate-800"
                                                     />
                                                     <span className={`font-semibold text-slate-800 truncate flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
                                                         {r.customer}
@@ -190,7 +190,7 @@ export default function PurchaseNeedRow({
                                                         checked={false}
                                                         onChange={() => undefined}
                                                         disabled
-                                                        className="rounded border-slate-300 w-4 h-4 shrink-0 accent-amber-800"
+                                                        className="rounded-sm border-slate-300 w-4 h-4 shrink-0 accent-amber-800"
                                                     />
                                                     <span className={`font-bold text-amber-950 flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
                                                         Λοιπά (αναντίστοιχα)

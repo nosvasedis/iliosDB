@@ -34,8 +34,8 @@ function PrintPreview({ order, onClose, onPrint }: { order: SupplierOrder; onClo
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     useEscapeToClose(onClose);
     return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-300 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-4xl bg-white shadow-2xl animate-in zoom-in-95">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                     <div>
                         <h3 className="flex items-center gap-2 font-black text-slate-900"><Printer size={18} /> Προεπισκόπηση εκτύπωσης</h3>
@@ -258,13 +258,13 @@ export default function SuppliersPage() {
                 subtitle="Προμηθευτές, εξωτερικοί συνεργάτες, πάροχοι, εντολές αγοράς και υπόλοιπα."
                 tail={(
                     <>
-                        <div className="relative min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
+                        <div className="relative min-w-48 flex-1 md:max-w-xs md:flex-none">
                             <input
                                 type="text"
                                 placeholder="Όνομα, υπεύθυνος, τηλέφωνο…"
                                 value={searchTerm}
                                 onChange={(event) => setSearchTerm(event.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
+                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-hidden transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                             />
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             {searchTerm && (
@@ -306,9 +306,9 @@ export default function SuppliersPage() {
                                     </button>
                                 ))}
                             </div>
-                            <label className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm">
+                            <label className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-xs">
                                 Ταξινόμηση
-                                <select value={listSort} onChange={(event) => setListSort(event.target.value as ListSort)} className="bg-transparent font-black text-slate-800 outline-none">
+                                <select value={listSort} onChange={(event) => setListSort(event.target.value as ListSort)} className="bg-transparent font-black text-slate-800 outline-hidden">
                                     <option value="name">Αλφαβητικά</option>
                                     <option value="activity">Πρόσφατη δραστηριότητα</option>
                                     <option value="products">Περισσότερα προϊόντα</option>
@@ -321,7 +321,7 @@ export default function SuppliersPage() {
 
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pb-20 pr-2 custom-scrollbar">
                 {pendingOrders.length > 0 && listFilter !== 'unlinked' && !searchTerm && (
-                    <section className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-4 shadow-sm">
+                    <section className="rounded-3xl border border-amber-100 bg-linear-to-br from-amber-50/80 to-white p-4 shadow-xs">
                         <div className="mb-3 flex items-center gap-2 px-1">
                             <PackageCheck size={17} className="text-amber-600" />
                             <h2 className="text-sm font-black text-slate-800">Αναμένονται παραλαβές</h2>
@@ -331,7 +331,7 @@ export default function SuppliersPage() {
                             {pendingOrders.map((order) => {
                                 const supplier = suppliersById.get(order.supplier_id);
                                 return (
-                                    <div key={order.id} className="flex w-72 shrink-0 flex-col rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
+                                    <div key={order.id} className="flex w-72 shrink-0 flex-col rounded-2xl border border-amber-100 bg-white p-3 shadow-xs">
                                         <button type="button" onClick={() => supplier && openSupplier(supplier, 'orders', order.id)} className="min-w-0 text-left">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className="truncate text-sm font-black text-slate-800">{supplier?.name || order.supplier_name}</span>

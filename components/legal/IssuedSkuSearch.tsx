@@ -9,7 +9,7 @@ import SkuColorizedText from '../SkuColorizedText';
 
 const kinds = { invoice: 'Τιμολόγιο', invoice_delivery: 'Τιμολόγιο - ΔΑ', credit: 'Πιστωτικό', delivery_note: 'Δελτίο αποστολής', proforma: 'Προτιμολόγιο' };
 const emptyFilters: IssuedSkuFilters = { query: '', customer: '', from: '', to: '', includeCancelled: false };
-const inputClass = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100';
+const inputClass = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100';
 const PAGE_SIZE = 30;
 
 export default function IssuedSkuSearch({ records, loading, renderDetails }: {
@@ -29,7 +29,7 @@ export default function IssuedSkuSearch({ records, loading, renderDetails }: {
   const validQuery = normalizeSkuQuery(deferred.query).length >= 2;
   const invalidDates = !!filters.from && !!filters.to && filters.from > filters.to;
 
-  return <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+  return <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-xs">
     <button type="button" aria-expanded={open} aria-controls="issued-sku-search" onClick={() => setOpen(!open)} className="flex w-full items-center gap-3 bg-emerald-50/60 p-4 text-left sm:p-5">
       <PackageSearch className="shrink-0 text-emerald-700" size={23} />
       <span className="flex-1"><span className="block font-black text-slate-900">Αναζήτηση SKU σε παραστατικά</span><span className="text-sm text-slate-600">Σε ποιον εκδόθηκε, πότε και σε ποια τιμή</span></span>

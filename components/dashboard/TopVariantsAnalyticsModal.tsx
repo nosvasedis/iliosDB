@@ -132,7 +132,7 @@ const VariantListRow = memo(function VariantListRow({
       className={`group relative w-full rounded-2xl bg-white p-3 text-left transition-all ${
         isSelected
           ? 'shadow-md ring-2 ring-emerald-500'
-          : 'ring-1 ring-slate-200/70 hover:shadow-sm hover:ring-slate-300'
+          : 'ring-1 ring-slate-200/70 hover:shadow-xs hover:ring-slate-300'
       }`}
     >
       <div className="flex items-center gap-3">
@@ -547,7 +547,7 @@ function TopVariantsModalBody({
                     if (e.target.value.trim().length >= 2) setSelectedKey(null);
                   }}
                   placeholder="Αναζήτηση κωδικού…"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-medium text-slate-700 outline-hidden transition-colors focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                 />
               </div>
               {onOpenRegistry && (
@@ -582,7 +582,7 @@ function TopVariantsModalBody({
                     aria-checked={sort === option.id}
                     onClick={() => setSort(option.id)}
                     className={`rounded-[10px] px-2.5 py-1 text-[11px] font-bold transition-all ${
-                      sort === option.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                      sort === option.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     {option.label}
@@ -654,7 +654,7 @@ function TopVariantsModalBody({
             <div ref={listParentRef} className="relative min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
               {isStale && (
                 <div className="pointer-events-none sticky top-0 z-10 flex justify-center">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-[10px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-200">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-[10px] font-bold text-slate-500 shadow-xs ring-1 ring-slate-200">
                     <Loader2 size={12} className="animate-spin text-emerald-500" />
                     Ενημέρωση…
                   </span>

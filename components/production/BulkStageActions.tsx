@@ -20,18 +20,18 @@ export const BulkStageActions = React.memo(function BulkStageActions({ onMove, d
                             <button
                                 onClick={() => onMove(stageId, { pendingDispatch: true })}
                                 disabled={disabled}
-                                className="min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all bg-teal-50 text-teal-700 border-teal-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all bg-teal-50 text-teal-700 border-teal-200 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                                 title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Αναμονή Αποστολής`}
                             >
-                                <span className="block text-center break-words leading-tight">Τεχν. • Αναμ.</span>
+                                <span className="block text-center wrap-break-word leading-tight">Τεχν. • Αναμ.</span>
                             </button>
                             <button
                                 onClick={() => onMove(stageId, { pendingDispatch: false })}
                                 disabled={disabled}
-                                className="min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all bg-blue-50 text-blue-700 border-blue-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all bg-blue-50 text-blue-700 border-blue-200 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                                 title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Στον Τεχνίτη`}
                             >
-                                <span className="block text-center break-words leading-tight">Τεχν. • Αποστ.</span>
+                                <span className="block text-center wrap-break-word leading-tight">Τεχν. • Αποστ.</span>
                             </button>
                         </div>
                     );
@@ -42,10 +42,10 @@ export const BulkStageActions = React.memo(function BulkStageActions({ onMove, d
                         key={`bulk-stage-${stage.id}`}
                         onClick={() => onMove(stageId)}
                         disabled={disabled}
-                        className={`min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all ${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
+                        className={`min-h-[38px] rounded-lg border px-2 py-1.5 text-[10px] font-black leading-tight transition-all ${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed`}
                         title={`Μετακίνηση επιλεγμένων σε ${stage.label}`}
                     >
-                        <span className="block text-center break-words leading-tight">{stage.label}</span>
+                        <span className="block text-center wrap-break-word leading-tight">{stage.label}</span>
                     </button>
                 );
             })}

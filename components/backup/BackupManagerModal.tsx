@@ -59,7 +59,7 @@ function ToggleRow({
         <label className={`flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${checked ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
             <input
                 type="checkbox"
-                className="mt-1 rounded border-slate-300"
+                className="mt-1 rounded-sm border-slate-300"
                 checked={checked}
                 disabled={disabled}
                 onChange={(e) => onChange(e.target.checked)}
@@ -305,7 +305,7 @@ export default function BackupManagerModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div
                 role="dialog"
                 aria-modal="true"
@@ -389,7 +389,7 @@ export default function BackupManagerModal({
                                 <select
                                     value={selectedPresetId}
                                     onChange={(e) => applyPreset(e.target.value)}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-blue-300"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:border-blue-300"
                                 >
                                     {BACKUP_PRESETS.map((p) => (
                                         <option key={p.id} value={p.id}>{p.label}</option>
@@ -461,7 +461,7 @@ export default function BackupManagerModal({
                                                     </button>
                                                     <input
                                                         type="checkbox"
-                                                        className="rounded border-slate-300"
+                                                        className="rounded-sm border-slate-300"
                                                         checked={allSelected}
                                                         ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                                                         onChange={(e) => toggleCategoryTables(cat.id, e.target.checked)}
@@ -475,7 +475,7 @@ export default function BackupManagerModal({
                                                             <label key={entry.table} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
                                                                 <input
                                                                     type="checkbox"
-                                                                    className="rounded border-slate-300"
+                                                                    className="rounded-sm border-slate-300"
                                                                     checked={exportOptions.tables.includes(entry.table)}
                                                                     onChange={(e) => toggleExportTable(entry.table, e.target.checked)}
                                                                 />
@@ -506,7 +506,7 @@ export default function BackupManagerModal({
                                         type="checkbox"
                                         checked={encryptRecovery}
                                         onChange={(event) => setEncryptRecovery(event.target.checked)}
-                                        className="rounded border-slate-300"
+                                        className="rounded-sm border-slate-300"
                                     />
                                     <span className="text-sm font-bold text-slate-700">Κρυπτογράφηση recovery backup με κωδικό</span>
                                 </label>
@@ -662,7 +662,7 @@ export default function BackupManagerModal({
                                                             <label key={table} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
                                                                 <input
                                                                     type="checkbox"
-                                                                    className="rounded border-slate-300"
+                                                                    className="rounded-sm border-slate-300"
                                                                     checked={restoreOptions.tables.includes(table)}
                                                                     onChange={(e) => toggleRestoreTable(table, e.target.checked)}
                                                                 />

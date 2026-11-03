@@ -31,7 +31,7 @@ interface Props {
     onZoomImage?: (product: Product) => void;
 }
 
-const imageBadgeClass = 'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full border border-white/15 bg-[#060b00]/80 px-2 text-[10px] font-bold text-white shadow-sm backdrop-blur-md';
+const imageBadgeClass = 'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full border border-white/15 bg-[#060b00]/80 px-2 text-[10px] font-bold text-white shadow-xs backdrop-blur-md';
 
 const MetalWeightFigures: React.FC<{
     weightView: ProductCardWeightPresentation;
@@ -179,7 +179,7 @@ const ProductCard: React.FC<Props> = React.memo(({
     return (
         <div
             onClick={() => onSelectProduct(product)}
-            className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border bg-white shadow-sm shadow-slate-200/50 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200/80 hover:shadow-xl hover:shadow-emerald-900/10 ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200/70'}`}
+            className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border bg-white shadow-xs shadow-slate-200/50 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200/80 hover:shadow-xl hover:shadow-emerald-900/10 ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200/70'}`}
         >
             <div className="relative aspect-square shrink-0 overflow-hidden bg-slate-50">
                 {product.image_url ? (
@@ -191,11 +191,11 @@ const ProductCard: React.FC<Props> = React.memo(({
                         className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
+                    <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-slate-50 to-slate-100 text-slate-300">
                         <ImageIcon size={40} />
                     </div>
                 )}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
 
                 <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5">
                     {hasVariants && (
@@ -223,7 +223,7 @@ const ProductCard: React.FC<Props> = React.memo(({
                     <OriginIcon size={12} />
                 </span>
 
-                <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] truncate rounded-lg border border-slate-100 bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm backdrop-blur-md">
+                <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] truncate rounded-lg border border-slate-100 bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-xs backdrop-blur-md">
                     {product.category}
                 </div>
             </div>
@@ -252,11 +252,11 @@ const ProductCard: React.FC<Props> = React.memo(({
 
                     {hasVariants && variantCount > 1 && (
                         <div className="flex shrink-0 items-center rounded-lg bg-slate-100 p-0.5" onClick={(event) => event.stopPropagation()}>
-                            <button onClick={prevView} className="rounded-md p-1 text-slate-400 transition-all hover:bg-white hover:text-emerald-600 hover:shadow-sm">
+                            <button onClick={prevView} className="rounded-md p-1 text-slate-400 transition-all hover:bg-white hover:text-emerald-600 hover:shadow-xs">
                                 <ChevronLeft size={16} />
                             </button>
                             <div className="mx-0.5 h-3 w-px bg-slate-200"></div>
-                            <button onClick={nextView} className="rounded-md p-1 text-slate-400 transition-all hover:bg-white hover:text-emerald-600 hover:shadow-sm">
+                            <button onClick={nextView} className="rounded-md p-1 text-slate-400 transition-all hover:bg-white hover:text-emerald-600 hover:shadow-xs">
                                 <ChevronRight size={16} />
                             </button>
                         </div>

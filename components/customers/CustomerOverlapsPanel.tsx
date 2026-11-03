@@ -65,7 +65,7 @@ export default function CustomerOverlapsPanel({ index, onClose, onOpenCustomer, 
   const involvedIds = useMemo(() => [...new Set(visible.flatMap(o => [o.aId, o.bId]))], [visible]);
 
   return (
-    <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-90 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <aside className="flex h-full w-full max-w-[760px] flex-col bg-slate-50 shadow-2xl animate-in slide-in-from-right-8 duration-200" role="dialog" aria-modal="true" aria-labelledby="overlaps-title">
         <header className="shrink-0 space-y-3 border-b border-slate-200 bg-white px-5 py-4">
           <div className="flex items-start gap-3">
@@ -79,19 +79,19 @@ export default function CustomerOverlapsPanel({ index, onClose, onOpenCustomer, 
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold text-slate-500">
               Ακτίνα
-              <select value={prefs.radiusKm} onChange={e => prefs.setRadius(Number(e.target.value))} className="bg-transparent font-black text-slate-800 outline-none">
+              <select value={prefs.radiusKm} onChange={e => prefs.setRadius(Number(e.target.value))} className="bg-transparent font-black text-slate-800 outline-hidden">
                 {RADIUS_OPTIONS.map(r => <option key={r} value={r}>{formatRadius(r)}</option>)}
               </select>
             </label>
             <label className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold text-slate-500">
               Περίοδος
-              <select value={prefs.window} onChange={e => prefs.setWindow(e.target.value as typeof prefs.window)} className="bg-transparent font-black text-slate-800 outline-none">
+              <select value={prefs.window} onChange={e => prefs.setWindow(e.target.value as typeof prefs.window)} className="bg-transparent font-black text-slate-800 outline-hidden">
                 {WINDOW_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.short}</option>)}
               </select>
             </label>
-            <div className="relative min-w-[10rem] flex-1">
+            <div className="relative min-w-40 flex-1">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input value={query} onChange={e => { setQuery(e.target.value); setLimit(PAGE); }} placeholder="Πελάτης, πόλη, κωδικός, συλλογή…" className="w-full rounded-xl border border-slate-200 py-1.5 pl-8 pr-2 text-xs font-semibold outline-none focus:border-slate-400" />
+              <input value={query} onChange={e => { setQuery(e.target.value); setLimit(PAGE); }} placeholder="Πελάτης, πόλη, κωδικός, συλλογή…" className="w-full rounded-xl border border-slate-200 py-1.5 pl-8 pr-2 text-xs font-semibold outline-hidden focus:border-slate-400" />
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -122,7 +122,7 @@ export default function CustomerOverlapsPanel({ index, onClose, onOpenCustomer, 
             const aName = customerName(index, o.aId);
             const bName = customerName(index, o.bId);
             return (
-              <article key={o.id} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
+              <article key={o.id} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-xs">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} />
                   <button type="button" onClick={() => onOpenCustomer(o.aId)} className="max-w-[40%] truncate text-sm font-black text-slate-900 hover:text-sky-700">{aName}</button>
@@ -147,7 +147,7 @@ export default function CustomerOverlapsPanel({ index, onClose, onOpenCustomer, 
                         <ProductThumb src={s.image} size={22} />
                         <SkuColorizedText sku={s.sku} className="text-[11px] font-black" />
                         <span className="text-[10px] font-bold tabular-nums text-slate-400">{s.aQty}/{s.bQty}</span>
-                        <button type="button" onClick={() => prefs.toggleIgnored(ignoreSkuKey(s.sku))} className="rounded p-0.5 text-slate-300 opacity-0 transition hover:text-slate-600 group-hover:opacity-100" title="Αγνόηση κωδικού στους ελέγχους"><EyeOff size={11} /></button>
+                        <button type="button" onClick={() => prefs.toggleIgnored(ignoreSkuKey(s.sku))} className="rounded-sm p-0.5 text-slate-300 opacity-0 transition hover:text-slate-600 group-hover:opacity-100" title="Αγνόηση κωδικού στους ελέγχους"><EyeOff size={11} /></button>
                       </span>
                     ))}
                     {o.sharedSkus.length > 8 && <span className="self-center text-[11px] font-bold text-slate-400">+{formatNumber(o.sharedSkus.length - 8)} κωδικοί</span>}

@@ -23,7 +23,7 @@ import { BTN_PRIMARY, BTN_SECONDARY } from '../ui/designTokens';
 import InventoryMovementsPanel from './InventoryMovementsPanel';
 import { InventorySheet } from './ui/StockControls';
 
-const INPUT = 'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-900';
+const INPUT = 'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-hidden focus:border-slate-900';
 
 export function MovementReversalDialog({
   event,
@@ -68,7 +68,7 @@ export function MovementReversalDialog({
       onClose={onClose}
       busy={saving}
       width="max-w-md"
-      zIndex="z-[520]"
+      zIndex="z-520"
       footer={(
         <>
           <button type="button" onClick={onClose} disabled={saving} className={`${BTN_SECONDARY} flex-1 justify-center`}>Πίσω</button>

@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 
 /** Shared surface for top bars (screen headers + toolbars like order builder). */
 export const MOBILE_HEADER_SURFACE =
-  'shrink-0 border-b border-slate-100/90 bg-slate-50/95 backdrop-blur-md supports-[backdrop-filter]:bg-slate-50/85';
+  'shrink-0 border-b border-slate-100/90 bg-slate-50/95 backdrop-blur-md supports-backdrop-filter:bg-slate-50/85';
 
 const SAFE_TOP = 'pt-[max(0.5rem,env(safe-area-inset-top,0px))]';
 
@@ -33,7 +33,7 @@ export default function MobileScreenHeader({
   title,
   subtitle,
   iconClassName = 'text-emerald-700',
-  iconWrapClassName = 'border-slate-200/80 bg-white shadow-sm',
+  iconWrapClassName = 'border-slate-200/80 bg-white shadow-xs',
   right,
   sticky = true,
   embedded = false,

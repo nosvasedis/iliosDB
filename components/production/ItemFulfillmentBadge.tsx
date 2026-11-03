@@ -30,11 +30,11 @@ export function ItemFulfillmentBadge({
     if (kind === 'fully_delivered') {
         return (
             <div className="flex flex-col items-start xl:items-end gap-1 shrink-0 self-start">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-800 text-white border border-slate-900 shadow-sm whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-800 text-white border border-slate-900 shadow-xs whitespace-nowrap">
                     <Truck size={11} strokeWidth={2.5} />
                     {shipmentLabel ? `Παράδοση ${shipmentLabel}` : 'Παραδόθηκε'}
                 </span>
-                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-sm">
                     {formatNumber(shippedQty)}/{formatNumber(quantity)} τεμ.
                 </span>
             </div>
@@ -44,15 +44,15 @@ export function ItemFulfillmentBadge({
     if (kind === 'partially_delivered') {
         return (
             <div className="flex flex-col items-start xl:items-end gap-1 shrink-0 self-start">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-amber-50 text-amber-900 border-2 border-amber-300 shadow-sm whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-amber-50 text-amber-900 border-2 border-amber-300 shadow-xs whitespace-nowrap">
                     <PackageCheck size={11} strokeWidth={2.5} />
                     {shipmentLabel ? `Μερική Παράδοση ${shipmentLabel}` : 'Μερική Παράδοση'}
                 </span>
-                <span className="text-[9px] font-bold text-amber-700 bg-amber-50/80 border border-amber-200 px-1.5 py-0.5 rounded">
+                <span className="text-[9px] font-bold text-amber-700 bg-amber-50/80 border border-amber-200 px-1.5 py-0.5 rounded-sm">
                     Παραδόθηκαν {formatNumber(shippedQty)}/{formatNumber(quantity)} τεμ.
                 </span>
                 {inProductionQty > 0 && (
-                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-sm">
                         <Factory size={9} />
                         Υπόλοιπο σε παραγωγή: {formatNumber(inProductionQty)}
                     </span>
@@ -63,11 +63,11 @@ export function ItemFulfillmentBadge({
 
     return (
         <div className="flex flex-col items-start xl:items-end gap-1 shrink-0 self-start">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 shadow-sm whitespace-nowrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 shadow-xs whitespace-nowrap">
                 <Factory size={11} strokeWidth={2.5} />
                 Στην Παραγωγή
             </span>
-            <span className="text-[9px] font-bold text-blue-600 bg-blue-50/80 border border-blue-100 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] font-bold text-blue-600 bg-blue-50/80 border border-blue-100 px-1.5 py-0.5 rounded-sm">
                 {formatNumber(inProductionQty)}/{formatNumber(quantity)} τεμ.
             </span>
         </div>

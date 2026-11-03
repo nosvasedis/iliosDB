@@ -195,10 +195,10 @@ function CatalogProductCardInner<T extends CatalogCardProduct>({ product, densit
                 {/* Mouse users: arrows + open hint appear on hover (touch devices swipe and tap). */}
                 {variantCount > 1 && (
                     <div className="pointer-events-none absolute inset-x-1 top-1/2 hidden -translate-y-1/2 justify-between opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:hover)]:flex">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); step(-1); }} aria-label="Προηγούμενη παραλλαγή" className="pointer-events-auto rounded-full bg-white/90 p-1 text-slate-700 shadow hover:bg-white">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); step(-1); }} aria-label="Προηγούμενη παραλλαγή" className="pointer-events-auto rounded-full bg-white/90 p-1 text-slate-700 shadow-sm hover:bg-white">
                             <ChevronLeft size={14} />
                         </button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); step(1); }} aria-label="Επόμενη παραλλαγή" className="pointer-events-auto rounded-full bg-white/90 p-1 text-slate-700 shadow hover:bg-white">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); step(1); }} aria-label="Επόμενη παραλλαγή" className="pointer-events-auto rounded-full bg-white/90 p-1 text-slate-700 shadow-sm hover:bg-white">
                             <ChevronRight size={14} />
                         </button>
                     </div>

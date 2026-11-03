@@ -506,12 +506,12 @@ export default function CustomersMap({
     <div className={`cm-root isolate flex min-h-0 gap-4 ${editing ? 'cm-placing' : ''} ${className}`}>
       <style>{MAP_CSS}</style>
 
-      <div className={`relative min-h-0 flex-1 overflow-hidden bg-slate-100 ${compact ? 'rounded-2xl' : 'rounded-3xl border border-slate-200 shadow-sm'}`}>
+      <div className={`relative min-h-0 flex-1 overflow-hidden bg-slate-100 ${compact ? 'rounded-2xl' : 'rounded-3xl border border-slate-200 shadow-xs'}`}>
         <div ref={containerRef} className="absolute inset-0 z-0" role="application" aria-label="Χάρτης πελατών" />
 
         {/* Top-right controls */}
-        <div className="pointer-events-none absolute right-3 top-3 z-[500] flex flex-col items-end gap-2">
-          <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <div className="pointer-events-none absolute right-3 top-3 z-500 flex flex-col items-end gap-2">
+          <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm">
             <button type="button" onClick={() => fitToPoints()} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50" title="Προσαρμογή στους πελάτες που εμφανίζονται">
               <Maximize2 size={14} /> {compact ? null : 'Προσαρμογή'}
             </button>
@@ -528,7 +528,7 @@ export default function CustomersMap({
               </>
             )}
           </div>
-          <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <div className="pointer-events-auto flex overflow-hidden rounded-xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm">
             {BASEMAPS.map(b => (
               <button
                 key={b.id}
@@ -546,8 +546,8 @@ export default function CustomersMap({
         </div>
 
         {/* Legend */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[500]">
-          <div className="pointer-events-auto rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-500">
+          <div className="pointer-events-auto rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm">
             <div className={`flex ${compact ? 'flex-col gap-1' : 'items-center gap-3'}`}>
               {ACTIVITY_ORDER.map(a => (
                 <span key={a} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600" title={ACTIVITY_META[a].hint}>
@@ -566,7 +566,7 @@ export default function CustomersMap({
         </div>
 
         {editing && (
-          <div className="pointer-events-none absolute left-1/2 top-3 z-[600] -translate-x-1/2">
+          <div className="pointer-events-none absolute left-1/2 top-3 z-600 -translate-x-1/2">
             <div className="flex items-center gap-2 rounded-full bg-[#060b00] px-4 py-2 text-xs font-bold text-white shadow-xl">
               <Move size={14} /> Γράψτε διεύθυνση, σύρετε την πινέζα ή κάντε κλικ στον χάρτη
             </div>
@@ -574,14 +574,14 @@ export default function CustomersMap({
         )}
 
         {tilesOffline && (
-          <div className="absolute inset-x-3 top-16 z-[550] mx-auto flex max-w-md items-start gap-2 rounded-2xl bg-amber-50 p-3 text-xs font-semibold text-amber-800 shadow-lg ring-1 ring-amber-200">
+          <div className="absolute inset-x-3 top-16 z-550 mx-auto flex max-w-md items-start gap-2 rounded-2xl bg-amber-50 p-3 text-xs font-semibold text-amber-800 shadow-lg ring-1 ring-amber-200">
             <WifiOff size={16} className="mt-0.5 shrink-0" />
             Το υπόβαθρο του χάρτη δεν φορτώνει (χωρίς σύνδεση στο internet;). Οι πινέζες εμφανίζονται κανονικά.
           </div>
         )}
 
         {located.length === 0 && !editing && (
-          <div className="pointer-events-none absolute inset-0 z-[450] flex items-center justify-center">
+          <div className="pointer-events-none absolute inset-0 z-450 flex items-center justify-center">
             <div className="rounded-2xl bg-white/95 px-5 py-4 text-center shadow-xl ring-1 ring-slate-200">
               <MapPin className="mx-auto mb-1 text-slate-300" size={26} />
               <div className="text-sm font-bold text-slate-700">Κανένας πελάτης στον χάρτη</div>
@@ -592,8 +592,8 @@ export default function CustomersMap({
 
         {card && (
           <div className={compact
-            ? 'custom-scrollbar absolute inset-x-2 bottom-2 z-[700] max-h-[75%] overflow-y-auto rounded-3xl'
-            : 'custom-scrollbar absolute left-3 top-3 z-[700] max-h-[calc(100%-1.5rem)] w-[340px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl'}
+            ? 'custom-scrollbar absolute inset-x-2 bottom-2 z-700 max-h-[75%] overflow-y-auto rounded-3xl'
+            : 'custom-scrollbar absolute left-3 top-3 z-700 max-h-[calc(100%-1.5rem)] w-[340px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl'}
           >
             {card}
           </div>
@@ -601,7 +601,7 @@ export default function CustomersMap({
       </div>
 
       {!compact && (
-        <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm xl:flex">
+        <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xs xl:flex">
           <div className="border-b border-slate-100 p-4">
             <div className="text-sm font-black text-slate-800">Καταστήματα στον χάρτη</div>
             <div className="text-[11px] font-medium text-slate-400">Πατήστε για εστίαση στην πινέζα.</div>
@@ -611,7 +611,7 @@ export default function CustomersMap({
                 value={listQuery}
                 onChange={e => setListQuery(e.target.value)}
                 placeholder="Γρήγορη εύρεση…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-semibold outline-none focus:border-slate-400 focus:bg-white"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-semibold outline-hidden focus:border-slate-400 focus:bg-white"
               />
             </div>
           </div>
@@ -733,7 +733,7 @@ function AddressLocator({ initialQuery, country, onLocate }: { initialQuery: str
             value={query}
             onChange={e => { setQuery(e.target.value); setTouched(true); }}
             placeholder="Διεύθυνση, π.χ. Ματογιάννη 12, Μύκονος"
-            className="w-full rounded-xl border border-sky-200 bg-white py-2 pl-8 pr-2 text-xs font-semibold text-slate-800 outline-none focus:border-sky-400"
+            className="w-full rounded-xl border border-sky-200 bg-white py-2 pl-8 pr-2 text-xs font-semibold text-slate-800 outline-hidden focus:border-sky-400"
             aria-label="Αναζήτηση διεύθυνσης για την πινέζα"
           />
         </div>
@@ -749,7 +749,7 @@ function AddressLocator({ initialQuery, country, onLocate }: { initialQuery: str
           {results.map(r => (
             <li key={r.id}>
               <button type="button" onClick={() => { setActiveId(r.id); onLocate(r.coords, r.precise); }}
-                className={`flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition ${activeId === r.id ? 'bg-white shadow-sm ring-1 ring-sky-200' : 'hover:bg-white/70'}`}>
+                className={`flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition ${activeId === r.id ? 'bg-white shadow-xs ring-1 ring-sky-200' : 'hover:bg-white/70'}`}>
                 {activeId === r.id ? <Check size={12} className="mt-0.5 shrink-0 text-sky-600" /> : <MapPin size={12} className="mt-0.5 shrink-0 text-slate-400" />}
                 <span className="min-w-0">
                   <span className="block truncate text-[11px] font-bold text-slate-800">{r.label}</span>
@@ -844,7 +844,7 @@ function SelectedCustomerCard({
       <div className="flex flex-wrap gap-2 p-4">
         {editing ? (
           <>
-            <button type="button" onClick={onSave} disabled={saving} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2.5 text-xs font-bold text-white shadow transition hover:bg-black disabled:opacity-60">
+            <button type="button" onClick={onSave} disabled={saving} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-black disabled:opacity-60">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Αποθήκευση θέσης
             </button>
             <button type="button" onClick={onCancelEditing} disabled={saving} className="rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-200">
@@ -853,7 +853,7 @@ function SelectedCustomerCard({
           </>
         ) : (
           <>
-            <button type="button" onClick={onOpen} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2.5 text-xs font-bold text-white shadow transition hover:bg-black">
+            <button type="button" onClick={onOpen} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-black">
               <ExternalLink size={14} /> Καρτέλα πελάτη
             </button>
             {canEditLocation && (

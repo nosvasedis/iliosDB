@@ -37,7 +37,7 @@ export default function IncomeClassificationTypeSelect({
       <select
         value={currentValue}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full min-w-[10rem] rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-100 ${selectClassName}`}
+        className={`w-full min-w-40 rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-hidden focus:border-sky-500 focus:ring-1 focus:ring-sky-100 ${selectClassName}`}
         title="Χαρακτηρισμός εσόδου myDATA (classificationType)"
       >
         {!currentValue && <option value="">— Επιλογή χαρακτηρισμού —</option>}

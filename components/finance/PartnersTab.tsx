@@ -118,7 +118,7 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
 
         {selected && selectedBalance ? (
           <div className="min-w-0 space-y-4">
-            <div className="rounded-3xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+            <div className="rounded-3xl border border-slate-100 bg-linear-to-br from-slate-50 to-white p-5 shadow-xs">
               <div className="flex flex-wrap items-center gap-3">
                 <SupplierAvatar name={selected.name} logoUrl={selected.logo_url} size="lg" />
                 <div className="min-w-0 flex-1">
@@ -138,7 +138,7 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
                   ['Υπόλοιπο', selectedBalance.balance, selectedBalance.balance > 0.01 ? 'text-rose-700' : 'text-slate-900'],
                   ['Ληξιπρόθεσμα', selectedBalance.overdue, selectedBalance.overdue > 0.01 ? 'text-rose-700' : 'text-slate-400'],
                 ].map(([label, value, tone]) => (
-                  <div key={label as string} className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                  <div key={label as string} className="rounded-2xl bg-white p-3 shadow-xs ring-1 ring-slate-100">
                     <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</div>
                     <div className={`text-lg font-black tabular-nums ${tone}`}>{formatEuro(value as number)}</div>
                   </div>
@@ -148,7 +148,7 @@ export default function PartnersTab({ workspace, parties, partyBalances, commiss
 
             <div className="inline-flex rounded-2xl bg-slate-100 p-1">
               {([['statement', 'Καρτέλα', ReceiptText], ['rates', 'Τιμοκατάλογος', Tags], ['settlement', 'Εκκαθάριση εργασιών', ClipboardList]] as const).map(([key, label, Icon]) => (
-                <button key={key} type="button" onClick={() => setView(key)} className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-black ${view === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+                <button key={key} type="button" onClick={() => setView(key)} className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-black ${view === key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>
                   <Icon size={14} /> {label}
                   {key === 'settlement' && (unbilledByParty.get(selected.id) || 0) > 0 && <span className="rounded-md bg-amber-100 px-1.5 text-[10px] text-amber-800">{unbilledByParty.get(selected.id)}</span>}
                 </button>

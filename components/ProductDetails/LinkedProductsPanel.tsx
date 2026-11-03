@@ -79,13 +79,13 @@ function SkuPicker({
                         if (event.key === 'Escape') setTerm('');
                     }}
                     placeholder={placeholder}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-sm font-bold uppercase text-slate-800 shadow-sm outline-none transition placeholder:font-sans placeholder:font-medium placeholder:normal-case placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/10 disabled:bg-slate-50"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-sm font-bold uppercase text-slate-800 shadow-xs outline-hidden transition placeholder:font-sans placeholder:font-medium placeholder:normal-case placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/10 disabled:bg-slate-50"
                 />
                 <button
                     type="button"
                     onClick={commit}
                     disabled={disabled || !term.trim()}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white shadow-xs transition hover:bg-violet-700 disabled:opacity-40"
                 >
                     <Plus size={14} strokeWidth={3} /> Προσθήκη
                 </button>
@@ -224,7 +224,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                         {sets.map((set, setIndex) => {
                             const exclude = new Set(set.skus);
                             return (
-                                <div key={set.groupId} className="rounded-2xl border border-violet-100 bg-gradient-to-b from-violet-50/60 to-white p-3.5">
+                                <div key={set.groupId} className="rounded-2xl border border-violet-100 bg-linear-to-b from-violet-50/60 to-white p-3.5">
                                     <div className="mb-3 flex items-center justify-between gap-2">
                                         <div className="text-[12px] font-black uppercase tracking-wide text-violet-700">
                                             Σετ {formatNumber(setIndex + 1)} · {formatNumber(set.skus.length)} κωδικοί
@@ -243,7 +243,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                                             const product = productsBySku.get(member);
                                             const isCurrent = member === sku;
                                             return (
-                                                <div key={member} className={`group relative overflow-hidden rounded-xl border bg-white shadow-sm ${isCurrent ? 'border-violet-300 ring-2 ring-violet-500/15' : 'border-slate-200'}`}>
+                                                <div key={member} className={`group relative overflow-hidden rounded-xl border bg-white shadow-xs ${isCurrent ? 'border-violet-300 ring-2 ring-violet-500/15' : 'border-slate-200'}`}>
                                                     <div className="relative aspect-square bg-slate-50">
                                                         {product?.image_url
                                                             ? <img src={product.image_url} alt={member} loading="lazy" className="h-full w-full object-cover" />
@@ -257,7 +257,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                                                                     set.skus.map((other) => ({ sku: other, imageUrl: productsBySku.get(other)?.image_url ?? null, label: productsBySku.get(other)?.category })),
                                                                     set.skus.indexOf(member),
                                                                 )}
-                                                                className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#060b00]/75 text-white opacity-0 shadow-lg backdrop-blur transition group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                                                className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#060b00]/75 text-white opacity-0 shadow-lg backdrop-blur-sm transition group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                                                             >
                                                                 <ZoomIn size={14} />
                                                             </button>
@@ -268,7 +268,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                                                             aria-label={`Αφαίρεση ${member} από το σετ`}
                                                             title="Αφαίρεση από το σετ"
                                                             onClick={() => removeFromSet(set.groupId, set.skus, member)}
-                                                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-500 opacity-0 shadow transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 disabled:opacity-30 [@media(hover:none)]:opacity-100"
+                                                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-500 opacity-0 shadow-sm transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 disabled:opacity-30 [@media(hover:none)]:opacity-100"
                                                         >
                                                             <X size={14} />
                                                         </button>
@@ -316,7 +316,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                         {draft.map((product) => (
                             <span key={product.sku} className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 py-1 pl-2.5 pr-1 font-mono text-xs font-black text-violet-700">
                                 {product.sku}
-                                <button type="button" aria-label={`Αφαίρεση ${product.sku}`} onClick={() => setDraft((items) => items.filter((item) => item.sku !== product.sku))} className="rounded p-0.5 hover:bg-violet-100">
+                                <button type="button" aria-label={`Αφαίρεση ${product.sku}`} onClick={() => setDraft((items) => items.filter((item) => item.sku !== product.sku))} className="rounded-sm p-0.5 hover:bg-violet-100">
                                     <X size={12} />
                                 </button>
                             </span>
@@ -337,7 +337,7 @@ export default function LinkedProductsPanel({ sku, allProducts, onOpenProduct, s
                             type="button"
                             disabled={busy || draft.length === 0}
                             onClick={createSet}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-40"
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white shadow-xs transition hover:bg-slate-800 disabled:opacity-40"
                         >
                             {busy ? <Loader2 size={15} className="animate-spin" /> : <Link2 size={15} />}
                             Δημιουργία σετ ({formatNumber(draft.length + 1)} κωδικοί)

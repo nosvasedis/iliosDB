@@ -24,7 +24,7 @@ export default function SpecialCreationNote({ sku, note, className = '', compact
 
   return (
     <div
-      className={`flex max-w-full items-start gap-1 rounded-lg border whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+      className={`flex max-w-full items-start gap-1 rounded-lg border whitespace-pre-wrap wrap-break-word wrap-anywhere ${
         missing
           ? 'border-rose-200 bg-rose-50 text-rose-800'
           : 'border-violet-200 bg-violet-50 text-violet-800'

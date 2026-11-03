@@ -18,7 +18,7 @@ export default function RetailClientField({ value, onChange, onChangeCustomer }:
         <div className="flex items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50/30 px-3 focus-within:ring-2 focus-within:ring-fuchsia-200">
             <input id={id} value={value} onChange={event => onChange(event.target.value)}
                 aria-describedby={`${id}-hint`} autoComplete="name" placeholder="π.χ. Μαρία Παπαδοπούλου"
-                className="min-w-0 flex-1 bg-transparent py-3 text-sm font-bold text-slate-900 outline-none placeholder:font-normal" />
+                className="min-w-0 flex-1 bg-transparent py-3 text-sm font-bold text-slate-900 outline-hidden placeholder:font-normal" />
             <RetailBadge />
         </div>
         <p id={`${id}-hint`} className="text-[11px] leading-relaxed text-slate-500">Αυτό το όνομα εμφανίζεται στην παραγγελία και στα PDF.</p>

@@ -20,25 +20,25 @@
 
 /** Wrapper for tabs placed in {@code DesktopPageHeaderProps.tail} (compact) */
 export const TAIL_TAB_CONTAINER =
-  'inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm';
+  'inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-xs';
 
 /** Wrapper for tabs placed in {@code DesktopPageHeaderProps.below} (spacious) */
 export const BELOW_TAB_CONTAINER =
-  'inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm';
+  'inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-xs';
 
 /**
  * Active tab that sits inside one of the tab containers above.
  * Uses the brand dark colour by default.
  */
 export const TAB_ACTIVE =
-  'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90';
+  'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90';
 
 /** Inactive tab button (any container) */
 export const TAB_INACTIVE =
   'text-slate-500 hover:bg-white/70 hover:text-slate-700';
 
 /** Pill shape for filter / sub-stage chips (smaller, rounded-full) */
-export const CHIP_ACTIVE = 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100';
+export const CHIP_ACTIVE = 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100';
 export const CHIP_INACTIVE = 'text-slate-500 hover:bg-white hover:text-slate-700';
 
 /** Shared transition so all tabs animate uniformly */
@@ -69,19 +69,19 @@ export const tailTabButtonCompact = (isActive: boolean) =>
 
 /** Outer wrapper for a text-search input */
 export const SEARCH_CONTAINER =
-  'bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm';
+  'bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-xs';
 
 /** The actual {@code <input>} inside SEARCH_CONTAINER */
 export const SEARCH_INPUT =
-  'w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-none text-slate-700 placeholder:text-slate-400';
+  'w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-hidden text-slate-700 placeholder:text-slate-400';
 
 /** Larger search container – for "below" rows where space permits */
 export const SEARCH_CONTAINER_LARGE =
-  'bg-white border border-slate-200 rounded-xl flex items-center shadow-sm';
+  'bg-white border border-slate-200 rounded-xl flex items-center shadow-xs';
 
 /** Input inside the large variant */
 export const SEARCH_INPUT_LARGE =
-  'w-full bg-transparent px-4 py-2.5 text-sm font-bold outline-none text-slate-700 placeholder:text-slate-400';
+  'w-full bg-transparent px-4 py-2.5 text-sm font-bold outline-hidden text-slate-700 placeholder:text-slate-400';
 
 
 // ──────────────────────────────────────────────
@@ -128,7 +128,7 @@ export const BTN_PRIMARY =
 
 /** Secondary outlined button */
 export const BTN_SECONDARY =
-  'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-xs transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50';
 
 
 // ──────────────────────────────────────────────
@@ -136,14 +136,14 @@ export const BTN_SECONDARY =
 // ──────────────────────────────────────────────
 
 export const FAB =
-  'fixed bottom-8 right-8 z-[100] flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4';
+  'fixed bottom-8 right-8 z-100 flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4';
 
 
 // ──────────────────────────────────────────────
 //  Card containers
 // ──────────────────────────────────────────────
 
-export const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-sm';
+export const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-xs';
 export const CARD_HOVER = 'hover:shadow-md hover:border-slate-300 transition-all duration-200';
 
 
@@ -173,7 +173,7 @@ export const GLOW_BORDER = 'ring-2 ring-amber-500/20 border-amber-200/50';
 export const NICE_LOADER = 'flex flex-col items-center justify-center gap-4 min-h-[320px] w-full';
 
 /** Soft gradient text for section titles */
-export const GRADIENT_TEXT = 'bg-gradient-to-r from-[#060b00] to-slate-600 bg-clip-text text-transparent';
+export const GRADIENT_TEXT = 'bg-linear-to-r from-[#060b00] to-slate-600 bg-clip-text text-transparent';
 
 
 // ──────────────────────────────────────────────

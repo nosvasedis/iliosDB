@@ -96,7 +96,7 @@ export const ProductionSendStageFilters = React.memo(function ProductionSendStag
         onClick={() => onChange(PRODUCTION_SEND_STAGE_FILTER_ALL)}
         className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all whitespace-nowrap ${
           isAll
-            ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
             : 'bg-transparent text-slate-500 border-transparent hover:text-slate-800 hover:bg-white'
         }`}
       >

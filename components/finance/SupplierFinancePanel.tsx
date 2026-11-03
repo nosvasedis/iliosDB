@@ -44,7 +44,7 @@ export default function SupplierFinancePanel({ supplier, products }: { supplier:
     <div className="space-y-5 animate-in fade-in">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[['Χρεώσεις', balance.billed, 'text-slate-900'], ['Πληρωμές', balance.paid, 'text-emerald-700'], ['Υπόλοιπο', balance.balance, balance.balance > 0.01 ? 'text-rose-700' : 'text-slate-900'], ['Ληξιπρόθεσμα', balance.overdue, balance.overdue > 0.01 ? 'text-rose-700' : 'text-slate-400']].map(([label, value, tone]) => (
-          <div key={label as string} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div key={label as string} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
             <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</div>
             <div className={`text-lg font-black tabular-nums ${tone}`}>{formatEuro(value as number)}</div>
           </div>
@@ -55,7 +55,7 @@ export default function SupplierFinancePanel({ supplier, products }: { supplier:
         <button type="button" onClick={() => setPaying(true)} className={primaryButton}><Wallet size={15} /> Πληρωμή</button>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xs">
         <h4 className="border-b border-slate-100 px-4 py-2.5 text-sm font-black text-slate-900">Καρτέλα</h4>
         {statement.length === 0 ? <div className="p-4"><EmptyNote title="Καμία κίνηση ακόμη" /></div> : (
           <div className="divide-y divide-slate-50">
@@ -74,7 +74,7 @@ export default function SupplierFinancePanel({ supplier, products }: { supplier:
       {materialsQuery.isSuccess && <BookedResourceQuantitiesPanel expenses={purchaseExpenses} categories={workspace.categories} materials={materialsQuery.data} products={products} periodLabel="Όλες οι καταγεγραμμένες αγορές αυτού του προμηθευτή" />}
 
       {supplier.kind === 'worker' && (
-        <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs">
           <h4 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900"><Tags size={15} /> Τιμοκατάλογος συνεργάτη</h4>
           <RateCardEditor partyId={supplier.id} cards={workspace.rateCards.filter((card) => card.party_id === supplier.id)} materials={materialsQuery.data || []} />
         </section>

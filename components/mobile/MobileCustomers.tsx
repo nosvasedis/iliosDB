@@ -346,34 +346,34 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 <div className="p-4 flex-1 overflow-y-auto space-y-4 pb-24">
                     {/* KPI Cards */}
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Wallet size={10} /> Τζίρος (Καθαρός)</div>
                             <div className="text-xl font-black text-slate-800">{formatCurrency(retailStats.totalSpent)}</div>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><ShoppingBag size={10} /> Παραγγελίες</div>
                             <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.orderCount)} <span className="text-xs text-slate-400">τεμ.</span></div>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><PieChart size={10} /> Μ.Ο. Αξίας</div>
                             <div className="text-xl font-black text-slate-800">{formatCurrency(retailStats.avgOrderValue)}</div>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Package size={10} /> Τεμάχια</div>
                             <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.totalItems)}</div>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Calendar size={10} /> Τελευταία Παρ.</div>
                             <div className="text-lg font-black text-slate-800">{retailStats.latestOrder ? new Date(retailStats.latestOrder.created_at).toLocaleDateString('el-GR') : '-'}</div>
                         </div>
-                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                             <div className="text-[9px] font-black text-teal-600 uppercase tracking-widest flex items-center gap-1 mb-1.5"><Clock size={10} /> Ενεργοί Μήνες</div>
                             <div className="text-xl font-black text-slate-800">{formatNumber(retailStats.activeMonths)} <span className="text-xs text-slate-400">μήνες</span></div>
                         </div>
                     </div>
 
                     {/* Top Categories */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                         <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><Trophy size={14} className="text-amber-500" /> Κορυφαία είδη</h3>
                         {retailStats.prefData.length > 0 ? (
                             <div className="space-y-3">
@@ -386,7 +386,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                                 <span className="font-mono font-black text-slate-800 text-xs shrink-0 ml-2">{formatCurrency(item.value)}</span>
                                             </div>
                                             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-500" style={{ width: `${item.percentage}%` }}></div>
+                                                <div className="h-full rounded-full bg-linear-to-r from-blue-400 to-indigo-500" style={{ width: `${item.percentage}%` }}></div>
                                             </div>
                                         </div>
                                     </div>
@@ -396,7 +396,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     </div>
 
                     {/* Top Retail Clients */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                         <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-4"><UsersIcon size={14} className="text-indigo-500" /> Κορυφαίοι Τελικοί Πελάτες</h3>
                         {retailStats.topClients.length > 0 ? (
                             <div className="space-y-2.5">
@@ -415,7 +415,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                                     </div>
                                                 </div>
                                                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${(client.totalRevenue / maxRev) * 100}%` }}></div>
+                                                    <div className="h-full rounded-full bg-linear-to-r from-indigo-400 to-purple-500" style={{ width: `${(client.totalRevenue / maxRev) * 100}%` }}></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -426,7 +426,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     </div>
 
                     {/* Recent Orders */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                         <h3 className="font-bold text-slate-800 text-xs flex items-center gap-2 mb-3"><ShoppingBag size={14} className="text-blue-500" /> Πρόσφατες Παραγγελίες</h3>
                         {retailStats.recentOrders.length > 0 ? (
                             <div className="space-y-2">
@@ -494,7 +494,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                 )}
 
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-sm">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
                         {editType === 'supplier' && (
                             <label className="block">
                                 <span className="mb-1 block text-xs font-bold text-slate-500">Τύπος</span>
@@ -524,7 +524,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                         value={editData.vat_number || ''}
                                         onChange={e => setEditData({ ...editData, vat_number: e.target.value })}
                                         disabled={isRetailSystemCustomer}
-                                        className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-slate-900 font-mono"
+                                        className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-hidden text-slate-900 font-mono"
                                         placeholder="9 ψηφία..."
                                     />
                                     {isDomesticCountry(editData.country) && (
@@ -555,7 +555,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 value={editType === 'customer' ? editData.full_name : editData.name}
                                 onChange={e => setEditData({ ...editData, [editType === 'customer' ? 'full_name' : 'name']: e.target.value })}
                                 disabled={isRetailSystemCustomer}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20"
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20"
                                 placeholder="Πληκτρολογήστε όνομα..."
                                 autoFocus={!editData.full_name && !editData.name}
                             />
@@ -566,7 +566,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 <input
                                     value={editData.contact_person || ''}
                                     onChange={e => setEditData({ ...editData, contact_person: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900"
                                 />
                             </div>
                         )}
@@ -577,7 +577,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     value={editData.phone || ''}
                                     onChange={e => setEditData({ ...editData, phone: e.target.value })}
                                     disabled={isRetailSystemCustomer}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900"
                                     type="tel"
                                 />
                             </div>}
@@ -587,7 +587,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     value={editData.email || ''}
                                     onChange={e => setEditData({ ...editData, email: e.target.value })}
                                     disabled={isRetailSystemCustomer}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900"
                                     type="email"
                                 />
                             </div>
@@ -598,7 +598,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 value={editData.address || ''}
                                 onChange={e => setEditData({ ...editData, address: e.target.value })}
                                 disabled={isRetailSystemCustomer}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900"
                             />
                         </div>
                         {editType === 'customer' && !isRetailSystemCustomer && (
@@ -619,11 +619,11 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Επάγγελμα</label>
-                                    <input value={editData.profession || ''} onChange={e => setEditData({ ...editData, profession: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900" />
+                                    <input value={editData.profession || ''} onChange={e => setEditData({ ...editData, profession: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">ΔΟΥ</label>
-                                    <input value={editData.tax_office || ''} onChange={e => setEditData({ ...editData, tax_office: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900" />
+                                    <input value={editData.tax_office || ''} onChange={e => setEditData({ ...editData, tax_office: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900" />
                                 </div>
                             </div>
                         )}
@@ -637,7 +637,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                         setEditData({ ...editData, vat_rate: vatRate, ...(vatRate === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) });
                                     }}
                                     disabled={isRetailSystemCustomer}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 font-bold"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900 font-bold"
                                 >
                                     <option value={VatRegime.Standard}>24% (Κανονικό)</option>
                                     <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
@@ -665,7 +665,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 value={editData.notes || ''}
                                 onChange={e => setEditData({ ...editData, notes: e.target.value })}
                                 disabled={isRetailSystemCustomer}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 h-24 resize-none"
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-slate-900 h-24 resize-none"
                                 placeholder="Πρόσθετα σχόλια..."
                             />
                         </div>
@@ -712,7 +712,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     placeholder="Αναζήτηση..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-500/20 shadow-xs font-medium"
                 />
             </div>
 
@@ -730,19 +730,19 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
             {mode === 'customers' && (
                 <div className="mt-3 shrink-0 space-y-2">
-                    <div className="flex rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                    <div className="flex rounded-xl bg-white p-1 shadow-xs ring-1 ring-slate-100">
                         {([['list', 'Λίστα', List], ['map', 'Χάρτης', MapIcon]] as const).map(([id, label, Icon]) => (
                             <button
                                 key={id}
                                 type="button"
                                 onClick={() => setCustomerView(id)}
-                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${customerView === id ? 'bg-[#060b00] text-white shadow' : 'text-slate-500'}`}
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${customerView === id ? 'bg-[#060b00] text-white shadow-sm' : 'text-slate-500'}`}
                             >
                                 <Icon size={15} /> {label}
                             </button>
                         ))}
                     </div>
-                    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
                         <button
                             type="button"
                             onClick={() => setRegionSelection([])}
@@ -801,7 +801,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             )}
 
             {mode === 'customers' && showRegionSheet && (
-                <div className="fixed inset-0 z-[1200] flex flex-col justify-end bg-slate-900/40" onClick={() => setShowRegionSheet(false)}>
+                <div className="fixed inset-0 z-1200 flex flex-col justify-end bg-slate-900/40" onClick={() => setShowRegionSheet(false)}>
                     <div className="flex max-h-[80vh] flex-col rounded-t-3xl bg-white p-4 pb-8 shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
                         <CustomerRegionFilter counts={regionCounts} selection={regionSelection} onChange={setRegionSelection} className="min-h-0 flex-1" />
@@ -836,7 +836,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     <div
                         key={item.id}
                         onClick={() => handleItemClick(item)}
-                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
+                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
                     >
                         <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">

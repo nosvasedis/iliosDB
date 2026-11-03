@@ -139,7 +139,7 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
 const MovementSkeletonStack: React.FC<{ count?: number }> = ({ count = 3 }) => (
     <div className="space-y-2" aria-hidden="true">
         {Array.from({ length: count }).map((_, index) => (
-            <div key={index} className="rounded-2xl border border-emerald-100 bg-white/75 p-3 shadow-sm overflow-hidden relative">
+            <div key={index} className="rounded-2xl border border-emerald-100 bg-white/75 p-3 shadow-xs overflow-hidden relative">
                 <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-emerald-100/70 animate-pulse" />
@@ -261,13 +261,13 @@ const DesktopSettingStoneModal: React.FC<{
     const selectedOrderInfo = orderList.find(o => o.key === selectedOrderKey);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-200 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-6 animate-in fade-in" onClick={onClose}>
             <div
                 className="bg-white w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 bg-purple-50/60 flex items-center justify-between rounded-t-3xl">
+                <div className="shrink-0 px-6 py-4 border-b border-slate-100 bg-purple-50/60 flex items-center justify-between rounded-t-3xl">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-purple-100 rounded-xl">
                             <Gem size={20} className="text-purple-700" />
@@ -296,7 +296,7 @@ const DesktopSettingStoneModal: React.FC<{
                                     onClick={() => setSelectedOrderKey(order.key)}
                                     className={`w-full text-left rounded-xl px-3 py-3 border transition-all ${
                                         selectedOrderKey === order.key
-                                            ? 'bg-purple-50 border-purple-300 shadow-sm'
+                                            ? 'bg-purple-50 border-purple-300 shadow-xs'
                                             : 'bg-white border-slate-200 hover:border-purple-200 hover:bg-purple-50/30'
                                     }`}
                                 >
@@ -343,7 +343,7 @@ const DesktopSettingStoneModal: React.FC<{
                                                         <span className="text-[9px] bg-slate-200 px-1.5 rounded-md font-bold text-slate-600 shrink-0">{b.size_info}</span>
                                                     )}
                                                 </div>
-                                                <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-sm shrink-0">
+                                                <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-xs shrink-0">
                                                     {formatNumber(b.quantity)} τμχ
                                                 </span>
                                             </div>
@@ -357,7 +357,7 @@ const DesktopSettingStoneModal: React.FC<{
                                     {stones.length > 0 ? (
                                         <div className="grid grid-cols-2 gap-3">
                                             {stones.map((stone, i) => (
-                                                <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-sm ring-1 ring-purple-50">
+                                                <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-xs ring-1 ring-purple-50">
                                                     <div className="flex-1 min-w-0 pr-4">
                                                         <div className="font-black text-slate-800 text-sm leading-tight">{stone.name}</div>
                                                         {stone.description && (
@@ -658,11 +658,11 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
     })();
 
     return (
-        <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-230 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
 
                 {/* ── Header ── */}
-                <div className={`p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r ${theme.headerGradient}`}>
+                <div className={`p-5 border-b border-slate-100 flex items-center justify-between bg-linear-to-r ${theme.headerGradient}`}>
                     <div>
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                             <Printer size={18} className={theme.iconText} /> {title}
@@ -686,7 +686,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 onClick={() => applySubstageFilter('all')}
                                 className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                     substageFilter === 'all'
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                                         : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
                                 }`}
                                 title="Εμφάνιση και επιλογή όλων των παρτίδων Τεχνίτη"
@@ -701,7 +701,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                     onClick={() => applySubstageFilter('pending')}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                         substageFilter === 'pending'
-                                            ? 'bg-amber-500 text-white border-transparent shadow-sm'
+                                            ? 'bg-amber-500 text-white border-transparent shadow-xs'
                                             : 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400'
                                     }`}
                                     title="Μόνο παρτίδες που εκκρεμεί αποστολή"
@@ -719,7 +719,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                     onClick={() => applySubstageFilter('active')}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                         substageFilter === 'active'
-                                            ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                                            ? 'bg-blue-600 text-white border-transparent shadow-xs'
                                             : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400'
                                     }`}
                                     title="Μόνο παρτίδες που είναι ενεργά στον Τεχνίτη"
@@ -757,7 +757,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                 onClick={() => applyOrderScopeFilter('all')}
                                 className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                     orderScopeFilter === 'all'
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                                         : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
                                 }`}
                                 title="Εμφάνιση και επιλογή όλων των παρτίδων"
@@ -771,7 +771,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                     onClick={() => applyOrderScopeFilter('withOrder')}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                         orderScopeFilter === 'withOrder'
-                                            ? 'bg-indigo-600 text-white border-transparent shadow-sm'
+                                            ? 'bg-indigo-600 text-white border-transparent shadow-xs'
                                             : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-400'
                                     }`}
                                     title="Μόνο παρτίδες που ανήκουν σε εντολή"
@@ -788,7 +788,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                     onClick={() => applyOrderScopeFilter('noOrder')}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                         orderScopeFilter === 'noOrder'
-                                            ? 'bg-slate-700 text-white border-transparent shadow-sm'
+                                            ? 'bg-slate-700 text-white border-transparent shadow-xs'
                                             : 'bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-400'
                                     }`}
                                     title="Μόνο παρτίδες χωρίς εντολή"
@@ -824,7 +824,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                             placeholder="Αναζήτηση εντολής, πελάτη ή SKU..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 text-sm font-medium ${theme.focusRing}`}
+                            className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 text-sm font-medium ${theme.focusRing}`}
                         />
                     </div>
                     <button
@@ -869,7 +869,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                         return (
                             <div
                                 key={key}
-                                className={`bg-white rounded-2xl border transition-all shadow-sm ${allSelected ? theme.groupSelectedBorder : `border-slate-200 ${theme.groupHoverBorder}`}`}
+                                className={`bg-white rounded-2xl border transition-all shadow-xs ${allSelected ? theme.groupSelectedBorder : `border-slate-200 ${theme.groupHoverBorder}`}`}
                             >
                                 {/* Group header */}
                                 <div
@@ -884,7 +884,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                                 : 'bg-white border-slate-300'
                                     }`}>
                                         {allSelected && <Check size={13} className="text-white" />}
-                                        {someSelected && !allSelected && <div className={`w-2 h-2 rounded-sm ${type === 'labels' ? 'bg-emerald-500' : type === 'preparation' ? 'bg-amber-500' : type === 'aggregated' ? 'bg-indigo-500' : type === 'stagePdf' ? 'bg-slate-500' : 'bg-blue-500'}`} />}
+                                        {someSelected && !allSelected && <div className={`w-2 h-2 rounded-xs ${type === 'labels' ? 'bg-emerald-500' : type === 'preparation' ? 'bg-amber-500' : type === 'aggregated' ? 'bg-indigo-500' : type === 'stagePdf' ? 'bg-slate-500' : 'bg-blue-500'}`} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-black text-slate-900 text-sm truncate">{group.name}</div>
@@ -899,13 +899,13 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                                             onClick={() => toggleBatch(item.id)}
                                             className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors ${selectedIds.has(item.id) ? theme.itemSelectedBg : theme.itemHoverBg}`}
                                         >
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${selectedIds.has(item.id) ? theme.checkboxSelectedItem : 'bg-white border-slate-300'}`}>
+                                            <div className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors shrink-0 ${selectedIds.has(item.id) ? theme.checkboxSelectedItem : 'bg-white border-slate-300'}`}>
                                                 {selectedIds.has(item.id) && <Check size={11} className="text-white" />}
                                             </div>
                                             <div className="flex-1 flex justify-between items-center min-w-0">
                                                 <div className="flex items-center gap-1.5 min-w-0">
                                                     <span className="font-mono font-black text-sm text-slate-800">{item.sku}{item.variant_suffix}</span>
-                                                    {item.size_info && <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-500 shrink-0">{item.size_info}</span>}
+                                                    {item.size_info && <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200 font-bold text-slate-500 shrink-0">{item.size_info}</span>}
                                                     {showPolishingSubstages && (
                                                         item.pending_dispatch
                                                             ? <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-black shrink-0">Εκκρεμεί</span>
@@ -1018,7 +1018,7 @@ const QuickProductionPickerModal = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-220 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-3xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
                     <div>
@@ -1040,7 +1040,7 @@ const QuickProductionPickerModal = ({
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Αναζήτηση πελάτη ή εντολής..."
-                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
                         />
                     </div>
                 </div>
@@ -1061,11 +1061,11 @@ const QuickProductionPickerModal = ({
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                         <div className="min-w-0">
-                                            <div className="text-sm font-black text-slate-900 break-words"><OrderCustomerName order={entry.order} /></div>
+                                            <div className="text-sm font-black text-slate-900 wrap-break-word"><OrderCustomerName order={entry.order} /></div>
                                             <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(entry.order.id)}</div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-sm border border-slate-200">
                                                 {formatNumber(entry.batchesCount)} παρτίδες
                                             </span>
                                         </div>
@@ -1293,11 +1293,11 @@ const AssemblyOrderSelectorModal = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-230 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-3xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
 
                 {/* ── Header ── */}
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-pink-50 to-white">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-linear-to-r from-pink-50 to-white">
                     <div>
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                             <Layers size={18} className="text-pink-600" /> Εκτύπωση Συναρμολόγησης
@@ -1318,7 +1318,7 @@ const AssemblyOrderSelectorModal = ({
                             onClick={() => setActiveStageFilter(new Set())}
                             className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                 activeStageFilter.size === 0
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                                     : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
                             }`}
                         >
@@ -1336,7 +1336,7 @@ const AssemblyOrderSelectorModal = ({
                                     onClick={() => toggleStageFilter(cfg.id)}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                         active
-                                            ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm`
+                                            ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-xs`
                                             : `${cfg.bgColor} ${cfg.textColor} ${cfg.borderColor} hover:opacity-80`
                                     }`}
                                 >
@@ -1364,7 +1364,7 @@ const AssemblyOrderSelectorModal = ({
                                         title={'Τα Έτοιμα δεν περιλαμβάνονται στο "Όλα" — επιλέξτε ρητά αν θέλετε να εκτυπωθούν'}
                                         className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                             active
-                                                ? `${READY_STAGE_CFG.activeBg} ${READY_STAGE_CFG.activeText} border-transparent shadow-sm`
+                                                ? `${READY_STAGE_CFG.activeBg} ${READY_STAGE_CFG.activeText} border-transparent shadow-xs`
                                                 : `bg-white text-emerald-700 border-dashed border-emerald-300 hover:border-emerald-500`
                                         }`}
                                     >
@@ -1405,7 +1405,7 @@ const AssemblyOrderSelectorModal = ({
                                 onClick={() => setIncludeInProduction(v => !v)}
                                 className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                     includeInProduction
-                                        ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                                        ? 'bg-blue-600 text-white border-transparent shadow-xs'
                                         : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'
                                 }`}
                                 title="Περιλαμβάνει ποσότητες που έχουν ήδη παρτίδες (σε στάδια εκτός Έτοιμων)"
@@ -1417,7 +1417,7 @@ const AssemblyOrderSelectorModal = ({
                                 onClick={() => setIncludeNotInProduction(v => !v)}
                                 className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                     includeNotInProduction
-                                        ? 'bg-purple-600 text-white border-transparent shadow-sm'
+                                        ? 'bg-purple-600 text-white border-transparent shadow-xs'
                                         : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'
                                 }`}
                                 title="Περιλαμβάνει ποσότητες που υπάρχουν στην εντολή αλλά δεν έχουν ακόμη παρτίδες σε παραγωγή"
@@ -1435,7 +1435,7 @@ const AssemblyOrderSelectorModal = ({
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Αναζήτηση πελάτη ή εντολής..."
-                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-300"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:ring-2 focus:ring-pink-500/20 focus:border-pink-300"
                         />
                     </div>
                     <button
@@ -1459,17 +1459,17 @@ const AssemblyOrderSelectorModal = ({
                                     onClick={() => toggleOrder(candidate.order.id)}
                                     className={`w-full text-left p-4 rounded-2xl border transition-all ${
                                         selected
-                                            ? 'bg-pink-50 border-pink-300 ring-1 ring-pink-100 shadow-sm'
-                                            : 'bg-white border-slate-200 hover:border-pink-200 hover:shadow-sm'
+                                            ? 'bg-pink-50 border-pink-300 ring-1 ring-pink-100 shadow-xs'
+                                            : 'bg-white border-slate-200 hover:border-pink-200 hover:shadow-xs'
                                     }`}
                                 >
                                     {/* Row 1: customer / order ID / checkbox */}
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-sm font-black text-slate-900 break-words leading-snug"><OrderCustomerName order={candidate.order} /></div>
+                                            <div className="text-sm font-black text-slate-900 wrap-break-word leading-snug"><OrderCustomerName order={candidate.order} /></div>
                                             <div className="text-[11px] text-slate-400 font-mono mt-0.5">#{formatOrderId(candidate.order.id)}</div>
                                         </div>
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
+                                        <div className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
                                             {selected && <Check size={13} className="text-white" />}
                                         </div>
                                     </div>
@@ -1487,7 +1487,7 @@ const AssemblyOrderSelectorModal = ({
                                                         key={cfg.id}
                                                         className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
                                                             isFilteredStage
-                                                                ? `${cfg.activeBg} ${cfg.activeText} border border-transparent shadow-sm`
+                                                                ? `${cfg.activeBg} ${cfg.activeText} border border-transparent shadow-xs`
                                                                 : isReady
                                                                     ? 'bg-white text-emerald-600 border border-dashed border-emerald-300 opacity-60'
                                                                     : `${cfg.bgColor} ${cfg.textColor} border ${cfg.borderColor}`
@@ -1582,7 +1582,7 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
 
 
     return (
-        <div className="fixed inset-0 z-[250] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-250 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -1597,7 +1597,7 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
                     <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
                         placeholder="Γράψτε εδώ..."
                         autoFocus
                     />
@@ -1623,7 +1623,7 @@ const BulkNoteModal = ({ count, onClose, onSave, isProcessing }: { count: number
 
 
     return (
-        <div className="fixed inset-0 z-[350] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-350 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -1638,7 +1638,7 @@ const BulkNoteModal = ({ count, onClose, onSave, isProcessing }: { count: number
                     <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
                         placeholder="Γράψτε εδώ..."
                         autoFocus
                     />
@@ -1664,7 +1664,7 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
 
 
     return (
-        <div className="fixed inset-0 z-[160] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-160 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 border border-amber-200">
                 <div className="p-6 border-b border-amber-100 flex justify-between items-center bg-amber-50">
                     <h3 className="text-lg font-black text-amber-800 flex items-center gap-2">
@@ -1679,7 +1679,7 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
                     <textarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        className="w-full p-4 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-32 resize-none text-sm font-bold text-slate-800"
+                        className="w-full p-4 bg-white border-2 border-amber-100 rounded-xl outline-hidden focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-32 resize-none text-sm font-bold text-slate-800"
                         placeholder="π.χ. Έλλειψη εξαρτήματος, Σπασμένο λάστιχο..."
                         autoFocus
                     />
@@ -1731,7 +1731,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     };
 
     return (
-        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-150 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
@@ -1807,7 +1807,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                                 else if (val < 1) setQuantity(1);
                                 else setQuantity(val);
                             }}
-                            className="w-48 p-4 text-center font-black text-3xl rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none bg-white text-slate-800"
+                            className="w-48 p-4 text-center font-black text-3xl rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden bg-white text-slate-800"
                             autoFocus
                             onKeyDown={(e) => e.key === 'Enter' && handleConfirmClick()}
                         />
@@ -1933,7 +1933,7 @@ const StageInspectorModal: React.FC<{
 
     return (
         <div
-            className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+            className="fixed inset-0 z-210 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
             onClick={onClose}
         >
             <div
@@ -1941,9 +1941,9 @@ const StageInspectorModal: React.FC<{
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className={`flex-shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-center justify-between gap-4 rounded-t-3xl`}>
+                <div className={`shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-center justify-between gap-4 rounded-t-3xl`}>
                     <div className="flex items-center gap-3">
-                        <div className={`p-2.5 bg-white rounded-xl shadow-sm ${colors.text}`}>
+                        <div className={`p-2.5 bg-white rounded-xl shadow-xs ${colors.text}`}>
                             {React.cloneElement(stage.icon as React.ReactElement<{ size?: number }>, { size: 22 })}
                         </div>
                         <div>
@@ -1960,7 +1960,7 @@ const StageInspectorModal: React.FC<{
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); onOpenPdfBatchPicker(); }}
-                                className="p-2 rounded-xl bg-white/90 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/80 shadow-sm transition-colors"
+                                className="p-2 rounded-xl bg-white/90 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/80 shadow-xs transition-colors"
                                 title="Εκτύπωση PDF σταδίου (επιλογή παρτίδων)"
                             >
                                 <Printer size={20} />
@@ -1973,7 +1973,7 @@ const StageInspectorModal: React.FC<{
                 </div>
 
                 {/* Stats + controls */}
-                <div className="flex-shrink-0 px-5 py-4 border-b border-slate-100 bg-white space-y-3">
+                <div className="shrink-0 px-5 py-4 border-b border-slate-100 bg-white space-y-3">
                     {/* Stat pills */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -2030,20 +2030,20 @@ const StageInspectorModal: React.FC<{
                             value={clientFilter}
                             onChange={e => setClientFilter(e.target.value)}
                             placeholder="Φιλτράρισμα ανά πελάτη ή SKU..."
-                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
                         />
                     </div>
                 </div>
 
                 {/* Polishing sub-tabs */}
                 {isPolishing && (
-                    <div className="flex-shrink-0 px-5 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+                    <div className="shrink-0 px-5 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
                         <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
                             <button
                                 onClick={() => setPolishingTab('pending')}
                                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
                                     polishingTab === 'pending'
-                                        ? 'bg-teal-600 text-white shadow-sm'
+                                        ? 'bg-teal-600 text-white shadow-xs'
                                         : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                                 }`}
                             >
@@ -2062,7 +2062,7 @@ const StageInspectorModal: React.FC<{
                                 onClick={() => setPolishingTab('dispatched')}
                                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
                                     polishingTab === 'dispatched'
-                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        ? 'bg-blue-600 text-white shadow-xs'
                                         : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                                 }`}
                             >
@@ -2081,7 +2081,7 @@ const StageInspectorModal: React.FC<{
                         {polishingTab === 'pending' && onDispatchBatches && filtered.length > 0 && (
                             <button
                                 onClick={() => onDispatchBatches(filtered.map(b => b.id))}
-                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm"
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-xs"
                                 title="Αποστολή όλων στον Τεχνίτη"
                             >
                                 <Truck size={12} />
@@ -2145,8 +2145,8 @@ const StageInspectorModal: React.FC<{
                                     {(() => {
                                         const rowMoving = movingBatchIds?.has(batch.id) ?? false;
                                         return (
-                                    <div className={`relative bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
-                                        ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}
+                                    <div className={`relative bg-white rounded-2xl border shadow-xs overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
+                                        ${batch.on_hold ? 'border-l-4 border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}
                                         ${getMovementSurfaceClass(rowMoving)}`}
                                         aria-busy={rowMoving || undefined}
                                     >
@@ -2183,7 +2183,7 @@ const StageInspectorModal: React.FC<{
                                                             masterClassName="text-slate-800"
                                                         />
                                                         {batch.size_info && (
-                                                            <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-500 shrink-0">
+                                                            <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200 font-bold text-slate-500 shrink-0">
                                                                 {batch.size_info}
                                                             </span>
                                                         )}
@@ -2245,7 +2245,7 @@ const StageInspectorModal: React.FC<{
                                                 title={onEditNote ? 'Επεξεργασία σημείωσης' : undefined}
                                             >
                                                 <StickyNote size={13} className={`shrink-0 mt-0.5 ${batch.notes ? 'text-amber-500' : 'text-slate-400'}`} />
-                                                <p className={`text-xs font-medium leading-relaxed whitespace-pre-wrap break-words ${batch.notes ? 'text-amber-800' : 'text-slate-400 italic'}`}>
+                                                <p className={`text-xs font-medium leading-relaxed whitespace-pre-wrap wrap-break-word ${batch.notes ? 'text-amber-800' : 'text-slate-400 italic'}`}>
                                                     {batch.notes || 'Προσθήκη σημείωσης…'}
                                                 </p>
                                             </div>
@@ -3652,7 +3652,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onClick={() => setIsMoldModalOpen(true)}
                             title="Υπολογισμός Λάστιχων"
                             aria-label="Υπολογισμός Λάστιχων"
-                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:text-slate-800"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition-all hover:border-slate-300 hover:text-slate-800"
                         >
                             <Grid size={16} />
                         </button>
@@ -3661,7 +3661,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             disabled={quickPickEntries.length === 0}
                             title={quickPickEntries.length > 0 ? "Άμεση Διαχείριση Παραγωγής" : "Δεν υπάρχουν πελάτες σε παραγωγή"}
                             aria-label="Άμεση Διαχείριση Παραγωγής"
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm transition-all ${quickPickEntries.length > 0 ? 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800' : 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-xs transition-all ${quickPickEntries.length > 0 ? 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800' : 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed'}`}
                         >
                             <ClipboardList size={16} />
                         </button>
@@ -3672,7 +3672,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onClick={() => setGroupMode('gender')}
                             title="Κατά Φύλο"
                             aria-label="Κατά Φύλο"
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'gender' ? 'border-slate-200 bg-white text-slate-800 shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'gender' ? 'border-slate-200 bg-white text-slate-800 shadow-xs' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
                             <Palette size={15} />
                         </button>
@@ -3680,7 +3680,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onClick={() => setGroupMode('customer')}
                             title="Ανά Πελάτη"
                             aria-label="Ανά Πελάτη"
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'customer' ? 'border-emerald-200 bg-white text-emerald-600 shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'customer' ? 'border-emerald-200 bg-white text-emerald-600 shadow-xs' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
                             <Users size={15} />
                         </button>
@@ -3691,7 +3691,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onClick={() => setSortOrder(sortOrder === 'newest' ? 'alpha' : 'newest')}
                             title="Νεότερα Πρώτα"
                             aria-label="Νεότερα Πρώτα"
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'newest' ? 'border-blue-500 bg-blue-500 text-white shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'newest' ? 'border-blue-500 bg-blue-500 text-white shadow-xs' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
                             <ArrowDown size={15} />
                         </button>
@@ -3699,7 +3699,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onClick={() => setSortOrder(sortOrder === 'oldest' ? 'alpha' : 'oldest')}
                             title="Παλαιότερα Πρώτα"
                             aria-label="Παλαιότερα Πρώτα"
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'oldest' ? 'border-orange-500 bg-orange-500 text-white shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'oldest' ? 'border-orange-500 bg-orange-500 text-white shadow-xs' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
                             <ArrowUp size={15} />
                         </button>
@@ -3723,7 +3723,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => setShowRepairIntake(value => !value)}
                         title="Παραλαβή Επισκευών"
                         aria-label="Παραλαβή Επισκευών"
-                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${showRepairIntake ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'}`}
+                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-xs ${showRepairIntake ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                     >
                         <Wrench size={15} />
                         {pendingRepairBatches.length > 0 && (
@@ -3736,7 +3736,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => setWorkflowFilter(value => value === 'repair' ? 'all' : 'repair')}
                         title="Μόνο Επισκευές"
                         aria-label="Μόνο Επισκευές"
-                        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${workflowFilter === 'repair' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-xs ${workflowFilter === 'repair' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                     >
                         <CheckSquare size={15} />
                     </button>
@@ -3744,7 +3744,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => setWorkflowFilter(value => value === 'consignment' ? 'all' : 'consignment')}
                         title="Μόνο Παρακαταθήκες"
                         aria-label="Μόνο Παρακαταθήκες"
-                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${workflowFilter === 'consignment' ? 'bg-indigo-700 border-indigo-700 text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'}`}
+                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-xs ${workflowFilter === 'consignment' ? 'bg-indigo-700 border-indigo-700 text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'}`}
                     >
                         <HandHeart size={15} />
                         {consignmentBatchCount > 0 && (
@@ -3761,7 +3761,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         disabled={assemblyOrderCandidates.length === 0}
                         title="Συναρμολόγηση"
                         aria-label="Συναρμολόγηση"
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition-all shadow-sm hover:bg-pink-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition-all shadow-xs hover:bg-pink-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <Layers size={15} />
                     </button>
@@ -3769,7 +3769,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => handlePrintRequest(preparationBatches, 'preparation')}
                         title="Εκτύπωση Προετοιμασίας"
                         aria-label="Εκτύπωση Προετοιμασίας"
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition-all shadow-sm hover:bg-blue-100 disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition-all shadow-xs hover:bg-blue-100 disabled:opacity-40"
                     >
                         <BookOpen size={15} />
                     </button>
@@ -3777,7 +3777,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => handlePrintRequest(technicianBatches, 'technician')}
                         title="Εκτύπωση Τεχνίτη"
                         aria-label="Εκτύπωση Τεχνίτη"
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-700 transition-all shadow-sm hover:bg-purple-100 disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-700 transition-all shadow-xs hover:bg-purple-100 disabled:opacity-40"
                     >
                         <Hammer size={15} />
                     </button>
@@ -3785,7 +3785,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClick={() => handlePrintRequest(enhancedBatches, 'aggregated')}
                         title="Συγκεντρωτική Εκτύπωση"
                         aria-label="Συγκεντρωτική Εκτύπωση"
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-700 transition-all shadow-sm hover:bg-slate-200 disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-700 transition-all shadow-xs hover:bg-slate-200 disabled:opacity-40"
                     >
                         <FileText size={15} />
                     </button>
@@ -3801,7 +3801,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
                         />
                         {showRepairIntake && (
-                            <div className="rounded-2xl border border-blue-200/80 bg-white p-3 shadow-sm">
+                            <div className="rounded-2xl border border-blue-200/80 bg-white p-3 shadow-xs">
                                 <div className="mb-2 flex items-center justify-between gap-3">
                                     <div>
                                         <h3 className="text-sm font-black text-slate-900">Νέες Επισκευές προς δρομολόγηση</h3>
@@ -3830,7 +3830,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                             <div className="mt-0.5 text-[10px] font-bold text-slate-500"><CustomerNameLabel name={batch.customer_name || 'Χωρίς πελάτη'} retail={batch.customer_is_retail} /></div>
                                                         </div>
                                                     </div>
-                                                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{formatNumber(batch.quantity)} τεμ.</span>
+                                                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-xs">{formatNumber(batch.quantity)} τεμ.</span>
                                                 </div>
                                                 <div className="mt-3 grid grid-cols-2 gap-1">
                                                     {PRODUCTION_STAGES.filter(stage => stage.id !== ProductionStage.AwaitingDelivery && stage.id !== ProductionStage.Ready).flatMap(stage => {
@@ -3918,7 +3918,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             <div className="flex items-center gap-3">
                                                 <button
                                                     onClick={() => { setStageInspectorInitialPolishingTab('pending'); setStageInspectorStage(ProductionStage.Polishing); }}
-                                                    className="p-2 rounded-lg bg-white shadow-sm text-teal-600 hover:bg-teal-50 transition-colors"
+                                                    className="p-2 rounded-lg bg-white shadow-xs text-teal-600 hover:bg-teal-50 transition-colors"
                                                     title="Προβολή παρτίδων Τεχνίτη"
                                                 >
                                                     <Truck size={20} />
@@ -3935,7 +3935,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     <button
                                                         onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
                                                         disabled={anyDispatching}
-                                                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+                                                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-xs disabled:opacity-50"
                                                         title="Αποστολή όλων στον Τεχνίτη"
                                                     >
                                                         {anyDispatching ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
@@ -3943,10 +3943,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     </button>
                                                     );
                                                 })()}
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{formatNumber(polishingPendingBatches.length)}</span>
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-xs text-teal-700">{formatNumber(polishingPendingBatches.length)}</span>
                                                 <button
                                                     onClick={() => setPolishingFocus(polishingFocus === 'pending' ? 'equal' : 'pending')}
-                                                    className="p-1.5 rounded-lg bg-white shadow-sm text-teal-500 hover:bg-teal-100 hover:text-teal-700 transition-colors"
+                                                    className="p-1.5 rounded-lg bg-white shadow-xs text-teal-500 hover:bg-teal-100 hover:text-teal-700 transition-colors"
                                                     title={polishingFocus === 'pending' ? 'Ισόποση κατανομή' : 'Μεγέθυνση αυτής της στήλης'}
                                                 >
                                                     {polishingFocus === 'pending' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
@@ -3984,7 +3984,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             <div className="flex items-center gap-3">
                                                 <button
                                                     onClick={() => { setStageInspectorInitialPolishingTab('dispatched'); setStageInspectorStage(ProductionStage.Polishing); }}
-                                                    className="p-2 rounded-lg bg-white shadow-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    className="p-2 rounded-lg bg-white shadow-xs text-blue-600 hover:bg-blue-50 transition-colors"
                                                     title="Προβολή παρτίδων Τεχνίτη"
                                                 >
                                                     <Hammer size={20} />
@@ -3995,10 +3995,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-blue-700">{formatNumber(polishingDispatchedBatches.length)}</span>
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-xs text-blue-700">{formatNumber(polishingDispatchedBatches.length)}</span>
                                                 <button
                                                     onClick={() => setPolishingFocus(polishingFocus === 'dispatched' ? 'equal' : 'dispatched')}
-                                                    className="p-1.5 rounded-lg bg-white shadow-sm text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                                                    className="p-1.5 rounded-lg bg-white shadow-xs text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
                                                     title={polishingFocus === 'dispatched' ? 'Ισόποση κατανομή' : 'Μεγέθυνση αυτής της στήλης'}
                                                 >
                                                     {polishingFocus === 'dispatched' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
@@ -4054,7 +4054,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setStageInspectorStage(stage.id); }}
-                                            className={`p-2 rounded-lg bg-white shadow-sm text-${stage.color}-600 hover:bg-${stage.color}-50 transition-colors`}
+                                            className={`p-2 rounded-lg bg-white shadow-xs text-${stage.color}-600 hover:bg-${stage.color}-50 transition-colors`}
                                             title={`Προβολή παρτίδων: ${stage.label}`}
                                         >
                                             {stage.icon}
@@ -4065,7 +4065,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         {stage.id === ProductionStage.Setting && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setShowSettingStones(true); }}
-                                                className="p-1.5 bg-white rounded-lg hover:bg-purple-100 text-purple-500 hover:text-purple-700 transition-colors shadow-sm"
+                                                className="p-1.5 bg-white rounded-lg hover:bg-purple-100 text-purple-500 hover:text-purple-700 transition-colors shadow-xs"
                                                 title="Πέτρες Καρφωτή"
                                             >
                                                 <Gem size={14} />
@@ -4075,7 +4075,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             <>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleCompleteAllLabeling(); }}
-                                                    className={`relative p-1.5 bg-white rounded-lg text-emerald-500 transition-colors shadow-sm overflow-hidden disabled:cursor-wait ${
+                                                    className={`relative p-1.5 bg-white rounded-lg text-emerald-500 transition-colors shadow-xs overflow-hidden disabled:cursor-wait ${
                                                         isCompletingAllLabeling
                                                             ? 'ring-2 ring-emerald-300/70 text-emerald-700'
                                                             : 'hover:bg-emerald-100 hover:text-emerald-700'
@@ -4094,14 +4094,14 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}
-                                                    className="p-1.5 bg-white rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-sm"
+                                                    className="p-1.5 bg-white rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shadow-xs"
                                                     title="Εκτύπωση Ετικετών Σταδίου"
                                                 >
                                                     <Tag size={14} />
                                                 </button>
                                             </>
                                         )}
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{formatNumber(stageBatches.length)}</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-xs ${colors.text}`}>{formatNumber(stageBatches.length)}</span>
                                         <div className="lg:hidden text-slate-400">
                                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                         </div>
@@ -4352,11 +4352,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     const bulkProgress = getMovementProgressPercent(multiSelectIds.size - inFlightSelectedCount, multiSelectIds.size);
                     const visibleBulkProgress = isBulkMoving ? Math.max(12, bulkProgress) : 0;
                     return (
-                <div className="fixed bottom-6 inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
+                <div className="fixed bottom-6 inset-x-0 flex justify-center z-300 pointer-events-none px-4">
                     <div className="relative overflow-hidden bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
                         {isBulkMoving && (
                             <div
-                                className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 transition-[width] duration-300"
+                                className="absolute inset-x-0 bottom-0 h-0.5 bg-linear-to-r from-emerald-400 via-teal-300 to-emerald-500 transition-[width] duration-300"
                                 style={{ width: `${visibleBulkProgress}%` }}
                             />
                         )}
@@ -4387,7 +4387,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         setBulkMovePendingDispatch(undefined);
                                     }
                                 }}
-                                className="w-full border border-white/20 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
+                                className="w-full border border-white/20 rounded-xl px-3 py-1.5 text-sm font-bold outline-hidden focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
                                 style={{ backgroundColor: '#1e293b', color: bulkMoveTarget === ProductionStage.Polishing && bulkMovePendingDispatch === true ? '#0f766e' : bulkMoveTarget ? STAGE_SELECT_COLORS[bulkMoveTarget]?.color ?? '#fff' : '#94a3b8' }}
                             >
                                 <option value="" disabled style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}>Επιλογή σταδίου...</option>

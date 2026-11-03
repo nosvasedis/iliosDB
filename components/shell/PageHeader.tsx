@@ -39,9 +39,9 @@ export default function PageHeader({ icon: Icon, title, subtitle, leading, actio
 
     return (
         <header className="shrink-0 border-b border-slate-200/80 bg-white px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] min-[400px]:px-4">
-            <div className="flex min-h-[2.5rem] items-center gap-2.5">
+            <div className="flex min-h-10 items-center gap-2.5">
                 {leading}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-sm ring-1 ring-inset ring-white/10">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-xs ring-1 ring-inset ring-white/10">
                     <Icon size={17} strokeWidth={2.25} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -70,7 +70,7 @@ export function SearchField({
     autoFocus?: boolean;
 }) {
     return (
-        <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-slate-200 bg-slate-50 pl-3 transition-colors focus-within:border-slate-300 focus-within:bg-white lg:h-11 lg:bg-white lg:shadow-sm">
+        <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-slate-200 bg-slate-50 pl-3 transition-colors focus-within:border-slate-300 focus-within:bg-white lg:h-11 lg:bg-white lg:shadow-xs">
             <Search size={16} strokeWidth={2.25} className="shrink-0 text-slate-400" aria-hidden />
             <input
                 type="search"
@@ -83,7 +83,7 @@ export function SearchField({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
-                className="h-full min-w-0 flex-1 bg-transparent px-2 text-[16px] font-semibold text-slate-800 outline-none placeholder:font-medium placeholder:text-slate-400 lg:text-sm [&::-webkit-search-cancel-button]:hidden"
+                className="h-full min-w-0 flex-1 bg-transparent px-2 text-[16px] font-semibold text-slate-800 outline-hidden placeholder:font-medium placeholder:text-slate-400 lg:text-sm [&::-webkit-search-cancel-button]:hidden"
             />
             {value ? (
                 <button
@@ -128,7 +128,7 @@ export function IconButton({
         >
             {children}
             {badge ? (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-[#060b00] ring-2 ring-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-[#060b00] ring-2 ring-white">
                     {badge}
                 </span>
             ) : null}

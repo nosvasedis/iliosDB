@@ -15,7 +15,7 @@ export function StageOnHoldMiniStrip({ totalQty, onHoldQty, activeClass, classNa
     const activeQty = Math.max(0, totalQty - onHoldQty);
     return (
         <div
-            className={`h-1 w-full min-w-[2.5rem] rounded-full overflow-hidden flex bg-slate-900/10 ${className}`}
+            className={`h-1 w-full min-w-10 rounded-full overflow-hidden flex bg-slate-900/10 ${className}`}
             title={`Σε Αναμονή: ${formatNumber(onHoldQty)} από ${formatNumber(totalQty)} τμχ`}
         >
             {activeQty > 0 && (

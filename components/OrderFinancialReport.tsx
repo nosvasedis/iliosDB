@@ -59,7 +59,7 @@ function LineTable({ title, rows, empty, backlog = false }: { title: string; row
                             <tr key={`${title}-${item.sku}-${item.variantSuffix || ''}-${index}`} className="border-b border-slate-50 last:border-0">
                                 <td className="py-1.5 font-bold text-slate-800">
                                     {item.sku}
-                                    {item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}
+                                    {item.variantSuffix && <span className="ml-1 rounded-sm bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}
                                     {item.priceOverride && <span className="ml-1 font-black text-amber-700">*</span>}
                                     <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" />
                                 </td>
@@ -130,19 +130,19 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                 <div className="text-right">
                     <div className="mb-1 flex items-center justify-end gap-2">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Εντολή</span>
-                        <span className="rounded bg-slate-100 px-2 font-mono text-sm font-bold">#{formatOrderId(orderId)}</span>
+                        <span className="rounded-sm bg-slate-100 px-2 font-mono text-sm font-bold">#{formatOrderId(orderId)}</span>
                     </div>
                     <div className="flex items-center justify-end gap-2">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Πελάτης</span>
                         <span className="text-sm font-bold">{customerName}</span>
                     </div>
                     <div className="mt-1 flex items-center justify-end gap-2">
-                        <div className="inline-flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5">
+                        <div className="inline-flex items-center gap-2 rounded-sm border border-slate-100 bg-slate-50 px-1.5 py-0.5">
                             <Coins size={10} className="text-slate-400"/>
                             <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Τιμή ασημιού</span>
                             <span className="font-mono text-[10px] font-black text-slate-900">{formatDecimal(silverPrice, 2)} €/g</span>
                         </div>
-                        <div className="inline-flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5">
+                        <div className="inline-flex items-center gap-2 rounded-sm border border-slate-100 bg-slate-50 px-1.5 py-0.5">
                             <Weight size={10} className="text-slate-400"/>
                             <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Βάρος</span>
                             <span className="font-mono text-[10px] font-black text-slate-900">{formatDecimal(orderWeightGrams, 1)} g</span>
@@ -199,15 +199,15 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                     <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
-                        <div className="rounded bg-slate-100 p-1.5 text-slate-600"><Coins size={14}/></div>
+                        <div className="rounded-sm bg-slate-100 p-1.5 text-slate-600"><Coins size={14}/></div>
                         <div><div className="text-[8px] font-bold uppercase text-slate-400">Ασήμι</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.silver)}</div></div>
                     </div>
                     <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
-                        <div className="rounded bg-blue-50 p-1.5 text-blue-600"><Hammer size={14}/></div>
+                        <div className="rounded-sm bg-blue-50 p-1.5 text-blue-600"><Hammer size={14}/></div>
                         <div><div className="text-[8px] font-bold uppercase text-blue-400">Εργασία</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.labor)}</div></div>
                     </div>
                     <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
-                        <div className="rounded bg-purple-50 p-1.5 text-purple-600"><Box size={14}/></div>
+                        <div className="rounded-sm bg-purple-50 p-1.5 text-purple-600"><Box size={14}/></div>
                         <div><div className="text-[8px] font-bold uppercase text-purple-400">Υλικά</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.materials)}</div></div>
                     </div>
                 </div>

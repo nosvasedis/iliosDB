@@ -205,7 +205,7 @@ export default function SellerCatalog({ products, collections }: Props) {
                                             key={f}
                                             type="button"
                                             onClick={() => setFacet('finish', facets.finish === f ? null : f)}
-                                            className={`min-h-[2.25rem] rounded-xl border px-3 text-[12px] font-bold transition-colors ${SELLER_FINISH_COLORS[f] || 'border-slate-200 bg-slate-50 text-slate-600'} ${facets.finish === f ? 'ring-2 ring-[#060b00] ring-offset-1' : ''}`}
+                                            className={`min-h-9 rounded-xl border px-3 text-[12px] font-bold transition-colors ${SELLER_FINISH_COLORS[f] || 'border-slate-200 bg-slate-50 text-slate-600'} ${facets.finish === f ? 'ring-2 ring-[#060b00] ring-offset-1' : ''}`}
                                         >
                                             {FINISH_CODES[f] ?? f}
                                         </button>

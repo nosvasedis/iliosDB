@@ -37,7 +37,7 @@ export default function ServiceToolbar<T extends string>({
       <label className="relative min-w-0 flex-1">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
-          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm font-bold text-slate-800 shadow-sm outline-none placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm font-bold text-slate-800 shadow-xs outline-hidden placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
           value={search}
           onChange={(event) => onSearch(event.target.value)}
           placeholder={searchPlaceholder}

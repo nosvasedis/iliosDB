@@ -104,7 +104,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder="Αναζήτηση..."
-                    className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none"
+                    className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-hidden"
                     autoFocus
                   />
                 </div>
@@ -144,7 +144,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                 const val = e.target.value.replace(/[^0-9.,]/g, '');
                 onCommissionChange(val ? Number(val.replace(',', '.')) : undefined);
               }}
-              className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-emerald-500/20"
               placeholder="Προμήθεια %"
               inputMode="decimal"
             />
@@ -197,7 +197,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Αναζήτηση πλασιέ..."
-                  className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500/20"
+                  className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-sky-500/20"
                   autoFocus
                 />
               </div>
@@ -246,7 +246,7 @@ export const SellerPicker: React.FC<SellerPickerProps> = ({
                 const val = e.target.value.replace(/[^0-9.,]/g, '');
                 onCommissionChange(val ? Number(val.replace(',', '.')) : undefined);
               }}
-              className="w-full p-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full p-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-emerald-500/20"
               placeholder="π.χ. 5"
               inputMode="decimal"
             />

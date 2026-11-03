@@ -15,7 +15,7 @@ export default function DetailsFooter({
 }) {
     return (
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3 md:px-6">
-            <div className="flex min-h-[2rem] items-center gap-4 text-xs font-medium" aria-live="polite">
+            <div className="flex min-h-8 items-center gap-4 text-xs font-medium" aria-live="polite">
                 {isDirty ? (
                     <span className="flex items-center gap-2 text-amber-700">
                         <span className="relative flex h-2 w-2">
@@ -45,7 +45,7 @@ export default function DetailsFooter({
                     icon={isSaving ? Loader2 : Save}
                     onClick={onSave}
                     disabled={isSaving}
-                    className={`min-w-[9.5rem] ${isSaving ? '[&>svg]:animate-spin' : ''}`}
+                    className={`min-w-38 ${isSaving ? '[&>svg]:animate-spin' : ''}`}
                 >
                     {isSaving ? 'Αποθήκευση…' : 'Αποθήκευση'}
                 </DetailsButton>

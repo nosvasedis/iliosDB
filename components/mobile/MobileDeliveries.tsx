@@ -253,7 +253,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
       />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3">
-        <div className="rounded-xl border border-slate-100 bg-white/80 p-3 space-y-3 shadow-sm">
+        <div className="rounded-xl border border-slate-100 bg-white/80 p-3 space-y-3 shadow-xs">
           <DeliveryAlertRail
             attentionItems={attentionItems}
             onSelectItem={(entry) => setSelectedItem(entry.item)}

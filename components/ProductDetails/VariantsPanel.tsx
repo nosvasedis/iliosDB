@@ -89,7 +89,7 @@ export default function VariantsPanel({
                     </div>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
-                        <table className="w-full min-w-[46rem] text-sm">
+                        <table className="w-full min-w-184 text-sm">
                             <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Κωδικός</th>
@@ -115,7 +115,7 @@ export default function VariantsPanel({
                                                 <span className="flex items-center gap-2">
                                                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${finishDot}`} />
                                                     <SkuColorizedText sku={product.sku} suffix={v.suffix} gender={product.gender} className="text-sm font-bold" />
-                                                    {isActive && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700">Σε προβολή</span>}
+                                                    {isActive && <span className="rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700">Σε προβολή</span>}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2">
@@ -123,7 +123,7 @@ export default function VariantsPanel({
                                                     value={v.description}
                                                     onChange={e => updateVariant(v.suffix, { description: e.target.value })}
                                                     aria-label={`Περιγραφή ${product.sku}${v.suffix}`}
-                                                    className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-slate-700 outline-none transition-colors placeholder-slate-300 hover:border-slate-200 focus:border-blue-300 focus:bg-white"
+                                                    className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-slate-700 outline-hidden transition-colors placeholder-slate-300 hover:border-slate-200 focus:border-blue-300 focus:bg-white"
                                                 />
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-bold text-slate-600">{formatCurrency(cost)}</td>
@@ -136,7 +136,7 @@ export default function VariantsPanel({
                                                             placeholder="—"
                                                             onChange={e => updateVariant(v.suffix, { selling_price: parseFloat(e.target.value) })}
                                                             aria-label={`Χονδρική ${product.sku}${v.suffix}`}
-                                                            className="w-full rounded-lg border border-emerald-100 bg-emerald-50/60 p-1.5 pr-5 text-right font-mono text-sm font-bold text-emerald-800 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-emerald-200"
+                                                            className="w-full rounded-lg border border-emerald-100 bg-emerald-50/60 p-1.5 pr-5 text-right font-mono text-sm font-bold text-emerald-800 outline-hidden transition-all focus:bg-white focus:ring-2 focus:ring-emerald-200"
                                                         />
                                                         <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-emerald-400">€</span>
                                                     </div>

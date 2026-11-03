@@ -212,8 +212,8 @@ export default function BulkConsignmentWorkbench({
 
   return (
     <ViewportPortal>
-    <div className="fixed inset-0 z-[190] flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label="Μαζική Δημιουργία Παρακαταθηκών">
-      <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6">
+    <div className="fixed inset-0 z-190 flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label="Μαζική Δημιουργία Παρακαταθηκών">
+      <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-xs sm:px-6">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#060b00] text-white">
@@ -247,17 +247,17 @@ export default function BulkConsignmentWorkbench({
               <div className="grid gap-3 md:grid-cols-4">
                 <label className="md:col-span-1">
                   <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-slate-500"><Warehouse size={12} /> Αποθήκη προέλευσης</span>
-                  <select className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
+                  <select className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-hidden" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
                     {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
                   </select>
                 </label>
                 <label>
                   <span className="mb-1 block text-[11px] font-bold text-slate-500">Επανέλεγχος (30 ημέρες)</span>
-                  <input type="date" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} />
+                  <input type="date" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-hidden" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} />
                 </label>
                 <label className="md:col-span-2">
                   <span className="mb-1 block text-[11px] font-bold text-slate-500">Κοινή σημείωση</span>
-                  <input className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none" value={sharedNotes} onChange={(event) => setSharedNotes(event.target.value)} placeholder="Προαιρετική σημείωση για όλες τις νέες γραμμές" />
+                  <input className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-hidden" value={sharedNotes} onChange={(event) => setSharedNotes(event.target.value)} placeholder="Προαιρετική σημείωση για όλες τις νέες γραμμές" />
                 </label>
               </div>
               <button type="button" className={`${BTN_SECONDARY} mt-3`} onClick={applyDefaultsToAll}>Εφαρμογή σε όλες τις γραμμές</button>
@@ -305,17 +305,17 @@ export default function BulkConsignmentWorkbench({
                         </div>
                         <label>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Ποσ.</span>
-                          <input type="number" min={1} className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-black outline-none" value={row.quantity} onChange={(event) => updateRow(row.id, { quantity: Number(event.target.value) })} />
+                          <input type="number" min={1} className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-black outline-hidden" value={row.quantity} onChange={(event) => updateRow(row.id, { quantity: Number(event.target.value) })} />
                         </label>
                         {canSeeCost && (
                           <label>
                             <span className="mb-1 block text-[10px] font-bold text-slate-400">Κόστος</span>
-                            <input aria-label="Κόστος ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={row.unitCost} onChange={(event) => updateRow(row.id, { unitCost: Number(event.target.value) })} />
+                            <input aria-label="Κόστος ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-hidden" value={row.unitCost} onChange={(event) => updateRow(row.id, { unitCost: Number(event.target.value) })} />
                           </label>
                         )}
                         <label>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Τιμή</span>
-                          <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={row.unitPrice} onChange={(event) => updateRow(row.id, { unitPrice: Number(event.target.value) })} />
+                          <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-hidden" value={row.unitPrice} onChange={(event) => updateRow(row.id, { unitPrice: Number(event.target.value) })} />
                         </label>
                         <div>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Μέγεθος</span>

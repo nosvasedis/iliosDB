@@ -279,7 +279,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
           </HeaderPrimaryButton>
         )}
         below={(
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm space-y-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-xs space-y-3">
             <DeliveryAlertRail
               attentionItems={attentionItems}
               onSelectItem={(entry) => {

@@ -88,7 +88,7 @@ const SubFilterButton: React.FC<{
         onClick={() => onClick(value)}
         className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
             activeValue === value
-                ? 'bg-[#060b00] text-white border-[#060b00] shadow-sm'
+                ? 'bg-[#060b00] text-white border-[#060b00] shadow-xs'
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
         }`}
     >
@@ -164,7 +164,7 @@ const RegistryCard: React.FC<{
     return (
         <div
             onClick={onClick}
-            className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-transform flex flex-col relative overflow-hidden h-full"
+            className="bg-white p-2 rounded-2xl border border-slate-100 shadow-xs active:scale-95 transition-transform flex flex-col relative overflow-hidden h-full"
         >
             <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden mb-2 relative group shrink-0">
                 {product.image_url ? (
@@ -174,13 +174,13 @@ const RegistryCard: React.FC<{
                 )}
 
                 {totalStock > 0 && (
-                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shadow-xs">
                         {formatNumber(totalStock)}
                     </div>
                 )}
 
                 {hasVariants && (
-                    <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm backdrop-blur-sm">
+                    <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 shadow-xs backdrop-blur-xs">
                         <Layers size={10} /> {formatNumber(variants.length)}
                     </div>
                 )}
@@ -201,10 +201,10 @@ const RegistryCard: React.FC<{
 
                     {hasVariants && variants.length > 1 && (
                         <div className="flex bg-slate-100 rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
-                            <button type="button" onClick={prevVariant} className="p-1 hover:bg-white rounded shadow-sm transition-all text-slate-500">
+                            <button type="button" onClick={prevVariant} className="p-1 hover:bg-white rounded-sm shadow-xs transition-all text-slate-500">
                                 <ChevronLeft size={12}/>
                             </button>
-                            <button type="button" onClick={nextVariant} className="p-1 hover:bg-white rounded shadow-sm transition-all text-slate-500">
+                            <button type="button" onClick={nextVariant} className="p-1 hover:bg-white rounded-sm shadow-xs transition-all text-slate-500">
                                 <ChevronRight size={12}/>
                             </button>
                         </div>
@@ -216,7 +216,7 @@ const RegistryCard: React.FC<{
                 </div>
 
                 <div className="mt-1 flex justify-between items-end">
-                    <div className="font-bold text-slate-900 text-xs bg-slate-50 rounded px-1.5 py-0.5 w-fit">
+                    <div className="font-bold text-slate-900 text-xs bg-slate-50 rounded-sm px-1.5 py-0.5 w-fit">
                         {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
                     </div>
                     <div className="text-[9px] text-slate-400 flex items-center gap-0.5">
@@ -394,13 +394,13 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                             placeholder={showStxOnly ? 'Αναζήτηση STX ή κατηγορίας...' : 'Κωδικός, κατηγορία...'}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25"
+                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-xs outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="shrink-0 rounded-xl border border-slate-200 bg-white p-3 text-slate-600 shadow-sm transition-transform active:scale-95"
+                        className="shrink-0 rounded-xl border border-slate-200 bg-white p-3 text-slate-600 shadow-xs transition-transform active:scale-95"
                         aria-label="Σάρωση barcode"
                     >
                         <Camera size={20} />
@@ -425,7 +425,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         <Filter size={18} />
                         <span>Φίλτρα</span>
                         {activeFilterCount > 0 && (
-                            <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-black text-white">
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-black text-white">
                                 {formatNumber(activeFilterCount)}
                             </span>
                         )}
@@ -489,7 +489,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
 
             {showFilterSheet && (
                 <div
-                    className="fixed inset-0 z-[120] flex flex-col bg-slate-900/40 backdrop-blur-sm"
+                    className="fixed inset-0 z-120 flex flex-col bg-slate-900/40 backdrop-blur-xs"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="mobile-registry-filters-title"
@@ -624,7 +624,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                                     }
                                                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
                                                         isActive
-                                                            ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/25 shadow-sm`
+                                                            ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/25 shadow-xs`
                                                             : `${style.bg} ${style.text} border-transparent opacity-85 hover:opacity-100`
                                                     }`}
                                                 >
@@ -725,7 +725,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setShowFilterSheet(false)}
-                                className="flex-[2] px-4 py-3.5 rounded-xl font-bold text-white bg-[#060b00] active:bg-black transition-colors shadow-md text-sm"
+                                className="flex-2 px-4 py-3.5 rounded-xl font-bold text-white bg-[#060b00] active:bg-black transition-colors shadow-md text-sm"
                             >
                                 Έτοιμο · {formatNumber(filteredProducts.length)} κωδ.
                             </button>

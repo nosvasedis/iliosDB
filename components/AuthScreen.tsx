@@ -115,7 +115,7 @@ export default function AuthScreen() {
                          required={!isLogin}
                          value={fullName}
                          onChange={e => setFullName(e.target.value)}
-                         className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
+                         className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
                          placeholder="π.χ. Γιάννης Παπαδόπουλος"
                        />
                    </div>
@@ -131,7 +131,7 @@ export default function AuthScreen() {
                       required
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
+                      className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
                       placeholder="name@ilios.gr"
                     />
                 </div>
@@ -146,7 +146,7 @@ export default function AuthScreen() {
                       required
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
+                      className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500 transition-all text-slate-800 font-medium"
                       placeholder="••••••••"
                     />
                 </div>

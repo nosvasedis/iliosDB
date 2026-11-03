@@ -57,7 +57,7 @@ export function HoverTooltip({ label, hint, children }: Props) {
             <div
               id={tooltipId}
               role="tooltip"
-              className="pointer-events-none fixed z-[200] -translate-x-1/2 -translate-y-full animate-in fade-in zoom-in-95 duration-100"
+              className="pointer-events-none fixed z-200 -translate-x-1/2 -translate-y-full animate-in fade-in zoom-in-95 duration-100"
               style={{ top: pos.top, left: pos.left }}
             >
               <div className="max-w-[16rem] rounded-xl bg-slate-900 px-3 py-2 text-center shadow-xl ring-1 ring-black/10">

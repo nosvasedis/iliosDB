@@ -87,7 +87,7 @@ export function marginTone(margin: number): string {
 
 function MarginChip({ margin }: { margin: number }) {
   return (
-    <span className={`inline-flex min-w-[3.25rem] justify-center rounded-lg px-1.5 py-0.5 text-[11px] font-black tabular-nums ring-1 ${marginTone(margin)}`}>
+    <span className={`inline-flex min-w-13 justify-center rounded-lg px-1.5 py-0.5 text-[11px] font-black tabular-nums ring-1 ${marginTone(margin)}`}>
       {formatDecimal(margin, 1)}%
     </span>
   );
@@ -141,7 +141,7 @@ export const RevenueHero = memo(function RevenueHero({
   const hidden = useHidden();
   const { totals } = finance;
   return (
-    <section className="relative isolate flex min-w-0 flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-white shadow-lg shadow-[#060b00]/20 ring-1 ring-inset ring-white/10 sm:p-6">
+    <section className="relative isolate flex min-w-0 flex-col overflow-hidden rounded-3xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-white shadow-lg shadow-[#060b00]/20 ring-1 ring-inset ring-white/10 sm:p-6">
       <div className="pointer-events-none absolute -right-20 -top-24 -z-10 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" aria-hidden />
       <div className="pointer-events-none absolute -bottom-24 left-1/4 -z-10 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" aria-hidden />
 
@@ -186,13 +186,13 @@ export const RevenueHero = memo(function RevenueHero({
       </div>
 
       {forecast ? (
-        <div className="mt-4 rounded-2xl bg-white/[0.06] p-3 ring-1 ring-inset ring-white/10">
+        <div className="mt-4 rounded-2xl bg-white/6 p-3 ring-1 ring-inset ring-white/10">
           <div className="flex items-center justify-between gap-3 text-[11px] font-bold">
             <span className="flex items-center gap-1.5 text-white/70"><Crosshair size={13} /> Πρόβλεψη τέλους περιόδου</span>
             <span className="tabular-nums text-emerald-200">{hidden ? HIDDEN : compactEuro(forecast.projectedRevenue)}</span>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300" style={{ width: `${forecast.elapsedPct}%` }} />
+            <div className="h-full rounded-full bg-linear-to-r from-emerald-400 to-teal-300" style={{ width: `${forecast.elapsedPct}%` }} />
           </div>
           <p className="mt-1.5 text-[10px] font-semibold text-white/45">
             {formatDecimal(forecast.elapsedPct, 0)}% της περιόδου · απομένουν {formatNumber(forecast.daysLeft)} ημέρες
@@ -251,7 +251,7 @@ export const InsightsPanel = memo(function InsightsPanel({
                 key={insight.id}
                 {...(insight.action ? { type: 'button' as const, onClick: () => onAction(insight.action!) } : {})}
                 className={`group flex min-w-0 items-start gap-3 rounded-2xl border p-3 text-left transition-all ${style.card} ${
-                  insight.action ? 'hover:-translate-y-px hover:shadow-sm' : ''
+                  insight.action ? 'hover:-translate-y-px hover:shadow-xs' : ''
                 }`}
               >
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${style.icon}`}>
@@ -291,7 +291,7 @@ function TrendTooltip({ active, payload, metric, hidden }: { active?: boolean; p
   const money = (value: number) => (hidden ? HIDDEN : `${formatDecimal(value, 2)} €`);
   const yoy = point.lastYearRevenue > 0 ? ((point.revenue - point.lastYearRevenue) / point.lastYearRevenue) * 100 : null;
   return (
-    <div className="min-w-[13rem] rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl backdrop-blur">
+    <div className="min-w-52 rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl backdrop-blur-sm">
       <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-400">{point.label}</p>
       {metric === 'money' ? (
         <div className="space-y-1">
@@ -365,8 +365,8 @@ export const TrendChartPanel = memo(function TrendChartPanel({
       headerExtra={<Segmented<TrendMetric> value={metric} onChange={setMetric} options={TREND_OPTIONS} ariaLabel="Μέτρο γραφήματος" />}
     >
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> {metric === 'money' ? 'Έσοδα' : metric === 'pieces' ? 'Τεμάχια' : 'Παραγγελίες'}</span>
-        {metric === 'money' ? <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-slate-900" /> Κέρδος</span> : null}
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-xs bg-emerald-500" /> {metric === 'money' ? 'Έσοδα' : metric === 'pieces' ? 'Τεμάχια' : 'Παραγγελίες'}</span>
+        {metric === 'money' ? <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded-sm bg-slate-900" /> Κέρδος</span> : null}
         {metric === 'money' ? (
           <button
             type="button"
@@ -382,7 +382,7 @@ export const TrendChartPanel = memo(function TrendChartPanel({
         ) : null}
       </div>
       {hasData ? (
-        <div className="h-72 min-h-[16rem] flex-1">
+        <div className="h-72 min-h-64 flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
@@ -602,7 +602,7 @@ function ProfitMap({ rows, avgMargin }: { rows: ProfitabilityRow[]; avgMargin: n
                 const row = payload[0].payload as (typeof data)[number];
                 const quadrant = QUADRANTS.find((item) => item.id === row.quadrant)!;
                 return (
-                  <div className="min-w-[12rem] rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl">
+                  <div className="min-w-48 rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl">
                     <p className="mb-1.5 truncate font-black text-slate-800">{row.label}</p>
                     <div className="space-y-1">
                       <Row label="Έσοδα" value={hidden ? HIDDEN : `${formatDecimal(row.revenue, 2)} €`} />
@@ -769,7 +769,7 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={`Αναζήτηση ${dimensionMeta.label.toLowerCase()}…`}
-              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-800 outline-none transition-shadow placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-800 outline-hidden transition-shadow placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
@@ -788,7 +788,7 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
               type="button"
               onClick={exportCsv}
               disabled={filtered.length === 0}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:text-slate-900 disabled:opacity-40"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-xs transition-colors hover:text-slate-900 disabled:opacity-40"
             >
               <Download size={14} /> CSV
             </button>
@@ -803,7 +803,7 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
         ) : (
           <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-100">
             <table className="w-full min-w-[860px] border-collapse text-xs">
-              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur">
+              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm">
                 <tr className="border-b border-slate-100">
                   <th className="w-10 px-3 py-2.5 text-left text-[10px] font-black uppercase text-slate-400">#</th>
                   {header('label', dimensionMeta.singular, 'left')}
@@ -836,7 +836,7 @@ export const ProfitabilityWorkspace = memo(function ProfitabilityWorkspace({
                               <ArrowUpRight size={12} className="shrink-0 text-slate-300 group-hover:text-emerald-600" />
                             </button>
                           ) : (
-                            <span className="whitespace-normal break-words font-bold text-slate-800" title={row.label}>{row.label}</span>
+                            <span className="whitespace-normal wrap-break-word font-bold text-slate-800" title={row.label}>{row.label}</span>
                           )}
                           {row.missingCost ? <AlertTriangle size={12} className="shrink-0 text-amber-500" aria-label="Ελλιπές κόστος" /> : null}
                         </span>
@@ -1093,7 +1093,7 @@ export const CostStructurePanel = memo(function CostStructurePanel({
             {slices.map((slice) => (
               <div key={slice.key} className="flex items-center justify-between gap-3 text-xs">
                 <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-600">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: slice.color }} />
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-xs" style={{ background: slice.color }} />
                   <span className="truncate">{slice.label}</span>
                 </span>
                 <span className="flex items-baseline gap-2">

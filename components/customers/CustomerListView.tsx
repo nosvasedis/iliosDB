@@ -43,9 +43,9 @@ function SortHeader({ label, k, sortKey, sortDir, onSort, align = 'left', classN
 export default function CustomerListView({ entries, sortKey, sortDir, onSort, onOpen, onShowOnMap, renderInsight }: Props) {
   const headerProps = { sortKey, sortDir, onSort };
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xs">
       <table className="w-full table-fixed text-sm">
-        <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
+        <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur-sm">
           <tr>
             <SortHeader label="Πελάτης" k="name" {...headerProps} />
             <SortHeader label="Περιοχή" k="region" className="hidden w-[28%] xl:table-cell" {...headerProps} />

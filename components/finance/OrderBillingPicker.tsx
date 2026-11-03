@@ -36,7 +36,7 @@ export default function OrderBillingPicker({ orderId, customerId, value, onChang
             key={mode}
             type="button"
             onClick={() => onChange({ mode, tPercent: mode === 'T' ? 100 : mode === 'X' ? 0 : (effective.mode === 'split' ? effective.tPercent : 50) })}
-            className={`rounded-lg py-1.5 ${effective.mode === mode ? (mode === 'T' ? 'bg-indigo-600 text-white' : mode === 'X' ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-900 shadow-sm') : 'text-slate-500'}`}
+            className={`rounded-lg py-1.5 ${effective.mode === mode ? (mode === 'T' ? 'bg-indigo-600 text-white' : mode === 'X' ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-900 shadow-xs') : 'text-slate-500'}`}
           >
             {label}
           </button>

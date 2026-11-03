@@ -84,10 +84,10 @@ const RecipeItemSelectorModal = React.memo(({
                     <div className="flex shrink-0 items-center gap-2 self-start">
                         <div className="truncate text-sm font-bold text-slate-800">{name}</div>
                         {isComponent && item.category && (
-                            <span className="max-w-[100px] truncate rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{item.category}</span>
+                            <span className="max-w-[100px] truncate rounded-sm border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{item.category}</span>
                         )}
                         {!isComponent && item.stones_per_strand && (
-                            <span className="whitespace-nowrap rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">
+                            <span className="whitespace-nowrap rounded-sm border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">
                                 {item.stones_per_strand} πέτρες/σειρά
                             </span>
                         )}
@@ -101,7 +101,7 @@ const RecipeItemSelectorModal = React.memo(({
                     {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
                     {isComponent && <div className="mt-1"><ComponentFamilyBadge product={item} /></div>}
                 </div>
-                <div className="shrink-0 rounded-full border border-slate-100 bg-white p-2 text-slate-300 shadow-sm transition-all group-hover:border-emerald-200 group-hover:text-emerald-500">
+                <div className="shrink-0 rounded-full border border-slate-100 bg-white p-2 text-slate-300 shadow-xs transition-all group-hover:border-emerald-200 group-hover:text-emerald-500">
                     <Plus size={16} />
                 </div>
             </div>
@@ -109,7 +109,7 @@ const RecipeItemSelectorModal = React.memo(({
     };
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
             <div className="flex h-[70vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-2xl animate-in zoom-in-95">
                 <div className="flex items-center justify-between border-b border-slate-100 p-6">
                     <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
@@ -124,7 +124,7 @@ const RecipeItemSelectorModal = React.memo(({
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             autoFocus
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 pl-10 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 pl-10 outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                         />
                     </div>
                     {type === 'component' && <div className="mt-3"><ComponentFamilyFilter value={componentFamily} onChange={setComponentFamily} /></div>}

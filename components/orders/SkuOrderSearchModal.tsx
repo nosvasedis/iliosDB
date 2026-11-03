@@ -156,7 +156,7 @@ function FilterFacetGroup({
               type="button"
               onClick={() => onToggle(item.key)}
               className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all ${
-                active ? `${scheme.active} border-transparent shadow-sm ring-1` : scheme.inactive
+                active ? `${scheme.active} border-transparent shadow-xs ring-1` : scheme.inactive
               }`}
             >
               {formatLabel ? formatLabel(item) : item.label}
@@ -231,7 +231,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
 
   if (match.fulfillmentKind === 'fully_delivered') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-lg border border-slate-900 bg-slate-800 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
+      <span className="inline-flex items-center gap-1 rounded-lg border border-slate-900 bg-slate-800 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
         <Truck size={10} strokeWidth={2.5} />
         {shipmentLabel ? `Παράδοση ${shipmentLabel}` : 'Παραδόθηκε'}
         <span className="text-white/70">{formatNumber(match.shippedQty)}/{formatNumber(match.totalQty)}</span>
@@ -241,7 +241,7 @@ function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
 
   if (match.fulfillmentKind === 'partially_delivered') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-900 shadow-sm">
+      <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-900 shadow-xs">
         <PackageCheck size={10} strokeWidth={2.5} />
         {shipmentLabel ? `Μερική Παράδοση ${shipmentLabel}` : 'Μερική Παράδοση'}
         <span className="text-amber-700">{formatNumber(match.shippedQty)}/{formatNumber(match.totalQty)}</span>
@@ -361,7 +361,7 @@ export default function SkuOrderSearchModal({
           value={rawQuery}
           onChange={(e) => setRawQuery(e.target.value)}
           placeholder="π.χ. RN045, RN045D ή RN045DLE"
-          className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-base font-black tracking-wide text-slate-900 outline-none transition-all placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+          className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-base font-black tracking-wide text-slate-900 outline-hidden transition-all placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
         />
         {rawQuery && (
           <button
@@ -511,7 +511,7 @@ export default function SkuOrderSearchModal({
           {variantSummary.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {variantSummary.map(({ match, qty, orders: orderCount }) => (
-                <span key={match.analyticsKey} className="inline-flex max-w-full items-start gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
+                <span key={match.analyticsKey} className="inline-flex max-w-full items-start gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-xs">
                   <span className="min-w-0"><SkuColorizedText sku={match.item.sku} suffix={match.item.variant_suffix || ''} className="text-[11px]" /><SpecialCreationNote sku={match.item.sku} note={match.item.notes} compact className="mt-0.5" /></span>
                   <span className="text-slate-300">·</span>
                   <Package size={11} className="text-emerald-600" />
@@ -580,7 +580,7 @@ export default function SkuOrderSearchModal({
   if (!mobile) {
     return (
       <div
-        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-80 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs"
         onClick={onClose}
       >
         <div
@@ -622,11 +622,11 @@ export default function SkuOrderSearchModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex flex-col justify-end bg-slate-900/60 backdrop-blur-sm"
+      className="fixed inset-0 z-80 flex flex-col justify-end bg-slate-900/60 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
-        className="flex animate-in flex-col rounded-t-[2rem] bg-white duration-300 slide-in-from-bottom-full"
+        className="flex animate-in flex-col rounded-t-4xl bg-white duration-300 slide-in-from-bottom-full"
         style={{ maxHeight: '92dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -692,7 +692,7 @@ function OrderResultCard({
   });
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -776,7 +776,7 @@ function MatchedItemRow({
 
   return (
     <div className="flex gap-3 px-4 py-3">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
         {product?.image_url ? (
           <img src={product.image_url} alt={item.sku} className="h-full w-full object-cover" />
         ) : (

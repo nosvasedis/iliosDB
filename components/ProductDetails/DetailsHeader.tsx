@@ -23,11 +23,11 @@ import SkuColorizedText from '../SkuColorizedText';
 import { DetailsButton, DetailsIconButton } from './detailsUi';
 
 export const FINISH_DOTS: Record<string, string> = {
-    '': 'bg-gradient-to-br from-slate-300 to-slate-500',
-    P: 'bg-gradient-to-br from-stone-400 to-stone-600',
-    X: 'bg-gradient-to-br from-amber-400 to-yellow-600',
-    D: 'bg-gradient-to-br from-orange-400 to-rose-500',
-    H: 'bg-gradient-to-br from-cyan-300 to-sky-500',
+    '': 'bg-linear-to-br from-slate-300 to-slate-500',
+    P: 'bg-linear-to-br from-stone-400 to-stone-600',
+    X: 'bg-linear-to-br from-amber-400 to-yellow-600',
+    D: 'bg-linear-to-br from-orange-400 to-rose-500',
+    H: 'bg-linear-to-br from-cyan-300 to-sky-500',
 };
 
 const GENDER_LABELS: Record<Gender, string> = {
@@ -133,13 +133,13 @@ export default function DetailsHeader({
                 </button>
             )}
 
-            <div ref={variantPickerRef} className="relative z-[120]">
+            <div ref={variantPickerRef} className="relative z-120">
                 <button
                     type="button"
                     onClick={onToggleVariantPicker}
                     title={finishName}
                     aria-expanded={isVariantPickerOpen}
-                    className="flex max-w-[17rem] items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
+                    className="flex max-w-68 items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-left shadow-xs ring-1 ring-slate-200/70 transition-colors hover:bg-slate-50"
                 >
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${finishDot}`} />
                     <span className="min-w-0">
@@ -147,7 +147,7 @@ export default function DetailsHeader({
                         <span className="block truncate text-[12px] font-bold leading-tight text-slate-800">{displayedLabel}</span>
                     </span>
                     {canStep && (
-                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">
+                        <span className="shrink-0 rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">
                             {formatNumber(normalizedViewIndex + 1)}/{formatNumber(maxViews)}
                         </span>
                     )}
@@ -155,7 +155,7 @@ export default function DetailsHeader({
                 </button>
 
                 {isVariantPickerOpen && (
-                    <div className="absolute right-0 top-full z-[140] mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="absolute right-0 top-full z-140 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                         <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             {formatNumber(sortedVariants.length)} παραλλαγές
                         </div>
@@ -227,7 +227,7 @@ export default function DetailsHeader({
                                 <input
                                     value={tempSku}
                                     onChange={(e) => onTempSkuChange(e.target.value.toUpperCase())}
-                                    className="w-48 border-b-2 border-emerald-500 text-2xl font-black uppercase tracking-tight text-slate-900 outline-none"
+                                    className="w-48 border-b-2 border-emerald-500 text-2xl font-black uppercase tracking-tight text-slate-900 outline-hidden"
                                     autoFocus
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') onRenameSku();
@@ -246,7 +246,7 @@ export default function DetailsHeader({
                                     <button
                                         type="button"
                                         onClick={onStartRename}
-                                        className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100 focus-visible:opacity-100"
+                                        className="rounded-sm p-1 text-slate-300 opacity-0 transition-opacity hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100 focus-visible:opacity-100"
                                         title="Μετονομασία SKU"
                                     >
                                         <Edit size={15} />

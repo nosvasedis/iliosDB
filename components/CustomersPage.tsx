@@ -136,7 +136,7 @@ function CardSkeleton() {
         <div className="h-[244px] animate-pulse rounded-3xl border border-slate-100 bg-white p-5">
             <div className="flex gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-slate-100" />
-                <div className="flex-1 space-y-2 pt-1"><div className="h-3 w-3/4 rounded bg-slate-100" /><div className="h-2.5 w-1/2 rounded bg-slate-100" /></div>
+                <div className="flex-1 space-y-2 pt-1"><div className="h-3 w-3/4 rounded-sm bg-slate-100" /><div className="h-2.5 w-1/2 rounded-sm bg-slate-100" /></div>
             </div>
             <div className="mt-5 h-4 w-1/2 rounded-full bg-slate-100" />
             <div className="mt-5 h-14 rounded-2xl bg-slate-50" />
@@ -439,14 +439,14 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                     : 'Διαχείριση πελατολογίου και ιστορικού.'}
                 tail={(
                     <>
-                        <div className="relative min-w-[11rem] flex-1 xl:max-w-sm">
+                        <div className="relative min-w-44 flex-1 xl:max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
                                 placeholder="Όνομα, τηλέφωνο, ΑΦΜ, πόλη…"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
+                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-bold outline-hidden transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                             />
                             {searchTerm && (
                                 <button type="button" onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Καθαρισμός αναζήτησης">
@@ -466,14 +466,14 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                         aria-selected={active}
                                         onClick={() => setView(opt.id)}
                                         title={opt.label}
-                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${active ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         <Icon size={15} /> <span className="hidden xl:inline">{opt.label}</span>
                                     </button>
                                 );
                             })}
                         </div>
-                        <HeaderPrimaryButton icon={Plus} onClick={startCreate} title="Νέος πελάτης" className="!pr-1.5 xl:!pr-4">
+                        <HeaderPrimaryButton icon={Plus} onClick={startCreate} title="Νέος πελάτης" className="pr-1.5! xl:pr-4!">
                             <span className="hidden xl:inline">Νέος πελάτης</span>
                         </HeaderPrimaryButton>
                     </>
@@ -499,7 +499,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
             <div className="relative flex min-h-0 flex-1 gap-4">
                 {showDockedPanel && (
-                    <aside className="flex w-72 shrink-0 flex-col rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <aside className="flex w-72 shrink-0 flex-col rounded-3xl border border-slate-100 bg-white p-4 shadow-xs">
                         {regionFilterPanel}
                     </aside>
                 )}
@@ -532,7 +532,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             type="button"
                             onClick={toggleRegionPanel}
                             title={showDockedPanel ? 'Απόκρυψη περιοχών' : 'Φίλτρο περιοχών'}
-                            className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition ${regions.length || panelDrawerOpen
+                            className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-xs transition ${regions.length || panelDrawerOpen
                                 ? 'border-sky-200 bg-sky-50 text-sky-800'
                                 : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
                         >
@@ -555,11 +555,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                             {sorted.length} {sorted.length === 1 ? 'πελάτης' : 'πελάτες'}
                         </span>
                         {view !== 'map' && (
-                            <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+                            <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white p-1 shadow-xs ring-1 ring-slate-100">
                                 <select
                                     value={matchSortActive || sortKey !== 'match' ? sortKey : 'name'}
                                     onChange={e => applySort(e.target.value as PageSortKey, sortOptions.find(o => o.key === e.target.value)?.defaultDir)}
-                                    className="cursor-pointer rounded-lg bg-transparent py-1 pl-2 pr-1 text-[11px] font-bold text-slate-700 outline-none"
+                                    className="cursor-pointer rounded-lg bg-transparent py-1 pl-2 pr-1 text-[11px] font-bold text-slate-700 outline-hidden"
                                     aria-label="Ταξινόμηση"
                                 >
                                     {sortOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
@@ -662,7 +662,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                 <div className="space-y-6">
                                     {groups.map(group => (
                                         <section key={group.id}>
-                                            <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center gap-2 bg-gradient-to-b from-[#f8fafc] via-[#f8fafc]/95 to-transparent px-1 pb-2 pt-1">
+                                            <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center gap-2 bg-linear-to-b from-[#f8fafc] via-[#f8fafc]/95 to-transparent px-1 pb-2 pt-1">
                                                 <Sparkles size={14} className="text-sky-500" />
                                                 <h2 className="text-sm font-black text-slate-800">{group.label}</h2>
                                                 <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-black text-slate-600">{group.entries.length}</span>

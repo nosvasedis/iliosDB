@@ -74,7 +74,7 @@ export default function CustomerPurchaseFilter({ index, value, onChange, matchCo
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition ${active || open
+        className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold shadow-xs transition ${active || open
           ? 'border-violet-200 bg-violet-50 text-violet-800'
           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
         title="Φίλτρο με βάση τι έχουν αγοράσει"
@@ -93,19 +93,19 @@ export default function CustomerPurchaseFilter({ index, value, onChange, matchCo
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
               {(['bought', 'not_bought'] as const).map(mode => (
                 <button key={mode} type="button" onClick={() => onChange({ ...value, mode })} aria-pressed={value.mode === mode}
-                  className={`rounded-lg py-1.5 text-[11px] font-black transition ${value.mode === mode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                  className={`rounded-lg py-1.5 text-[11px] font-black transition ${value.mode === mode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>
                   {mode === 'bought' ? 'Έχουν πάρει' : 'Δεν έχουν πάρει'}
                 </button>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <select value={value.window} onChange={e => onChange({ ...value, window: e.target.value as PurchaseFilter['window'] })}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 outline-none" aria-label="Περίοδος">
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 outline-hidden" aria-label="Περίοδος">
                 {WINDOW_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
               {value.items.length > 1 && (
                 <select value={value.match} onChange={e => onChange({ ...value, match: e.target.value as PurchaseFilter['match'] })}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 outline-none" aria-label="Συνδυασμός">
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 outline-hidden" aria-label="Συνδυασμός">
                   <option value="any">{value.mode === 'bought' ? 'τουλάχιστον ένα' : 'λείπει έστω ένα'}</option>
                   <option value="all">{value.mode === 'bought' ? 'όλα μαζί' : 'κανένα από αυτά'}</option>
                 </select>
@@ -135,7 +135,7 @@ export default function CustomerPurchaseFilter({ index, value, onChange, matchCo
             <Search size={14} className="absolute left-5 top-1/2 mt-[5px] -translate-y-1/2 text-slate-400" />
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
               placeholder={facet === 'sku' ? 'Πληκτρολογήστε κωδικό ή περιγραφή…' : `Αναζήτηση σε ${FACET_META[facet].plural.toLowerCase()}…`}
-              className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-3 text-xs font-semibold outline-none focus:border-slate-400" />
+              className="w-full rounded-xl border border-slate-200 py-2 pl-8 pr-3 text-xs font-semibold outline-hidden focus:border-slate-400" />
           </div>
           <div className="min-h-[120px] flex-1 overflow-y-auto p-2 custom-scrollbar">
             {!index ? (
@@ -148,7 +148,7 @@ export default function CustomerPurchaseFilter({ index, value, onChange, matchCo
               return (
                 <button key={`${option.facet}:${option.key}`} type="button" onClick={() => toggle(item)}
                   className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition ${selected ? 'bg-violet-50' : 'hover:bg-slate-50'}`}>
-                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{selected && <Check size={11} strokeWidth={3} />}</span>
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${selected ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{selected && <Check size={11} strokeWidth={3} />}</span>
                   {option.facet === 'sku' && <ProductThumb src={option.image ?? null} size={28} />}
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-xs font-bold ${option.facet === 'sku' ? 'font-mono' : ''} text-slate-800`}>{option.label}</span>

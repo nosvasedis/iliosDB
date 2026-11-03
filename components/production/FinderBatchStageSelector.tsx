@@ -80,7 +80,7 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                         onToggleHold(batch);
                     }}
                     disabled={isMoving}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
                 >
                     {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
                     {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
@@ -90,7 +90,7 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                     type="button"
                     onClick={openSheet}
                     disabled={isMoving}
-                    className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                    className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95"
                 >
                     <MoveRight size={12} />
                     Στάδιο

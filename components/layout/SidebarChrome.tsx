@@ -15,7 +15,7 @@ export { SIDEBAR_HIDDEN_SCROLL_CLASS };
 const NAV_ROW_HEIGHT_CLASS = 'h-9 max-md:h-11 md:[@media(max-height:820px)]:h-8';
 
 const FOCUS_RING_CLASS =
-  'outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[#060b00]';
+  'outline-hidden focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[#060b00]';
 
 export function sidebarAsideClass(isCollapsed: boolean, isMobileOpen = false): string {
   return [
@@ -24,14 +24,14 @@ export function sidebarAsideClass(isCollapsed: boolean, isMobileOpen = false): s
     'shadow-[1px_0_0_rgba(251,191,36,0.04),16px_0_48px_rgba(6,11,0,0.42)]',
     'transition-[width,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
     isMobileOpen ? 'translate-x-0 w-[min(18rem,86vw)]' : '-translate-x-full md:translate-x-0',
-    isCollapsed ? 'md:w-[4.25rem]' : 'md:w-64',
+    isCollapsed ? 'md:w-17' : 'md:w-64',
   ].join(' ');
 }
 
 export function sidebarMainClass(isCollapsed: boolean): string {
   return [
     'flex h-full min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-out motion-reduce:transition-none',
-    isCollapsed ? 'md:ml-[4.25rem]' : 'md:ml-[4.25rem] 2xl:ml-64',
+    isCollapsed ? 'md:ml-17' : 'md:ml-17 2xl:ml-64',
   ].join(' ');
 }
 
@@ -39,10 +39,10 @@ export function sidebarMainClass(isCollapsed: boolean): string {
 export function SidebarBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#141d0c] via-[#070c02] to-[#030501]" />
-      <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-amber-400/[0.10] blur-3xl" />
-      <div className="absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-emerald-500/[0.06] blur-3xl" />
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/25 to-transparent" />
+      <div className="absolute inset-0 bg-linear-to-b from-[#141d0c] via-[#070c02] to-[#030501]" />
+      <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
+      <div className="absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-emerald-500/6 blur-3xl" />
+      <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-amber-200/25 to-transparent" />
     </div>
   );
 }
@@ -78,7 +78,7 @@ export function SidebarOverlayScrim({
       type="button"
       aria-label="Σύμπτυξη μενού"
       onClick={onDismiss}
-      className="fixed inset-0 z-[35] hidden bg-[#060b00]/35 backdrop-blur-[2px] animate-in fade-in duration-200 md:block 2xl:hidden"
+      className="fixed inset-0 z-35 hidden bg-[#060b00]/35 backdrop-blur-[2px] animate-in fade-in duration-200 md:block 2xl:hidden"
     />
   );
 }
@@ -141,7 +141,7 @@ export function SidebarHoverTooltip({
             <div
               id={tooltipId}
               role="tooltip"
-              className="pointer-events-none fixed z-[80] max-w-[16rem] -translate-y-1/2 rounded-lg border border-amber-300/20 bg-[#10180b]/95 px-2.5 py-1.5 text-[11.5px] font-medium leading-snug tracking-wide text-amber-50 shadow-[0_12px_32px_rgba(6,11,0,0.5)] backdrop-blur-md animate-in fade-in slide-in-from-left-1 duration-150"
+              className="pointer-events-none fixed z-80 max-w-[16rem] -translate-y-1/2 rounded-lg border border-amber-300/20 bg-[#10180b]/95 px-2.5 py-1.5 text-[11.5px] font-medium leading-snug tracking-wide text-amber-50 shadow-[0_12px_32px_rgba(6,11,0,0.5)] backdrop-blur-md animate-in fade-in slide-in-from-left-1 duration-150"
               style={{ top: pos.top, left: pos.left }}
             >
               <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-l border-amber-300/20 bg-[#10180b]" />
@@ -168,14 +168,14 @@ export function SidebarBrand({
 }) {
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center border-b border-white/[0.06] ${
+      className={`relative flex shrink-0 items-center justify-center border-b border-white/6 ${
         railMode ? 'h-16 px-1.5' : 'h-24 px-6 md:[@media(max-height:820px)]:h-20'
       }`}
     >
       {/* Soft halo so the gold logo lifts off the dark panel. */}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/[0.10] blur-2xl ${
+        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/10 blur-2xl ${
           railMode ? 'h-10 w-10' : 'h-16 w-40'
         }`}
       />
@@ -284,12 +284,12 @@ export function SidebarCollapseButton({
 
 export function SidebarSectionLabel({ title, collapsed, first = false }: { title: string; collapsed: boolean; first?: boolean }) {
   if (collapsed) {
-    return first ? null : <div className="mx-3 my-2 h-px bg-gradient-to-r from-transparent via-white/[0.10] to-transparent" aria-hidden="true" />;
+    return first ? null : <div className="mx-3 my-2 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" aria-hidden="true" />;
   }
   return (
     <div className={`flex items-center gap-2 px-3 pb-1.5 ${first ? 'pt-2' : 'pt-4 md:[@media(max-height:820px)]:pt-3'}`}>
       <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/45">{title}</p>
-      <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
+      <span aria-hidden="true" className="h-px flex-1 bg-linear-to-r from-white/8 to-transparent" />
     </div>
   );
 }
@@ -330,8 +330,8 @@ export function SidebarNavButton({
         ${NAV_ROW_HEIGHT_CLASS}
         ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3 px-3'}
         ${isActive
-          ? 'bg-gradient-to-r from-amber-400/[0.16] via-amber-400/[0.07] to-white/[0.02] text-white shadow-[inset_0_0_0_1px_rgba(252,211,77,0.12),0_6px_18px_-8px_rgba(251,191,36,0.35)]'
-          : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-100'}
+          ? 'bg-linear-to-r from-amber-400/16 via-amber-400/[0.07] to-white/2 text-white shadow-[inset_0_0_0_1px_rgba(252,211,77,0.12),0_6px_18px_-8px_rgba(251,191,36,0.35)]'
+          : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'}
         ${FOCUS_RING_CLASS}
       `}
     >
@@ -348,7 +348,7 @@ export function SidebarNavButton({
       >
         {icon}
         {hasBadge && isCollapsed && (
-          <span className="absolute -right-2.5 -top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[8.5px] font-black text-[#060b00] ring-2 ring-[#0b1105]">
+          <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[8.5px] font-black text-[#060b00] ring-2 ring-[#0b1105]">
             {badgeText}
           </span>
         )}
@@ -360,7 +360,7 @@ export function SidebarNavButton({
       )}
       {hasBadge && !isCollapsed && (
         <span
-          className={`ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[10px] font-black tabular-nums ${
+          className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black tabular-nums ${
             isActive ? 'bg-amber-300 text-[#060b00]' : 'bg-amber-400/15 text-amber-200 ring-1 ring-inset ring-amber-300/25'
           }`}
         >
@@ -389,7 +389,7 @@ export function SidebarLogoutButton({
       type="button"
       onClick={onLogout}
       aria-label={label}
-      className={`group relative my-px flex w-full items-center rounded-xl text-slate-400 transition-colors duration-150 hover:bg-rose-500/[0.10] hover:text-rose-200
+      className={`group relative my-px flex w-full items-center rounded-xl text-slate-400 transition-colors duration-150 hover:bg-rose-500/10 hover:text-rose-200
         ${NAV_ROW_HEIGHT_CLASS}
         ${railMode ? 'justify-center px-0' : 'justify-start gap-3 px-3'}
         ${FOCUS_RING_CLASS}`}
@@ -429,7 +429,7 @@ export function SidebarFooterMeta({
 }) {
   if (railMode) {
     return (
-      <div className="mt-1.5 flex flex-col items-center gap-1 border-t border-white/[0.05] pt-1.5">
+      <div className="mt-1.5 flex flex-col items-center gap-1 border-t border-white/5 pt-1.5">
         {status}
         <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={onToggle} />
         <SidebarVersionMark compact />
@@ -437,7 +437,7 @@ export function SidebarFooterMeta({
     );
   }
   return (
-    <div className="mt-1.5 border-t border-white/[0.05] pt-1.5">
+    <div className="mt-1.5 border-t border-white/5 pt-1.5">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">{status}</div>
         <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={onToggle} />

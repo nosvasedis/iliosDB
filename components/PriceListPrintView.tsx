@@ -84,10 +84,10 @@ export default function PriceListPrintView({ data }: Props) {
                         )}
                     </div>
                 </div>
-                <div className="text-right flex-shrink-0 flex gap-6 items-center">
+                <div className="text-right shrink-0 flex gap-6 items-center">
                     {/* Tiny Title for Filters/Exclusions */}
                     {data.filtersInfo && (
-                        <div className="px-3 py-1.5 rounded bg-rose-50 border border-rose-100 text-[10px] font-bold text-rose-600 uppercase tracking-wider">
+                        <div className="px-3 py-1.5 rounded-sm bg-rose-50 border border-rose-100 text-[10px] font-bold text-rose-600 uppercase tracking-wider">
                             {data.filtersInfo}
                         </div>
                     )}
@@ -118,7 +118,7 @@ export default function PriceListPrintView({ data }: Props) {
                                 <span className="truncate">{item.skuBase}</span>
                                 {/* Discreet Collection Indicator */}
                                 {item.collectionTag && (
-                                    <span className="text-[9px] font-bold text-slate-400 border border-slate-200 px-[3px] rounded-[2px] -translate-y-[1px] inline-block leading-none">
+                                    <span className="text-[9px] font-bold text-slate-400 border border-slate-200 px-[3px] rounded-[2px] -translate-y-px inline-block leading-none">
                                         {item.collectionTag}
                                     </span>
                                 )}
@@ -156,7 +156,7 @@ export default function PriceListPrintView({ data }: Props) {
                                                         
                                                         return (
                                                             <React.Fragment key={pgIdx}>
-                                                                <div className="flex flex-wrap justify-end gap-[1px]">
+                                                                <div className="flex flex-wrap justify-end gap-px">
                                                                     {hasBase && (
                                                                         <span className="font-semibold text-[8px] text-slate-400 leading-tight">•</span>
                                                                     )}
@@ -194,14 +194,14 @@ export default function PriceListPrintView({ data }: Props) {
                                                             {/* Suffix chips - compact inline layout */}
                                                             <div className="flex flex-wrap justify-end gap-[2px] max-w-[100px]">
                                                                 {hasBase && (
-                                                                    <span className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded leading-tight">
+                                                                    <span className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded-sm leading-tight">
                                                                         •
                                                                     </span>
                                                                 )}
                                                                 {visibleSuffixes.map((s, i) => (
                                                                     <span 
                                                                         key={i}
-                                                                        className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded leading-tight whitespace-nowrap"
+                                                                        className="font-semibold text-[9px] text-slate-500 bg-slate-100 px-1 rounded-sm leading-tight whitespace-nowrap"
                                                                     >
                                                                         {s}
                                                                     </span>

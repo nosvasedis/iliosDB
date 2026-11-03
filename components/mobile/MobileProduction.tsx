@@ -130,7 +130,7 @@ const MobileBatchCard: React.FC<{
         <div
             onClick={() => onClick(batch)}
             aria-busy={isMoving || undefined}
-            className={`p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation overflow-hidden ${outerSurface} ${getMovementSurfaceClass(isMoving)}`}
+            className={`p-3 rounded-2xl border shadow-xs relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation overflow-hidden ${outerSurface} ${getMovementSurfaceClass(isMoving)}`}
         >
             {isMoving && (
                 <div
@@ -156,15 +156,15 @@ const MobileBatchCard: React.FC<{
                 <div className="min-w-0 flex-1">
                     <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialCreation ? 'text-violet-900' : 'text-slate-800'} />
                     <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
-                    {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
+                    {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-sm text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
                     {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight"><CustomerNameLabel name={batch.customer_name} retail={batch.customer_is_retail} /></div>}
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                    <div className="text-xl font-black text-slate-900 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100 shadow-sm">
+                    <div className="text-xl font-black text-slate-900 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100 shadow-xs">
                         {formatNumber(batch.quantity)}
                     </div>
                     {batch.on_hold && (
-                        <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                        <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black px-1.5 py-0.5 rounded-sm flex items-center gap-1 animate-pulse">
                             <PauseCircle size={8} className="fill-current" /> ΑΝΑΜΟΝΗ
                         </span>
                     )}
@@ -203,7 +203,7 @@ const MobileBatchCard: React.FC<{
                         type="button"
                         onClick={() => onToggleHold(batch)}
                         disabled={isMoving}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 border ${
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-xs active:scale-95 border ${
                             batch.on_hold
                                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                 : 'bg-amber-100 text-amber-700 border-amber-200'
@@ -220,7 +220,7 @@ const MobileBatchCard: React.FC<{
                                     type="button"
                                     onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: false })}
                                     disabled={isMoving}
-                                    className="flex items-center gap-1 bg-teal-100 active:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-[10px] font-bold border border-teal-200 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                                    className="flex items-center gap-1 bg-teal-100 active:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-[10px] font-bold border border-teal-200 transition-all shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                                     title="Αποστολή στον Τεχνίτη"
                                 >
                                     {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Truck size={12} />}
@@ -231,7 +231,7 @@ const MobileBatchCard: React.FC<{
                                     type="button"
                                     onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: true })}
                                     disabled={isMoving}
-                                    className="flex items-center gap-1 bg-blue-100 active:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-[10px] font-bold border border-blue-200 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                                    className="flex items-center gap-1 bg-blue-100 active:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-[10px] font-bold border border-blue-200 transition-all shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                                     title="Επιστροφή σε Αναμονή Αποστολής"
                                 >
                                     {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
@@ -252,7 +252,7 @@ const MobileBatchCard: React.FC<{
                                     onNext(batch);
                                 }
                             }}
-                            className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                            className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                         >
                             {isMoving ? <Loader2 size={11} className="animate-spin" /> : <MoveRight size={11} />}
                             {isMoving ? MOVEMENT_FEEDBACK_LABEL : 'Στάδιο'}
@@ -343,9 +343,9 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end animate-in fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-210 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in" onClick={onClose}>
             <div
-                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] flex flex-col overflow-hidden"
+                className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
@@ -368,14 +368,14 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Αναζήτηση πελάτη, SKU, εντολής..."
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-hidden focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={toggleAllVisibleInView}
                         disabled={visibleBatchIds.length === 0}
-                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-[6.25rem]"
+                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-25"
                     >
                         {allVisibleSelected ? 'Καμία επιλογή' : 'Όλοι οι πελάτες'}
                     </button>
@@ -423,8 +423,8 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
                                             </span>
                                         </div>
                                     </div>
-                                    <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${allSelected ? 'border-pink-600 bg-pink-600 text-white' : someSelected ? 'border-pink-400 bg-pink-200' : 'border-slate-300 bg-white text-transparent'}`}>
-                                        {someSelected && !allSelected ? <div className="h-2 w-2 rounded-sm bg-pink-700" /> : <Check size={13} />}
+                                    <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border ${allSelected ? 'border-pink-600 bg-pink-600 text-white' : someSelected ? 'border-pink-400 bg-pink-200' : 'border-slate-300 bg-white text-transparent'}`}>
+                                        {someSelected && !allSelected ? <div className="h-2 w-2 rounded-xs bg-pink-700" /> : <Check size={13} />}
                                     </div>
                                 </button>
                                 <div className="space-y-1 px-2 py-2">
@@ -437,7 +437,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
                                                 onClick={() => toggleBatch(item.id)}
                                                 className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors ${on ? 'bg-pink-100/60' : 'active:bg-slate-50'}`}
                                             >
-                                                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
                                                     <Check size={13} />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
@@ -539,9 +539,9 @@ const AssemblyOrderSelectorSheet = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+        <div className="fixed inset-0 z-210 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={onClose}>
             <div
-                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -562,14 +562,14 @@ const AssemblyOrderSelectorSheet = ({
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Αναζήτηση πελάτη ή εντολής..."
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-hidden focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={toggleAllVisibleOrders}
                         disabled={visibleOrderIds.length === 0}
-                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-[6.25rem]"
+                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-25"
                     >
                         {allVisibleOrdersSelected ? 'Καμία επιλογή' : 'Όλοι οι πελάτες'}
                     </button>
@@ -604,7 +604,7 @@ const AssemblyOrderSelectorSheet = ({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded border ${selected ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                    <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-sm border ${selected ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
                                         <Check size={13} />
                                     </div>
                                 </div>
@@ -641,7 +641,7 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
     useRestartDraft('Εργασία παραγωγής', { reason });
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col justify-end">
+        <div className="fixed inset-0 z-200 bg-black/80 backdrop-blur-xs flex flex-col justify-end">
             <div className="bg-white rounded-t-3xl p-6 animate-in slide-in-from-bottom-full duration-300">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-black text-lg text-amber-800 flex items-center gap-2"><PauseCircle /> Θέση σε Αναμονή</h3>
@@ -651,7 +651,7 @@ const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch
                 <textarea
                     value={reason}
                     onChange={e => setReason(e.target.value)}
-                    className="w-full p-4 border-2 border-amber-200 rounded-xl bg-amber-50/50 outline-none text-slate-800 font-bold h-32 mb-4 focus:bg-white focus:border-amber-400"
+                    className="w-full p-4 border-2 border-amber-200 rounded-xl bg-amber-50/50 outline-hidden text-slate-800 font-bold h-32 mb-4 focus:bg-white focus:border-amber-400"
                     placeholder="π.χ. Έλλειψη, Σπάσιμο..."
                     autoFocus
                 />
@@ -673,7 +673,7 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
 
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-200 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -688,7 +688,7 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
                     <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
                         placeholder="Γράψτε εδώ..."
                         autoFocus
                     />
@@ -722,7 +722,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
     };
 
     return (
-        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-250 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
@@ -737,7 +737,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                         <select
                             value={selectedTarget}
                             onChange={(e) => setSelectedTarget(e.target.value as ProductionStage)}
-                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-emerald-500 transition-all appearance-none"
+                            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-hidden focus:border-emerald-500 transition-all appearance-none"
                         >
                             {STAGES.map(s => {
                                 // Check if stage is disabled for this batch
@@ -772,7 +772,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                                     else if (val < 1) setQuantity(1);
                                     else setQuantity(val);
                                 }}
-                                className="w-24 p-3 text-center font-black text-3xl bg-transparent outline-none text-slate-800"
+                                className="w-24 p-3 text-center font-black text-3xl bg-transparent outline-hidden text-slate-800"
                                 autoFocus
                             />
                             <button onClick={() => setQuantity(Math.min(batch.quantity, quantity + 1))} className="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xl">+</button>
@@ -784,7 +784,7 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
                     <button onClick={onClose} disabled={isProcessing} className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors">
                         ΑΚΥΡΟ
                     </button>
-                    <button onClick={handleConfirmClick} disabled={isProcessing} className="flex-[2] py-4 rounded-2xl bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-200">
+                    <button onClick={handleConfirmClick} disabled={isProcessing} className="flex-2 py-4 rounded-2xl bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-200">
                         {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
                         ΕΠΙΒΕΒΑΙΩΣΗ
                     </button>
@@ -818,14 +818,14 @@ const SettingStoneModal: React.FC<{
     const selectedOrderInfo = orderList.find(o => o.key === selectedOrderKey);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-200 bg-slate-900/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in" onClick={onClose}>
             <div
                 className="bg-white w-full max-w-lg rounded-t-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-full duration-300"
                 style={{ maxHeight: '85vh' }}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex-shrink-0 p-5 border-b border-slate-100 bg-purple-50/60">
+                <div className="shrink-0 p-5 border-b border-slate-100 bg-purple-50/60">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                             {selectedOrderKey ? (
@@ -864,7 +864,7 @@ const SettingStoneModal: React.FC<{
                                 <button
                                     key={order.key}
                                     onClick={() => setSelectedOrderKey(order.key)}
-                                    className="w-full bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between hover:border-purple-300 hover:bg-purple-50/30 transition-all active:scale-[0.98] shadow-sm"
+                                    className="w-full bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between hover:border-purple-300 hover:bg-purple-50/30 transition-all active:scale-[0.98] shadow-xs"
                                 >
                                     <div className="text-left">
                                         <div className="font-black text-slate-800 text-sm">{order.customerName}</div>
@@ -901,7 +901,7 @@ const SettingStoneModal: React.FC<{
                                                     <span className="text-[9px] bg-slate-200 px-1.5 rounded-md font-bold text-slate-600 shrink-0">{b.size_info}</span>
                                                 )}
                                             </div>
-                                            <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-sm shrink-0">
+                                            <span className="text-sm font-black text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-xl shadow-xs shrink-0">
                                                 {formatNumber(b.quantity)} τμχ
                                             </span>
                                         </div>
@@ -915,7 +915,7 @@ const SettingStoneModal: React.FC<{
                                 {stones.length > 0 ? (
                                     <div className="space-y-2">
                                         {stones.map((stone, i) => (
-                                            <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-sm ring-1 ring-purple-50">
+                                            <div key={i} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center justify-between shadow-xs ring-1 ring-purple-50">
                                                 <div className="flex-1 min-w-0 pr-3">
                                                     <div className="font-black text-slate-800 text-sm leading-tight">{stone.name}</div>
                                                     {stone.description && (
@@ -1477,12 +1477,12 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             />
 
             <div className="space-y-4 px-4 pt-3">
-            <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-xs">
                 <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-emerald-500/[0.07]" aria-hidden />
                 <div className="relative z-10">
                     <div className="mb-3 flex items-center justify-between gap-2">
                         <h2 className="flex items-center gap-2.5 text-sm font-bold tracking-tight text-slate-800">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#060b00] text-white shadow-sm">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#060b00] text-white shadow-xs">
                                 <Search size={17} strokeWidth={2.25} aria-hidden />
                             </span>
                             Εύρεση Παρτίδας
@@ -1503,7 +1503,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             value={finderTerm}
                             onChange={(e) => setFinderTerm(e.target.value)}
                             placeholder="Εύρεση SKU / Εντολής / Πελάτη..."
-                            className="min-h-[48px] w-full rounded-2xl border border-slate-200 bg-slate-100 py-3.5 pl-11 pr-12 text-[15px] font-bold uppercase text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20"
+                            className="min-h-[48px] w-full rounded-2xl border border-slate-200 bg-slate-100 py-3.5 pl-11 pr-12 text-[15px] font-bold uppercase text-slate-800 outline-hidden transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20"
                         />
                         <Search
                             className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600"
@@ -1542,7 +1542,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             const age = getBatchAgeInfo(b);
                             const imgUrl = (b as { product_image?: string | null }).product_image;
                             return (
-                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-xl p-2.5 shadow-sm active:scale-[0.99] transition-transform cursor-pointer touch-manipulation ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-100/80' : ''}`}>
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-xl p-2.5 shadow-xs active:scale-[0.99] transition-transform cursor-pointer touch-manipulation ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-100/80' : ''}`}>
                                 <div className="flex gap-2.5 items-start">
                                     <div className="w-11 h-11 shrink-0 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
                                         {imgUrl ? (
@@ -1550,14 +1550,14 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         ) : (
                                             <ImageIcon size={20} className="text-slate-300 relative z-0" />
                                         )}
-                                        <div className="absolute bottom-0 right-0 z-[1] bg-slate-900 text-white text-[9px] font-bold px-1 py-0.5 rounded-tl-md leading-none">x{formatNumber(b.quantity)}</div>
+                                        <div className="absolute bottom-0 right-0 z-1 bg-slate-900 text-white text-[9px] font-bold px-1 py-0.5 rounded-tl-md leading-none">x{formatNumber(b.quantity)}</div>
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5">
                                             <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-base tracking-tight" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
                                             {b.size_info && <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md text-[10px] font-black border border-blue-100 flex items-center gap-0.5"><Hash size={9} /> {b.size_info}</span>}
                                             {b.on_hold && (
-                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5">
+                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded-sm text-[9px] font-black flex items-center gap-0.5">
                                                     <PauseCircle size={9} /> Αναμ.
                                                 </span>
                                             )}
@@ -1565,11 +1565,11 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         <div className="flex items-center gap-2 mt-1 min-w-0 flex-wrap">
                                             <span className="text-[11px] font-bold text-slate-700 truncate flex items-center gap-1 min-w-0"><User size={11} className="text-slate-400 shrink-0" /> {b.customerName}</span>
                                             {b.on_hold ? (
-                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-0.5 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
+                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded-sm border flex items-center gap-0.5 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
                                                     <PauseCircle size={9} /> Hold
                                                 </div>
                                             ) : (
-                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-0.5 shrink-0 ${age.style}`}>
+                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-sm border flex items-center gap-0.5 shrink-0 ${age.style}`}>
                                                     <Clock size={9} /> {age.label}
                                                 </div>
                                             )}
@@ -1577,7 +1577,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-1 shrink-0 max-w-[38%]">
                                         <div className="text-[9px] font-mono font-bold text-slate-500 select-all tracking-wider truncate w-full">#{formatOrderId(b.order_id)}</div>
-                                        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border bg-white/80 backdrop-blur-sm ${finderBadgeTone}`}>
+                                        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border bg-white/80 backdrop-blur-xs ${finderBadgeTone}`}>
                                             {stagePillLabel}
                                         </div>
                                     </div>
@@ -1602,7 +1602,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 )}
             </div>
 
-            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 mb-2">
+            <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 flex items-center gap-4 mb-2">
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-black border-4 shrink-0 ${(enrichedBatches.filter(b => b.isDelayed && !b.on_hold).length / (activeBatchesCount || 1)) > 0.3 ? 'border-red-100 text-red-600 bg-red-50' : 'border-emerald-100 text-emerald-600 bg-emerald-50'}`}>
                     {formatDecimal(Math.max(0, 100 - (enrichedBatches.filter(b => b.isDelayed && !b.on_hold).length / (activeBatchesCount || 1)) * 100), 0)}%
                 </div>
@@ -1619,31 +1619,31 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 <button
                     onClick={() => setAssemblySelectorOpen(true)}
                     disabled={!onPrintAssembly || assemblyOrderCandidates.length === 0}
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-pink-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-pink-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-xs whitespace-nowrap active:scale-95 transition-all disabled:opacity-50"
                 >
                     <Layers size={14} /> Συναρμολόγηση
                 </button>
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-purple-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-purple-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-xs whitespace-nowrap active:scale-95 transition-all"
                 >
                     <BookOpen size={14} /> Προετοιμασία
                 </button>
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => b.current_stage === ProductionStage.Polishing), 'technician')}
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-blue-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-blue-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-xs whitespace-nowrap active:scale-95 transition-all"
                 >
                     <Hammer size={14} /> Τεχνίτης
                 </button>
                 <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready), 'aggregated')}
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-xs whitespace-nowrap active:scale-95 transition-all"
                 >
                     <FileText size={14} /> Συγκεντρωτική
                 </button>
                 <button
                     onClick={handlePrintStageLabels}
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-yellow-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-yellow-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-xs whitespace-nowrap active:scale-95 transition-all"
                 >
                     <Tag size={14} /> Ετικέτες
                 </button>
@@ -1667,7 +1667,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     const headerCount = allAtStage.length;
                     const stageMovingCount = stageBatches.filter(batch => mobileMovingBatchIds.has(batch.id)).length;
                     return (
-                        <div key={stage.id} className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`} ${stageMovingCount > 0 ? 'ring-2 ring-emerald-300/60 ring-offset-1 shadow-lg' : ''}`}>
+                        <div key={stage.id} className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-xs opacity-90`} ${stageMovingCount > 0 ? 'ring-2 ring-emerald-300/60 ring-offset-1 shadow-lg' : ''}`}>
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-3"><div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0].replace('bg-', 'bg-').replace('50', '500')}`} /><span className={`font-bold text-sm ${isOpen ? 'text-slate-900' : 'text-slate-600'}`}>{stage.label}</span></div>
                                 <div className="flex items-center gap-3">
@@ -1704,7 +1704,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                             onClick={() => setPolishingTab('pending')}
                                             className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[10px] font-black transition-all ${
                                                 polishingTab === 'pending'
-                                                    ? 'bg-teal-600 text-white shadow-sm'
+                                                    ? 'bg-teal-600 text-white shadow-xs'
                                                     : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                                             }`}
                                         >
@@ -1719,7 +1719,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                             onClick={() => setPolishingTab('dispatched')}
                                             className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[10px] font-black transition-all ${
                                                 polishingTab === 'dispatched'
-                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                    ? 'bg-blue-600 text-white shadow-xs'
                                                     : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                                             }`}
                                         >
@@ -1735,7 +1735,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                             type="button"
                                             disabled={isProcessingSplit}
                                             onClick={() => void handleDispatchAllPendingPolishing()}
-                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-xs disabled:opacity-50"
                                             title="Αποστολή όλων στον Τεχνίτη"
                                         >
                                             {isProcessingSplit ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}

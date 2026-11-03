@@ -17,7 +17,7 @@ export default function ProductCategorySelection({ available, selected, onChange
         onClick={() => onChange(toggleProductCategorySelection(selected, option.value, available))}
         style={{ paddingLeft: 12 + option.depth * 12 }}
         className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs ${count ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : 'border-slate-200 bg-white text-slate-600'}`}>
-        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${count ? 'bg-indigo-600 text-white' : 'border border-slate-300'}`}>
+        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm ${count ? 'bg-indigo-600 text-white' : 'border border-slate-300'}`}>
           {full ? <Check size={12} /> : partial ? <Minus size={12} /> : null}
         </span>
         <span className={option.depth === 0 ? 'font-bold' : ''}>{option.label}</span>

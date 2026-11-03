@@ -45,7 +45,7 @@ function Tick({ state }: { state: 'on' | 'off' | 'partial' }) {
         : state === 'partial' ? 'border-[#060b00] bg-white' : 'border-slate-300 bg-white group-hover:border-slate-400'}`}
     >
       {state === 'on' && <Check size={11} strokeWidth={3.5} />}
-      {state === 'partial' && <span className="h-1.5 w-1.5 rounded-sm bg-[#060b00]" />}
+      {state === 'partial' && <span className="h-1.5 w-1.5 rounded-xs bg-[#060b00]" />}
     </span>
   );
 }
@@ -93,7 +93,7 @@ export default function CustomerRegionFilter({ counts, selection, onChange, clas
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Εύρεση περιοχής…"
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-semibold outline-none transition focus:border-slate-400 focus:bg-white"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-semibold outline-hidden transition focus:border-slate-400 focus:bg-white"
         />
       </div>
 
@@ -101,7 +101,7 @@ export default function CustomerRegionFilter({ counts, selection, onChange, clas
         <button
           type="button"
           onClick={() => onChange([])}
-          className={`mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition ${selection.length === 0 ? 'bg-[#060b00] text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}
+          className={`mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition ${selection.length === 0 ? 'bg-[#060b00] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
         >
           Όλες οι περιοχές
           <span className={`rounded-full px-2 py-0.5 text-[10px] ${selection.length === 0 ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>{total}</span>

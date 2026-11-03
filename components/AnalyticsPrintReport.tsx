@@ -185,7 +185,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                         <tbody>
                             {sortedItemsBreakdown.map((item: any, index: number) => (
                                 <tr key={`${item.sku}-${index}`} className="border-b border-slate-50 last:border-0">
-                                    <td className="py-1.5 font-bold text-slate-800">{item.sku}{item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}<SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" /></td>
+                                    <td className="py-1.5 font-bold text-slate-800">{item.sku}{item.variantSuffix && <span className="ml-1 rounded-sm bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}<SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" /></td>
                                     <td className="py-1.5 text-center">{formatNumber(item.quantity)}</td>
                                     <td className="py-1.5 text-right font-mono">{formatCurrency(item.net ?? item.revenue)}</td>
                                     <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost ?? item.cost)}</td>

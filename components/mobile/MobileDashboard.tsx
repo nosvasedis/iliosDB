@@ -23,7 +23,7 @@ interface Props {
 const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) => (
     <button
         onClick={onClick}
-        className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all w-full h-24"
+        className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-100 shadow-xs active:scale-[0.98] transition-all w-full h-24"
     >
         <div className={`p-2.5 rounded-xl mb-1.5 ${color}`}>{icon}</div>
         <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">{label}</span>
@@ -132,7 +132,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         <div className="min-h-screen bg-slate-50 pb-28">
             <MobileScreenHeader
                 iconElement={<img src={APP_ICON_ONLY} alt="" className="h-7 w-7 object-contain" />}
-                iconWrapClassName="border-slate-200/80 bg-white p-1 shadow-sm"
+                iconWrapClassName="border-slate-200/80 bg-white p-1 shadow-xs"
                 title="Αρχική"
                 subtitle={`Καλησπέρα, ${profile?.full_name?.split(' ')[0] || 'Χρήστη'} · Ilios ERP`}
             />
@@ -209,7 +209,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                             <div
                                 key={order.id}
                                 onClick={() => onNavigate && onNavigate('orders')}
-                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 active:scale-[0.98] transition-transform"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-col gap-3 active:scale-[0.98] transition-transform"
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">

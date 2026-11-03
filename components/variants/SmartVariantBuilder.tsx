@@ -47,7 +47,7 @@ const FINISH_CHIP_COLORS: Record<string, string> = {
 const FINISH_DOT: Record<string, string> = {
     '': 'bg-slate-300',
     P: 'bg-stone-500',
-    D: 'bg-gradient-to-r from-amber-400 to-slate-300',
+    D: 'bg-linear-to-r from-amber-400 to-slate-300',
     X: 'bg-amber-400',
     H: 'bg-cyan-400',
 };
@@ -64,7 +64,7 @@ const STONE_GROUPS: { id: string; label: string; match: (stone: StoneCatalogEntr
 const getStoneGroupId = (stone: StoneCatalogEntry) => STONE_GROUPS.find((g) => g.match(stone))?.id ?? 'natural';
 
 const inputClass =
-    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-300 hover:border-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10';
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition-all placeholder:font-medium placeholder:text-slate-300 hover:border-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10';
 const monoInputClass = `${inputClass} font-mono uppercase tracking-wide`;
 const labelClass = 'flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500';
 
@@ -185,7 +185,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                                 onClick={() => toggleFinish(finish.code)}
                                 title={isComplete ? 'Όλοι οι επιλεγμένοι συνδυασμοί υπάρχουν ήδη' : undefined}
                                 className={`inline-flex h-9 select-none items-center gap-2 rounded-xl border px-3.5 text-xs font-bold transition-all duration-150 active:scale-95 ${isSelected
-                                    ? `${FINISH_CHIP_COLORS[finish.code]} shadow-sm`
+                                    ? `${FINISH_CHIP_COLORS[finish.code]} shadow-xs`
                                     : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800'
                                     } ${isComplete ? 'opacity-50' : ''}`}
                             >
@@ -253,7 +253,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                         disabled={visibleStones.length === 0}
                         className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-black transition-all active:scale-95 disabled:opacity-40 ${allVisibleSelected
                             ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                            : 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 hover:from-amber-100 hover:to-orange-100'
+                            : 'border-amber-300 bg-linear-to-r from-amber-50 to-orange-50 text-amber-800 hover:from-amber-100 hover:to-orange-100'
                             }`}
                         title={`Επιλογή όλων των πετρών: ${activeGroupLabel}`}
                     >
@@ -269,7 +269,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                         aria-pressed={includePlain}
                         onClick={() => setSelectedStones([])}
                         className={`inline-flex h-8 select-none items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all active:scale-95 ${includePlain
-                            ? 'border-slate-400 bg-white text-slate-800 shadow-sm'
+                            ? 'border-slate-400 bg-white text-slate-800 shadow-xs'
                             : 'border-dashed border-slate-300 bg-transparent text-slate-400 hover:text-slate-600'
                             }`}
                     >
@@ -288,7 +288,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                                 onClick={() => toggleStone(stone.code)}
                                 className={`inline-flex h-8 select-none items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-150 active:scale-95 ${style.bg} ${style.text} ${isActive
                                     ? 'border-current shadow-md'
-                                    : 'border-transparent opacity-75 hover:opacity-100 hover:shadow-sm'
+                                    : 'border-transparent opacity-75 hover:opacity-100 hover:shadow-xs'
                                     }`}
                             >
                                 {isActive ? <Check size={12} strokeWidth={3} className="shrink-0" /> : <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />}
@@ -303,7 +303,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                             type="button"
                             aria-pressed
                             onClick={() => toggleStone(code)}
-                            className="inline-flex h-8 select-none items-center gap-1.5 rounded-full border border-slate-400 bg-white px-3 font-mono text-[11px] font-bold text-slate-700 shadow-sm"
+                            className="inline-flex h-8 select-none items-center gap-1.5 rounded-full border border-slate-400 bg-white px-3 font-mono text-[11px] font-bold text-slate-700 shadow-xs"
                         >
                             <Check size={12} strokeWidth={3} /> {code}
                         </button>
@@ -318,7 +318,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                         onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomCode(); } }}
                         placeholder="Άλλος κωδικός πέτρας + Enter"
-                        className={`${monoInputClass} !py-2 text-xs`}
+                        className={`${monoInputClass} py-2! text-xs`}
                     />
                     <button type="button" onClick={addCustomCode} disabled={!customCode.trim()} className="shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40" aria-label="Προσθήκη κωδικού πέτρας">
                         <Plus size={16} />
@@ -327,7 +327,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
             </div>
 
             {/* Preview */}
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+            <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-slate-50 to-white p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">
                         <Sparkles size={13} className="text-amber-500" /> Προεπισκόπηση
@@ -347,7 +347,7 @@ export default function SmartVariantBuilder({ masterSku, gender, initialFinishes
                                     : entry.status === 'incompatible'
                                         ? 'Μη συμβατό με το φινίρισμα του Master'
                                         : [stoneNames.get(entry.stoneCode), estimateCost ? formatCurrency(estimateCost(entry.suffix)) : null].filter(Boolean).join(' · ')}
-                                className={`inline-flex items-center rounded-lg border bg-white px-2 py-1 text-xs shadow-sm ${entry.status === 'new' ? 'border-slate-200' : 'border-dashed border-slate-200 opacity-40 line-through'}`}
+                                className={`inline-flex items-center rounded-lg border bg-white px-2 py-1 text-xs shadow-xs ${entry.status === 'new' ? 'border-slate-200' : 'border-dashed border-slate-200 opacity-40 line-through'}`}
                             >
                                 <SkuColorizedText sku={masterSku} suffix={entry.suffix} gender={resolvedGender} mono />
                             </span>

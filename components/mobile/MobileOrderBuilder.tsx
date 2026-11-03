@@ -137,12 +137,12 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                             <button
                                 key={col.id}
                                 onClick={() => { setSelectedCollection(col); setStep('products'); setSearchTerm(''); }}
-                                className="group relative rounded-2xl overflow-hidden border border-slate-100 h-32 bg-slate-100 shadow-sm active:scale-[0.97] transition-transform text-left"
+                                className="group relative rounded-2xl overflow-hidden border border-slate-100 h-32 bg-slate-100 shadow-xs active:scale-[0.97] transition-transform text-left"
                             >
                                 {previewProduct?.image_url && (
                                     <img src={previewProduct.image_url} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" loading="lazy" decoding="async" />
                                 )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
                                 <div className="absolute bottom-0 inset-x-0 p-3">
                                     <div className="text-white font-black text-sm leading-tight truncate">{col.name}</div>
                                     <div className="text-white/60 text-[9px] font-bold mt-0.5">{formatNumber(count)} είδη</div>
@@ -176,7 +176,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     placeholder="Αναζήτηση κωδικού..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-400/20"
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:ring-2 focus:ring-blue-400/20"
                 />
             </div>
             {/* Product grid — when expanded, taller and slightly larger cards */}
@@ -185,7 +185,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     <button
                         key={p.sku}
                         onClick={() => onSelectProduct(p)}
-                        className={`group bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm active:scale-95 transition-transform text-left ${expanded ? 'rounded-2xl shadow-md' : ''}`}
+                        className={`group bg-white rounded-xl border border-slate-100 overflow-hidden shadow-xs active:scale-95 transition-transform text-left ${expanded ? 'rounded-2xl shadow-md' : ''}`}
                     >
                         <div className="aspect-square bg-slate-50 relative overflow-hidden">
                             {p.image_url
@@ -736,7 +736,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             )}
 
             {/* ── Top Bar ──────────────────────────────────────────── */}
-            <div className={`z-20 flex shrink-0 items-center gap-2 px-3 py-2.5 pt-[max(0.35rem,env(safe-area-inset-top,0px))] shadow-sm ${MOBILE_HEADER_SURFACE}`}>
+            <div className={`z-20 flex shrink-0 items-center gap-2 px-3 py-2.5 pt-[max(0.35rem,env(safe-area-inset-top,0px))] shadow-xs ${MOBILE_HEADER_SURFACE}`}>
                 <button
                     type="button"
                     onClick={handleBackNav}
@@ -755,7 +755,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         title={initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα παραγγελία'}
                         subtitle={initialOrder ? 'Ενημέρωση γραμμών' : 'Καλάθι & πελάτης'}
                         iconClassName="text-emerald-700"
-                        className="!gap-2"
+                        className="gap-2!"
                     />
                 </div>
                 <button
@@ -782,7 +782,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar flex flex-col gap-4 pb-40 landscape:max-w-3xl landscape:mx-auto landscape:px-6">
 
                 {/* Customer Section */}
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-3">
                     <div className="relative">
                         {isRetailCustomer ? <RetailClientField
                             value={retailClientLabel} onChange={setRetailClientLabel}
@@ -791,7 +791,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <div className="flex items-center gap-2 mb-2">
                                 <User size={16} className="text-slate-400" />
                                 <input
-                                    className="flex-1 outline-none font-bold text-slate-800 text-base"
+                                    className="flex-1 outline-hidden font-bold text-slate-800 text-base"
                                     placeholder="Όνομα Πελάτη..."
                                     value={customerName}
                                     onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
@@ -839,13 +839,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <label htmlFor="mobile-order-phone" className="mb-1 block text-xs font-bold text-slate-500">Τηλέφωνο</label>
                             <input id="mobile-order-phone" type="tel" autoComplete="tel" value={customerPhone}
                                 onChange={event => setCustomerPhone(event.target.value)} placeholder="Τηλέφωνο επικοινωνίας"
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-fuchsia-300" />
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-hidden focus:border-fuchsia-300" />
                         </div>
                         {/* VAT + Discount */}
                         <div className="flex items-center gap-4 border-t border-slate-50 pt-3">
                             <div className="flex-1">
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">ΦΠΑ</label>
-                                <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-slate-50 rounded-lg text-sm font-bold outline-none border border-slate-100">
+                                <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-slate-50 rounded-lg text-sm font-bold outline-hidden border border-slate-100">
                                     <option value={VatRegime.Standard}>24%</option>
                                     <option value={VatRegime.Reduced}>17%</option>
                                     <option value={VatRegime.Zero}>0%</option>
@@ -854,7 +854,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <div className="flex-1">
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
                                 <div className="flex items-center gap-2 bg-slate-50 px-2 rounded-lg border border-slate-100">
-                                    <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-none text-right" />
+                                    <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-hidden text-right" />
                                     <Percent size={14} className="text-slate-400" />
                                 </div>
                             </div>
@@ -867,7 +867,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
                 {/* ── Seller Picker (admin only on mobile) ───────────── */}
                 {isAdmin && !attachSeller && (
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100">
                         <SellerPicker
                             selectedSellerId={mobSelectedSellerId}
                             selectedSellerName={mobSelectedSellerName}
@@ -888,20 +888,20 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     setResolvedVariant(product.variants?.find((variant) => variant.suffix === suffix) || null);
                 }} />
                 {!activeMaster && (
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-3">
 
                         {/* Mode Tabs — seller only */}
                         {isSeller && (
                             <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                                 <button
                                     onClick={() => setInputMode('sku')}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'sku' ? 'bg-white text-[#060b00] shadow-sm' : 'text-slate-400'}`}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'sku' ? 'bg-white text-[#060b00] shadow-xs' : 'text-slate-400'}`}
                                 >
                                     <Hash size={14} /> Κωδικός
                                 </button>
                                 <button
                                     onClick={() => setInputMode('catalog')}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'catalog' ? 'bg-white text-[#060b00] shadow-sm' : 'text-slate-400'}`}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'catalog' ? 'bg-white text-[#060b00] shadow-xs' : 'text-slate-400'}`}
                                 >
                                     <FolderKanban size={14} /> Κατάλογος
                                 </button>
@@ -940,7 +940,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             onChange={e => setInput(e.target.value.toUpperCase())}
                                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); resolveTypedSizedInput(); } }}
                                             placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
-                                            className={`relative z-10 w-full bg-transparent p-2 outline-none font-black uppercase ${input.trim() ? 'text-transparent caret-slate-800' : 'text-slate-900'}`}
+                                            className={`relative z-10 w-full bg-transparent p-2 outline-hidden font-black uppercase ${input.trim() ? 'text-transparent caret-slate-800' : 'text-slate-900'}`}
                                         />
                                     </div>
                                     <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-600">
@@ -1020,10 +1020,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
                 {/* ── Variant Selector (active master) — metal then stone carousel or resolved single variant ── */}
                 {activeMaster && (
-                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-4xl shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
                         {/* Header: image + SKU (with suffix when resolved) + back button */}
                         <div className="flex gap-3 items-start shrink-0">
-                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 shadow-sm">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 shadow-xs">
                                 {activeMaster.image_url
                                     ? <img src={activeMaster.image_url} className="w-full h-full object-cover" alt={activeMaster.sku} />
                                     : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={28} /></div>
@@ -1100,9 +1100,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl shrink-0">
                             <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
                             <div className="flex items-center gap-3 sm:gap-4">
-                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">−</button>
+                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-xs text-slate-700 font-bold flex items-center justify-center">−</button>
                                 <span className="font-black text-lg min-w-[2ch] text-center">{formatNumber(qty)}</span>
-                                <button onClick={() => setQty(qty + 1)} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">+</button>
+                                <button onClick={() => setQty(qty + 1)} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-xs text-slate-700 font-bold flex items-center justify-center">+</button>
                             </div>
                         </div>
 
@@ -1117,7 +1117,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     value={itemNotes}
                                     onChange={e => setItemNotes(e.target.value)}
                                     placeholder="π.χ. χρώμα κορδελάς, αποστολή ξεχωριστά..."
-                                    className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400 font-medium min-w-0"
+                                    className="flex-1 bg-transparent outline-hidden text-sm text-slate-700 placeholder-slate-400 font-medium min-w-0"
                                 />
                             </div>
                         </div>
@@ -1221,10 +1221,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     <button
                         onClick={() => setCartExpanded(v => !v)}
                         className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all ${cartExpanded
-                            ? 'bg-white border-slate-200 shadow-sm'
+                            ? 'bg-white border-slate-200 shadow-xs'
                             : items.length > 0
                                 ? 'bg-[#060b00] border-[#060b00] text-white shadow-md'
-                                : 'bg-white border-slate-200 shadow-sm'
+                                : 'bg-white border-slate-200 shadow-xs'
                             }`}
                     >
                         <ShoppingCart size={16} className={cartExpanded ? 'text-slate-500' : items.length > 0 ? 'text-amber-400' : 'text-slate-400'} />
@@ -1243,7 +1243,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </button>
 
                     {cartExpanded && items.map((item, idx) => (
-                        <div key={item.line_id || `${item.sku}-${idx}`} className={`bg-white p-3 rounded-2xl border shadow-sm space-y-3 ${item.fulfillment_mode === 'consignment' ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-100'}`}>
+                        <div key={item.line_id || `${item.sku}-${idx}`} className={`bg-white p-3 rounded-2xl border shadow-xs space-y-3 ${item.fulfillment_mode === 'consignment' ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-100'}`}>
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
                                     {isSpecialCreationSku(item.sku) ? (
@@ -1292,15 +1292,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                             return n;
                                                         });
                                                     }}
-                                                    className="w-24 px-1 py-0.5 rounded border border-violet-200 font-mono text-xs"
+                                                    className="w-24 px-1 py-0.5 rounded-sm border border-violet-200 font-mono text-xs"
                                                 />
                                             </label>
                                         ) : (
                                             <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
                                         )}
-                                        {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded border border-blue-100 font-bold">{item.size_info}</span>}
-                                        {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                        {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                                        {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded-sm border border-blue-100 font-bold">{item.size_info}</span>}
+                                        {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded-sm border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                        {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded-sm border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -1325,7 +1325,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
                                     <StickyNote size={14} className="text-slate-300 ml-1" />
                                     <input
-                                        className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-300"
+                                        className="flex-1 bg-transparent outline-hidden text-xs text-slate-600 placeholder-slate-300"
                                         placeholder={isSpecialCreationSku(item.sku) ? 'Υποχρεωτική περιγραφή ειδικής δημιουργίας…' : 'Σημείωση είδους...'}
                                         value={item.notes || ''}
                                         required={isSpecialCreationSku(item.sku)}
@@ -1341,9 +1341,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <p className="w-full text-[10px] font-bold text-rose-600">⚠ SP χωρίς σημείωση — απαιτείται πριν την αποθήκευση.</p>
                                 )}
                                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-                                    <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">-</button>
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded-sm shadow-xs text-slate-600 font-bold">-</button>
                                     <span className="w-4 text-center font-black text-xs">{formatNumber(item.quantity)}</span>
-                                    <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">+</button>
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-6 h-6 bg-white rounded-sm shadow-xs text-slate-600 font-bold">+</button>
                                 </div>
                             </div>
                         </div>
@@ -1353,7 +1353,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 {/* Notes */}
                 <div>
                     <label className="text-xs font-black text-slate-400 uppercase ml-1">Γενικές Σημειώσεις</label>
-                    <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-none mt-1 shadow-inner focus:ring-2 focus:ring-slate-200" />
+                    <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-hidden mt-1 shadow-inner focus:ring-2 focus:ring-slate-200" />
                 </div>
             </div>
 
@@ -1384,7 +1384,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             </div>
 
             {editingItem && (
-                <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4">
+                <div className="fixed inset-0 z-60 bg-black/30 backdrop-blur-xs flex items-end sm:items-center justify-center p-3 sm:p-4">
                     <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-5 space-y-4">
                         <div className="flex items-start justify-between gap-3">
                             <div>
@@ -1403,7 +1403,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <select
                                         value={editFinish}
                                         onChange={e => handleEditFinishChange(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-slate-200"
                                     >
                                         {editFinishOptions.map(code => (
                                             <option key={code} value={code}>
@@ -1417,7 +1417,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <select
                                         value={editVariantSuffix}
                                         onChange={e => setEditVariantSuffix(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-slate-200"
                                     >
                                         {editStoneOptions.map(v => {
                                             const { stone } = getVariantComponents(v.suffix, editingProduct?.gender);
@@ -1441,7 +1441,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 <select
                                     value={editSizeInfo}
                                     onChange={e => setEditSizeInfo(e.target.value)}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-slate-200"
                                 >
                                     <option value="">Χωρίς {editingSizeMode.type}</option>
                                     {editingSizeMode.sizes.map(size => (
@@ -1458,7 +1458,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <select
                                         value={editCordColor || ''}
                                         onChange={e => setEditCordColor((e.target.value || undefined) as OrderItem['cord_color'])}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-slate-200"
                                     >
                                         <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (
@@ -1471,7 +1471,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <select
                                         value={editEnamelColor || ''}
                                         onChange={e => setEditEnamelColor((e.target.value || undefined) as OrderItem['enamel_color'])}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-slate-200"
                                     >
                                         <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (
@@ -1496,7 +1496,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
             {/* Saving overlay */}
             {isSaving && (
-                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-xs flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
                     <div className="relative">
                         <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
                         <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">

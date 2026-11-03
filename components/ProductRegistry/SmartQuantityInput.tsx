@@ -31,13 +31,13 @@ export const SmartQuantityInput: React.FC<SmartQuantityInputProps> = React.memo(
                 type="number"
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value))}
-                className="w-16 p-1 text-center font-bold bg-slate-50 rounded border border-slate-200 outline-none focus:border-blue-400"
+                className="w-16 p-1 text-center font-bold bg-slate-50 rounded-sm border border-slate-200 outline-hidden focus:border-blue-400"
             />
             {stonesPerStrand && stonesPerStrand > 1 && (
                 <div className="relative">
                     <button
                         onClick={() => setShowStrandInput(!showStrandInput)}
-                        className="p-1 bg-blue-50 text-blue-600 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
+                        className="p-1 bg-blue-50 text-blue-600 rounded-sm border border-blue-100 hover:bg-blue-100 transition-colors"
                         title="Εισαγωγή ως Κορδόνια"
                         type="button"
                     >
@@ -53,11 +53,11 @@ export const SmartQuantityInput: React.FC<SmartQuantityInputProps> = React.memo(
                                     placeholder="1,5"
                                     value={strandInput}
                                     onChange={e => setStrandInput(e.target.value)}
-                                    className="w-full p-1.5 border border-slate-200 rounded text-sm outline-none focus:border-blue-400"
+                                    className="w-full p-1.5 border border-slate-200 rounded-sm text-sm outline-hidden focus:border-blue-400"
                                     autoFocus
                                     onKeyDown={e => e.key === 'Enter' && applyStrands()}
                                 />
-                                <button type="button" onClick={applyStrands} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700">
+                                <button type="button" onClick={applyStrands} className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700">
                                     <Check size={14} />
                                 </button>
                             </div>

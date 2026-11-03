@@ -79,7 +79,7 @@ export default function LineIncomeClassificationGear({
         aria-label="Χαρακτηρισμοί myDATA"
         title={tooltip}
         onClick={() => setOpen((current) => !current)}
-        className="rounded p-0.5 text-slate-300/80 transition hover:bg-slate-100 hover:text-slate-500 disabled:opacity-40"
+        className="rounded-sm p-0.5 text-slate-300/80 transition hover:bg-slate-100 hover:text-slate-500 disabled:opacity-40"
       >
         <Settings size={11} strokeWidth={1.75} />
       </button>
@@ -99,7 +99,7 @@ export default function LineIncomeClassificationGear({
             <select
               value={category}
               onChange={(event) => onCategoryChange(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 outline-hidden focus:border-sky-500 focus:ring-1 focus:ring-sky-100"
             >
               {categoryOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>

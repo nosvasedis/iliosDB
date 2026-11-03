@@ -858,10 +858,10 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
             role="dialog"
             aria-modal="true"
             aria-labelledby="ilios-vision-title"
-            className="ilios-scanner-shell fixed inset-0 z-[250] flex flex-col overflow-hidden bg-black font-sans text-white select-none"
+            className="ilios-scanner-shell fixed inset-0 z-250 flex flex-col overflow-hidden bg-black font-sans text-white select-none"
         >
             <header
-                className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/45 to-transparent px-4 pb-8 sm:px-6"
+                className="absolute inset-x-0 top-0 z-50 flex items-center justify-between bg-linear-to-b from-black/80 via-black/45 to-transparent px-4 pb-8 sm:px-6"
                 style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
             >
                 <div className="flex min-w-0 items-center gap-3">
@@ -870,7 +870,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                     </div>
                     <div className="min-w-0">
                         <h1 id="ilios-vision-title" className="truncate text-lg font-black leading-none tracking-tight sm:text-xl">
-                            Ilios <span className="bg-gradient-to-r from-emerald-200 to-teal-300 bg-clip-text text-transparent">Vision</span>
+                            Ilios <span className="bg-linear-to-r from-emerald-200 to-teal-300 bg-clip-text text-transparent">Vision</span>
                         </h1>
                         <p className="mt-1.5 flex items-center gap-1.5 truncate text-[9px] font-black uppercase tracking-[0.18em] text-white/55">
                             <span className={`ilios-status-dot h-1.5 w-1.5 rounded-full ${isSuccess ? 'bg-emerald-200' : isLocking ? 'bg-emerald-300' : isEnhancing ? 'bg-amber-400' : 'bg-emerald-500'}`} />
@@ -890,12 +890,12 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                             onClick={() => void toggleTorch()}
                             aria-label={torchOn ? SCANNER_COPY.aria.torchOff : SCANNER_COPY.aria.torchOn}
                             aria-pressed={torchOn}
-                            className={`grid h-11 w-11 place-items-center rounded-full border transition active:scale-95 ${torchOn ? 'border-amber-200/80 bg-gradient-to-br from-amber-300 to-amber-500 text-amber-950 shadow-[0_0_26px_rgba(245,158,11,0.55)]' : 'ilios-glass-button text-white/80'}`}
+                            className={`grid h-11 w-11 place-items-center rounded-full border transition active:scale-95 ${torchOn ? 'border-amber-200/80 bg-linear-to-br from-amber-300 to-amber-500 text-amber-950 shadow-[0_0_26px_rgba(245,158,11,0.55)]' : 'ilios-glass-button text-white/80'}`}
                         >
                             <Zap size={19} className={torchOn ? 'fill-current' : ''} />
                         </button>
                     )}
-                    <button type="button" onClick={closeScanner} aria-label={SCANNER_COPY.aria.close} className="ilios-glass-button grid h-11 w-11 place-items-center rounded-full text-white hover:!bg-red-500/30 hover:text-red-200 active:scale-95">
+                    <button type="button" onClick={closeScanner} aria-label={SCANNER_COPY.aria.close} className="ilios-glass-button grid h-11 w-11 place-items-center rounded-full text-white hover:bg-red-500/30! hover:text-red-200 active:scale-95">
                         <X size={20} />
                     </button>
                 </div>
@@ -932,7 +932,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                     <div className="relative aspect-square w-[min(68vw,19rem)]">
                         {/* Dims everything outside the reticle so the target reads instantly. */}
-                        <div className={`ilios-reticle-mask absolute inset-0 rounded-[2.25rem] transition-[box-shadow] duration-500 ${isSuccess ? 'ilios-reticle-mask-strong' : ''}`} aria-hidden="true" />
+                        <div className={`ilios-reticle-mask absolute inset-0 rounded-[2.25rem] transition-shadow duration-500 ${isSuccess ? 'ilios-reticle-mask-strong' : ''}`} aria-hidden="true" />
                         <div
                             ref={reticleRef}
                             className={`absolute inset-0 transition-transform duration-500 motion-reduce:transition-none ${isSuccess ? 'ilios-reticle-locked' : isLocking ? 'scale-[0.985]' : isEnhancing ? 'ilios-reticle-enhancing' : 'ilios-reticle-breathe'}`}
@@ -1004,8 +1004,8 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
 
                             {!isSuccess && !isLocking && !isCameraError && (
                                 <div className="ilios-scan-beam absolute inset-x-5 h-10 motion-reduce:hidden">
-                                    <div className={`absolute inset-x-0 bottom-0 h-full bg-gradient-to-t ${isEnhancing ? 'from-amber-300/20' : 'from-emerald-300/20'} to-transparent`} />
-                                    <div className={`absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent ${isEnhancing ? 'via-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.95)]' : 'via-emerald-200 shadow-[0_0_18px_rgba(52,211,153,0.95)]'} to-transparent`} />
+                                    <div className={`absolute inset-x-0 bottom-0 h-full bg-linear-to-t ${isEnhancing ? 'from-amber-300/20' : 'from-emerald-300/20'} to-transparent`} />
+                                    <div className={`absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent ${isEnhancing ? 'via-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.95)]' : 'via-emerald-200 shadow-[0_0_18px_rgba(52,211,153,0.95)]'} to-transparent`} />
                                 </div>
                             )}
 
@@ -1047,7 +1047,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                                     return (
                                         <div key={label} className="flex flex-col items-center gap-1">
                                             <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-                                                <div className={`h-full rounded-full transition-all duration-500 ${reached ? `w-full ${amber ? 'bg-amber-300' : 'bg-gradient-to-r from-emerald-400 to-teal-300'}` : 'w-0'} ${current && index < 2 ? 'ilios-stage-pulse' : ''}`} />
+                                                <div className={`h-full rounded-full transition-all duration-500 ${reached ? `w-full ${amber ? 'bg-amber-300' : 'bg-linear-to-r from-emerald-400 to-teal-300'}` : 'w-0'} ${current && index < 2 ? 'ilios-stage-pulse' : ''}`} />
                                             </div>
                                             <span className={`text-[8px] font-black uppercase tracking-wider transition-colors ${reached ? (amber ? 'text-amber-200/90' : 'text-emerald-200/90') : 'text-white/30'}`}>{label}</span>
                                         </div>
@@ -1096,14 +1096,14 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                             )}
                             <p className="relative mt-1.5 text-xs font-semibold text-white/50">{continuous ? SCANNER_COPY.nextGuidance : SCANNER_COPY.transferring}</p>
                             <div className="relative mt-5 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                                <div className="ilios-success-progress h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-teal-200" />
+                                <div className="ilios-success-progress h-full origin-left rounded-full bg-linear-to-r from-emerald-400 to-teal-200" />
                             </div>
                         </div>
                     </div>
                 )}
 
                 {isCameraError && (
-                    <div className="animate-in fade-in zoom-in-95 absolute inset-x-5 top-1/2 z-40 mx-auto max-w-md -translate-y-1/2 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 p-7 text-center shadow-2xl backdrop-blur-2xl duration-300 motion-reduce:animate-none">
+                    <div className="animate-in fade-in zoom-in-95 absolute inset-x-5 top-1/2 z-40 mx-auto max-w-md -translate-y-1/2 overflow-hidden rounded-4xl border border-white/10 bg-slate-950/90 p-7 text-center shadow-2xl backdrop-blur-2xl duration-300 motion-reduce:animate-none">
                         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_70%)]" />
                         <div className="relative mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl border border-amber-300/25 bg-amber-400/10">
                             <AlertTriangle className="text-amber-300" size={30} />
@@ -1111,7 +1111,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                         <h2 className="relative text-xl font-black">{SCANNER_STATUS_COPY[status]}</h2>
                         <p className="relative mt-2 text-sm leading-relaxed text-white/60">{errorDetail}</p>
                         <div className="relative mt-6 grid grid-cols-2 gap-3">
-                            <button type="button" onClick={retryScanner} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 px-4 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(16,185,129,0.35)] transition hover:brightness-110 active:scale-95">
+                            <button type="button" onClick={retryScanner} className="flex items-center justify-center gap-2 rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 px-4 py-3 text-sm font-black text-white shadow-[0_10px_30px_rgba(16,185,129,0.35)] transition hover:brightness-110 active:scale-95">
                                 <RefreshCw size={17} /> {SCANNER_COPY.retry}
                             </button>
                             <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 active:scale-95">
@@ -1125,7 +1125,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
             </div>
 
             <footer
-                className={`absolute inset-x-0 bottom-0 z-50 bg-gradient-to-t from-black via-black/85 to-transparent px-5 pt-16 transition-all duration-300 sm:px-8 ${isSuccess ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
+                className={`absolute inset-x-0 bottom-0 z-50 bg-linear-to-t from-black via-black/85 to-transparent px-5 pt-16 transition-all duration-300 sm:px-8 ${isSuccess ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
                 style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
             >
                 <div aria-live="polite" aria-atomic="true" className="mx-auto mb-4 max-w-md text-center">
@@ -1165,7 +1165,7 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false, pr
                                     type="button"
                                     onClick={() => void applyZoom(preset)}
                                     aria-pressed={active}
-                                    className={`h-8 min-w-[2.75rem] rounded-full px-2.5 text-[11px] font-black tabular-nums transition-all active:scale-95 ${active ? 'bg-white text-slate-900 shadow-[0_4px_14px_rgba(255,255,255,0.25)]' : 'text-white/70 hover:bg-white/10'}`}
+                                    className={`h-8 min-w-11 rounded-full px-2.5 text-[11px] font-black tabular-nums transition-all active:scale-95 ${active ? 'bg-white text-slate-900 shadow-[0_4px_14px_rgba(255,255,255,0.25)]' : 'text-white/70 hover:bg-white/10'}`}
                                 >
                                     {formatDecimal(preset, preset % 1 ? 1 : 0)}×
                                 </button>

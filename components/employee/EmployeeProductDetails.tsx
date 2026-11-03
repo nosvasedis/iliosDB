@@ -52,7 +52,7 @@ export default function EmployeeProductDetails({ product, products, onSelectProd
     const rows: Array<ProductVariant | null> = variants.length ? variants : [null];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-white lg:items-center lg:bg-transparent lg:p-6" role="dialog" aria-modal="true" aria-label={product.sku}>
+        <div className="fixed inset-0 z-100 flex items-stretch justify-center bg-white lg:items-center lg:bg-transparent lg:p-6" role="dialog" aria-modal="true" aria-label={product.sku}>
             <button type="button" aria-label="Κλείσιμο" onClick={onClose} className="absolute inset-0 hidden bg-[#060b00]/50 lg:block" />
 
             <div className="relative flex h-full w-full flex-col overflow-hidden bg-white lg:h-[min(52rem,90vh)] lg:max-w-3xl lg:rounded-3xl lg:shadow-2xl">
@@ -109,7 +109,7 @@ export default function EmployeeProductDetails({ product, products, onSelectProd
                                         <span className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold tabular-nums ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                                             {formatNumber(stock)}<span className="hidden sm:inline"> τεμ.</span>
                                         </span>
-                                        <span className="w-[4.75rem] shrink-0 text-right text-[15px] font-black tabular-nums text-[#060b00] lg:w-24 lg:text-base">
+                                        <span className="w-19 shrink-0 text-right text-[15px] font-black tabular-nums text-[#060b00] lg:w-24 lg:text-base">
                                             {retail > 0 ? formatCurrency(retail) : '—'}
                                         </span>
                                         {setPrintItems && (

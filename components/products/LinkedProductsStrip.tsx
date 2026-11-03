@@ -52,7 +52,7 @@ export default function LinkedProductsStrip({ title = 'Σετ με', items, acti
                     return (
                         <div
                             key={`${item.sku}${item.suffix || ''}`}
-                            className={`flex shrink-0 items-center gap-2 rounded-xl border bg-white pr-1 shadow-sm transition ${item.done ? 'border-emerald-200 opacity-70' : 'border-violet-100 hover:border-violet-300'}`}
+                            className={`flex shrink-0 items-center gap-2 rounded-xl border bg-white pr-1 shadow-xs transition ${item.done ? 'border-emerald-200 opacity-70' : 'border-violet-100 hover:border-violet-300'}`}
                         >
                             <Container
                                 {...(item.onSelect ? { type: 'button', onClick: item.onSelect, title: `Επιλογή ${item.sku}` } : {})}
@@ -76,7 +76,7 @@ export default function LinkedProductsStrip({ title = 'Σετ με', items, acti
                                     onClick={item.onAdd}
                                     title={item.addTitle || `Προσθήκη ${item.sku}${item.suffix || ''}`}
                                     aria-label={item.addTitle || `Προσθήκη ${item.sku}${item.suffix || ''}`}
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs transition hover:bg-violet-700"
                                 >
                                     <Plus size={15} strokeWidth={3} />
                                 </button>

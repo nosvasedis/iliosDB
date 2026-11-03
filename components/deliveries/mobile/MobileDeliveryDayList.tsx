@@ -11,7 +11,7 @@ export default function MobileDeliveryDayList({ items, onSelect }: Props) {
   return (
     <div className="space-y-3">
       {items.length === 0 && (
-        <div className="rounded-3xl border border-slate-100 bg-white shadow-sm p-5 text-sm text-slate-500 font-medium">
+        <div className="rounded-3xl border border-slate-100 bg-white shadow-xs p-5 text-sm text-slate-500 font-medium">
           Δεν υπάρχουν προγραμματισμένες παραδόσεις για το τρέχον φίλτρο.
         </div>
       )}

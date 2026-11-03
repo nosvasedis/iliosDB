@@ -23,7 +23,7 @@ export default function ProductionSkuDetails({ product, initialVariantSuffix, pr
     if (!settings.data || !molds.data) {
         const failed = settings.isError || molds.isError;
         return (
-            <div className="fixed inset-0 z-[650] flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="fixed inset-0 z-650 flex items-center justify-center bg-slate-900/60 p-4">
                 <div className="rounded-2xl bg-white p-6 text-center shadow-xl" role="status">
                     {!failed && <Loader2 size={24} className="mx-auto mb-3 animate-spin text-slate-500" />}
                     <p className="text-sm font-bold text-slate-700">{failed ? 'Δεν ήταν δυνατή η φόρτωση των στοιχείων SKU.' : 'Φόρτωση στοιχείων SKU…'}</p>

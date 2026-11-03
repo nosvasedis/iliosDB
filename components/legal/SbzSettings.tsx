@@ -50,8 +50,8 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
   };
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-emerald-200/80 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-5 py-4">
+    <section className="overflow-hidden rounded-2xl border border-emerald-200/80 bg-white shadow-xs">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-linear-to-br from-emerald-50 to-white px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
             <ShieldCheck size={18} />
@@ -91,7 +91,7 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
               disabled={busy}
               value={environment}
               onChange={(e) => onEnvironmentChange(e.target.value as LegalEnvironment)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-hidden transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
             >
               <option value="dev">Δοκιμές</option>
               <option value="prod">Παραγωγή</option>
@@ -105,7 +105,7 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
               autoComplete="new-password"
               value={key}
               onChange={(e) => setKey(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-hidden transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
             />
           </label>
         </div>
@@ -152,7 +152,7 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
                       checked={activationChecks[item.key]}
                       disabled={busy}
                       onChange={(event) => setActivationChecks((current) => ({ ...current, [item.key]: event.target.checked }))}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <span>{item.label}</span>
                   </label>

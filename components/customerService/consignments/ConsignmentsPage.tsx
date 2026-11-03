@@ -166,7 +166,7 @@ export default function ConsignmentsPage() {
           <div className="space-y-3">
             {byClient.length === 0 && <EmptyState icon={Users} title="Δεν βρέθηκαν αποτελέσματα." size="compact" />}
             {byClient.map((group) => (
-              <section key={group.id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <section key={group.id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                   <h3 className="font-black text-slate-900">{ctl.customerName(group.id)}</h3>
                   <div className="flex flex-wrap gap-3 text-xs">
@@ -179,7 +179,7 @@ export default function ConsignmentsPage() {
             ))}
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-xs">
             {activity.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν κινήσεις.</p>}
             {activity.map(({ event, entry }) => (
               <button key={event.id} type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSelectedId(event.consignment_id)}>

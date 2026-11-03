@@ -38,7 +38,7 @@ export default function AuditLogsModal({ onClose }: Props) {
     });
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-200 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
                     <div className="flex items-center gap-3">
@@ -68,7 +68,7 @@ export default function AuditLogsModal({ onClose }: Props) {
                             placeholder="Αναζήτηση ανά χρήστη, ενέργεια ή λεπτομέρειες..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/20 text-slate-700 font-medium transition-all"
+                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-4 focus:ring-indigo-500/20 text-slate-700 font-medium transition-all"
                         />
                     </div>
                 </div>
@@ -82,7 +82,7 @@ export default function AuditLogsModal({ onClose }: Props) {
                     ) : isError ? (
                         <div className="flex flex-col items-center justify-center h-full text-red-600 gap-3 p-6">
                             <p className="font-bold">Σφάλμα φόρτωσης ιστορικού.</p>
-                            <p className="text-sm font-mono bg-red-50 p-2 rounded">{(error as Error)?.message}</p>
+                            <p className="text-sm font-mono bg-red-50 p-2 rounded-sm">{(error as Error)?.message}</p>
                             <button onClick={() => refetch()} className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
                                 Ανανέωση
                             </button>
@@ -104,7 +104,7 @@ export default function AuditLogsModal({ onClose }: Props) {
                                             className="absolute top-0 left-0 w-full pr-2 pb-3"
                                             style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                                         >
-                                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md transition-shadow h-full">
+                                            <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md transition-shadow h-full">
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className="font-bold text-slate-800 text-base">{log.action}</span>

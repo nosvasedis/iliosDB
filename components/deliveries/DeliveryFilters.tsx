@@ -29,7 +29,7 @@ export default function DeliveryFilters({ filter, search, onFilterChange, onSear
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Αναζήτηση πελάτη ή παραγγελίας..."
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-emerald-500/10 text-sm font-medium"
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-hidden focus:ring-2 focus:ring-emerald-500/10 text-sm font-medium"
         />
       </div>
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide rounded-xl bg-slate-100/80 p-1">
@@ -40,7 +40,7 @@ export default function DeliveryFilters({ filter, search, onFilterChange, onSear
             onClick={() => onFilterChange(item.key)}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
               filter === item.key
-                ? 'bg-white text-[#060b00] shadow-sm'
+                ? 'bg-white text-[#060b00] shadow-xs'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >

@@ -18,7 +18,7 @@ interface Props {
 }
 
 const inputClass =
-    'w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10';
+    'w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm font-semibold text-slate-800 outline-hidden transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10';
 const labelClass = 'mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500';
 
 function Field({ label, icon: Icon, children, hint }: { label: string; icon: typeof Phone; children: React.ReactNode; hint?: React.ReactNode }) {
@@ -94,22 +94,22 @@ export default function SupplierFormModal({ initial, existingSuppliers, onClose,
     };
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm animate-in fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSaving) onClose(); }}>
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSaving) onClose(); }}>
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="supplier-form-title"
                 onKeyDown={onKeyDown}
-                className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95"
+                className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-4xl border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95"
             >
-                <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white px-6 py-5">
+                <div className="relative overflow-hidden border-b border-slate-100 bg-linear-to-br from-slate-50 to-white px-6 py-5">
                     <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-emerald-200/30 blur-3xl" />
                     <div className="relative flex items-center gap-4">
                         <label className="group relative cursor-pointer" title="Λογότυπο: πατήστε για αλλαγή">
                             {name || form.logo_url ? <SupplierAvatar name={name || '?'} logoUrl={form.logo_url} /> : (
                                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-slate-300"><Store size={22} /></div>
                             )}
-                            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow ring-2 ring-white">
+                            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm ring-2 ring-white">
                                 {uploadingLogo ? <Loader2 size={11} className="animate-spin" /> : <ImagePlus size={11} />}
                             </span>
                             <input type="file" accept="image/*,.svg" className="hidden" onChange={(event) => { handleLogo(event.target.files?.[0]); event.target.value = ''; }} />

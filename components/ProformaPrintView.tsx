@@ -34,7 +34,7 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         issueDate={document.issue_date}
         issueTime={document.created_at}
         statusBadge={(
-          <span className="inline-flex rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-900">
+          <span className="inline-flex rounded-sm border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-900">
             Δεν είναι νόμιμο παραστατικό
           </span>
         )}

@@ -560,7 +560,7 @@ export default function OffersPage({ products, materials, settings, collections,
         return (
             <div className="flex flex-col h-[calc(100vh-100px)] bg-slate-50">
                 {/* Header */}
-                <div className="bg-white p-6 border-b border-slate-200 flex justify-between items-start shrink-0 shadow-sm z-10">
+                <div className="bg-white p-6 border-b border-slate-200 flex justify-between items-start shrink-0 shadow-xs z-10">
                     <div>
                         <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                             {editingOffer ? 'Επεξεργασία Προσφοράς' : 'Νέα Προσφορά'}
@@ -576,7 +576,7 @@ export default function OffersPage({ products, materials, settings, collections,
 
                     {/* Saving overlay */}
                     {isSaving && (
-                        <div className="fixed inset-0 z-[300] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                        <div className="fixed inset-0 z-300 bg-white/60 backdrop-blur-xs flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
                             <div className="relative">
                                 <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
                                 <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">
@@ -601,7 +601,7 @@ export default function OffersPage({ products, materials, settings, collections,
                             /> : <>
                                 <div className="relative">
                                     <input
-                                        className={`w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
+                                        className={`w-full p-3 bg-slate-50 border rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all ${customerId ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200'}`}
                                         placeholder="Αναζήτηση..."
                                         value={customerName}
                                         onChange={e => { setCustomerName(e.target.value); setShowCustomerResults(true); setCustomerId(null); }}
@@ -627,7 +627,7 @@ export default function OffersPage({ products, materials, settings, collections,
                             </>}
                             <div className="flex items-center gap-2 border-t border-slate-50 pt-2">
                                 <Phone size={14} className="text-slate-400" />
-                                <input className="flex-1 outline-none text-sm text-slate-600 font-medium placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                                <input className="flex-1 outline-hidden text-sm text-slate-600 font-medium placeholder-slate-300" placeholder="Τηλέφωνο..." value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                             </div>
                         </div>
 
@@ -642,7 +642,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                         type="number" step="0.01"
                                         value={customSilverPrice}
                                         onChange={e => setCustomSilverPrice(parseFloat(e.target.value) || 0)}
-                                        className="flex-1 p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20"
+                                        className="flex-1 p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-hidden focus:ring-2 focus:ring-amber-500/20"
                                     />
                                     <button onClick={fetchLivePrice} disabled={isFetchingPrice} className="p-2 bg-amber-200 text-amber-800 rounded-lg hover:bg-amber-300 transition-colors">
                                         {isFetchingPrice ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
@@ -663,7 +663,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                     <span className="block text-[10px] text-amber-600/70 mt-0.5">Η επιλογή αποθηκεύεται στην Προσφορά.</span>
                                 </span>
                                 <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${hideSilverPriceInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
-                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${hideSilverPriceInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${hideSilverPriceInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                 </span>
                             </button>
 
@@ -680,7 +680,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                         <span className="block text-[10px] text-amber-600/70 mt-0.5">Απενεργοποιήστε το για να μην εμφανίζεται.</span>
                                     </span>
                                     <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${!hideOfferValidityInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
-                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${!hideOfferValidityInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${!hideOfferValidityInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                     </span>
                                 </button>
                                 {!hideOfferValidityInPdf && (
@@ -692,7 +692,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                             step="1"
                                             value={offerValidityDays}
                                             onChange={e => setOfferValidityDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                                            className="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20"
+                                            className="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-hidden focus:ring-2 focus:ring-amber-500/20"
                                         />
                                     </div>
                                 )}
@@ -706,7 +706,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                             type="number" min="0" max="100"
                                             value={discountPercent}
                                             onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                                            className="w-full p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 pr-8"
+                                            className="w-full p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-hidden focus:ring-2 focus:ring-amber-500/20 pr-8"
                                         />
                                         <Percent size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400" />
                                     </div>
@@ -716,7 +716,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                     <select
                                         value={vatRate}
                                         onChange={(e) => setVatRate(parseFloat(e.target.value))}
-                                        className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-sm text-amber-900 outline-none cursor-pointer"
+                                        className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-sm text-amber-900 outline-hidden cursor-pointer"
                                     >
                                         <option value={VatRegime.Standard}>24% (Κανονικό)</option>
                                         <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
@@ -747,7 +747,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                             onChange={handleSmartInput}
                                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); } }}
                                             placeholder="Πληκτρολογήστε..."
-                                            className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
+                                            className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-hidden focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-xs relative z-10"
                                         />
                                     </div>
                                 </div>
@@ -759,7 +759,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                         value={scanQty}
                                         onChange={e => setScanQty(parseInt(e.target.value) || 1)}
                                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); } }}
-                                        className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                        className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-hidden bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-xs"
                                     />
                                 </div>
                                 <div className="md:col-span-3">
@@ -821,7 +821,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                                 <button
                                                     key={s.suffix}
                                                     onClick={() => selectSuffix(s.suffix)}
-                                                    className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1 group active:scale-95"
+                                                    className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-xs border border-slate-200 hover:border-emerald-200 flex items-center gap-1 group active:scale-95"
                                                     title={s.desc}
                                                 >
                                                     <span className={fColor}>{finish.code || 'LUSTRE'}</span>
@@ -839,7 +839,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                 <select
                                     value={selectedCollectionId}
                                     onChange={e => setSelectedCollectionId(parseInt(e.target.value))}
-                                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm text-slate-700 cursor-pointer"
+                                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-sm text-slate-700 cursor-pointer"
                                 >
                                     <option value="">Επιλογή Συλλογής...</option>
                                     {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -852,14 +852,14 @@ export default function OffersPage({ products, materials, settings, collections,
 
                         <div className="pt-4 border-t border-slate-100">
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Σημειώσεις</label>
-                            <textarea value={offerNotes} onChange={e => setOfferNotes(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none focus:ring-2 focus:ring-slate-800/20" />
+                            <textarea value={offerNotes} onChange={e => setOfferNotes(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-hidden focus:ring-2 focus:ring-slate-800/20" />
                         </div>
                     </div>
 
                     {/* Right Panel: Items Table */}
                     <div className="lg:w-2/3 flex flex-col h-full bg-slate-50/30">
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                            <table className="w-full text-left text-sm bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <table className="w-full text-left text-sm bg-white rounded-2xl shadow-xs border border-slate-100 overflow-hidden">
                                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                     <tr>
                                         <th className="p-4 pl-6">Εικόνα</th>
@@ -894,7 +894,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                                         const newQty = parseInt(e.target.value) || 1;
                                                         setItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: newQty } : it));
                                                     }}
-                                                    className="w-12 text-center bg-slate-100 rounded border border-slate-200 font-bold outline-none focus:border-blue-400"
+                                                    className="w-12 text-center bg-slate-100 rounded-sm border border-slate-200 font-bold outline-hidden focus:border-blue-400"
                                                 />
                                             </td>
                                             <td className="p-4 text-right font-black text-slate-900">{formatCurrency(item.price_at_order * item.quantity)}</td>
@@ -947,12 +947,12 @@ export default function OffersPage({ products, materials, settings, collections,
                 )}
                 below={(
               <div className="space-y-4">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-xs">
                   <DebouncedSearchInput
                     value={offerSearch}
                     onDebouncedChange={setOfferSearch}
                     placeholder="Αναζήτηση προσφοράς, πελάτη, τηλεφώνου ή κατάστασης..."
-                    inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                    inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-hidden transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
               </div>
@@ -960,8 +960,8 @@ export default function OffersPage({ products, materials, settings, collections,
           />
 
           <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
-                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-xs">
+                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-xs backdrop-blur-sm">
                         <div className="flex items-center justify-between gap-3">
                             <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Προσφορών</div>
                             <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
@@ -990,7 +990,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                     <div
                                         key={offer.id}
                                         onClick={() => handleEditOffer(offer)}
-                                        className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100 xl:flex-row xl:items-center"
+                                        className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-sm shadow-xs ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100 xl:flex-row xl:items-center"
                                     >
                                         <div className="min-w-0 flex-1">
                                             <div className="truncate text-base font-black leading-tight text-slate-900"><OrderCustomerName order={offer} /></div>
@@ -1006,7 +1006,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                             </div>
                                         </div>
 
-                                        <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[34rem] xl:shrink-0">
+                                        <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 xl:w-136 xl:shrink-0">
                                             <div className="min-w-0">
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ημερομηνία</div>
                                                 <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
@@ -1030,7 +1030,7 @@ export default function OffersPage({ products, materials, settings, collections,
 
                                             <div className="min-w-0 sm:text-right">
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
-                                                <span className={`mt-1 inline-flex max-w-full rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${statusClasses}`}>
+                                                <span className={`mt-1 inline-flex max-w-full rounded-full border px-3 py-1 text-xs font-black shadow-xs ring-1 ring-white/80 ${statusClasses}`}>
                                                     {OFFER_STATUS_LABELS[offer.status]}
                                                 </span>
                                             </div>

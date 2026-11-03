@@ -20,10 +20,10 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
     const canApply = preview.updatedCount > 0;
 
     return ReactDOM.createPortal(
-        <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-700 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100/50">
+                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-linear-to-r from-slate-50 to-slate-100/50">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-amber-100 rounded-lg">
                             <AlertCircle size={20} className="text-amber-700" />

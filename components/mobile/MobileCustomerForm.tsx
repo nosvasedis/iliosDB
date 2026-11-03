@@ -55,14 +55,14 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
         ? form.full_name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
         : '?';
 
-    const inputClass = 'w-full px-4 py-3.5 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all text-base font-medium text-slate-800 placeholder:text-slate-300';
+    const inputClass = 'w-full px-4 py-3.5 bg-white border border-slate-200 rounded-2xl outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all text-base font-medium text-slate-800 placeholder:text-slate-300';
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/70 backdrop-blur-sm flex flex-col justify-end sm:justify-center">
+        <div className="fixed inset-0 z-200 bg-slate-900/70 backdrop-blur-xs flex flex-col justify-end sm:justify-center">
             <div className="bg-slate-50 rounded-t-[2.5rem] sm:rounded-3xl max-h-[96vh] overflow-y-auto shadow-2xl sm:max-w-lg sm:mx-auto sm:max-h-[90vh] flex flex-col">
 
                 {/* ── Gradient header */}
-                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-t-[2.5rem] sm:rounded-t-3xl px-6 pt-7 pb-8 relative overflow-hidden shrink-0">
+                <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 rounded-t-[2.5rem] sm:rounded-t-3xl px-6 pt-7 pb-8 relative overflow-hidden shrink-0">
                     {/* decorative circles */}
                     <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/5" />
                     <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full bg-white/5" />
@@ -82,7 +82,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
 
                     {/* Avatar */}
                     <div className="flex items-center gap-4 relative z-10">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
+                        <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
                             <span className="text-white text-xl font-black">{initials}</span>
                         </div>
                         <div>
@@ -101,7 +101,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                 <form onSubmit={handleSubmit} className="p-5 space-y-4 pb-8">
 
                     {/* Identity section */}
-                    <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-3">
+                    <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                             <User size={14} className="text-blue-500" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Στοιχεία Ταυτότητας</span>
@@ -117,7 +117,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                     </div>
 
                     {/* Contact section */}
-                    <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-3">
+                    <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                             <Phone size={14} className="text-emerald-500" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Επικοινωνία</span>
@@ -143,7 +143,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                     </div>
 
                     {/* Fiscal section */}
-                    <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-3">
+                    <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                             <CreditCard size={14} className="text-amber-500" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Φορολογικά</span>
@@ -165,7 +165,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                                 type="button"
                                 onClick={handleAfmLookup}
                                 disabled={isSearchingAfm || !form.vat_number || form.vat_number.length < 9}
-                                className="px-4 bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 shrink-0 text-sm"
+                                className="px-4 bg-linear-to-br from-slate-800 to-slate-900 text-white rounded-2xl font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 shrink-0 text-sm"
                             >
                                 {isSearchingAfm ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
                                 <span className="hidden sm:block">Αυτόματο</span>
@@ -205,7 +205,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                     </div>
 
                     {/* Notes */}
-                    <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                    <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100">
                         <div className="flex items-center gap-2 mb-3">
                             <MessageSquare size={14} className="text-purple-500" />
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Σημειώσεις</span>
@@ -230,7 +230,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                         <button
                             type="submit"
                             disabled={isSaving || isSearchingAfm || !form.full_name.trim()}
-                            className="flex-2 py-4 px-8 rounded-2xl font-black bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-xl shadow-slate-900/20 active:scale-[0.99] transition-all disabled:opacity-40 flex items-center justify-center gap-2 text-base"
+                            className="flex-2 py-4 px-8 rounded-2xl font-black bg-linear-to-r from-slate-800 to-slate-900 text-white shadow-xl shadow-slate-900/20 active:scale-[0.99] transition-all disabled:opacity-40 flex items-center justify-center gap-2 text-base"
                         >
                             {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                             Αποθήκευση

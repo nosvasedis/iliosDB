@@ -104,7 +104,7 @@ export const BatchRow = React.memo(function BatchRow({
                 </button>
 
                 {/* Quantity */}
-                <span className="font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm min-w-[2.5rem] text-center text-sm">
+                <span className="font-black text-slate-800 bg-white px-2 py-0.5 rounded-sm border border-slate-200 shadow-xs min-w-10 text-center text-sm">
                     {formatNumber(batch.quantity)}
                 </span>
 
@@ -122,18 +122,18 @@ export const BatchRow = React.memo(function BatchRow({
                 </span>
 
                 {/* Value */}
-                <span className="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-100 hidden sm:inline">
+                <span className="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded-sm border border-slate-100 hidden sm:inline">
                     {formatCurrency(batchValue)}
                 </span>
 
                 {/* Variant badges (compact) */}
-                {batch.size_info && <span className="text-[9px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded border border-blue-100 font-bold hidden md:inline">#{batch.size_info}</span>}
-                {batch.cord_color && <span className="text-[9px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100 font-bold hidden lg:inline">{getProductOptionColorLabel(batch.cord_color)}</span>}
-                {batch.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-600 px-1 py-0.5 rounded border border-rose-100 font-bold hidden lg:inline">{getProductOptionColorLabel(batch.enamel_color)}</span>}
+                {batch.size_info && <span className="text-[9px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded-sm border border-blue-100 font-bold hidden md:inline">#{batch.size_info}</span>}
+                {batch.cord_color && <span className="text-[9px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded-sm border border-amber-100 font-bold hidden lg:inline">{getProductOptionColorLabel(batch.cord_color)}</span>}
+                {batch.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-600 px-1 py-0.5 rounded-sm border border-rose-100 font-bold hidden lg:inline">{getProductOptionColorLabel(batch.enamel_color)}</span>}
 
                 {/* On-hold indicator */}
                 {batch.on_hold && (
-                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-0.5">
+                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-sm border border-amber-200 flex items-center gap-0.5">
                         <PauseCircle size={10} /> Αναμονή
                     </span>
                 )}
@@ -225,7 +225,7 @@ export const BatchRow = React.memo(function BatchRow({
                             {batch.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg border border-blue-100 font-bold">#{batch.size_info}</span>}
                             {batch.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}</span>}
                             {batch.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}</span>}
-                            <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 sm:hidden">{formatCurrency(batchValue)}</span>
+                            <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded-sm border border-slate-200 sm:hidden">{formatCurrency(batchValue)}</span>
                         </div>
 
                         {/* Notes */}

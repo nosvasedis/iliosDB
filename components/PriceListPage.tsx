@@ -66,7 +66,7 @@ const getStoneChipStyle = (code: string) => {
         'RZ': 'bg-pink-100 text-pink-800',
         'AK': 'bg-cyan-100 text-cyan-800',
         'CI': 'bg-yellow-100 text-yellow-800',
-        'MUL': 'bg-fuchsia-100 bg-gradient-to-r from-rose-100 via-yellow-100 to-sky-100 text-fuchsia-800',
+        'MUL': 'bg-fuchsia-100 bg-linear-to-r from-rose-100 via-yellow-100 to-sky-100 text-fuchsia-800',
         // Women — Agate family
         'PAX': 'bg-green-100 text-green-700',
         'MAX': 'bg-blue-100 text-blue-700',
@@ -603,7 +603,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 icon={ScrollText}
                 title="Τιμοκατάλογος"
                 subtitle="Διαχειριστείτε τους κωδικούς που θα εμφανίζονται στην εκτύπωση."
-                className="bg-gradient-to-r from-white via-slate-50/80 to-indigo-50/30 border-indigo-100/50 shadow-md"
+                className="bg-linear-to-r from-white via-slate-50/80 to-indigo-50/30 border-indigo-100/50 shadow-md"
                 tail={(
                     <div className="flex items-center gap-3">
                         <div className="text-right">
@@ -618,23 +618,23 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 {/* CONTROLS PANEL (LEFT) */}
                 <div className="lg:col-span-4 flex flex-col bg-white rounded-3xl shadow-md border border-slate-100 overflow-hidden animate-in slide-in-from-left-3 duration-400">
                     {/* TABS HEADER */}
-                    <div className="flex border-b border-slate-100 p-2 gap-2 bg-gradient-to-r from-slate-50 via-white to-slate-50/50">
+                    <div className="flex border-b border-slate-100 p-2 gap-2 bg-linear-to-r from-slate-50 via-white to-slate-50/50">
                         <button 
                             onClick={() => setActiveTab('filters')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'filters' ? 'bg-white shadow-sm text-indigo-600 ring-1 ring-indigo-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'filters' ? 'bg-white shadow-xs text-indigo-600 ring-1 ring-indigo-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <ListFilter size={16}/> Φίλτρα
                         </button>
                         <button 
                             onClick={() => setActiveTab('collections')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'collections' ? 'bg-white shadow-sm text-pink-600 ring-1 ring-pink-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'collections' ? 'bg-white shadow-xs text-pink-600 ring-1 ring-pink-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <FolderKanban size={16}/> Συλλογές
                             {selectedCollectionIds.length > 0 && <span className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"/>}
                         </button>
                         <button 
                             onClick={() => setActiveTab('manual')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600 ring-1 ring-amber-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'manual' ? 'bg-white shadow-xs text-amber-600 ring-1 ring-amber-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <PenTool size={16}/> Εισαγωγή
                             {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"/>}
@@ -662,7 +662,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             <button
                                                 key={opt.value}
                                                 onClick={() => toggleGender(opt.value)}
-                                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedGenders.includes(opt.value) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                                             >
                                                 {selectedGenders.includes(opt.value) ? <CheckSquare size={14}/> : <Square size={14}/>}
                                                 {opt.label}
@@ -702,7 +702,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             <FolderX size={16} />
                                             <span>Εξαίρεση Συλλογών</span>
                                         </div>
-                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${excludeCollections ? 'bg-rose-500 border-rose-500' : 'border-slate-300'}`}>
+                                        <div className={`w-4 h-4 rounded-sm border flex items-center justify-center ${excludeCollections ? 'bg-rose-500 border-rose-500' : 'border-slate-300'}`}>
                                             {excludeCollections && <Check size={10} className="text-white" />}
                                         </div>
                                     </button>
@@ -790,7 +790,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         {activeTab === 'manual' && (
                             <div className="space-y-6">
                                 {/* Quick Add Section */}
-                                <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-200">
+                                <div className="bg-linear-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-200">
                                     <h3 className="font-bold text-amber-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
                                         <Zap size={14}/> Γρήγορη Προσθήκη
                                     </h3>
@@ -801,9 +801,9 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             onChange={e => setManualInput(e.target.value)} 
                                             onKeyDown={e => e.key === 'Enter' && handleAddManualSku()}
                                             placeholder="SKU ή Εύρος (π.χ. MN050-MN063)" 
-                                            className="flex-1 p-2.5 border border-amber-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
+                                            className="flex-1 p-2.5 border border-amber-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-amber-500/20 outline-hidden"
                                         />
-                                        <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors shadow-sm">
+                                        <button onClick={handleAddManualSku} className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors shadow-xs">
                                             <Plus size={20}/>
                                         </button>
                                     </div>
@@ -813,7 +813,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                 </div>
 
                                 {/* Quick Remove Section */}
-                                <div className="bg-gradient-to-br from-red-50 to-rose-50 p-4 rounded-2xl border border-red-200">
+                                <div className="bg-linear-to-br from-red-50 to-rose-50 p-4 rounded-2xl border border-red-200">
                                     <h3 className="font-bold text-red-800 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
                                         <Minus size={14}/> Αφαίρεση
                                     </h3>
@@ -824,9 +824,9 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             onChange={e => setExcludeInput(e.target.value)} 
                                             onKeyDown={e => e.key === 'Enter' && handleExcludeManualSku()}
                                             placeholder="SKU ή Εύρος (π.χ. MN050-MN063)" 
-                                            className="flex-1 p-2.5 border border-red-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-red-500/20 outline-none"
+                                            className="flex-1 p-2.5 border border-red-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-red-500/20 outline-hidden"
                                         />
-                                        <button onClick={handleExcludeManualSku} className="bg-red-500 text-white p-2.5 rounded-xl hover:bg-red-600 transition-colors shadow-sm">
+                                        <button onClick={handleExcludeManualSku} className="bg-red-500 text-white p-2.5 rounded-xl hover:bg-red-600 transition-colors shadow-xs">
                                             <Minus size={20}/>
                                         </button>
                                     </div>
@@ -846,7 +846,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                 {manualSkus.length > 0 && (
                                                     <button 
                                                         onClick={() => setManualSkus([])}
-                                                        className="text-[9px] text-blue-600 font-bold hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                                        className="text-[9px] text-blue-600 font-bold hover:bg-blue-50 px-2 py-1 rounded-sm transition-colors"
                                                     >
                                                         Καθαρισμός Προσθηκών
                                                     </button>
@@ -854,7 +854,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                 {excludedSkus.size > 0 && (
                                                     <button 
                                                         onClick={() => setExcludedSkus(new Set())}
-                                                        className="text-[9px] text-red-600 font-bold hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                                                        className="text-[9px] text-red-600 font-bold hover:bg-red-50 px-2 py-1 rounded-sm transition-colors"
                                                     >
                                                         Καθαρισμός Εξαιρέσεων
                                                     </button>
@@ -872,7 +872,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {manualSkus.map(sku => (
-                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-sm border border-blue-100">
                                                                 {sku}
                                                             </span>
                                                         ))}
@@ -889,7 +889,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {Array.from(excludedSkus).map(sku => (
-                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100 line-through decoration-red-400">
+                                                            <span key={sku} className="text-[10px] font-mono font-bold bg-red-50 text-red-700 px-1.5 py-0.5 rounded-sm border border-red-100 line-through decoration-red-400">
                                                                 {sku}
                                                             </span>
                                                         ))}
@@ -900,7 +900,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                     </div>
                                 )}
                                 
-                                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 p-4 rounded-2xl border border-indigo-200">
+                                <div className="bg-linear-to-br from-indigo-50 to-violet-50 p-4 rounded-2xl border border-indigo-200">
                                     <h3 className="font-bold text-indigo-800 text-xs uppercase tracking-wider mb-3">
                                         Τίτλος PDF
                                     </h3>
@@ -909,7 +909,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                         value={customPdfTitle}
                                         onChange={e => setCustomPdfTitle(e.target.value)}
                                         placeholder="Πληκτρολογήστε προσαρμοσμένο τίτλο..."
-                                        className="w-full p-2.5 border border-indigo-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                        className="w-full p-2.5 border border-indigo-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-hidden"
                                     />
                                     <p className="text-[9px] text-indigo-700/80 mt-2">
                                         Αν το αφήσετε κενό, χρησιμοποιείται ο αυτόματος τίτλος.
@@ -929,14 +929,14 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 </div>
 
                 {/* PREVIEW PANEL (RIGHT) — enhanced */}
-                <div className="lg:col-span-8 bg-gradient-to-br from-white to-slate-50/50 rounded-3xl shadow-md border border-slate-100 flex flex-col overflow-hidden h-full animate-in slide-in-from-right-3 duration-400">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 via-white to-indigo-50/20 gap-4">
+                <div className="lg:col-span-8 bg-linear-to-br from-white to-slate-50/50 rounded-3xl shadow-md border border-slate-100 flex flex-col overflow-hidden h-full animate-in slide-in-from-right-3 duration-400">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-linear-to-r from-slate-50 via-white to-indigo-50/20 gap-4">
                         <div className="flex items-center gap-2">
                             <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
                               <Layers size={18}/>
                             </div> 
                             <span className="font-bold text-slate-800 text-lg hidden sm:inline">Προεπισκόπηση</span>
-                            <span className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                            <span className="bg-linear-to-r from-indigo-500 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-xs">
                                 {formatNumber(filteredItems.length)}
                             </span>
                         </div>
@@ -949,12 +949,12 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                 placeholder="Αναζήτηση στη λίστα..." 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 p-2 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                className="w-full pl-9 p-2 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-hidden transition-all"
                             />
                         </div>
                     </div>
                     
-                    <div ref={listParentRef} className="flex-1 overflow-y-auto p-8 bg-gradient-to-b from-slate-50/50 to-white custom-scrollbar">
+                    <div ref={listParentRef} className="flex-1 overflow-y-auto p-8 bg-linear-to-b from-slate-50/50 to-white custom-scrollbar">
                         {filteredItems.length > 0 ? (
                             <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
                                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -967,7 +967,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                                         >
                                             {rowItems.map((item, idx) => (
-                                                <div key={startIdx + idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-300 hover:shadow-md transition-all duration-200">
+                                                <div key={startIdx + idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-xs text-sm min-h-[80px] hover:border-indigo-300 hover:shadow-md transition-all duration-200">
                                                     <button
                                                         onClick={() => toggleExclusion(item.skuBase)}
                                                         className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-10"
@@ -979,10 +979,10 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
                                                             {item.isManual && (
-                                                                <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Χειροκίνητο</span>
+                                                                <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded-sm uppercase">Χειροκίνητο</span>
                                                             )}
                                                             {item.collectionTag && (
-                                                                <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded">
+                                                                <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded-sm">
                                                                     {item.collectionTag}
                                                                 </span>
                                                             )}
@@ -998,7 +998,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                                 <div key={pgIdx} className="flex justify-between items-center text-xs gap-2">
                                                                     <div className="flex flex-wrap gap-[3px] max-w-[140px]">
                                                                         {hasBase && (
-                                                                            <span className="font-bold text-slate-700 bg-slate-100 px-1 rounded text-[10px]">
+                                                                            <span className="font-bold text-slate-700 bg-slate-100 px-1 rounded-sm text-[10px]">
                                                                                 •
                                                                             </span>
                                                                         )}
@@ -1009,11 +1009,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                                             if (parts.length > 0) {
                                                                                 // Display each part with its own color
                                                                                 return (
-                                                                                    <span key={i} className="inline-flex items-center gap-[1px]">
+                                                                                    <span key={i} className="inline-flex items-center gap-px">
                                                                                         {parts.map((part, partIdx) => (
                                                                                             <span 
                                                                                                 key={partIdx}
-                                                                                                className={`font-bold px-1 rounded text-[10px] whitespace-nowrap ${part.style}`}
+                                                                                                className={`font-bold px-1 rounded-sm text-[10px] whitespace-nowrap ${part.style}`}
                                                                                             >
                                                                                                 {part.type === 'stone' ? <StoneCodeText code={part.code} /> : part.code}
                                                                                             </span>
@@ -1024,7 +1024,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                                             
                                                                             // Fallback for unknown codes
                                                                             return (
-                                                                                <span key={i} className="font-bold text-slate-600 bg-slate-50 px-1 rounded text-[10px] whitespace-nowrap">
+                                                                                <span key={i} className="font-bold text-slate-600 bg-slate-50 px-1 rounded-sm text-[10px] whitespace-nowrap">
                                                                                     {s}
                                                                                 </span>
                                                                             );
@@ -1052,11 +1052,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         )}
                     </div>
 
-                    <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-white via-indigo-50/20 to-white">
+                    <div className="p-6 border-t border-slate-100 bg-linear-to-r from-white via-indigo-50/20 to-white">
                         <button 
                             onClick={handlePrint}
                             disabled={filteredItems.length === 0}
-                            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 active:translate-y-0"
+                            className="w-full bg-linear-to-r from-indigo-600 to-indigo-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 active:translate-y-0"
                         >
                             <Printer size={20}/> Δημιουργία PDF Καταλόγου
                             {filteredItems.length > 0 && <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{formatNumber(filteredItems.length)}</span>}

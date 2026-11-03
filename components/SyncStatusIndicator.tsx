@@ -27,7 +27,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({ pendin
         : '';
 
     return (
-        <div title={tooltipText} className="fixed bottom-4 right-4 z-[250] flex flex-col gap-2 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
+        <div title={tooltipText} className="fixed bottom-4 right-4 z-250 flex flex-col gap-2 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
             <div className={`
                 pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md min-w-[200px] transition-all
                 ${isSyncing ? 'bg-blue-900/90 border-blue-500 text-white' :

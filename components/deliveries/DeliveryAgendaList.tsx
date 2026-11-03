@@ -57,7 +57,7 @@ export default function DeliveryAgendaList({
     : 'Εργασίες';
 
   return (
-    <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
+    <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-xs">
       <div className="px-3 pt-2 pb-1 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-black text-[#060b00] tracking-tight">{title}</h3>
@@ -149,7 +149,7 @@ export default function DeliveryAgendaList({
                   key={item.plan.id}
                   className={`rounded-2xl border bg-white transition-all ${
                     isSelected
-                      ? 'border-emerald-200 ring-2 ring-emerald-500/15 shadow-sm'
+                      ? 'border-emerald-200 ring-2 ring-emerald-500/15 shadow-xs'
                       : 'border-slate-100 hover:border-slate-200'
                   }`}
                 >

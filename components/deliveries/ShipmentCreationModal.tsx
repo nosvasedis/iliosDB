@@ -228,21 +228,21 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
     return (
       <div
-        className={`fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}
+        className={`fixed inset-0 z-200 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-xs transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="shipment-progress-title"
         aria-live="polite"
       >
         <div
-          className={`relative w-full max-w-md overflow-hidden rounded-[2rem] border bg-white shadow-2xl transition-all duration-300 ${
+          className={`relative w-full max-w-md overflow-hidden rounded-4xl border bg-white shadow-2xl transition-all duration-300 ${
             isComplete
               ? 'border-emerald-200 shadow-emerald-950/15'
               : 'border-slate-200 shadow-slate-950/15'
           } ${isExiting ? 'scale-95 translate-y-2 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}
         >
           <div className={`absolute inset-x-0 top-0 h-1 ${isComplete ? 'bg-emerald-500' : 'bg-slate-900'}`} />
-          <div className={`absolute inset-0 bg-gradient-to-br ${isComplete ? 'from-emerald-50 via-white to-teal-50/70' : 'from-slate-50 via-white to-emerald-50/40'}`} />
+          <div className={`absolute inset-0 bg-linear-to-br ${isComplete ? 'from-emerald-50 via-white to-teal-50/70' : 'from-slate-50 via-white to-emerald-50/40'}`} />
 
           <div className="relative px-8 py-9 text-center sm:px-10 sm:py-10">
             <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center">
@@ -270,7 +270,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                 : 'Καταχωρίζουμε την αποστολή και συγχρονίζουμε τα στοιχεία της παραγγελίας.'}
             </p>
 
-            <div className="mt-6 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
+            <div className="mt-6 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-4 py-2 text-xs font-bold text-slate-600 shadow-xs">
               <span className="truncate">{formatOrderId(order.id)}</span>
               <span className="text-slate-300">·</span>
               <span className="truncate"><OrderCustomerName order={order} /></span>
@@ -283,7 +283,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
   if (readyItems.length === 0) {
     return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/30 backdrop-blur-xs" onClick={onClose}>
         <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
           <div className="text-center">
             <Package size={48} className="mx-auto text-slate-300 mb-4" />
@@ -297,11 +297,11 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/30 backdrop-blur-xs" onClick={onClose}>
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className={`relative shrink-0 overflow-hidden border-b ${isFullOrderShipment ? 'border-emerald-100/80' : 'border-amber-100/80'}`}>
-          <div className={`absolute inset-0 bg-gradient-to-br ${isFullOrderShipment ? 'from-emerald-50 via-white to-emerald-50/60' : 'from-amber-50 via-white to-emerald-50/60'}`} />
+          <div className={`absolute inset-0 bg-linear-to-br ${isFullOrderShipment ? 'from-emerald-50 via-white to-emerald-50/60' : 'from-amber-50 via-white to-emerald-50/60'}`} />
           <div className="relative p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -346,7 +346,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                   value={searchInput}
                   onChange={e => setSearchInput(e.target.value)}
                   placeholder="Αναζήτηση SKU, πέτρας, φινιρίσματος, μεγέθους..."
-                  className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-amber-400/30 text-sm font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white outline-hidden focus:ring-2 focus:ring-amber-400/30 text-sm font-medium text-slate-700 placeholder:text-slate-400 shadow-xs"
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
@@ -382,7 +382,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-gradient-to-b from-slate-50/40 to-white">
+        <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-linear-to-b from-slate-50/40 to-white">
           {(safetyIssues.length > 0 || safetyError) && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <div className="flex items-center gap-2 font-black">
@@ -424,7 +424,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
             return (
               <div
                 key={key}
-                className={`flex items-center gap-4 rounded-2xl border p-4 transition-all shadow-sm ${
+                className={`flex items-center gap-4 rounded-2xl border p-4 transition-all shadow-xs ${
                   isSelected
                     ? isFullOrderShipment
                       ? 'border-emerald-200 bg-white ring-1 ring-emerald-100'
@@ -451,17 +451,17 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                       className="font-black text-sm"
                     />
                     {item.size_info && (
-                      <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5">
+                      <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-sm border border-blue-100 font-bold flex items-center gap-0.5">
                         <Hash size={8} /> {item.size_info}
                       </span>
                     )}
                     {item.cord_color && (
-                      <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
+                      <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-sm border border-amber-100 font-bold">
                         Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderShipmentItem['cord_color'])}
                       </span>
                     )}
                     {item.enamel_color && (
-                      <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">
+                      <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded-sm border border-rose-100 font-bold">
                         Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderShipmentItem['enamel_color'])}
                       </span>
                     )}
@@ -473,16 +473,16 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                   )}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {finish.name && (
-                      <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-bold">
+                      <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-sm border border-slate-200 font-bold">
                         {finish.name}
                       </span>
                     )}
                     {stone.name && (
-                      <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
+                      <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-sm border border-emerald-100 font-bold">
                         {stone.name}
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-sm">
                       <CheckCircle2 size={10} /> Έτοιμα: {formatNumber(item.quantity)}
                     </span>
                     <span className="text-[10px] font-mono text-slate-500">
@@ -537,14 +537,14 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Προαιρετικές σημειώσεις για αυτή την αποστολή..."
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300/40 resize-none shadow-sm"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-300/40 resize-none shadow-xs"
               rows={2}
             />
           </div>
         </div>
 
         {/* Footer with financials + confirm */}
-        <div className={`p-6 border-t border-slate-100 shrink-0 space-y-4 bg-gradient-to-t ${isFullOrderShipment ? 'from-emerald-50/40' : 'from-amber-50/40'} to-white`}>
+        <div className={`p-6 border-t border-slate-100 shrink-0 space-y-4 bg-linear-to-t ${isFullOrderShipment ? 'from-emerald-50/40' : 'from-amber-50/40'} to-white`}>
           {/* Financial summary */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
             <span className="text-slate-500">{isFullOrderShipment ? 'Υποσύνολο παραγγελίας' : 'Υποσύνολο αποστολής'}</span>

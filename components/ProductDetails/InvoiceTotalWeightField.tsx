@@ -38,7 +38,7 @@ export default function InvoiceTotalWeightField({
                     type="number"
                     min="0.01"
                     step="0.01"
-                    className={`w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-none focus:ring-2 ${focusClass}`}
+                    className={`w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-hidden focus:ring-2 ${focusClass}`}
                     value={value ?? ''}
                     onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
                     placeholder={result.value === null ? 'Χειροκίνητη τιμή' : result.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -47,7 +47,7 @@ export default function InvoiceTotalWeightField({
                     <button
                         type="button"
                         onClick={onClear}
-                        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/60 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-xs shadow-slate-200/60 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                     >
                         <RefreshCw size={14} /> Επιστροφή σε αυτόματο
                     </button>

@@ -458,7 +458,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const renderStockRow = (whId: string, isSystem: boolean, label: string) => {
       const { onHand, reserved, available } = stockForWarehouse(whId);
       return (
-      <div key={whId} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+      <div key={whId} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex items-center justify-between">
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-xl ${isSystem ? (label.includes('Κεντρική') ? 'bg-slate-100 text-slate-600' : 'bg-purple-50 text-purple-600') : 'bg-blue-50 text-blue-600'}`}>
                   <MapPin size={18}/>
@@ -482,14 +482,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
+    <div className="fixed inset-0 z-100 bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
       <div className="relative h-72 bg-white shrink-0 group">
         {localImageUrl ? (
             <img src={localImageUrl} className="w-full h-full object-contain cursor-pointer" alt={product.sku} onClick={() => setShowFullImage(true)}/>
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-50"><ImageIcon size={48} className="opacity-20"/></div>
         )}
-        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-gradient-to-b from-black/40 to-transparent">
+        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-linear-to-b from-black/40 to-transparent">
             <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95"><X size={20}/></button>
             <div className="flex gap-2">
                 <button onClick={() => { setShowShareModal(true); setShareTab('card'); }} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95"><Share2 size={20}/></button>
@@ -512,12 +512,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
             }
         </button>
         <input ref={imageInputRef} type="file" accept={ACCEPTED_IMAGE_INPUT_TYPES} className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-linear-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
                 <div>
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">{product.category}</span>
-                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">{displayGender}</span>
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-sm border border-white/10 uppercase tracking-wide">{product.category}</span>
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-sm border border-white/10 uppercase tracking-wide">{displayGender}</span>
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight leading-none">{product.sku}</h1>
                     <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold"><span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span><span>•</span><span>{formatNumber(product.weight_g)}g</span></div>
@@ -527,15 +527,15 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50 pb-20">
-          <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-              <div className={`relative overflow-hidden rounded-xl border p-3 mb-3 shadow-sm ring-1 ring-inset ring-white/60 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeCardTheme.panel}`}>
+          <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-xs">
+              <div className={`relative overflow-hidden rounded-xl border p-3 mb-3 shadow-xs ring-1 ring-inset ring-white/60 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeCardTheme.panel}`}>
                   <div className={`absolute inset-x-8 top-0 h-px transition-colors duration-200 motion-reduce:transition-none ${activeCardTheme.accent}`} />
                   {variants.length > 0 ? (
                       <div className="flex items-center gap-3 w-full">
                           <button
                               type="button"
                               onClick={prevVariant}
-                              className={`shrink-0 rounded-lg border p-2 shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
+                              className={`shrink-0 rounded-lg border p-2 shadow-xs transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
                               aria-label="Προηγούμενη παραλλαγή"
                           >
                               <ChevronLeft size={20}/>
@@ -548,7 +548,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                           >
                               <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 transition-colors duration-200 motion-reduce:transition-none ${activeCardTheme.label}`}>Παραλλαγή</div>
                               <div
-                                  className={`inline-flex min-h-10 items-center justify-center px-4 py-1.5 rounded-xl font-black text-xl border shadow-sm mb-2 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeBadgeSurface}`}
+                                  className={`inline-flex min-h-10 items-center justify-center px-4 py-1.5 rounded-xl font-black text-xl border shadow-xs mb-2 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeBadgeSurface}`}
                                   aria-label={activeVariant?.suffix || 'ΒΑΣ'}
                               >
                                   {activeVariant?.suffix ? (
@@ -571,7 +571,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                           <button
                               type="button"
                               onClick={nextVariant}
-                              className={`shrink-0 rounded-lg border p-2 shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
+                              className={`shrink-0 rounded-lg border p-2 shadow-xs transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
                               aria-label="Επόμενη παραλλαγή"
                           >
                               <ChevronRight size={20}/>
@@ -594,8 +594,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           </div>
 
           <div className="flex p-1 bg-slate-100 rounded-xl mb-2">
-                <button onClick={() => setActiveTab('info')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'info' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><Info size={14}/> Στοιχεία</button>
-                <button onClick={() => setActiveTab('stock')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><Package size={14}/> Απόθεμα</button>
+                <button onClick={() => setActiveTab('info')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'info' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}><Info size={14}/> Στοιχεία</button>
+                <button onClick={() => setActiveTab('stock')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}><Package size={14}/> Απόθεμα</button>
           </div>
 
           {activeTab === 'stock' && (
@@ -656,7 +656,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                           })}
                       />
                   )}
-                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-4">
                       <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Box size={12}/> Συνταγή / Υλικά</h4>
                           {product.recipe.length > 0 ? (
@@ -695,10 +695,10 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                       return (
                                           <div key={idx} className="flex justify-between items-start gap-3 text-sm p-2 bg-slate-50 rounded-lg">
                                               <div className="min-w-0 flex-1">
-                                                  <div className="font-bold text-slate-700 break-words">{name}</div>
+                                                  <div className="font-bold text-slate-700 wrap-break-word">{name}</div>
                                                   {material && <StoneFamilyBadge material={material} />}
                                                   {material?.description?.trim() ? (
-                                                      <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 whitespace-pre-wrap break-words">{material.description}</p>
+                                                      <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 whitespace-pre-wrap wrap-break-word">{material.description}</p>
                                                   ) : null}
                                               </div>
                                               <span className="font-mono font-bold text-slate-500 shrink-0">x{formatNumber(r.quantity)}</span>
@@ -723,7 +723,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                                       <span className="text-xs text-slate-500 font-bold shrink-0">x{formatNumber(m.quantity)}</span>
                                                   </div>
                                                   {moldDescription.trim() ? (
-                                                      <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap break-words">{moldDescription}</p>
+                                                      <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap wrap-break-word">{moldDescription}</p>
                                                   ) : null}
                                               </div>
                                               <span className="text-[10px] text-amber-600 font-bold uppercase shrink-0">{moldInfo?.location ?? ''}</span>
@@ -765,7 +765,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       )}
 
       {showImageMenu && localImageUrl && (
-          <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in duration-200" onClick={() => { if (!isDeletingImage) setShowImageMenu(false); }}>
+          <div className="fixed inset-0 z-150 bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-200" onClick={() => { if (!isDeletingImage) setShowImageMenu(false); }}>
               <div className="bg-white w-full max-w-sm rounded-t-3xl p-5 pb-7 shadow-2xl space-y-2 animate-in slide-in-from-bottom duration-200" onClick={(e) => e.stopPropagation()}>
                   <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
                   <h3 className="font-black text-base text-slate-800 px-1 pb-1">Φωτογραφία προϊόντος</h3>
@@ -798,12 +798,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       )}
 
       {showShareModal && (
-          <div className="fixed inset-0 z-[110] bg-[#060b00]/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-110 bg-[#060b00]/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
               <div className="bg-slate-100 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative border border-white/10">
                   <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                          <button onClick={() => setShareTab('card')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${shareTab === 'card' ? 'bg-white shadow-sm text-[#060b00]' : 'text-slate-500'}`}>Κάρτα</button>
-                          <button onClick={() => setShareTab('qr')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${shareTab === 'qr' ? 'bg-white shadow-sm text-[#060b00]' : 'text-slate-500'}`}>QR</button>
+                          <button onClick={() => setShareTab('card')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${shareTab === 'card' ? 'bg-white shadow-xs text-[#060b00]' : 'text-slate-500'}`}>Κάρτα</button>
+                          <button onClick={() => setShareTab('qr')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${shareTab === 'qr' ? 'bg-white shadow-xs text-[#060b00]' : 'text-slate-500'}`}>QR</button>
                       </div>
                       <button onClick={() => setShowShareModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={20}/></button>
                   </div>
@@ -817,7 +817,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                             style={{ aspectRatio: '1/1.1' }}
                           >
                               {/* Decorative Background Accent */}
-                              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-emerald-50/50 to-transparent pointer-events-none" />
+                              <div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-emerald-50/50 to-transparent pointer-events-none" />
 
                               {/* Header */}
                               <div className="flex justify-between items-center p-5 pb-2 relative z-10">
@@ -860,7 +860,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                       </div>
                                       {/* Pill Box - Fixed Alignment */}
                                       <div className="flex items-center justify-center">
-                                           <span className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 h-5 flex items-center justify-center rounded-full capitalize shadow-sm pb-[1px]">
+                                           <span className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 h-5 flex items-center justify-center rounded-full capitalize shadow-xs pb-px">
                                               {displayGender}
                                            </span>
                                       </div>
@@ -870,7 +870,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                   <div className="grid grid-cols-2 gap-2">
                                       <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">Υλικό / Φινίρισμα</span>
-                                          <span className="font-bold text-slate-700 text-[9px] leading-tight break-words">{displayPlating}</span>
+                                          <span className="font-bold text-slate-700 text-[9px] leading-tight wrap-break-word">{displayPlating}</span>
                                       </div>
                                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center min-h-[40px]">
                                           <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Βάρος</span>
@@ -878,12 +878,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                       </div>
                                       
                                       {/* Footer / QR Row */}
-                                      <div className="col-span-2 mt-1 flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-1.5 pr-3 shadow-sm">
+                                      <div className="col-span-2 mt-1 flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-1.5 pr-3 shadow-xs">
                                           <div className="w-9 h-9 bg-slate-50 rounded-lg p-0.5 shrink-0 border border-slate-200 flex items-center justify-center">
                                               {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain mix-blend-multiply" />}
                                           </div>
                                           <div className="flex-1 flex flex-col justify-center">
-                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight break-words">{qrDescription}</span>
+                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight wrap-break-word">{qrDescription}</span>
                                           </div>
                                       </div>
                                   </div>
@@ -917,14 +917,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       )}
 
       {transferModal && (
-          <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-160 bg-black/60 backdrop-blur-xs flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Ενδοδιακίνηση</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setTransferModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προέλευσης</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Μέγεθος (προαιρετικό)</label><SizeChips options={stockSizeOptions(product, Object.keys(sizeCountsFor(transferModal.sourceId)))} counts={sizeCountsFor(transferModal.sourceId)} value={transferModal.sizeInfo} allowCustom={false} disabled={stockMutationPending} onChange={(sizeInfo) => setTransferModal({ ...transferModal, sizeInfo })} /></div>
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προορισμού</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"/></div>
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={transferModal.reason} onChange={e => setTransferModal({...transferModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="Καταχωρίστε την αιτία της ενδοδιακίνησης..."/></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προορισμού</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-hidden focus:ring-2 focus:ring-blue-500/20"/></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={transferModal.reason} onChange={e => setTransferModal({...transferModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-blue-500/20" placeholder="Καταχωρίστε την αιτία της ενδοδιακίνησης..."/></div>
                   <button onClick={handleTransferStock} disabled={stockMutationPending || !transferModal.reason.trim()} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50">
                       {stockMutationPending ? <><Loader2 size={20} className="animate-spin"/> Επιβεβαίωση υπολοίπων...</> : <><ArrowRightLeft size={20}/> Καταχώριση</>}
                   </button>
@@ -933,14 +933,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       )}
 
       {adjustModal && (
-          <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-160 bg-black/60 backdrop-blur-xs flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Διόρθωση Αποθέματος</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setAdjustModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div className="text-center text-sm font-bold text-slate-500 mb-2">{warehouses.find(w => w.id === adjustModal.warehouseId)?.name}</div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Μέγεθος (προαιρετικό)</label><SizeChips options={stockSizeOptions(product, Object.keys(sizeCountsFor(adjustModal.warehouseId)))} counts={sizeCountsFor(adjustModal.warehouseId)} value={adjustModal.sizeInfo} disabled={stockMutationPending} onChange={(sizeInfo) => setAdjustModal({ ...adjustModal, sizeInfo, qty: adjustModal.type === 'set' ? (sizeCountsFor(adjustModal.warehouseId)[sizeInfo] || 0) : adjustModal.qty })} /></div>
-                  {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Φυσικό Απόθεμα</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
-                  {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={adjustModal.reason} onChange={e => setAdjustModal({...adjustModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-500/20" placeholder="Καταχωρίστε την αιτία της διόρθωσης..."/></div>
+                  {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Φυσικό Απόθεμα</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-hidden focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
+                  {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-hidden focus:ring-2 focus:ring-slate-500/20"/></div>)}
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={adjustModal.reason} onChange={e => setAdjustModal({...adjustModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-slate-500/20" placeholder="Καταχωρίστε την αιτία της διόρθωσης..."/></div>
                   <button onClick={handleAdjustStock} disabled={stockMutationPending || !adjustModal.reason.trim()} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white disabled:opacity-50 ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}>
                       {stockMutationPending ? <><Loader2 size={20} className="animate-spin"/> Επιβεβαίωση υπολοίπου...</> : <><Save size={20}/> Καταχώριση</>}
                   </button>

@@ -32,7 +32,7 @@ export default function PricingRulesSettings({ settings, onChange }: Props) {
             type="number" min={min} max={key === 'price_rounding_step' ? 100 : 10000} step="0.01"
             value={Number.isFinite(rules[key]) ? rules[key] : ''}
             onChange={event => onChange({ ...settings, pricing_rules: { ...settings.pricing_rules, [key]: event.target.value === '' ? NaN : Number(event.target.value) } })}
-            className="min-w-0 w-full bg-transparent py-3 font-mono text-base font-semibold text-slate-900 outline-none"
+            className="min-w-0 w-full bg-transparent py-3 font-mono text-base font-semibold text-slate-900 outline-hidden"
           />
           <span className="shrink-0 text-xs font-medium text-slate-400">{field.unit}</span>
         </span>
@@ -43,7 +43,7 @@ export default function PricingRulesSettings({ settings, onChange }: Props) {
   const displayWeight = (value: number) => Number.isFinite(value) ? formatDecimal(value) : '…';
 
   return (
-    <section aria-labelledby="pricing-rules-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <section aria-labelledby="pricing-rules-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/70 p-5 md:px-8 md:py-6">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-amber-100 p-3 text-amber-700"><Calculator size={22} /></div>

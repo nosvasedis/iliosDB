@@ -53,8 +53,8 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
             />
 
             {/* Identity card */}
-            <div className="mb-6 flex flex-col gap-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-emerald-50/50 p-5 shadow-sm sm:flex-row sm:items-center">
-                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
+            <div className="mb-6 flex flex-col gap-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-linear-to-br from-white via-white to-emerald-50/50 p-5 shadow-xs sm:flex-row sm:items-center">
+                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-xs">
                     {state.imagePreview ? <img src={state.imagePreview} className="h-full w-full object-cover" alt="" /> : <div className="grid h-full w-full place-items-center text-slate-300"><ImageIcon size={28} /></div>}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -188,14 +188,14 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                     <button
                                         type="button"
                                         onClick={() => setters.setUseIliosFormula(true)}
-                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all ${state.useIliosFormula ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all ${state.useIliosFormula ? 'bg-white text-violet-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         <Wand2 size={12} /> Τύπος Ilios
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setters.setUseIliosFormula(false)}
-                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all ${!state.useIliosFormula ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all ${!state.useIliosFormula ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         <Hand size={12} /> Χειροκίνητη
                                     </button>
@@ -203,12 +203,12 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                             }
                         >
                             {state.useIliosFormula ? (
-                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-fuchsia-50 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-linear-to-r from-violet-50 to-fuchsia-50 p-4">
                                     <p className="text-xs font-medium text-violet-800">Οι τιμές χονδρικής υπολογίζονται αυτόματα με τον Τύπο Ilios κατά την αποθήκευση.</p>
                                     <button
                                         type="button"
                                         onClick={actions.handleApplyIliosFormula}
-                                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-black text-violet-700 shadow-sm transition-colors hover:bg-violet-100"
+                                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-black text-violet-700 shadow-xs transition-colors hover:bg-violet-100"
                                     >
                                         <Wand2 size={13} /> Εφαρμογή Τύπου Ilios
                                     </button>
@@ -227,7 +227,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                                         setters.setUseIliosFormula(false);
                                                         setters.setSellingPrice(parseFloat(e.target.value) || 0);
                                                     }}
-                                                    className="w-full rounded-xl border border-emerald-200 bg-white p-3 pr-8 font-mono text-lg font-black outline-none focus:ring-4 focus:ring-emerald-500/20"
+                                                    className="w-full rounded-xl border border-emerald-200 bg-white p-3 pr-8 font-mono text-lg font-black outline-hidden focus:ring-4 focus:ring-emerald-500/20"
                                                 />
                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-600">€</span>
                                             </div>
@@ -253,7 +253,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                                             step="0.01"
                                                             value={v.selling_price ?? state.sellingPrice ?? 0}
                                                             onChange={e => actions.updateVariant(idx, 'selling_price', parseFloat(e.target.value) || 0)}
-                                                            className="w-full rounded-lg bg-slate-50 py-1.5 pl-2 pr-6 text-right font-mono text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                                                            className="w-full rounded-lg bg-slate-50 py-1.5 pl-2 pr-6 text-right font-mono text-sm font-bold outline-hidden focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                                                             aria-label={`Χονδρική ${v.suffix || 'βασικής'}`}
                                                         />
                                                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">€</span>
@@ -275,12 +275,12 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                         title="Κερδοφορία παραλλαγών"
                         icon={TrendingUp}
                         tone="emerald"
-                        bodyClassName="!p-0"
+                        bodyClassName="p-0!"
                         actions={<span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{formatNumber(state.variants.length)} παραλλαγές</span>}
                     >
                         <div className="max-h-[480px] overflow-auto custom-scrollbar">
                             <table className="w-full text-left text-sm">
-                                <thead className="sticky top-0 z-10 bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400 backdrop-blur">
+                                <thead className="sticky top-0 z-10 bg-slate-50/95 text-[10px] font-black uppercase tracking-wider text-slate-400 backdrop-blur-sm">
                                     <tr>
                                         <th className="p-3 pl-5">Παραλλαγή</th>
                                         <th className="p-3 text-right">Κόστος</th>

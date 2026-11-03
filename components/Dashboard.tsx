@@ -323,7 +323,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                 onClick={() => setHideAmounts((value) => !value)}
                 aria-pressed={!hideAmounts}
                 title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
-                className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
+                className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-xs transition-colors ${
                   hideAmounts
                     ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -337,7 +337,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                 onClick={refreshAll}
                 title="Ανανέωση δεδομένων"
                 aria-label="Ανανέωση δεδομένων"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:text-slate-800"
               >
                 <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
               </button>
@@ -347,7 +347,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
           tailClassName="flex min-w-0 items-center lg:shrink-0 lg:justify-end"
           below={(
             <nav className="flex w-full justify-center px-1" aria-label="Ενότητες πίνακα ελέγχου">
-              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-xs">
                 {DASHBOARD_TABS.map((tab) => {
                   const isActive = activeTab === tab.id;
                   const badge = tab.id === 'overview' ? attentionItems.filter((item) => item.severity === 'critical' || item.severity === 'warning').length : 0;
@@ -358,7 +358,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       onClick={() => setActiveTab(tab.id)}
                       className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
                         isActive
-                          ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90'
+                          ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-slate-200/90'
                           : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
                       }`}
                       aria-current={isActive ? 'page' : undefined}

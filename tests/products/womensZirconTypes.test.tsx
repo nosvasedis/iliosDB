@@ -70,7 +70,7 @@ describe.each([
       item_name: product.sku + 'X' + code, quantity: 1, unit_cost: 0, total_cost: 0,
     }, product)).toMatchObject({ stoneCode: code, stoneColor: color, description: expect.stringContaining(name) });
     expect(getStoneChipStyle(code).text).toBe(code === 'CI' ? 'text-yellow-800' : 'text-fuchsia-800');
-    if (code === 'MUL') expect(getStoneChipStyle(code).dot).toContain('bg-gradient-to-r');
+    if (code === 'MUL') expect(getStoneChipStyle(code).dot).toContain('bg-linear-to-r');
   });
 
   it.each(Object.keys(FINISH_CODES))('requires stone setting for finish "%s" even without recipe materials', (finish) => {

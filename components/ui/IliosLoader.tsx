@@ -38,7 +38,7 @@ export default function IliosLoader({
         <div className={`${stageSize} relative flex items-center justify-center`}>
           {isScreen && (
             <>
-              <div className="absolute h-52 w-52 rounded-full bg-gradient-to-br from-amber-300/25 via-yellow-200/10 to-transparent blur-3xl animate-pulse" />
+              <div className="absolute h-52 w-52 rounded-full bg-linear-to-br from-amber-300/25 via-yellow-200/10 to-transparent blur-3xl animate-pulse" />
               <div className="absolute h-36 w-36 rounded-full border border-amber-200/40 shadow-[0_0_50px_rgba(245,158,11,0.14)]" />
             </>
           )}

@@ -83,7 +83,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
       {children}
       
       {/* Toast Container - Added print:hidden to prevent printing */}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
+      <div className="fixed bottom-6 right-6 z-200 flex flex-col gap-3 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div
             key={toast.id}
@@ -112,7 +112,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
 
       {/* Custom Confirm Modal - Added print:hidden */}
       {confirmState.isOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
+        <div className="fixed inset-0 z-10000 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 print:hidden">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
             <div className={`flex items-center gap-3 mb-4 ${confirmState.options.isDestructive ? 'text-red-600' : 'text-slate-800'}`}>
               <div className={`p-3 rounded-full ${confirmState.options.isDestructive ? 'bg-red-100' : 'bg-slate-100'}`}>
@@ -153,8 +153,8 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
                   ${confirmState.options.confirmDisabled
                     ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed active:scale-100'
                     : confirmState.options.isDestructive
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-200 hover:from-red-600 hover:to-red-700'
-                    : 'bg-gradient-to-r from-slate-800 to-slate-900 shadow-slate-300 hover:from-slate-700 hover:to-slate-800'}
+                    ? 'bg-linear-to-r from-red-500 to-red-600 shadow-red-200 hover:from-red-600 hover:to-red-700'
+                    : 'bg-linear-to-r from-slate-800 to-slate-900 shadow-slate-300 hover:from-slate-700 hover:to-slate-800'}
                 `}
               >
                 {confirmState.options.confirmText || 'Εντάξει'}

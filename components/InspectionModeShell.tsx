@@ -134,7 +134,7 @@ const InspectionModeShell: React.FC = () => {
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={sidebarAsideClass(isCollapsed)}>
-          <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-16 px-1.5' : 'px-5 py-4'}`}>
+          <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/6 ${isCollapsed ? 'h-16 px-1.5' : 'px-5 py-4'}`}>
             {!isCollapsed ? (
               <>
                 <img src={APP_LOGO} alt="Ilios Kosmima" className="mx-auto h-14 w-auto max-w-full object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)]" />
@@ -165,7 +165,7 @@ const InspectionModeShell: React.FC = () => {
             ))}
           </nav>
 
-          <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
+          <div className="shrink-0 border-t border-white/6 px-1.5 py-2">
             <p className="mb-0.5 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80">
               {isCollapsed ? (isProduction ? 'PROD' : 'TEST') : `SBZ ${environment}`}
             </p>

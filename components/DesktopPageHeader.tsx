@@ -39,8 +39,8 @@ export const DEFAULT_HEADER_BACKDROP = (
   <>
     <div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl" />
     <div className="absolute -top-20 right-1/3 h-56 w-56 rounded-full bg-amber-100/50 blur-3xl" />
-    <div className="absolute inset-0 opacity-[0.35] [background-image:radial-gradient(rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
-    <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300" />
+    <div className="absolute inset-0 opacity-[0.35] bg-[radial-gradient(rgba(15,23,42,0.07)_1px,transparent_1px)] bg-size-[18px_18px] mask-[linear-gradient(to_bottom,black,transparent_70%)]" />
+    <div className="absolute inset-x-0 top-0 h-[3px] bg-linear-to-r from-emerald-400 via-teal-400 to-amber-300" />
   </>
 );
 
@@ -53,8 +53,8 @@ type HeaderPrimaryButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & 
 /** Main header action ("Νέο …"), matching the Μητρώο Κωδικών look: dark gradient, icon tile, hover sweep. */
 export function HeaderPrimaryButton({ icon: ActionIcon, tone = 'dark', className = '', children, type = 'button', ...rest }: HeaderPrimaryButtonProps) {
   const surface = tone === 'blue'
-    ? 'bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 shadow-blue-900/25 hover:shadow-blue-900/30'
-    : 'bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] shadow-[#060b00]/25 hover:shadow-emerald-900/25';
+    ? 'bg-linear-to-br from-blue-600 via-blue-700 to-indigo-800 shadow-blue-900/25 hover:shadow-blue-900/30'
+    : 'bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] shadow-[#060b00]/25 hover:shadow-emerald-900/25';
   const tile = tone === 'blue' ? 'from-sky-300 to-blue-400' : 'from-emerald-400 to-teal-500';
   return (
     <button
@@ -62,8 +62,8 @@ export function HeaderPrimaryButton({ icon: ActionIcon, tone = 'dark', className
       className={`group relative flex h-11 shrink-0 items-center justify-center gap-2 overflow-hidden rounded-xl pl-1.5 pr-4 text-sm font-bold text-white shadow-lg ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-px hover:shadow-xl active:translate-y-0 disabled:pointer-events-none disabled:opacity-50 ${surface} ${className}`}
       {...rest}
     >
-      <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]" />
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white shadow-inner shadow-white/20 ${tile}`}>
+      <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-linear-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]" />
+      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-linear-to-br text-white shadow-inner shadow-white/20 ${tile}`}>
         <ActionIcon size={18} strokeWidth={2.75} />
       </span>
       {children}
@@ -95,7 +95,7 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
   return (
     <div
       ref={ref}
-      className={`relative isolate shrink-0 border border-slate-100 bg-white shadow-sm ${roundedClassName} ${p} ${className}`}
+      className={`relative isolate shrink-0 border border-slate-100 bg-white shadow-xs ${roundedClassName} ${p} ${className}`}
     >
       {/* Clipped on its own layer so dropdowns/popovers in the header are never cut off. */}
       {decoration ? <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[inherit]" aria-hidden>{decoration}</div> : null}
@@ -104,7 +104,7 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
       >
         <div className="flex min-w-0 items-start gap-3">
           {leading}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
             <Icon size={iconSize} strokeWidth={2.25} />
           </div>
           <div className="min-w-0 pt-0.5">

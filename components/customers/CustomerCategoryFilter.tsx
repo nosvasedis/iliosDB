@@ -13,7 +13,7 @@ interface Props {
 }
 
 const ACTIVITIES: CustomerActivity[] = ['active', 'quiet', 'inactive', 'none'];
-const chip = (selected: boolean) => `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${selected ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`;
+const chip = (selected: boolean) => `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 ${selected ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`;
 
 /** Multi-select: e.g. Ενεργοί + Σε ύφεση; when Ενεργοί is on, its tiers can be narrowed too. */
 export default function CustomerCategoryFilter({ entries, value, onChange }: Props) {
@@ -36,7 +36,7 @@ export default function CustomerCategoryFilter({ entries, value, onChange }: Pro
 
   return (
     <div className="min-w-0 space-y-2">
-      <div className="flex items-center gap-1 overflow-x-auto rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100 [scrollbar-width:none]" role="group" aria-label="Κατηγορία πελατών (πολλαπλή επιλογή)">
+      <div className="flex items-center gap-1 overflow-x-auto rounded-xl bg-white p-1 shadow-xs ring-1 ring-slate-100 scrollbar-none" role="group" aria-label="Κατηγορία πελατών (πολλαπλή επιλογή)">
         <button type="button" aria-pressed={all} onClick={() => onChange({ activities: [], tiers: [] })} className={chip(all)}>Όλοι</button>
         {ACTIVITIES.map(activity => {
           const selected = value.activities.includes(activity);

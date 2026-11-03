@@ -237,7 +237,7 @@ export default function SellersPage() {
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Αναζήτηση..."
-                className="pl-9 pr-4 py-2 w-64 rounded-xl bg-white border border-slate-200 text-sm font-medium outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                className="pl-9 pr-4 py-2 w-64 rounded-xl bg-white border border-slate-200 text-sm font-medium outline-hidden focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
               />
               {searchTerm && (
                 <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -312,10 +312,10 @@ export default function SellersPage() {
 
       {/* ── Detail Modal ── */}
       {detailSeller && detailStats && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDetailSeller(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs" onClick={() => setDetailSeller(null)}>
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
+            <div className="px-6 py-5 border-b border-slate-100 bg-linear-to-r from-slate-50 to-white flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center text-xl font-black">
                   {detailSeller.full_name.charAt(0).toUpperCase()}
@@ -340,7 +340,7 @@ export default function SellersPage() {
               </div>
 
               {/* 30-day Trend */}
-              <div className="bg-gradient-to-r from-slate-50 to-white rounded-xl border border-slate-100 p-4">
+              <div className="bg-linear-to-r from-slate-50 to-white rounded-xl border border-slate-100 p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Τελευταίες 30 Ημέρες</p>
@@ -421,7 +421,7 @@ export default function SellersPage() {
 
       {/* ── Create / Edit Modal ── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowCreateModal(false); setEditingSeller(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs" onClick={() => { setShowCreateModal(false); setEditingSeller(null); }}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-lg font-black text-slate-800">{editingSeller ? 'Επεξεργασία Πλασιέ' : 'Νέος Πλασιέ'}</h2>
@@ -433,14 +433,14 @@ export default function SellersPage() {
               {/* Full Name */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
-                <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. Γιάννης Παπαδόπουλος" autoFocus />
+                <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. Γιάννης Παπαδόπουλος" autoFocus />
               </div>
               {/* Email */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ηλ. ταχυδρομείο</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="seller@example.com" type="email" disabled={!!editingSeller} />
+                  <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="seller@example.com" type="email" disabled={!!editingSeller} />
                 </div>
               </div>
               {/* Password (create) or Reset (edit) */}
@@ -449,7 +449,7 @@ export default function SellersPage() {
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Κωδικός</label>
                   <div className="relative">
                     <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} className="w-full p-3 pl-10 pr-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Τουλάχιστον 6 χαρακτήρες" type={showPassword ? 'text' : 'password'} />
+                    <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} className="w-full p-3 pl-10 pr-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Τουλάχιστον 6 χαρακτήρες" type={showPassword ? 'text' : 'password'} />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -466,7 +466,7 @@ export default function SellersPage() {
                       <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Νέος Κωδικός</label>
                       <div className="relative">
                         <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input value={resetPassword} onChange={e => setResetPassword(e.target.value)} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Νέος κωδικός" type={showPassword ? 'text' : 'password'} />
+                        <input value={resetPassword} onChange={e => setResetPassword(e.target.value)} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Νέος κωδικός" type={showPassword ? 'text' : 'password'} />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
@@ -480,7 +480,7 @@ export default function SellersPage() {
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Προμήθεια (%)</label>
                 <div className="relative">
                   <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.commission_percent} onChange={e => { const val = e.target.value.replace(/[^0-9.,]/g, ''); setForm(p => ({ ...p, commission_percent: val })); }} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. 5" inputMode="decimal" />
+                  <input value={form.commission_percent} onChange={e => { const val = e.target.value.replace(/[^0-9.,]/g, ''); setForm(p => ({ ...p, commission_percent: val })); }} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. 5" inputMode="decimal" />
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">Μπορεί να αλλαχτεί ανά παραγγελία</p>
               </div>
@@ -546,7 +546,7 @@ function TrendBadge({ current, previous }: { current: number; previous: number }
 
 function SellerCard({ seller, stats, onEdit, onToggle, onDetail, inactive }: { seller: UserProfile; stats?: SellerStats; onEdit: () => void; onToggle: () => void; onDetail: () => void; inactive?: boolean }) {
   return (
-    <div className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md transition-all ${inactive ? 'border-slate-200 opacity-60' : 'border-slate-100'}`}>
+    <div className={`bg-white rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all ${inactive ? 'border-slate-200 opacity-60' : 'border-slate-100'}`}>
       {/* Header row */}
       <div className="flex items-start gap-3 mb-4">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shrink-0 ${inactive ? 'bg-slate-100 text-slate-400' : 'bg-sky-50 text-sky-600'}`}>

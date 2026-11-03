@@ -154,7 +154,7 @@ export default function StatementBuilder({ party, workspace, products, materials
               <div key={assignment.id} className="flex items-center gap-2 bg-amber-50/60 px-3 py-2 text-xs">
                 <AlertTriangle size={14} className="text-amber-600" />
                 <span className="flex-1 font-semibold text-amber-900">{assignment.sku}{assignment.variant_suffix || ''} · {assignment.quantity} τεμ. — {reason}</span>
-                <button type="button" onClick={() => unassign.mutateAsync(assignment.id).catch((error) => showToast(error.message, 'error'))} className="rounded p-1 text-amber-700 hover:bg-amber-100" aria-label="Αφαίρεση"><Trash2 size={13} /></button>
+                <button type="button" onClick={() => unassign.mutateAsync(assignment.id).catch((error) => showToast(error.message, 'error'))} className="rounded-sm p-1 text-amber-700 hover:bg-amber-100" aria-label="Αφαίρεση"><Trash2 size={13} /></button>
               </div>
             ))}
           </div>

@@ -54,15 +54,15 @@ function VariantCostCard({
     const finishDot = FINISH_DOTS[getVariantComponents(item.suffix, product.gender).finish.code] || FINISH_DOTS[''];
 
     return (
-        <article className={`rounded-xl border bg-white p-4 transition-shadow ${isActive ? 'border-emerald-300 shadow-sm ring-2 ring-emerald-100' : 'border-slate-200 hover:shadow-sm'}`}>
+        <article className={`rounded-xl border bg-white p-4 transition-shadow ${isActive ? 'border-emerald-300 shadow-xs ring-2 ring-emerald-100' : 'border-slate-200 hover:shadow-xs'}`}>
             <header className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${finishDot}`} />
                         <SkuColorizedText sku={product.sku} suffix={item.suffix} gender={product.gender} className="text-sm font-bold" />
-                        {isActive && <span className="rounded bg-emerald-100 px-1.5 py-px text-[10px] font-semibold text-emerald-700">Σε προβολή</span>}
+                        {isActive && <span className="rounded-sm bg-emerald-100 px-1.5 py-px text-[10px] font-semibold text-emerald-700">Σε προβολή</span>}
                     </div>
-                    <p className="mt-0.5 truncate pl-[1.125rem] text-xs text-slate-500">{item.description}</p>
+                    <p className="mt-0.5 truncate pl-4.5 text-xs text-slate-500">{item.description}</p>
                 </div>
                 <div className="flex shrink-0 items-start gap-1">
                     <div className="text-right">
@@ -169,7 +169,7 @@ export default function LaborSection({
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <DetailsSection tone="labor" icon={Hammer} className="overflow-hidden" title="Εργατικά" subtitle="Συντελεστής × βάση βάρους · το λουκέτο κλειδώνει χειροκίνητο ποσό">
                 <div className="-mx-5 -mb-5 overflow-x-auto">
-                    <div className="min-w-[36rem] divide-y divide-slate-100">
+                    <div className="min-w-xl divide-y divide-slate-100">
                         <LaborSheetHeader />
                         <LaborSheetRow
                             icon={Flame}

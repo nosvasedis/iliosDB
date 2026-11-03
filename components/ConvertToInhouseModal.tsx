@@ -226,13 +226,13 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
 
     return createPortal(
         <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-9999 p-4"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
 
                 {/* ── Header ── */}
-                <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
+                <div className="bg-linear-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-white/20 rounded-xl">
                             <Flame size={22} className="text-white" />
@@ -417,7 +417,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                 <div className="border-t border-slate-100 p-4 flex items-center justify-between gap-3 bg-slate-50/50">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                        className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-xs"
                     >
                         Ακύρωση
                     </button>
@@ -428,7 +428,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                         </div>
                         <button
                             onClick={handleConfirm}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
+                            className="flex items-center gap-2 px-6 py-2.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl font-bold text-sm transition-colors shadow-xs"
                         >
                             <Flame size={16} />
                             Εφαρμογή Μετατροπής

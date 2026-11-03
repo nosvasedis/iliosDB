@@ -17,7 +17,7 @@ interface LabelPrintSettingsPanelProps {
 }
 
 const segmented = 'flex gap-2 bg-slate-50 p-1 rounded-xl';
-const segmentButton = (active: boolean, activeClass = 'bg-white text-slate-900 shadow-sm') =>
+const segmentButton = (active: boolean, activeClass = 'bg-white text-slate-900 shadow-xs') =>
   `flex-1 py-2 rounded-lg text-xs font-bold transition-all ${active ? activeClass : 'text-slate-500 hover:text-slate-700'}`;
 const fieldLabel = 'text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2';
 
@@ -46,7 +46,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
       <button
         type="button"
         onClick={() => onFormatChange('retail')}
-        className={`${segmentButton(format === 'retail', 'bg-white text-emerald-700 shadow-sm')} flex items-center justify-center gap-2 py-2.5`}
+        className={`${segmentButton(format === 'retail', 'bg-white text-emerald-700 shadow-xs')} flex items-center justify-center gap-2 py-2.5`}
       >
         <ShoppingBag size={14} /> Λιανική
       </button>
@@ -89,7 +89,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
         <button
           type="button"
           onClick={() => onPriceTierChange('retail')}
-          className={`${segmentButton(priceTier === 'retail', 'bg-white text-emerald-700 shadow-sm')} flex items-center justify-center gap-1`}
+          className={`${segmentButton(priceTier === 'retail', 'bg-white text-emerald-700 shadow-xs')} flex items-center justify-center gap-1`}
         >
           <ShoppingBag size={12} /> Λιανική ×3
         </button>
@@ -112,7 +112,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
           type="button"
           onClick={() => onCodifiedPriceChange?.(true)}
           title="Κωδικοποιημένη τιμή: 1 + τιμή χωρίς υποδιαστολή + 9"
-          className={`${segmentButton(codifiedPrice, 'bg-white text-violet-700 shadow-sm')} flex items-center justify-center gap-1`}
+          className={`${segmentButton(codifiedPrice, 'bg-white text-violet-700 shadow-xs')} flex items-center justify-center gap-1`}
         >
           <Hash size={12} /> Κωδικοπ. 132209
         </button>
@@ -121,7 +121,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
   ) : null;
 
   if (layout === 'toolbar') {
-    const selectClass = 'rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-40';
+    const selectClass = 'rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 outline-hidden focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-40';
     return (
       <div className="flex flex-1 flex-nowrap items-center gap-3 whitespace-nowrap">
         <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500" title="Διαστάσεις και διάταξη της ετικέτας">
@@ -132,7 +132,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
           </select>
         </label>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 border-l border-slate-200 pl-3 text-xs font-medium text-slate-600" title="Εμφάνιση τιμής στην εκτυπωμένη ετικέτα">
-          <input type="checkbox" checked={showPrice} onChange={e => onShowPriceChange(e.target.checked)} className="h-4 w-4 rounded accent-sky-600" />
+          <input type="checkbox" checked={showPrice} onChange={e => onShowPriceChange(e.target.checked)} className="h-4 w-4 rounded-sm accent-sky-600" />
           Με τιμή
         </label>
         <select aria-label="Τιμή ετικέτας" title="Τιμή ετικέτας: χονδρική ή λιανική ×3" disabled={!showPrice} value={priceTier} onChange={e => onPriceTierChange(e.target.value as LabelPriceTier)} className={selectClass}>
@@ -144,7 +144,7 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
             className={`flex shrink-0 cursor-pointer items-center gap-2 border-l border-slate-200 pl-3 text-xs font-medium text-slate-600 ${!showPrice ? 'pointer-events-none opacity-40' : ''}`}
             title="Κωδικοποιημένη τιμή: 1 + τιμή χωρίς υποδιαστολή + 9 (π.χ. 32,20€ → 132209)"
           >
-            <input type="checkbox" checked={codifiedPrice} disabled={!showPrice} onChange={e => onCodifiedPriceChange?.(e.target.checked)} className="h-4 w-4 rounded accent-violet-600" />
+            <input type="checkbox" checked={codifiedPrice} disabled={!showPrice} onChange={e => onCodifiedPriceChange?.(e.target.checked)} className="h-4 w-4 rounded-sm accent-violet-600" />
             <Hash size={13} /> Κωδικοποιημένη
           </label>
         )}

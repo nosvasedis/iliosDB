@@ -34,7 +34,7 @@ function useTopmostEscape(onClose: () => void, disabled = false): void {
 // ──────────────────────────────────────────────
 
 export const SERVICE_INPUT =
-  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5 disabled:bg-slate-50 disabled:text-slate-500';
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-hidden transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5 disabled:bg-slate-50 disabled:text-slate-500';
 
 /** Κύριο κουμπί: ένα ανά οθόνη. */
 export const ACTION_PRIMARY =
@@ -87,7 +87,7 @@ export function ChoicePills<T extends string>({ value, options, onChange, size =
             aria-checked={active}
             title={option.hint}
             onClick={() => onChange(option.value)}
-            className={`rounded-lg font-bold transition ${size === 'sm' ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'} ${active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`rounded-lg font-bold transition ${size === 'sm' ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'} ${active ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
           >
             {option.label}
           </button>
@@ -124,7 +124,7 @@ export function ServiceModal({
   const width = size === 'sm' ? 'sm:max-w-md' : size === 'lg' ? 'sm:max-w-3xl' : 'sm:max-w-xl';
   return (
     <ViewportPortal>
-      <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-4 print:hidden" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <div className="fixed inset-0 z-200 flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-4 print:hidden" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
         <div className={`flex max-h-[94vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 sm:rounded-2xl ${width}`}>
           <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -166,7 +166,7 @@ export function ServiceDrawer({
   useTopmostEscape(onClose);
   return (
     <ViewportPortal>
-      <div className="fixed inset-0 z-[180] flex justify-end bg-slate-950/30 print:hidden" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="fixed inset-0 z-180 flex justify-end bg-slate-950/30 print:hidden" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         <aside className="flex h-full w-full max-w-[600px] flex-col bg-slate-50 shadow-2xl animate-in slide-in-from-right duration-200">
           <header className="border-b border-slate-200 bg-white px-5 pb-4 pt-3 sm:px-6">
             <div className="flex min-h-9 items-center justify-between gap-3">
@@ -316,7 +316,7 @@ export function ActionMenu({ actions, label = 'Περισσότερες ενέρ
             ref={menuRef}
             role="menu"
             style={{ position: 'fixed', top: position.top, bottom: position.bottom, left: position.left, width: MENU_WIDTH }}
-            className="z-[260] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+            className="z-260 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >

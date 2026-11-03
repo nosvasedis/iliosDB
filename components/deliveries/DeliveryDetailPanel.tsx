@@ -130,7 +130,7 @@ interface EmptyProps {
 
 function EmptyDetailState({ attentionPreview = [], onSelectItem, onNewPlan }: EmptyProps) {
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4 sticky top-4">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-6 space-y-4 sticky top-4">
       <div>
         <h3 className="text-lg font-bold text-[#060b00]">Επιλέξτε εργασία</h3>
         <p className="text-sm font-medium text-slate-500 mt-1">
@@ -219,7 +219,7 @@ export default function DeliveryDetailPanel({
   const hasShipmentHistory = item.shipment_history && item.shipment_history.length > 0;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4 sticky top-4">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-6 space-y-4 sticky top-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-black uppercase tracking-wider text-slate-400">

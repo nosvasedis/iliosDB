@@ -112,7 +112,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     [batchesByStage]);
 
     return (
-        <div className={`bg-white rounded-2xl border transition-all shadow-sm ${cardBorderClass}`}>
+        <div className={`bg-white rounded-2xl border transition-all shadow-xs ${cardBorderClass}`}>
             {/* TOP: Item Info & Send Controls */}
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3 p-3">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -136,9 +136,9 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <ProductionSkuButton onOpen={onOpenProduct} sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black text-sm" masterClassName={spStub ? 'text-violet-900' : 'text-slate-900'} />
                             {row.fulfillment_mode === 'consignment' && <ConsignmentBadge compact />}
-                            {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
-                            {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
-                            {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}
+                            {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-sm border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
+                            {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-sm border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
+                            {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded-sm border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}
                         </div>
                         <div className={`text-[10px] font-bold uppercase truncate mt-0.5 ${spStub ? 'text-violet-600' : 'text-slate-400'}`}>
                             {product?.category ?? spStub?.category}
@@ -146,19 +146,19 @@ export const BatchItemCard = React.memo(function BatchItemCard({
 
                         {/* Quantity stats row */}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-                            <span className="bg-slate-50 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                            <span className="bg-slate-50 text-slate-600 px-1.5 py-0.5 rounded-sm border border-slate-200">
                                 Παρ: {formatNumber(row.quantity)}
                             </span>
                             {row.shippedQty > 0 && (
-                                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-sm border border-emerald-200">
                                     Αποστ: {formatNumber(row.shippedQty)}
                                 </span>
                             )}
-                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-sm border border-blue-200">
                                 Σε εξέλ: {formatNumber(row.inProgressQty + row.readyQty)}
                             </span>
                             {row.remainingQty > 0 && (
-                                <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
+                                <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-sm border border-amber-200">
                                     Υπόλ: {formatNumber(row.remainingQty)}
                                 </span>
                             )}
@@ -169,7 +169,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                             {discountFactor < 1 ? (
                                 <span className="flex items-center gap-1.5 flex-wrap">
                                     <span className="line-through opacity-60">{formatCurrency(row.price)}</span>
-                                    <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded text-[9px]">
+                                    <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-sm text-[9px]">
                                         {formatCurrency(row.price * discountFactor)} μετά έκπτωση
                                     </span>
                                 </span>
@@ -181,7 +181,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         {/* Row note */}
                         <SpecialCreationNote sku={row.sku} note={row.notes} compact className="mt-1" />
                         {row.notes && !isSpecialCreationSku(row.sku) && (
-                            <div className="mt-1 flex items-start gap-1 p-1 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
+                            <div className="mt-1 flex items-start gap-1 p-1 bg-yellow-50 text-yellow-800 rounded-sm border border-yellow-100 max-w-fit">
                                 <StickyNote size={9} className="shrink-0 mt-0.5" />
                                 <span className="text-[9px] font-bold italic leading-tight">{row.notes}</span>
                             </div>
@@ -227,16 +227,16 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         </div>
                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Παραγ. (Max: {formatNumber(row.remainingQty)})</div>
                         <div className="flex items-center gap-0.5 bg-blue-50 p-0.5 rounded-lg border border-blue-100">
-                            <button onClick={() => onUpdateToSend(originalIndex, currentSend - 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={13} /></button>
+                            <button onClick={() => onUpdateToSend(originalIndex, currentSend - 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-xs text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={13} /></button>
                             <input
                                 type="number"
                                 min="0"
                                 max={row.remainingQty}
                                 value={currentSend}
                                 onChange={(e) => onUpdateToSend(originalIndex, parseInt(e.target.value) || 0)}
-                                className="w-9 text-center font-black text-base bg-transparent outline-none text-blue-900"
+                                className="w-9 text-center font-black text-base bg-transparent outline-hidden text-blue-900"
                             />
-                            <button onClick={() => onUpdateToSend(originalIndex, currentSend + 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Plus size={13} /></button>
+                            <button onClick={() => onUpdateToSend(originalIndex, currentSend + 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-xs text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Plus size={13} /></button>
                         </div>
                     </div>
                 )}
@@ -270,7 +270,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                                                 {stageBatches.length > 1 && (
                                                     <button
                                                         onClick={() => onMergeBatches(stageId as ProductionStage, stageBatches)}
-                                                        className="flex items-center gap-1 text-[9px] font-black bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100 hover:bg-purple-100 transition-colors"
+                                                        className="flex items-center gap-1 text-[9px] font-black bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-sm border border-purple-100 hover:bg-purple-100 transition-colors"
                                                     >
                                                         <Merge size={9} /> Συγχ. ({formatNumber(stageBatches.length)})
                                                     </button>

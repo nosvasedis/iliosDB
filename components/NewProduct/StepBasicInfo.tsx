@@ -49,7 +49,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                 key={type}
                                 type="button"
                                 onClick={() => setters.setProductionType(type)}
-                                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black transition-all ${state.productionType === type ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-black transition-all ${state.productionType === type ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Icon size={14} /> {label}
                             </button>
@@ -61,17 +61,17 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
                 {/* Photo */}
                 <div>
-                    <div className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-white shadow-sm transition-all hover:border-emerald-400 hover:shadow-md">
+                    <div className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-linear-to-br from-slate-50 to-white shadow-xs transition-all hover:border-emerald-400 hover:shadow-md">
                         {state.imagePreview ? (
                             <>
                                 <img src={state.imagePreview} className="h-full w-full object-cover" alt="" />
-                                <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/50 via-transparent to-transparent pb-4 opacity-0 transition-opacity group-hover:opacity-100">
+                                <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-linear-to-t from-black/50 via-transparent to-transparent pb-4 opacity-0 transition-opacity group-hover:opacity-100">
                                     <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700"><Upload size={12} /> Αλλαγή</span>
                                 </div>
                             </>
                         ) : (
                             <div className="pointer-events-none flex h-full flex-col items-center justify-center gap-2 text-slate-400">
-                                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition-colors group-hover:text-emerald-500"><ImageIcon size={26} /></div>
+                                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white shadow-xs ring-1 ring-slate-200 transition-colors group-hover:text-emerald-500"><ImageIcon size={26} /></div>
                                 <span className="text-xs font-bold">Μεταφόρτωση φωτογραφίας</span>
                                 <span className="text-[10px] font-medium text-slate-300">Κλικ ή σύρετε εδώ</span>
                             </div>
@@ -90,7 +90,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                 value={state.sku}
                                 onChange={(e) => setters.setSku(e.target.value.toUpperCase())}
                                 placeholder="π.χ. DA752"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-2xl font-black uppercase tracking-wide text-slate-900 outline-none transition-all placeholder:text-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-2xl font-black uppercase tracking-wide text-slate-900 outline-hidden transition-all placeholder:text-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                             />
                             {state.detectedSuffix && (
                                 <div className="mt-2 flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800 animate-in fade-in slide-in-from-top-1">
@@ -124,7 +124,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                             key={g.value}
                                             type="button"
                                             onClick={() => { setters.setGender(g.value); setters.setIsGenderManuallySet(true); }}
-                                            className={`rounded-lg py-2 text-xs font-bold transition-all ${state.gender === g.value ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-slate-500 hover:text-slate-800'}`}
+                                            className={`rounded-lg py-2 text-xs font-bold transition-all ${state.gender === g.value ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-100' : 'text-slate-500 hover:text-slate-800'}`}
                                         >
                                             {g.label}
                                         </button>
@@ -261,7 +261,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                             }
                                         }}
                                         className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all active:scale-95 ${isSelected
-                                            ? `${FINISH_CHIP[code]} shadow-sm`
+                                            ? `${FINISH_CHIP[code]} shadow-xs`
                                             : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800'
                                             }`}
                                     >

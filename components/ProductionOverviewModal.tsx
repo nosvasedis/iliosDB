@@ -199,7 +199,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold, onEditNote, isMo
                     {open && ReactDOM.createPortal(
                         <div
                             ref={popupRef}
-                            className="fixed bg-white rounded-xl border border-slate-200 shadow-2xl p-2 z-[9999] space-y-1 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto custom-scrollbar"
+                            className="fixed bg-white rounded-xl border border-slate-200 shadow-2xl p-2 z-9999 space-y-1 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto custom-scrollbar"
                             style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width, maxHeight: 300 }}
                             onClick={e => e.stopPropagation()}
                         >
@@ -223,7 +223,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold, onEditNote, isMo
                                                     ${isCurrentPending ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/20'
                                                         : disabled ? 'opacity-40 cursor-not-allowed text-slate-300 border border-transparent'
                                                         : isPast ? 'bg-amber-50 text-amber-700 border border-amber-200 opacity-70 hover:opacity-100'
-                                                        : 'bg-amber-50 text-amber-700 border border-amber-200 hover:shadow-sm'}
+                                                        : 'bg-amber-50 text-amber-700 border border-amber-200 hover:shadow-xs'}
                                                 `}
                                             >
                                                 <span>Τεχνίτης • Αναμονή</span>
@@ -236,7 +236,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold, onEditNote, isMo
                                                     ${isCurrentDispatched ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/20'
                                                         : disabled ? 'opacity-40 cursor-not-allowed text-slate-300 border border-transparent'
                                                         : isPast ? 'bg-blue-50 text-blue-700 border border-blue-200 opacity-70 hover:opacity-100'
-                                                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:shadow-sm'}
+                                                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:shadow-xs'}
                                                 `}
                                             >
                                                 <span>Τεχνίτης • Στον Τεχν.</span>
@@ -255,7 +255,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold, onEditNote, isMo
                                             ${isCurrent ? `${sc.bg} ${sc.text} ${sc.border} border ring-2 ring-offset-1 ring-current/20`
                                                 : disabled ? 'opacity-40 cursor-not-allowed text-slate-300 border border-transparent'
                                                 : isPast ? `${sc.bg} ${sc.text} border ${sc.border} opacity-70 hover:opacity-100`
-                                                : `${sc.bg} ${sc.text} border ${sc.border} hover:shadow-sm`}
+                                                : `${sc.bg} ${sc.text} border ${sc.border} hover:shadow-xs`}
                                         `}
                                     >
                                         <span>{s.label}</span>
@@ -321,8 +321,8 @@ export default function ProductionOverviewModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-3xl h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+        <div className="fixed inset-0 z-150 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-6 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-3xl h-[90vh] rounded-4xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
 
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
@@ -406,8 +406,8 @@ export default function ProductionOverviewModal({
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className={`bg-white rounded-2xl border shadow-sm overflow-hidden relative ${leftBorder}
-                                                    ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/40' : 'border-l-[3px] border-slate-200 hover:shadow-md'}
+                                                className={`bg-white rounded-2xl border shadow-xs overflow-hidden relative ${leftBorder}
+                                                    ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : batch.on_hold ? 'border-l-4 border-amber-200 bg-amber-50/40' : 'border-l-[3px] border-slate-200 hover:shadow-md'}
                                                     transition-shadow`}
                                             >
                                                 {isRowMoving && (
@@ -443,7 +443,7 @@ export default function ProductionOverviewModal({
                                                                 masterClassName="text-slate-800"
                                                             />
                                                             {batch.size_info && (
-                                                                <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-500 shrink-0">
+                                                                <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200 font-bold text-slate-500 shrink-0">
                                                                     {batch.size_info}
                                                                 </span>
                                                             )}

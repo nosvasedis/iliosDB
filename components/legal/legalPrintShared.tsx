@@ -336,7 +336,7 @@ export const getMeasurementUnitLabel = (unit: number) => {
 const InfoRow = ({ label, value, mono = false }: { label: string; value?: React.ReactNode; mono?: boolean }) => (
   <div className="grid grid-cols-[35mm_1fr] gap-1 border-b border-slate-100 py-[2px] last:border-b-0">
     <dt className="font-bold uppercase tracking-[0.04em] text-slate-500">{label}:</dt>
-    <dd className={`${mono ? 'font-mono' : ''} min-w-0 break-words font-semibold text-slate-800`}>{value === null || value === undefined || value === '' ? '-' : value}</dd>
+    <dd className={`${mono ? 'font-mono' : ''} min-w-0 wrap-break-word font-semibold text-slate-800`}>{value === null || value === undefined || value === '' ? '-' : value}</dd>
   </div>
 );
 
@@ -660,7 +660,7 @@ export function LegalPrintAadePanel(props: {
           <div className="mt-auto border-t border-slate-300 pt-1 text-center text-[8.5px]">Υπογραφή / Σφραγίδα</div>
         </div>
       </div>
-      <div className="legal-print-full-width-details mt-0.5 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-[1.25] text-slate-700">
+      <div className="legal-print-full-width-details mt-0.5 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-tight text-slate-700">
         <p className="font-black uppercase tracking-[0.08em] text-slate-700">Όροι παράδοσης</p>
         <ol className="mt-0.5 space-y-0.5">
           {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{formatNumber(index + 1)}.</span>{term}</li>)}
@@ -711,7 +711,7 @@ export function LegalPrintLinesTable({
                 data-legal-print-line-index={globalIndex}
                 className={`border-b border-slate-200/80 align-top last:border-b-0 ${globalIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100/80'}`}
               >
-                <td className="break-words px-1.5 py-[3px] font-mono text-[9px] font-bold text-slate-800">{line.item_code || `${line.sku}${line.variant_suffix || ''}`}</td>
+                <td className="wrap-break-word px-1.5 py-[3px] font-mono text-[9px] font-bold text-slate-800">{line.item_code || `${line.sku}${line.variant_suffix || ''}`}</td>
                 <td className="px-1.5 py-[3px]">
                   <div className="font-semibold text-slate-800">{line.description}</div>
                   {line.source_metadata?.line_comments && <div className="mt-0.5 text-[8.5px] italic text-slate-500">{line.source_metadata.line_comments}</div>}

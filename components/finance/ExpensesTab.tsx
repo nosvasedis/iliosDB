@@ -93,7 +93,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
           <button
             type="button"
             onClick={() => setCollapsed((previous) => { const next = new Set(previous); if (next.has(category.id)) next.delete(category.id); else next.add(category.id); return next; })}
-            className={`rounded p-0.5 ${node.children.length ? '' : 'invisible'} ${isSelected ? 'text-white/70' : 'text-slate-400'}`}
+            className={`rounded-sm p-0.5 ${node.children.length ? '' : 'invisible'} ${isSelected ? 'text-white/70' : 'text-slate-400'}`}
             aria-label="Ανάπτυξη"
           >
             <ChevronRight size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
@@ -161,11 +161,11 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
 
       <div className="min-w-0 space-y-5">
         {expected.length > 0 && (
-          <section className="rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-4 shadow-sm">
+          <section className="rounded-3xl border border-sky-100 bg-linear-to-br from-sky-50/80 to-white p-4 shadow-xs">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-sky-900"><CalendarClock size={16} /> Αναμενόμενοι λογαριασμοί</div>
             <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
               {expected.map((expense) => (
-                <button key={expense.id} type="button" onClick={() => setEditing(expense)} className="min-w-[12rem] rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-sky-100 transition hover:ring-sky-300">
+                <button key={expense.id} type="button" onClick={() => setEditing(expense)} className="min-w-48 rounded-2xl bg-white p-3 text-left shadow-xs ring-1 ring-sky-100 transition hover:ring-sky-300">
                   <div className="truncate text-sm font-black text-slate-900">{expense.description}</div>
                   <div className="text-xs font-semibold text-slate-500">{expense.expense_date} · ~{formatEuro(expense.amount_gross)}</div>
                   <div className="mt-2 text-xs font-black text-sky-700">Επιβεβαίωση ποσού →</div>
@@ -186,7 +186,7 @@ export default function ExpensesTab({ workspace, summary, parties, settings, per
               </div>
               <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-black">
                 {([['all', 'Περιόδου'], ['open', 'Ανοιχτά'], ['expected', 'Αναμενόμενα'], ['paid', 'Εξοφλημένα']] as Array<[StatusFilter, string]>).map(([key, label]) => (
-                  <button key={key} type="button" onClick={() => setStatus(key)} className={`rounded-lg px-2.5 py-1.5 ${status === key ? 'bg-white shadow-sm' : 'text-slate-500'}`}>{label}</button>
+                  <button key={key} type="button" onClick={() => setStatus(key)} className={`rounded-lg px-2.5 py-1.5 ${status === key ? 'bg-white shadow-xs' : 'text-slate-500'}`}>{label}</button>
                 ))}
               </div>
               <button type="button" onClick={() => setEditing(selectedCategory ? { category_id: selectedCategory } : {})} className={primaryButton}><Plus size={15} /> Νέο έξοδο</button>

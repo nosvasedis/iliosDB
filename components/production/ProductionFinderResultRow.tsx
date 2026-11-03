@@ -90,7 +90,7 @@ function ProductionFinderResultRow({
         <div
             onClick={() => onRowClick(batch)}
             aria-busy={isMoving || undefined}
-            className={`relative rounded-xl p-3 group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${getMovementSurfaceClass(isMoving)}`}
+            className={`relative rounded-xl p-3 group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? 'ring-2! ring-blue-400! ring-offset-0 border-blue-300/80! bg-blue-50/35!' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${getMovementSurfaceClass(isMoving)}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -104,7 +104,7 @@ function ProductionFinderResultRow({
                         }}
                         className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 touch-manipulation ${
                             isSelected
-                                ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                                ? 'bg-blue-500 border-blue-500 shadow-xs shadow-blue-200'
                                 : 'bg-white border-slate-300 hover:border-blue-400'
                         }`}
                         title={isSelected ? 'Αποεπιλογή' : 'Επιλογή'}
@@ -140,16 +140,16 @@ function ProductionFinderResultRow({
                                     masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'}
                                 />
                                 <SpecialCreationNote sku={batch.sku} note={batch.notes} compact />
-                                <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">
+                                <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-xs">
                                     x{formatNumber(batch.quantity)}
                                 </span>
                                 {batch.size_info && (
-                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1">
+                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-sm text-xs font-black flex items-center gap-1">
                                         <Hash size={10} /> {batch.size_info}
                                     </span>
                                 )}
                                 {batch.on_hold && (
-                                    <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1">
+                                    <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-black flex items-center gap-1">
                                         <PauseCircle size={10} /> Σε Αναμονή
                                     </span>
                                 )}
@@ -165,12 +165,12 @@ function ProductionFinderResultRow({
                                     <CustomerNameLabel name={batch.customer_name || 'Άγνωστος πελάτης'} retail={batch.customer_is_retail} />
                                 </span>
                                 {batch.on_hold ? (
-                                    <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                                    <div className="text-[9px] font-black px-1.5 py-0.5 rounded-sm border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
                                         <PauseCircle size={10} /> Σε αναμονή
                                     </div>
                                 ) : (
                                     <div
-                                        className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}
+                                        className={`text-[9px] font-black px-1.5 py-0.5 rounded-sm border flex items-center gap-1 ${age.style}`}
                                     >
                                         <Clock size={10} /> {age.label}
                                     </div>
@@ -182,7 +182,7 @@ function ProductionFinderResultRow({
                 <div className="text-right flex flex-col items-end gap-1">
                     <div className="text-[10px] font-mono text-slate-400">#{formatOrderId(batch.order_id)}</div>
                     <span
-                        className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ${finderBadgeClass}`}
+                        className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded-sm flex items-center gap-1 shadow-xs ${finderBadgeClass}`}
                     >
                         {stageMeta?.icon &&
                             React.cloneElement(stageMeta.icon as React.ReactElement<{ size?: number }>, {

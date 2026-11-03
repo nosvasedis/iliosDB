@@ -83,10 +83,10 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
             <div className="mx-auto w-full max-w-5xl space-y-3 p-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] min-[400px]:space-y-4 min-[400px]:p-4 lg:space-y-5 lg:p-0">
 
                 {/* ── Hero ─────────────────────────────────────────────────── */}
-                <section className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-4 text-white shadow-lg shadow-[#060b00]/15 ring-1 ring-inset ring-white/10 min-[400px]:p-5 lg:p-7">
+                <section className="relative isolate overflow-hidden rounded-3xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-4 text-white shadow-lg shadow-[#060b00]/15 ring-1 ring-inset ring-white/10 min-[400px]:p-5 lg:p-7">
                     <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 -z-10 h-56 w-56 rounded-full bg-amber-400/15 blur-3xl" />
                     <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 -z-10 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
-                    <div aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300" />
+                    <div aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-linear-to-r from-emerald-400 via-teal-400 to-amber-300" />
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div className="min-w-0">
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/90">Χώρος πλασιέ</p>
@@ -111,7 +111,7 @@ export default function SellerDashboard({ onNavigate, onCreateOrder }: Props) {
                 <button
                     type="button"
                     onClick={() => onNavigate('catalog')}
-                    className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 text-left text-[14px] font-medium text-slate-400 shadow-sm active:scale-[0.99] lg:h-14"
+                    className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 text-left text-[14px] font-medium text-slate-400 shadow-xs active:scale-[0.99] lg:h-14"
                 >
                     <Search size={17} className="shrink-0" />
                     <span className="flex-1 truncate">Αναζήτηση κωδικού στον κατάλογο…</span>

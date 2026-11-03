@@ -168,7 +168,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
 
     return (
         <>
-            <div className="flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden relative lg:min-h-0">
+            <div className="flex flex-col bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden relative lg:min-h-0">
             {/* Header */}
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
                 <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
@@ -227,7 +227,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             onChange={e => setters.setItemSearchTerm(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Escape') setters.setItemSearchTerm(''); }}
                             placeholder="Αναζήτηση στα είδη της εντολής..."
-                            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 focus:bg-white transition-all"
+                            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 focus:bg-white transition-all"
                         />
                         {state.itemSearchTerm && (
                             <button type="button" onClick={() => setters.setItemSearchTerm('')} aria-label="Καθαρισμός αναζήτησης" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600">
@@ -255,7 +255,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     return (
                     <div
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
-                        className={`bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-2.5 animate-in fade-in duration-200 transition-shadow hover:shadow-md group ${
+                        className={`bg-white p-3 rounded-xl border shadow-xs flex flex-col gap-2.5 animate-in fade-in duration-200 transition-shadow hover:shadow-md group ${
                             item.fulfillment_mode === 'consignment'
                                 ? 'border-indigo-200 ring-1 ring-indigo-100/80'
                                 : 'border-slate-200/80'
@@ -282,7 +282,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 font-black text-slate-800 text-[15px] leading-snug break-words [overflow-wrap:anywhere] pt-0.5">
+                                    <div className="min-w-0 font-black text-slate-800 text-[15px] leading-snug wrap-break-word wrap-anywhere pt-0.5">
                                         {isSpecial ? (
                                             <span className="text-violet-900">{item.sku}</span>
                                         ) : (
@@ -316,7 +316,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     </div>
                                 </div>
                                 {isSpecial && (
-                                    <div className="text-[11px] text-violet-600 font-bold mt-0.5 leading-snug break-words [overflow-wrap:anywhere]">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
+                                    <div className="text-[11px] text-violet-600 font-bold mt-0.5 leading-snug wrap-break-word wrap-anywhere">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                 )}
                                 {(item.fulfillment_mode === 'consignment' || item.size_info || item.cord_color || item.enamel_color) && (
                                     <div className="flex flex-wrap items-center gap-1 mt-1">
@@ -341,7 +341,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 >
                                     <Minus size={13} />
                                 </button>
-                                <span className="min-w-[2rem] text-center font-black text-sm tabular-nums px-0.5" aria-label="Ποσότητα">{formatNumber(item.quantity)}</span>
+                                <span className="min-w-8 text-center font-black text-sm tabular-nums px-0.5" aria-label="Ποσότητα">{formatNumber(item.quantity)}</span>
                                 <button
                                     type="button"
                                     onClick={() => actions.updateQuantity(item, item.quantity + 1)}
@@ -355,7 +355,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             <div className="flex flex-col items-end min-w-0">
                                 {isPriceEditing ? (
                                     <div
-                                        className={`flex items-center justify-end gap-1 rounded-lg border px-1.5 py-1 w-[9.5rem] max-w-full ${
+                                        className={`flex items-center justify-end gap-1 rounded-lg border px-1.5 py-1 w-38 max-w-full ${
                                             isSpecial
                                                 ? 'border-violet-300 bg-violet-50/50'
                                                 : item.price_override
@@ -378,7 +378,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                 if (e.key === 'Enter') { e.preventDefault(); commitPriceEdit(item); }
                                                 if (e.key === 'Escape') setPriceEditLineKey(null);
                                             }}
-                                            className="min-w-0 flex-1 bg-white rounded border border-slate-200 px-1 py-0.5 font-mono text-sm font-bold tabular-nums text-right text-slate-900 outline-none focus:ring-1 focus:ring-emerald-500/35"
+                                            className="min-w-0 flex-1 bg-white rounded-sm border border-slate-200 px-1 py-0.5 font-mono text-sm font-bold tabular-nums text-right text-slate-900 outline-hidden focus:ring-1 focus:ring-emerald-500/35"
                                         />
                                         <button
                                             type="button"
@@ -460,7 +460,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 onChange={(mode) => actions.updateItemFulfillmentMode(item, mode)}
                                 compact
                             />
-                            <div className="relative group/note flex-1 min-w-[8rem]">
+                            <div className="relative group/note flex-1 min-w-32">
                                 <input
                                     type="text"
                                     value={item.notes || ''}
@@ -469,7 +469,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     aria-invalid={isSpecial && !item.notes?.trim()}
                                     aria-label="Παρατήρηση είδους"
                                     placeholder={isSpecial ? 'Υποχρεωτική περιγραφή ειδικής δημιουργίας…' : 'Παρατήρηση είδους...'}
-                                    className={`w-full pl-7 pr-2 py-1.5 text-[11px] border rounded-lg outline-none font-medium text-slate-700 transition-all placeholder:italic placeholder:text-slate-400 focus:bg-white focus:border-emerald-300 ${
+                                    className={`w-full pl-7 pr-2 py-1.5 text-[11px] border rounded-lg outline-hidden font-medium text-slate-700 transition-all placeholder:italic placeholder:text-slate-400 focus:bg-white focus:border-emerald-300 ${
                                         isSpecial && !item.notes?.trim()
                                             ? 'bg-rose-50/60 border-rose-200'
                                             : item.notes
@@ -487,8 +487,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     );
                 })}
                 {!hasItems && (
-                    <div className="col-span-full flex flex-col items-center justify-center h-full min-h-[12rem] text-center px-6 py-10">
-                        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-3 shadow-sm">
+                    <div className="col-span-full flex flex-col items-center justify-center h-full min-h-48 text-center px-6 py-10">
+                        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-3 shadow-xs">
                             <Box size={26} className="text-slate-300" />
                         </div>
                         <p className="text-sm font-bold text-slate-500">Η παραγγελία δεν έχει είδη ακόμα.</p>
@@ -633,7 +633,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
 
             {editingItem && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+                    className="fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
                     onMouseDown={e => { if (e.target === e.currentTarget) closeEditModal(); }}
                     onKeyDown={e => { if (e.key === 'Escape') closeEditModal(); }}
                 >
@@ -655,7 +655,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <select
                                         value={editFinish}
                                         onChange={e => handleEditFinishChange(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                                     >
                                         {editFinishOptions.map(code => (
                                             <option key={code} value={code}>
@@ -669,7 +669,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <select
                                         value={editVariantSuffix}
                                         onChange={e => setEditVariantSuffix(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                                     >
                                         {editStoneOptions.map(v => {
                                             const { stone } = getVariantComponents(v.suffix, editProduct?.gender);
@@ -693,7 +693,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 <select
                                     value={editSizeInfo}
                                     onChange={e => setEditSizeInfo(e.target.value)}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                                 >
                                     <option value="">Χωρίς {editSizeMode.type}</option>
                                     {editSizeMode.sizes.map(size => (
@@ -710,7 +710,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <select
                                         value={editCordColor || ''}
                                         onChange={e => setEditCordColor((e.target.value || undefined) as OrderItem['cord_color'])}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                                     >
                                         <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (
@@ -725,7 +725,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                     <select
                                         value={editEnamelColor || ''}
                                         onChange={e => setEditEnamelColor((e.target.value || undefined) as OrderItem['enamel_color'])}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                                     >
                                         <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (

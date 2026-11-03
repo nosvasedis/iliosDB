@@ -284,7 +284,7 @@ function ActivityCard({ notification: n, onDismiss }: CardProps) {
             >
                 {/* Category icon bubble */}
                 <div
-                    className="flex-shrink-0 flex items-center justify-center rounded-lg"
+                    className="shrink-0 flex items-center justify-center rounded-lg"
                     style={{
                         width: 28, height: 28,
                         backgroundColor: `${meta.color}1a`, // 10% opacity tint
@@ -313,7 +313,7 @@ function ActivityCard({ notification: n, onDismiss }: CardProps) {
                     <div className="flex items-center gap-1.5 min-w-0">
                         {/* User initials badge */}
                         <span
-                            className="inline-flex items-center justify-center rounded-full text-white font-black flex-shrink-0"
+                            className="inline-flex items-center justify-center rounded-full text-white font-black shrink-0"
                             style={{
                                 width: 17, height: 17, fontSize: 8,
                                 backgroundColor: avatarBg(n.userName),
@@ -342,7 +342,7 @@ function ActivityCard({ notification: n, onDismiss }: CardProps) {
                 {/* Dismiss × */}
                 <button
                     onClick={() => onDismiss(n.eventId)}
-                    className="flex-shrink-0 self-start mt-[1px] rounded-md p-0.5 text-white/25 hover:text-white/70 hover:bg-white/8 transition-colors"
+                    className="shrink-0 self-start mt-px rounded-md p-0.5 text-white/25 hover:text-white/70 hover:bg-white/8 transition-colors"
                     aria-label="Κλείσιμο"
                     style={{ lineHeight: 0 }}
                 >
@@ -434,7 +434,7 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ notification
 
     const content = (
         <div
-            className={corner ? 'flex flex-col pointer-events-none print:hidden' : 'fixed bottom-4 left-4 z-[250] flex flex-col pointer-events-none print:hidden'}
+            className={corner ? 'flex flex-col pointer-events-none print:hidden' : 'fixed bottom-4 left-4 z-250 flex flex-col pointer-events-none print:hidden'}
             style={{ gap: 0 }} // gaps handled inside each height-wrapper
         >
             {displayItems.map(item => (

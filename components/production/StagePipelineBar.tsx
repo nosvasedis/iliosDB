@@ -60,11 +60,11 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         style={{ width: `${Math.max(pendingPct, 6)}%` }}
                                         title={`${getPolishingSubStageLabel('pending')}: ${formatNumber(pendingCount)} τμχ${pendingOnHold > 0 ? ` (${formatNumber(pendingOnHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
-                                        <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
+                                        <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-xs">
                                             {pendingPct >= 14 ? `Τεχν. • Αναμονή ` : ''}{formatNumber(pendingCount)}
                                         </span>
                                         {pendingOnHold > 0 && (
-                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
+                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-xs" />
                                         )}
                                     </button>
                                 )}
@@ -75,11 +75,11 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         style={{ width: `${Math.max(dispatchedPct, 6)}%` }}
                                         title={`${getPolishingSubStageLabel('dispatched')}: ${formatNumber(dispatchedCount)} τμχ${dispatchedOnHold > 0 ? ` (${formatNumber(dispatchedOnHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
-                                        <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
+                                        <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-xs">
                                             {dispatchedPct >= 14 ? `Τεχν. • Στον Τεχν. ` : ''}{formatNumber(dispatchedCount)}
                                         </span>
                                         {dispatchedOnHold > 0 && (
-                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
+                                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-xs" />
                                         )}
                                     </button>
                                 )}
@@ -98,11 +98,11 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                             style={{ width: `${Math.max(pct, 6)}%` }}
                             title={`${stage.label}: ${formatNumber(count)} τμχ${onHold > 0 ? ` (${formatNumber(onHold)} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                         >
-                            <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
+                            <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-xs">
                                 {pct >= 12 ? `${stage.label} ` : ''}{formatNumber(count)}
                             </span>
                             {onHold > 0 && (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-xs" />
                             )}
                         </button>
                     );
@@ -113,7 +113,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                         style={{ width: `${(unbatched / grandTotal) * 100}%`, ...UNBATCHED_STRIPE_STYLE }}
                         title={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${formatNumber(unbatched)} τεμ.`}
                     >
-                        <span className="text-slate-600 text-[10px] font-black truncate px-1 drop-shadow-sm">
+                        <span className="text-slate-600 text-[10px] font-black truncate px-1 drop-shadow-xs">
                             {((unbatched / grandTotal) * 100) >= 12 ? `Χωρίς παρτίδα ` : ''}{formatNumber(unbatched)}
                         </span>
                     </div>

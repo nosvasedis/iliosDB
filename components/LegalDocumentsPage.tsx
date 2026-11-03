@@ -372,9 +372,9 @@ const InfoTip = ({ text }: { text: string }) => (
 );
 
 const fieldLabelClass = 'mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500';
-const inputBaseClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
+const inputBaseClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-hidden transition placeholder:font-medium placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
 /** Dense inputs used inside the line tables. */
-const cellInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50';
+const cellInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 outline-hidden transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50';
 
 const TextInput = ({
   label,
@@ -551,8 +551,8 @@ const ActionButton = ({
   title?: string;
 }) => {
   const classes = {
-    primary: 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 hover:bg-emerald-700 disabled:bg-slate-300 disabled:shadow-none',
-    secondary: 'bg-white text-slate-800 border border-slate-200 shadow-sm shadow-slate-900/[0.03] hover:border-slate-300 hover:bg-slate-50 disabled:text-slate-400 disabled:shadow-none',
+    primary: 'bg-emerald-600 text-white shadow-xs shadow-emerald-900/10 hover:bg-emerald-700 disabled:bg-slate-300 disabled:shadow-none',
+    secondary: 'bg-white text-slate-800 border border-slate-200 shadow-xs shadow-slate-900/3 hover:border-slate-300 hover:bg-slate-50 disabled:text-slate-400 disabled:shadow-none',
     danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-300',
     quiet: 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:text-slate-400',
   };
@@ -668,7 +668,7 @@ const EditorSection = ({
   bodyClassName?: string;
   id?: string;
 }) => (
-  <section id={id} className={`min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-sm ${className}`}>
+  <section id={id} className={`min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-xs ${className}`}>
     <header className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 ${children ? 'border-b border-slate-100' : ''}`}>
       <div className="flex min-w-0 items-center gap-2.5">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${iconToneClass[tone]}`}><Icon size={16} /></span>
@@ -697,7 +697,7 @@ const TabbedCard = ({
   onChange: (tab: DocumentHeaderTab) => void;
   children: React.ReactNode;
 }) => (
-  <section className="min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+  <section className="min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
     <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-slate-100 px-2 pt-2 sm:px-3">
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -714,7 +714,7 @@ const TabbedCard = ({
             <Icon size={15} className={selected ? 'text-emerald-700' : ''} />
             <span className="min-w-0">
               <span className="block text-sm font-black leading-tight">{tab.label}</span>
-              {tab.hint ? <span className="block max-w-[14rem] truncate text-[11px] font-medium leading-tight text-slate-400">{tab.hint}</span> : null}
+              {tab.hint ? <span className="block max-w-56 truncate text-[11px] font-medium leading-tight text-slate-400">{tab.hint}</span> : null}
             </span>
             {tab.attention ? <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-100" aria-label="Χρειάζεται συμπλήρωση" /> : null}
           </button>
@@ -772,10 +772,10 @@ const WorkspaceToolbar = ({
   total: string;
   actions?: React.ReactNode;
 }) => (
-  <div className="z-20 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85 sm:p-4 md:sticky md:top-2">
+  <div className="z-20 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xs backdrop-blur-sm supports-backdrop-filter:bg-white/85 sm:p-4 md:sticky md:top-2">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
           <Icon size={20} strokeWidth={2.25} />
         </span>
         <div className="min-w-0">
@@ -840,7 +840,7 @@ const KpiTile = ({
     <span className="text-xs font-black tabular-nums text-slate-900">{value}</span>
   </div>
 ) : (
-  <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm">
+  <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-xs">
     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${iconToneClass[tone]}`}><Icon size={16} /></span>
     <div className="min-w-0">
       <div className="truncate text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</div>
@@ -872,7 +872,7 @@ const SettingsCard = ({
     amber: 'bg-amber-50 text-amber-700',
   };
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}>
@@ -961,7 +961,7 @@ const NumberingAlignmentModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm print:hidden sm:p-6"
+      className="fixed inset-0 z-260 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-xs print:hidden sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="numbering-alignment-title"
@@ -1042,7 +1042,7 @@ const NumberingAlignmentModal = ({
                   <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Προτεινόμενες αλλαγές</h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     {preview.changes.map((entry) => (
-                      <div key={entry.sequence_id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
+                      <div key={entry.sequence_id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
                         <div className="text-sm font-black text-slate-900">{describe(entry)}</div>
                         <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
                           <div className="rounded-lg bg-slate-100 px-3 py-2">
@@ -2759,7 +2759,7 @@ export default function LegalDocumentsPage({
                       : 'Το απλό τιμολόγιο 1.1 δεν απαιτεί στοιχεία διακίνησης.'}
                 </p>
                 {canToggleDelivery ? (
-                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50 has-[:checked]:text-emerald-800 sm:self-auto">
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-checked:border-emerald-300 has-checked:bg-emerald-50 has-checked:text-emerald-800 sm:self-auto">
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-emerald-600"
@@ -2848,7 +2848,7 @@ export default function LegalDocumentsPage({
                     Number(line.source_metadata?.original_unit_price ?? line.unit_price),
                     Number(event.target.value) || 0,
                   )), settingsDraft))}
-                  className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-right text-xs font-bold normal-case tracking-normal text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-right text-xs font-bold normal-case tracking-normal text-slate-800 outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
               <ActionButton variant="secondary" disabled={!editable} onClick={addLegalLine}>
@@ -2912,7 +2912,7 @@ export default function LegalDocumentsPage({
                       </td>
                       <td className="px-1.5 py-2">
                         <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className={cellInputClass} aria-label={`Περιγραφή γραμμής ${formatNumber(line.line_number)}`} />
-                        <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 h-6 w-full rounded border border-slate-100 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-500 outline-none transition focus:border-emerald-400 focus:bg-white" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
+                        <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 h-6 w-full rounded-sm border border-slate-100 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-500 outline-hidden transition focus:border-emerald-400 focus:bg-white" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
                       </td>
                       <td className="px-1 py-2 text-right">
                         <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Ποσότητα γραμμής ${formatNumber(line.line_number)}`} />
@@ -2984,7 +2984,7 @@ export default function LegalDocumentsPage({
     const warningCount = validationIssues.length - errorCount;
 
     return (
-      <section id="legal-final-check" className="scroll-mt-32 rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <section id="legal-final-check" className="scroll-mt-32 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2.5">
             <span className={`grid h-8 w-8 place-items-center rounded-lg ${iconToneClass[errorCount ? 'red' : warningCount ? 'amber' : 'emerald']}`}>
@@ -3056,7 +3056,7 @@ export default function LegalDocumentsPage({
     const generateDisabled = (creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders;
     const orderItemCount = selectedOrder ? (selectedOrder.items?.length ?? selectedOrder.item_count ?? 0) : 0;
     const summaryRows: Array<[string, React.ReactNode]> = [
-      ['Τύπος', <span className="inline-flex items-center gap-1.5">{selectedCreationType.label} <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-slate-500">{selectedCreationType.code}</span></span>],
+      ['Τύπος', <span className="inline-flex items-center gap-1.5">{selectedCreationType.label} <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-slate-500">{selectedCreationType.code}</span></span>],
       ['Προέλευση', sourceTitle],
     ];
     if (creationSource === 'order') {
@@ -3082,7 +3082,7 @@ export default function LegalDocumentsPage({
                     type="button"
                     onClick={() => { setCreationDocumentType(item.id); setDraftBundle(null); setProformaBundle(null); }}
                     aria-pressed={active}
-                    className={`group flex h-full flex-col items-start gap-2 rounded-xl border p-3 text-left transition ${active ? 'border-emerald-500 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                    className={`group flex h-full flex-col items-start gap-2 rounded-xl border p-3 text-left transition ${active ? 'border-emerald-500 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
                   >
                     <span className="flex w-full items-center justify-between gap-2">
                       <span className={`grid h-9 w-9 place-items-center rounded-lg transition ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}`}><Icon size={17} /></span>
@@ -3115,7 +3115,7 @@ export default function LegalDocumentsPage({
                     setDraftBundle(null);
                     setProformaBundle(null);
                   }}
-                  className={`group flex items-center gap-3 rounded-xl border p-3 text-left transition ${creationSource === id ? 'border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                  className={`group flex items-center gap-3 rounded-xl border p-3 text-left transition ${creationSource === id ? 'border-emerald-500 bg-emerald-50 shadow-xs ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
                 >
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${creationSource === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}`}><Icon size={18} /></span>
                   <span className="min-w-0 flex-1">
@@ -3236,8 +3236,8 @@ export default function LegalDocumentsPage({
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-4">
-          <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] px-5 py-4 text-white">
+          <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <div className="relative overflow-hidden bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] px-5 py-4 text-white">
               <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" aria-hidden />
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Σύνοψη · Βήμα 1</div>
               <div className="mt-1 text-lg font-black leading-tight">{selectedCreationType.label}</div>
@@ -3256,7 +3256,7 @@ export default function LegalDocumentsPage({
                 type="button"
                 onClick={handleGenerateDraft}
                 disabled={generateDisabled}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-xs shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {primaryActionLabel} <ArrowRight size={16} />
               </button>
@@ -3335,7 +3335,7 @@ export default function LegalDocumentsPage({
 
     return (
       <div className="space-y-4">
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:px-5">
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs sm:px-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
             <div className="flex min-w-0 items-center gap-3">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><Sparkles size={19} /></span>
@@ -3639,7 +3639,7 @@ export default function LegalDocumentsPage({
           </div>
         </EditorSection>
 
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-start gap-2.5 text-xs font-medium leading-relaxed text-slate-500">
               <Archive size={16} className="mt-0.5 shrink-0 text-sky-600" />
@@ -4074,7 +4074,7 @@ export default function LegalDocumentsPage({
               value={proformaSearch}
               onChange={(event) => setProformaSearch(event.target.value)}
               placeholder="Αναζήτηση προτιμολογίων ή τιμολογίου"
-              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-hidden focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             />
           </label>
         </div>
@@ -4263,13 +4263,13 @@ export default function LegalDocumentsPage({
           <ActionButton onClick={() => { setDraftBundle(null); setProformaBundle(null); setActiveTab('new'); }}>
             <Plus size={16} /> Νέο παραστατικό
           </ActionButton>
-        <label className="relative w-full sm:min-w-[14rem] md:max-w-sm">
+        <label className="relative w-full sm:min-w-56 md:max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={archiveSearch}
             onChange={(event) => setArchiveSearch(event.target.value)}
             placeholder="Αναζήτηση με πελάτη, MARK, αριθμό"
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
         </label>
         </div>
@@ -4376,7 +4376,7 @@ export default function LegalDocumentsPage({
     const activeSyncFilters = [syncDraft.receiverVatNumber, syncDraft.invType, syncDraft.maxMark].filter(Boolean).length;
     return (
     <div className="grid gap-5 xl:grid-cols-[minmax(340px,440px)_minmax(0,1fr)] xl:items-start">
-      <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm xl:sticky xl:top-4">
+      <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs xl:sticky xl:top-4">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><RefreshCw size={18} /></div>
           <div><h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2><p className="text-xs font-medium text-slate-500">Ανάκτηση και ενημέρωση του αρχείου από τον πάροχο.</p></div>
@@ -4447,14 +4447,14 @@ export default function LegalDocumentsPage({
             type="button"
             onClick={handleSyncTransmitted}
             disabled={syncTransmittedDocuments.isPending}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-xs shadow-emerald-900/10 transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {syncTransmittedDocuments.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Συγχρονισμός
           </button>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><History size={18} /></div>
@@ -4533,7 +4533,7 @@ export default function LegalDocumentsPage({
   };
 
   const renderDeliveryTab = () => (
-    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><Truck size={18} /></div>
@@ -4914,7 +4914,7 @@ export default function LegalDocumentsPage({
         )}
 
         {legalSettingsRestart.dirty && !isInspectionPresentation && (
-          <div className="z-20 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 shadow-lg shadow-amber-900/5 backdrop-blur sm:flex-row sm:items-center sm:justify-between md:sticky md:bottom-4">
+          <div className="z-20 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 shadow-lg shadow-amber-900/5 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between md:sticky md:bottom-4">
             <div className="flex items-center gap-2 text-sm font-bold text-amber-950">
               <AlertTriangle size={16} className="shrink-0" /> Υπάρχουν μη αποθηκευμένες αλλαγές στις ρυθμίσεις παραστατικών.
             </div>
@@ -4936,7 +4936,7 @@ export default function LegalDocumentsPage({
     { label: 'Περιβάλλον', value: statsEnvironmentLabel, icon: ShieldCheck, tone: statsEnvironmentLabel === 'Δοκιμές' ? 'amber' : 'emerald' },
   ];
   const renderStats = (layout: 'chip' | 'tile') => (
-    <div className={layout === 'chip' ? 'flex min-w-0 max-w-full items-center divide-x divide-slate-200/80 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-sm backdrop-blur' : 'grid grid-cols-2 gap-2 md:grid-cols-5'}>
+    <div className={layout === 'chip' ? 'flex min-w-0 max-w-full items-center divide-x divide-slate-200/80 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-xs backdrop-blur-sm' : 'grid grid-cols-2 gap-2 md:grid-cols-5'}>
       {kpis.map((kpi) => <KpiTile key={kpi.label} layout={layout} {...kpi} />)}
     </div>
   );
@@ -4984,7 +4984,7 @@ export default function LegalDocumentsPage({
             </>
           )}
           below={(
-            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-xs">
               {pageTabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
@@ -4995,7 +4995,7 @@ export default function LegalDocumentsPage({
                     onClick={tab.onClick}
                     title={tab.title}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold transition-all duration-200 sm:px-5 ${active ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold transition-all duration-200 sm:px-5 ${active ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
                   >
                     <Icon size={16} /> {tab.label} {tab.badge}
                   </button>

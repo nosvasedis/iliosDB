@@ -34,7 +34,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
 
       {showStatus && (
         <div className={`
-            w-full px-4 py-2 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors duration-300 z-50 shadow-sm
+            w-full px-4 py-2 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors duration-300 z-50 shadow-xs
             ${!isOnline ? 'bg-red-500 text-white' :
             isSyncing ? 'bg-blue-600 text-white' :
               'bg-amber-500 text-white'}`}
@@ -67,7 +67,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
                 type="button"
                 onClick={() => onNavigate(item.id)}
                 className={`
-                  group flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 rounded-xl py-1.5 px-0.5 transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50
+                  group flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 rounded-xl py-1.5 px-0.5 transition-colors duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50
                   ${isActive
                     ? isMenu
                       ? 'bg-slate-200 text-slate-900'

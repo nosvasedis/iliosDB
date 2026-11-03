@@ -283,7 +283,7 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
           }}
           list={listId}
           placeholder="Κωδικός ή περιγραφή"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
         />
         <datalist id={listId}>
           {products.map((item) => (
@@ -297,7 +297,7 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
           value={variantSuffix}
           onChange={(event) => setVariantSuffix(event.target.value)}
           disabled={!product}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none disabled:bg-slate-100"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-hidden disabled:bg-slate-100"
         >
           <option value="">Βασικό</option>
           {(product?.variants || []).filter((variant) => variant.suffix).map((variant) => (
@@ -414,7 +414,7 @@ function VatRegistryCard({
                 onChange={(event) => setReferenceDate(event.target.value)}
                 min={earliestReferenceDate}
                 max={todayDate}
-                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-hidden focus:border-indigo-500"
               />
             </label>
             <button
@@ -585,7 +585,7 @@ function OrderLinkEditor({
           setAllocations([]);
         }}
         disabled={busy}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-hidden focus:border-sky-500"
       >
         <option value="">Επιλέξτε παραγγελία</option>
         {orders.map((order) => (
@@ -605,14 +605,14 @@ function OrderLinkEditor({
                 setMode('whole');
                 setAllocations([]);
               }}
-              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'whole' ? 'bg-white text-sky-800 shadow-sm' : 'text-slate-500'}`}
+              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'whole' ? 'bg-white text-sky-800 shadow-xs' : 'text-slate-500'}`}
             >
               Ολόκληρη παραγγελία
             </button>
             <button
               type="button"
               onClick={() => setMode('partial')}
-              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'partial' ? 'bg-white text-sky-800 shadow-sm' : 'text-slate-500'}`}
+              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'partial' ? 'bg-white text-sky-800 shadow-xs' : 'text-slate-500'}`}
             >
               Επιλεγμένες γραμμές
             </button>
@@ -815,7 +815,7 @@ function CreditLinkGlyph({
       onMouseLeave={() => onHoverChange(false)}
       onFocus={() => onHoverChange(true)}
       onBlur={() => onHoverChange(false)}
-      className={`inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border outline-none transition ${
+      className={`inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border outline-hidden transition ${
         kind === 'origin'
           ? 'border-violet-200 bg-violet-50 text-violet-700'
           : 'border-rose-200 bg-rose-50 text-rose-700'
@@ -1280,7 +1280,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                         value={record.sellerMatch.seller?.id || ''}
                         onChange={(event) => props.onLinkSeller(record, event.target.value || null)}
                         disabled={props.mutating}
-                        className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
+                        className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-hidden focus:border-sky-500"
                       >
                         <option value="">Δεν έχει συνδεθεί με Πλασιέ</option>
                         {props.sellers.map((seller) => (
@@ -1321,7 +1321,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                         value={record.customerMatch.customer?.id || ''}
                         onChange={(event) => props.onLinkCustomer(record, event.target.value || null)}
                         disabled={props.mutating}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-hidden focus:border-emerald-500"
                       >
                         <option value="">Δεν έχει αντιστοιχιστεί</option>
                         {props.customers.map((customer) => (
@@ -1483,7 +1483,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 <div key={match.line.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-sky-900">
+                      <span className="shrink-0 rounded-sm bg-sky-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-sky-900">
                         {match.rawItemCode || match.masterSku || 'χωρίς κωδικό'}
                       </span>
                       <span className="truncate text-xs font-bold text-slate-700" title={match.line.source_metadata?.item_description || match.line.description}>
@@ -1521,7 +1521,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 <div className="grid items-start gap-3 md:grid-cols-[minmax(0,1fr)_72px_105px]">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px]">
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-black text-slate-700">
+                      <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono font-black text-slate-700">
                         {match.rawItemCode || 'χωρίς κωδικό είδους'}
                       </span>
                       {match.product || match.method === 'legal_service' ? (
@@ -1550,7 +1550,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                             else next.add(match.line.id);
                             return next;
                           })}
-                          className="ml-1 rounded px-1.5 py-0.5 font-black text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          className="ml-1 rounded-sm px-1.5 py-0.5 font-black text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                         >
                           {editingAliases.has(match.line.id) ? 'Κλείσιμο' : 'Αλλαγή'}
                         </button>
@@ -1615,7 +1615,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   return (
     <div className="space-y-4">
       <IssuedSkuSearch records={props.records} loading={props.loading} renderDetails={renderDetails} />
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
         <div className="border-b border-slate-100 bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -1630,7 +1630,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             <button
               type="button"
               onClick={props.onCreate}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-xs transition hover:bg-emerald-700"
             >
               <Plus size={17} /> Νέο παραστατικό
             </button>
@@ -1652,7 +1652,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   documentKind: 'all',
                   externalSource: 'all',
                 }))}
-                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition sm:min-w-36 ${filters.scope === scope ? 'bg-white text-emerald-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'}`}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition sm:min-w-36 ${filters.scope === scope ? 'bg-white text-emerald-800 shadow-xs ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'}`}
               >
                 <Icon size={14} /> {label} <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{formatNumber(count)}</span>
               </button>
@@ -1674,14 +1674,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 value={filters.query}
                 onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
                 placeholder="Αναζήτηση σε πελάτη, ΑΦΜ, MARK, αριθμό, κωδικό ή προϊόν…"
-                className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-10 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-10 text-sm font-semibold text-slate-800 outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
               {filters.query && (
                 <button
                   type="button"
                   onClick={() => setFilters((current) => ({ ...current, query: '' }))}
                   aria-label="Καθαρισμός αναζήτησης"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-400 hover:bg-slate-100"
                 >
                   <X size={15} />
                 </button>
@@ -1693,7 +1693,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 ...current,
                 datePreset: event.target.value as LegalArchiveFilterState['datePreset'],
               }))}
-              className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-500"
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-hidden focus:border-emerald-500"
             >
               <option value="all">Όλες οι ημερομηνίες</option>
               <option value="today">Σήμερα</option>
@@ -1864,7 +1864,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         ))}
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm font-bold text-slate-600">

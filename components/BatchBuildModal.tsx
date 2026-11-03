@@ -181,11 +181,11 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
     if (!product || !buildData) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200" onClick={onClose}>
             <div className={`bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 relative transition-all ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-2' : ''}`} onClick={e => e.stopPropagation()}>
 
                 {isMoving && (
-                    <div className="absolute inset-0 z-[60] bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-6 pointer-events-auto cursor-wait">
+                    <div className="absolute inset-0 z-60 bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-6 pointer-events-auto cursor-wait">
                         <div className="flex items-center gap-2 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider px-4 py-2 rounded-full shadow-xl ring-2 ring-white">
                             <Loader2 size={14} className="animate-spin" />
                             <span>Μετακινείται…</span>
@@ -196,7 +196,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-white rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                        <div className="w-16 h-16 bg-white rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                             {product.image_url ? (
                                 <button
                                     type="button"
@@ -233,7 +233,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             <p className="text-sm text-slate-500 font-medium mt-0.5">{buildData.description}</p>
                             <div className="flex gap-2 mt-2">
                                 {batch.size_info && (
-                                    <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-100">
+                                    <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-sm text-xs font-bold border border-blue-100">
                                         <Scale size={12}/> Μέγεθος: {batch.size_info}
                                     </div>
                                 )}
@@ -356,7 +356,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     disabled={isMoving || isDisabled}
                                     className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                         isCurrentPending
-                                            ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/30 shadow-sm'
+                                            ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/30 shadow-xs'
                                             : isDisabled
                                             ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                             : isPast
@@ -372,7 +372,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     disabled={isMoving || isDisabled}
                                     className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                         isCurrentDispatched
-                                            ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/30 shadow-sm'
+                                            ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/30 shadow-xs'
                                             : isDisabled
                                             ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                             : isPast
@@ -394,7 +394,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             disabled={isMoving || isDisabled}
                             className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                 isCurrent
-                                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
+                                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-xs`
                                     : isDisabled
                                     ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                     : isPast
@@ -419,7 +419,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             
                             {/* Notes Alert & Action */}
                             {batch.notes ? (
-                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 shadow-sm relative group">
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 shadow-xs relative group">
                                     <StickyNote className="text-amber-500 shrink-0" size={24}/>
                                     <div>
                                         <h4 className="font-bold text-amber-800 text-sm uppercase tracking-wide mb-1">Σημειωση Παραγωγης</h4>
@@ -443,7 +443,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             )}
 
                             {/* Molds */}
-                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                                 <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
                                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                         <MapPin size={18} className="text-orange-500"/> Απαιτούμενα Λάστιχα
@@ -489,7 +489,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                         </div>
 
                         {/* RIGHT COLUMN: RECIPE / BOM */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-full min-h-[400px]">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col overflow-hidden h-full min-h-[400px]">
                             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200">
                                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                     <Box size={18} className="text-blue-500"/> Υλικά & Εξαρτήματα
@@ -499,7 +499,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                             
                             <div className="flex-1 overflow-auto">
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-white text-slate-400 text-[10px] uppercase font-black tracking-wider sticky top-0 shadow-sm z-10">
+                                    <thead className="bg-white text-slate-400 text-[10px] uppercase font-black tracking-wider sticky top-0 shadow-xs z-10">
                                         <tr>
                                             <th className="p-4 border-b border-slate-100">Υλικο</th>
                                             <th className="p-4 border-b border-slate-100 text-center">Ανα Τμχ</th>
@@ -513,7 +513,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                                     <span className={`font-bold ${item.type === 'raw' ? 'text-slate-700' : 'text-purple-700'}`}>
                                                         {item.name}
                                                     </span>
-                                                    {item.type === 'component' && <span className="ml-2 text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-bold">STX</span>}
+                                                    {item.type === 'component' && <span className="ml-2 text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-sm font-bold">STX</span>}
                                                     {item.description && (
                                                         <div className="text-[10px] text-slate-500 font-medium mt-0.5 italic leading-tight">
                                                             {item.description}
@@ -554,7 +554,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
             {stageSelectorOpen && onMove && ReactDOM.createPortal(
                 <div 
                     ref={popupRef}
-                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-9999 min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
                     style={{ 
                         top: popupPosition.top,
                         left: popupPosition.left,
@@ -652,13 +652,13 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
             {/* Image zoom overlay */}
             {isImageZoomed && product.image_url && ReactDOM.createPortal(
                 <div
-                    className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
+                    className="fixed inset-0 z-600 bg-black/90 flex items-center justify-center"
                     onClick={() => setIsImageZoomed(false)}
                 >
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setIsImageZoomed(false); }}
-                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-colors"
                     >
                         <X size={22} />
                     </button>

@@ -93,12 +93,12 @@ export default function FinancePage({ products, settings, initialTab = 'overview
             <div className={`flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap ${isAnalytics ? 'invisible' : ''}`} aria-hidden={isAnalytics || undefined}>
               <div className="inline-flex shrink-0 rounded-xl bg-slate-100 p-0.5 text-xs font-black">
                 {PRESETS.map(([key, label]) => (
-                  <button key={key} type="button" onClick={() => setPreset(key)} className={`rounded-lg px-2.5 py-1.5 ${preset === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{label}</button>
+                  <button key={key} type="button" onClick={() => setPreset(key)} className={`rounded-lg px-2.5 py-1.5 ${preset === key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>{label}</button>
                 ))}
               </div>
-              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 shadow-sm">
+              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 shadow-xs">
                 <button type="button" onClick={() => shift(-1)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Προηγούμενη περίοδος"><ChevronLeft size={16} /></button>
-                <span className="min-w-[8.5rem] whitespace-nowrap text-center text-sm font-black text-slate-800">{periodLabel(preset, anchor)}</span>
+                <span className="min-w-34 whitespace-nowrap text-center text-sm font-black text-slate-800">{periodLabel(preset, anchor)}</span>
                 <button type="button" onClick={() => shift(1)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Επόμενη περίοδος"><ChevronRight size={16} /></button>
               </div>
               {anchor.slice(0, 7) !== hub.today.slice(0, 7) && (
@@ -186,7 +186,7 @@ function FinanceTabs({ tab, onChange }: { tab: FinanceTab; onChange: (tab: Finan
   return (
     <div className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5`}>
       {TABS.map(([key, label, Icon]) => (
-        <button key={key} type="button" onClick={() => onChange(key)} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all ${tab === key ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
+        <button key={key} type="button" onClick={() => onChange(key)} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all ${tab === key ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
           <Icon size={15} /> {label}
         </button>
       ))}

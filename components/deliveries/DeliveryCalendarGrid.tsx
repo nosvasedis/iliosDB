@@ -167,7 +167,7 @@ export default function DeliveryCalendarGrid({
   const hasSpanning = spanningItems.length > 0;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-100">
         <div className="flex items-center gap-1">
           <button
@@ -178,7 +178,7 @@ export default function DeliveryCalendarGrid({
           >
             <ChevronLeft size={16} />
           </button>
-          <div className="min-w-[9rem] text-center text-sm font-bold text-[#060b00] capitalize">
+          <div className="min-w-36 text-center text-sm font-bold text-[#060b00] capitalize">
             {monthDate.toLocaleDateString('el-GR', { month: 'long', year: 'numeric' })}
           </div>
           <button
@@ -205,7 +205,7 @@ export default function DeliveryCalendarGrid({
           {hasSpanning && (
             <div
               className={`shrink-0 flex flex-col border-r border-slate-100 transition-[width] duration-200 overflow-hidden ${
-                sidebarCollapsed ? 'w-9 pr-0' : 'w-[6.5rem] pr-2'
+                sidebarCollapsed ? 'w-9 pr-0' : 'w-26 pr-2'
               }`}
             >
               <div className={`flex items-center gap-1 min-h-[28px] mb-2 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>

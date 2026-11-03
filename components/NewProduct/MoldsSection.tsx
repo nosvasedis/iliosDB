@@ -26,7 +26,7 @@ export const MoldsSection: React.FC<Props> = ({ formState }) => {
                     {state.selectedMolds.length > 0 && (
                         <div className="flex flex-wrap gap-2 rounded-xl border border-amber-100 bg-amber-50/60 p-3">
                             {state.selectedMolds.map(m => (
-                                <div key={m.code} className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white py-1 pl-3 pr-1 text-sm font-bold text-amber-800 shadow-sm">
+                                <div key={m.code} className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white py-1 pl-3 pr-1 text-sm font-bold text-amber-800 shadow-xs">
                                     <span className="font-mono">{m.code}</span>
                                     <div className="flex items-center rounded-md border border-amber-100 bg-amber-50">
                                         <button type="button" onClick={() => actions.updateMoldQuantity(m.code, -1)} className="rounded-l-md p-1 text-amber-600 hover:bg-amber-100 disabled:opacity-30" disabled={m.quantity <= 1}><Minus size={12} /></button>
@@ -50,11 +50,11 @@ export const MoldsSection: React.FC<Props> = ({ formState }) => {
                                     <div key={m.code} className={`flex items-center gap-2 rounded-lg border p-2 text-sm transition-colors ${selected ? 'border-amber-200 bg-amber-50' : 'border-transparent bg-white hover:border-slate-200'}`}>
                                         <button type="button" onClick={() => actions.addMold(m.code)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                                             <span className={`font-mono font-bold ${selected ? 'text-amber-800' : 'text-slate-700'}`}>{m.code}</span>
-                                            {suggestedCodes.has(m.code) && <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1.5 text-[9px] font-black uppercase text-emerald-700"><Sparkles size={9} /> Πρόταση</span>}
+                                            {suggestedCodes.has(m.code) && <span className="inline-flex items-center gap-0.5 rounded-sm bg-emerald-50 px-1.5 text-[9px] font-black uppercase text-emerald-700"><Sparkles size={9} /> Πρόταση</span>}
                                             <span className="truncate text-xs text-slate-400">{m.description}</span>
                                         </button>
                                         {selected ? (
-                                            <div className="flex items-center gap-1 rounded-md border border-amber-200 bg-white shadow-sm">
+                                            <div className="flex items-center gap-1 rounded-md border border-amber-200 bg-white shadow-xs">
                                                 <button type="button" onClick={() => actions.updateMoldQuantity(m.code, -1)} className="p-1 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30" disabled={selected.quantity === 1}><Minus size={12} /></button>
                                                 <span className="w-6 text-center text-xs font-bold">{formatNumber(selected.quantity)}</span>
                                                 <button type="button" onClick={() => actions.updateMoldQuantity(m.code, 1)} className="p-1 text-slate-500 hover:bg-slate-100"><Plus size={12} /></button>

@@ -122,11 +122,11 @@ export default function RecipeSection({
                                 </div>
                                 <div className="min-w-0">
                                     {item.type === 'raw' ? (
-                                        <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-none" value={item.id} onChange={(e) => updateItem(idx, { id: e.target.value })}>
+                                        <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-hidden" value={item.id} onChange={(e) => updateItem(idx, { id: e.target.value })}>
                                             {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                         </select>
                                     ) : (
-                                        <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-none" value={item.sku} onChange={(e) => updateItem(idx, { sku: e.target.value })}>
+                                        <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-hidden" value={item.sku} onChange={(e) => updateItem(idx, { sku: e.target.value })}>
                                             {components.map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
                                         </select>
                                     )}

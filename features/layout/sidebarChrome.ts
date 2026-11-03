@@ -14,9 +14,9 @@ export interface SidebarConnectionStatus {
 
 /** Full expanded panel; slim enough for laptop overlays, roomy enough on large desktops. */
 export const SIDEBAR_PANEL_WIDTH_CLASS = 'w-64';
-export const SIDEBAR_RAIL_WIDTH_CLASS = 'w-[4.25rem]';
+export const SIDEBAR_RAIL_WIDTH_CLASS = 'w-17';
 export const SIDEBAR_PANEL_MARGIN_CLASS = '2xl:ml-64';
-export const SIDEBAR_RAIL_MARGIN_CLASS = 'md:ml-[4.25rem]';
+export const SIDEBAR_RAIL_MARGIN_CLASS = 'md:ml-17';
 
 /** Below this, the expanded sidebar overlays content instead of pushing it. */
 export const SIDEBAR_OVERLAY_MAX_WIDTH_PX = 1536;

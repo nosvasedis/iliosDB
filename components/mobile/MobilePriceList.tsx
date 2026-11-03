@@ -130,14 +130,14 @@ export default function MobilePriceList({ onPrint }: Props) {
 
             <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
             <div className="mb-4 flex shrink-0 rounded-xl bg-slate-100 p-1">
-                <button onClick={() => { setMode('collections'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'collections' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><FolderKanban size={14}/> Συλλογές</button>
-                <button onClick={() => { setMode('custom'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'custom' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500'}`}><ListPlus size={14}/> Επιλογή ({formatNumber(customList.length)})</button>
+                <button onClick={() => { setMode('collections'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'collections' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}><FolderKanban size={14}/> Συλλογές</button>
+                <button onClick={() => { setMode('custom'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'custom' ? 'bg-white text-teal-600 shadow-xs' : 'text-slate-500'}`}><ListPlus size={14}/> Επιλογή ({formatNumber(customList.length)})</button>
             </div>
 
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
                 <div className="relative shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                    <input type="text" placeholder={mode === 'custom' ? "Αναζήτηση για προσθήκη..." : "Αναζήτηση..."} value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold text-sm focus:ring-2 focus:ring-teal-500/20"/>
+                    <input type="text" placeholder={mode === 'custom' ? "Αναζήτηση για προσθήκη..." : "Αναζήτηση..."} value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-hidden font-bold text-sm focus:ring-2 focus:ring-teal-500/20"/>
                     {mode === 'custom' && !search && customList.length > 0 && <button onClick={clearCustomList} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-slate-100 rounded-lg text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>}
                 </div>
 
@@ -156,7 +156,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                                     <button 
                                         key={c.id} 
                                         onClick={() => toggleCollection(c.id)}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-2 ${isSelected ? 'bg-teal-500 text-white border-teal-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200'}`}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-2 ${isSelected ? 'bg-teal-500 text-white border-teal-500 shadow-xs' : 'bg-white text-slate-500 border-slate-200'}`}
                                     >
                                         {c.name}
                                         {isSelected && <Check size={12} />}
@@ -170,7 +170,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                 )}
 
                 <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
                         {displayedItems.map((p, idx) => {
                             const hasVariants = p.variants && p.variants.length > 0;
                             let priceDisplay = '';

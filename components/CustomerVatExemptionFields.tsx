@@ -36,7 +36,7 @@ export default function CustomerVatExemptionFields({
       <label className="block">
         <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Αιτία απαλλαγής myDATA *</span>
         <select
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-amber-400"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-hidden focus:border-amber-400"
           value={customer.vat_exemption_category ?? ''}
           onChange={(event) => onChange({ ...customer, vat_exemption_category: event.target.value ? Number(event.target.value) : null })}
         >
@@ -49,7 +49,7 @@ export default function CustomerVatExemptionFields({
       <label className="block">
         <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Νομική ένδειξη στο PDF</span>
         <input
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-amber-400"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-hidden focus:border-amber-400"
           value={customer.vat_exemption_legal_note || ''}
           onChange={(event) => onChange({ ...customer, vat_exemption_legal_note: event.target.value || null })}
           placeholder="Η ακριβής ένδειξη που απαιτεί η νόμιμη βάση"

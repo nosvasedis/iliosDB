@@ -141,7 +141,7 @@ export const ResourceUsageStrip = React.memo(function ResourceUsageStrip({ kind,
         event.stopPropagation();
         context?.open({ kind, id }, label, event.currentTarget);
       }}
-      className="flex h-10 w-full min-w-0 items-center gap-2 rounded-b-2xl border-t border-slate-100 bg-white px-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400 disabled:cursor-default disabled:hover:bg-white">
+      className="flex h-10 w-full min-w-0 items-center gap-2 rounded-b-2xl border-t border-slate-100 bg-white px-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400 disabled:cursor-default disabled:hover:bg-white">
       {count === undefined ? (
         <span className="truncate text-[11px] text-slate-400">Φόρτωση χρήσης…</span>
       ) : count === 0 ? (
@@ -253,14 +253,14 @@ function UsagePopover({ active, products, dialogId, onClose }: {
           <div id={titleId} className="truncate text-xs font-bold text-slate-800">{active.label}</div>
           <div className="text-[10px] text-slate-400">Χρησιμοποιείται σε {formatNumber(entries.length)} SKU</div>
         </div>
-        <button type="button" onClick={onClose} aria-label="Κλείσιμο λίστας SKU" className="rounded-lg p-2 text-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"><X size={16} /></button>
+        <button type="button" onClick={onClose} aria-label="Κλείσιμο λίστας SKU" className="rounded-lg p-2 text-slate-400 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400"><X size={16} /></button>
       </div>
       <div className="relative mx-3 my-2 shrink-0">
         <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
         <input ref={searchRef} value={search} onChange={event => setSearch(event.target.value)} aria-label="Αναζήτηση συνδεδεμένων SKU"
           onKeyDown={event => {
             if (event.key === 'ArrowDown' && rows.length) { event.preventDefault(); focusRow(0); }
-          }} placeholder="Αναζήτηση SKU…" className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2 text-xs outline-none focus:border-slate-400" />
+          }} placeholder="Αναζήτηση SKU…" className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2 text-xs outline-hidden focus:border-slate-400" />
       </div>
       <div ref={scrollRef} id={variantsId} className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar"
         onKeyDown={event => {
@@ -285,7 +285,7 @@ function UsagePopover({ active, products, dialogId, onClose }: {
                   aria-expanded={variants.length ? expanded : undefined} aria-controls={variants.length && expanded ? variantsId : undefined}
                   aria-label={`${product.sku}${!direct ? `, μέσω ${viaSku}` : ''}, ${formatNumber(variants.length)} παραλλαγές`}
                   onClick={() => setExpandedSku(current => current === product.sku ? null : product.sku)}
-                  className="flex min-w-0 items-center gap-2.5 border-b border-slate-50 px-3 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
+                  className="flex min-w-0 items-center gap-2.5 border-b border-slate-50 px-3 text-left hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
                   <UsageImage product={product} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs"><SkuColorizedText sku={product.sku} suffix="" gender={product.gender} /></span>
@@ -296,7 +296,7 @@ function UsagePopover({ active, products, dialogId, onClose }: {
               ) : (
                 <div key={row.key}
                   tabIndex={-1} data-usage-row={item.index} style={rowStyle}
-                  className="flex items-center gap-2 bg-slate-50/80 pl-14 pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
+                  className="flex items-center gap-2 bg-slate-50/80 pl-14 pr-3 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
                   <span className="min-w-0 flex-1 truncate text-xs"><SkuColorizedText sku={product.sku} suffix={row.variant.suffix} gender={product.gender} /></span>
                 </div>
               );

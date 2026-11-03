@@ -72,11 +72,11 @@ export default function ConvertToImportedModal({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
         >
             <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-                <div className="flex items-start justify-between bg-gradient-to-r from-violet-600 to-purple-500 p-5">
+                <div className="flex items-start justify-between bg-linear-to-r from-violet-600 to-purple-500 p-5">
                     <div className="flex items-center gap-3">
                         <div className="rounded-xl bg-white/20 p-2.5">
                             <Globe size={22} className="text-white" />
@@ -93,7 +93,7 @@ export default function ConvertToImportedModal({
 
                 <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
                     {STEPS.map((item) => (
-                        <div key={item.id} className={`rounded-xl px-3 py-2 text-center text-[11px] font-bold ${step === item.id ? 'bg-white text-violet-700 shadow-sm' : step > item.id ? 'text-violet-500' : 'text-slate-400'}`}>
+                        <div key={item.id} className={`rounded-xl px-3 py-2 text-center text-[11px] font-bold ${step === item.id ? 'bg-white text-violet-700 shadow-xs' : step > item.id ? 'text-violet-500' : 'text-slate-400'}`}>
                             {formatNumber(item.id)}. {item.label}
                         </div>
                     ))}
@@ -109,7 +109,7 @@ export default function ConvertToImportedModal({
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div>
                                         <label className="mb-1.5 block text-[11px] font-bold uppercase text-slate-400">Προμηθευτής</label>
-                                        <select value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-sm outline-none focus:border-violet-400">
+                                        <select value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-sm outline-hidden focus:border-violet-400">
                                             <option value="">Επιλογή...</option>
                                             {suppliers.map((supplier) => (
                                                 <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
@@ -118,7 +118,7 @@ export default function ConvertToImportedModal({
                                     </div>
                                     <div>
                                         <label className="mb-1.5 block text-[11px] font-bold uppercase text-slate-400">Κωδικός προμηθευτή</label>
-                                        <input value={supplierSku} onChange={(event) => setSupplierSku(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-none focus:border-violet-400" placeholder="π.χ. ITEM-123" />
+                                        <input value={supplierSku} onChange={(event) => setSupplierSku(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-hidden focus:border-violet-400" placeholder="π.χ. ITEM-123" />
                                     </div>
                                 </div>
                             </div>
@@ -133,11 +133,11 @@ export default function ConvertToImportedModal({
                                             <div className="mt-3 grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label className="mb-1 block text-[11px] font-bold uppercase text-amber-700">Βάρος (g)</label>
-                                                    <input type="number" step="0.01" value={numberOrEmpty(weightG === '' ? null : Number(weightG))} onChange={(event) => setWeightG(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-amber-200 bg-white p-2.5 font-mono text-sm outline-none" />
+                                                    <input type="number" step="0.01" value={numberOrEmpty(weightG === '' ? null : Number(weightG))} onChange={(event) => setWeightG(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-amber-200 bg-white p-2.5 font-mono text-sm outline-hidden" />
                                                 </div>
                                                 <div>
                                                     <label className="mb-1 block text-[11px] font-bold uppercase text-amber-700">Β' βάρος (g)</label>
-                                                    <input type="number" step="0.01" value={numberOrEmpty(secondaryWeightG === '' ? null : Number(secondaryWeightG))} onChange={(event) => setSecondaryWeightG(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-amber-200 bg-white p-2.5 font-mono text-sm outline-none" />
+                                                    <input type="number" step="0.01" value={numberOrEmpty(secondaryWeightG === '' ? null : Number(secondaryWeightG))} onChange={(event) => setSecondaryWeightG(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-amber-200 bg-white p-2.5 font-mono text-sm outline-hidden" />
                                                 </div>
                                             </div>
                                         </div>
@@ -170,19 +170,19 @@ export default function ConvertToImportedModal({
                             <p className="text-xs text-slate-500">Η τιμή χονδρικής δεν αλλάζει. Τα εργατικά εισαγωγής είναι €/g, τα καρφωτικά σταθερά.</p>
                             <label className="block">
                                 <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-400"><ShoppingBag size={11} /> Κόστος προμηθευτή (€)</span>
-                                <input type="number" step="0.01" value={numberOrEmpty(supplierCost === '' ? null : Number(supplierCost))} onChange={(event) => setSupplierCost(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-none focus:border-violet-400" />
+                                <input type="number" step="0.01" value={numberOrEmpty(supplierCost === '' ? null : Number(supplierCost))} onChange={(event) => setSupplierCost(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-hidden focus:border-violet-400" />
                             </label>
                             <label className="block">
                                 <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-400"><Hammer size={11} /> Εργατικά (€/g)</span>
-                                <input type="number" step="0.01" value={numberOrEmpty(technicianCostPerGram === '' ? null : Number(technicianCostPerGram))} onChange={(event) => setTechnicianCostPerGram(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-none focus:border-violet-400" />
+                                <input type="number" step="0.01" value={numberOrEmpty(technicianCostPerGram === '' ? null : Number(technicianCostPerGram))} onChange={(event) => setTechnicianCostPerGram(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-hidden focus:border-violet-400" />
                             </label>
                             <label className="block">
                                 <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-400"><Coins size={11} /> Επιμετάλλωση (€/g)</span>
-                                <input type="number" step="0.01" value={numberOrEmpty(platingCostPerGram === '' ? null : Number(platingCostPerGram))} onChange={(event) => setPlatingCostPerGram(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-none focus:border-violet-400" />
+                                <input type="number" step="0.01" value={numberOrEmpty(platingCostPerGram === '' ? null : Number(platingCostPerGram))} onChange={(event) => setPlatingCostPerGram(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-hidden focus:border-violet-400" />
                             </label>
                             <label className="block">
                                 <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-400"><Gem size={11} /> Καρφωτικά (€)</span>
-                                <input type="number" step="0.01" value={numberOrEmpty(stoneSettingCost === '' ? null : Number(stoneSettingCost))} onChange={(event) => setStoneSettingCost(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-none focus:border-violet-400" />
+                                <input type="number" step="0.01" value={numberOrEmpty(stoneSettingCost === '' ? null : Number(stoneSettingCost))} onChange={(event) => setStoneSettingCost(event.target.value === '' ? '' : Number(event.target.value))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-sm outline-hidden focus:border-violet-400" />
                             </label>
                         </div>
                     )}
@@ -228,15 +228,15 @@ export default function ConvertToImportedModal({
                 </div>
 
                 <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 p-4">
-                    <button onClick={step === 1 ? onClose : () => setStep((current) => current - 1)} className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 shadow-sm hover:bg-slate-50">
+                    <button onClick={step === 1 ? onClose : () => setStep((current) => current - 1)} className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 shadow-xs hover:bg-slate-50">
                         {step === 1 ? 'Ακύρωση' : <span className="flex items-center gap-1"><ArrowLeft size={14} /> Πίσω</span>}
                     </button>
                     {step < 3 ? (
-                        <button onClick={() => setStep((current) => current + 1)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
+                        <button onClick={() => setStep((current) => current + 1)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-violet-700">
                             Επόμενο <ArrowRight size={16} />
                         </button>
                     ) : (
-                        <button onClick={() => onConfirm(preview.newProduct)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
+                        <button onClick={() => onConfirm(preview.newProduct)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-violet-700">
                             <Globe size={16} />
                             Εφαρμογή Μετατροπής
                         </button>

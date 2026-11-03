@@ -34,10 +34,13 @@
       ::selection { background: rgba(245, 158, 11, 0.22); color: #060b00; }
 
       /* Keyboard focus ring for any control that does not define its own.
-         :where() keeps specificity at zero so Tailwind focus/outline utilities still win. */
-      :where(button, a, [role="button"], [tabindex="0"], summary, select):focus-visible {
-        outline: 2px solid rgba(6, 11, 0, 0.35);
-        outline-offset: 2px;
+         Tailwind 4 utilities live in cascade layers, which unlayered CSS always beats;
+         keeping this in the base layer lets focus/outline utilities still win. */
+      @layer base {
+        :where(button, a, [role="button"], [tabindex="0"], summary, select):focus-visible {
+          outline: 2px solid rgba(6, 11, 0, 0.35);
+          outline-offset: 2px;
+        }
       }
       
       /* Print view is hidden on screen by default */

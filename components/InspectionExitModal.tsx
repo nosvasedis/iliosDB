@@ -57,7 +57,7 @@ const InspectionExitModal: React.FC<InspectionExitModalProps> = ({ isOpen, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#060b00]/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-200 flex items-center justify-center bg-[#060b00]/70 p-4 backdrop-blur-xs">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -88,7 +88,7 @@ const InspectionExitModal: React.FC<InspectionExitModalProps> = ({ isOpen, onClo
               type="password"
               value={pin}
               onChange={(event) => setPin(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium outline-hidden transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
               autoFocus
               autoComplete="off"
             />

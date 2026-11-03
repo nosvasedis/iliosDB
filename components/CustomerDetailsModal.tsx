@@ -117,8 +117,8 @@ export interface CustomerDetailsModalProps {
 }
 
 const inputClass =
-    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10';
-const sectionCard = 'rounded-2xl border border-slate-100 bg-white shadow-sm';
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10';
+const sectionCard = 'rounded-2xl border border-slate-100 bg-white shadow-xs';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CLOSED_CONSIGNMENT_STATUSES = new Set(['completed', 'cancelled']);
 
@@ -170,15 +170,15 @@ function InfoRow({ icon: Icon, label, value, href, copyValue, mono, onCopy }: {
     const content = empty ? <span className="font-medium italic text-slate-300">—</span> : value;
     return (
         <div className="group flex items-start gap-3 rounded-xl px-2 py-2 transition hover:bg-white">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm ring-1 ring-slate-100">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-xs ring-1 ring-slate-100">
                 <Icon size={14} />
             </span>
             <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
                 {href && !empty ? (
-                    <a href={href} className={`block break-words text-[13px] font-bold text-slate-800 hover:text-sky-700 ${mono ? 'font-mono' : ''}`}>{content}</a>
+                    <a href={href} className={`block wrap-break-word text-[13px] font-bold text-slate-800 hover:text-sky-700 ${mono ? 'font-mono' : ''}`}>{content}</a>
                 ) : (
-                    <div className={`break-words text-[13px] font-bold text-slate-800 ${mono ? 'font-mono' : ''}`}>{content}</div>
+                    <div className={`wrap-break-word text-[13px] font-bold text-slate-800 ${mono ? 'font-mono' : ''}`}>{content}</div>
                 )}
             </div>
             {copyValue && onCopy && (
@@ -200,7 +200,7 @@ function QuickAction({ icon: Icon, label, href, onClick, disabled, title }: {
 }) {
     const cls = `flex flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-[11px] font-bold transition ${disabled
         ? 'pointer-events-none border-slate-100 bg-slate-50 text-slate-300'
-        : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'}`;
+        : 'border-slate-200 bg-white text-slate-700 shadow-xs hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'}`;
     if (href && !disabled) {
         return <a href={href} className={cls} title={title ?? label}><Icon size={17} /> {label}</a>;
     }
@@ -678,8 +678,8 @@ export default function CustomerDetailsModal({
                                     </div>
                                     {address && (
                                         <div className="mt-0.5 flex items-start gap-1 text-[12px] font-semibold text-slate-600">
-                                            <span className="min-w-0 flex-1 break-words">{address}</span>
-                                            <button type="button" onClick={() => copyValue(address, branch.label)} className="shrink-0 rounded p-0.5 text-slate-300 hover:text-slate-700" title="Αντιγραφή διεύθυνσης"><Copy size={12} /></button>
+                                            <span className="min-w-0 flex-1 wrap-break-word">{address}</span>
+                                            <button type="button" onClick={() => copyValue(address, branch.label)} className="shrink-0 rounded-sm p-0.5 text-slate-300 hover:text-slate-700" title="Αντιγραφή διεύθυνσης"><Copy size={12} /></button>
                                         </div>
                                     )}
                                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -793,7 +793,7 @@ export default function CustomerDetailsModal({
                             <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatNumber(item.qty)} τεμ. · {formatNumber(item.skuCount)} κωδ.</span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-700" style={{ width: `${Math.max(4, item.share)}%` }} />
+                            <div className="h-full rounded-full bg-linear-to-r from-sky-400 to-indigo-500 transition-all duration-700" style={{ width: `${Math.max(4, item.share)}%` }} />
                         </div>
                     </div>
                 ))}
@@ -953,7 +953,7 @@ export default function CustomerDetailsModal({
                         value={orderQuery}
                         onChange={e => setOrderQuery(e.target.value)}
                         placeholder={isRetailAccount ? 'Κωδικός, ημερομηνία, τελικός πελάτης…' : 'Κωδικός, ημερομηνία, SKU ή κατηγορία…'}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-800 shadow-xs outline-hidden transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                     />
                 </div>
                 <span className="shrink-0 text-xs font-bold text-slate-400">
@@ -1037,7 +1037,7 @@ export default function CustomerDetailsModal({
                         <p className="text-xs text-slate-500">{formatNumber(openConsignments)} ενεργές · {formatNumber(customerConsignments.length)} συνολικά</p>
                     </div>
                 </div>
-                <button type="button" onClick={() => setServiceForm('consignment')} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-indigo-800">
+                <button type="button" onClick={() => setServiceForm('consignment')} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 px-3 py-2 text-xs font-black text-white shadow-xs hover:bg-indigo-800">
                     <Plus size={14} /> Νέα παρακαταθήκη
                 </button>
             </div>
@@ -1079,7 +1079,7 @@ export default function CustomerDetailsModal({
                         <p className="text-xs text-slate-500">{formatNumber(openRepairs)} ανοιχτές · {formatNumber(customerRepairs.length)} συνολικά</p>
                     </div>
                 </div>
-                <button type="button" onClick={() => setServiceForm('repair')} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-sky-800">
+                <button type="button" onClick={() => setServiceForm('repair')} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white shadow-xs hover:bg-sky-800">
                     <Plus size={14} /> Νέα παραλαβή
                 </button>
             </div>
@@ -1133,7 +1133,7 @@ export default function CustomerDetailsModal({
                                         </div>
                                     </div>
                                     <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                                        <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 transition-all duration-700" style={{ width: `${(client.totalRevenue / maxRevenue) * 100}%` }} />
+                                        <div className="h-full rounded-full bg-linear-to-r from-indigo-400 to-purple-500 transition-all duration-700" style={{ width: `${(client.totalRevenue / maxRevenue) * 100}%` }} />
                                     </div>
                                 </div>
                             </div>
@@ -1188,7 +1188,7 @@ export default function CustomerDetailsModal({
                                     type="button"
                                     onClick={handleAfmLookup}
                                     disabled={isSearchingAfm}
-                                    className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-black disabled:opacity-50"
+                                    className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-black disabled:opacity-50"
                                     title="Αναζήτηση στο μητρώο ΑΑΔΕ"
                                 >
                                     {isSearchingAfm ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} ΑΑΔΕ
@@ -1271,7 +1271,7 @@ export default function CustomerDetailsModal({
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setEditForm({ ...editForm, vat_rate: opt.value, ...(opt.value === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) })}
-                                    className={`rounded-xl border px-3 py-2.5 text-left transition ${active ? 'border-[#060b00] bg-[#060b00] text-white shadow' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}
+                                    className={`rounded-xl border px-3 py-2.5 text-left transition ${active ? 'border-[#060b00] bg-[#060b00] text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}
                                 >
                                     <div className="text-base font-black">{opt.label}</div>
                                     <div className={`text-[11px] font-semibold ${active ? 'text-white/70' : 'text-slate-400'}`}>{opt.sub}</div>
@@ -1340,7 +1340,7 @@ export default function CustomerDetailsModal({
         <>
         {!transferOrder && (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-2 backdrop-blur-sm animate-in fade-in duration-200 sm:p-4 lg:p-6"
+            className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/50 p-2 backdrop-blur-xs animate-in fade-in duration-200 sm:p-4 lg:p-6"
             onMouseDown={e => { if (e.target === e.currentTarget && !isEditing) onClose(); }}
         >
             <div
@@ -1370,7 +1370,7 @@ export default function CustomerDetailsModal({
 
                             <div className="relative flex items-center gap-4 lg:flex-col lg:items-start">
                                 {isRetailSystemCustomer ? (
-                                    <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg ring-4 ring-white lg:h-20 lg:w-20 ${isInternalAccount ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
+                                    <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-lg ring-4 ring-white lg:h-20 lg:w-20 ${isInternalAccount ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
                                         {isInternalAccount ? <Warehouse size={30} /> : <Store size={30} />}
                                     </div>
                                 ) : (
@@ -1470,7 +1470,7 @@ export default function CustomerDetailsModal({
                                 </div>
                             </div>
                         ) : (
-                            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label="Ενότητες καρτέλας πελάτη">
+                            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto scrollbar-none" role="tablist" aria-label="Ενότητες καρτέλας πελάτη">
                                 {tabList.map(tab => {
                                     const active = activeTab === tab.id;
                                     return (
@@ -1480,7 +1480,7 @@ export default function CustomerDetailsModal({
                                             role="tab"
                                             aria-selected={active}
                                             onClick={() => setActiveTab(tab.id)}
-                                            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition ${'narrowOnly' in tab && tab.narrowOnly ? 'lg:hidden' : ''} ${active ? 'bg-[#060b00] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+                                            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition ${'narrowOnly' in tab && tab.narrowOnly ? 'lg:hidden' : ''} ${active ? 'bg-[#060b00] text-white shadow-xs' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
                                         >
                                             <tab.Icon size={15} />
                                             {tab.label}
@@ -1503,7 +1503,7 @@ export default function CustomerDetailsModal({
                                         type="button"
                                         onClick={handleSave}
                                         disabled={isSaving}
-                                        className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-black disabled:opacity-60"
+                                        className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-2 text-sm font-bold text-white shadow-xs transition-colors hover:bg-black disabled:opacity-60"
                                     >
                                         {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
                                     </button>

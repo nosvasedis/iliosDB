@@ -29,7 +29,7 @@ export const SmartQuantityInput = React.memo(({
                 type="number"
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value))}
-                className="w-16 rounded-md border border-slate-200 bg-white p-1.5 text-center text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                className="w-16 rounded-md border border-slate-200 bg-white p-1.5 text-center text-sm font-bold text-slate-800 outline-hidden focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
             />
             {stonesPerStrand && stonesPerStrand > 1 && (
                 <div className="relative">
@@ -51,11 +51,11 @@ export const SmartQuantityInput = React.memo(({
                                     placeholder="1,5"
                                     value={strandInput}
                                     onChange={e => setStrandInput(e.target.value)}
-                                    className="w-full rounded border border-slate-200 p-1.5 text-sm outline-none focus:border-blue-400"
+                                    className="w-full rounded-sm border border-slate-200 p-1.5 text-sm outline-hidden focus:border-blue-400"
                                     autoFocus
                                     onKeyDown={e => e.key === 'Enter' && applyStrands()}
                                 />
-                                <button type="button" onClick={applyStrands} className="rounded bg-blue-600 p-1.5 text-white hover:bg-blue-700">
+                                <button type="button" onClick={applyStrands} className="rounded-sm bg-blue-600 p-1.5 text-white hover:bg-blue-700">
                                     <Check size={14} />
                                 </button>
                             </div>
@@ -79,7 +79,7 @@ export const LaborCostInput = React.memo(({ label, value, onChange, override, on
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
                 readOnly={readOnly || (onToggleOverride && !override)}
-                className={`w-20 rounded-md border border-slate-200 bg-white p-1.5 text-right font-mono text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'font-bold text-slate-800'}`}
+                className={`w-20 rounded-md border border-slate-200 bg-white p-1.5 text-right font-mono text-sm outline-hidden transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'font-bold text-slate-800'}`}
             />
             {onToggleOverride && (
                 <button type="button" onClick={onToggleOverride} className={`rounded-md p-1 transition-all ${override ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'text-slate-300 hover:bg-amber-50 hover:text-amber-500'}`}>

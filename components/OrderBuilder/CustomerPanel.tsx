@@ -16,7 +16,7 @@ interface Props {
 }
 
 const fieldLabel = 'text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 block';
-const fieldInput = 'w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm text-slate-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15 transition-all';
+const fieldInput = 'w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-sm text-slate-800 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15 transition-all';
 
 function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
     return (
@@ -31,7 +31,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
     const { overrides: tagColorOverrides } = useTagColorOverrides();
 
     return (
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm lg:min-h-0 lg:overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs lg:min-h-0 lg:overflow-y-auto custom-scrollbar divide-y divide-slate-100">
             {/* Customer */}
             <section className="p-4 xl:p-5">
                 <SectionTitle icon={<User size={14} />}>Στοιχεία Πελάτη</SectionTitle>
@@ -46,7 +46,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                             <div className="relative">
                                 <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${state.selectedCustomerId ? 'text-emerald-500' : 'text-slate-400'}`} />
                                 <input
-                                    className={`w-full pl-9 pr-9 py-2.5 border rounded-xl outline-none font-bold text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/15 transition-all ${state.selectedCustomerId ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400'}`}
+                                    className={`w-full pl-9 pr-9 py-2.5 border rounded-xl outline-hidden font-bold text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/15 transition-all ${state.selectedCustomerId ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400'}`}
                                     placeholder="Αναζήτηση πελάτη..."
                                     value={state.customerName}
                                     onChange={e => {
@@ -159,7 +159,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                                     return (
                                         <span key={t} className={`text-[10px] pl-2 pr-1 py-0.5 rounded-md border flex items-center gap-1 font-bold ${c.bg} ${c.text} ${c.border}`}>
                                             {t}
-                                            <button type="button" onClick={() => actions.removeTag(t)} className="p-0.5 rounded hover:text-red-600 opacity-70 hover:opacity-100" aria-label={`Αφαίρεση ${t}`}>
+                                            <button type="button" onClick={() => actions.removeTag(t)} className="p-0.5 rounded-sm hover:text-red-600 opacity-70 hover:opacity-100" aria-label={`Αφαίρεση ${t}`}>
                                                 <X size={10} />
                                             </button>
                                         </span>
@@ -208,7 +208,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                                     value={state.discountPercent}
                                     onChange={e => setters.setDiscountPercent(parseFloat(e.target.value) || 0)}
                                     onFocus={e => e.target.select()}
-                                    className={`w-full pl-3 pr-7 py-2.5 border rounded-xl outline-none font-bold text-sm tabular-nums transition-all focus:ring-2 focus:ring-amber-500/25 focus:border-amber-400 ${
+                                    className={`w-full pl-3 pr-7 py-2.5 border rounded-xl outline-hidden font-bold text-sm tabular-nums transition-all focus:ring-2 focus:ring-amber-500/25 focus:border-amber-400 ${
                                         state.discountPercent > 0 ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-800'
                                     }`}
                                 />
@@ -241,7 +241,7 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                     value={state.orderNotes}
                     onChange={e => setters.setOrderNotes(e.target.value)}
                     rows={3}
-                    className={`${fieldInput} resize-y min-h-[4.5rem] max-h-64`}
+                    className={`${fieldInput} resize-y min-h-18 max-h-64`}
                     placeholder="Ειδικές οδηγίες..."
                 />
             </section>

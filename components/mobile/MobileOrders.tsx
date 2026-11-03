@@ -163,9 +163,9 @@ const LegacyOrderPrintSheet: React.FC<{
 
     return (
         <>
-        <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+        <div className="fixed inset-0 z-170 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={onClose}>
             <div
-                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between gap-4 mb-4">
@@ -204,7 +204,7 @@ const LegacyOrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-xs">
                                     <Truck size={18} />
                                 </div>
                                 <div>
@@ -225,7 +225,7 @@ const LegacyOrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-xs">
                                     <PackageCheck size={18} />
                                 </div>
                                 <div>
@@ -243,7 +243,7 @@ const LegacyOrderPrintSheet: React.FC<{
                         className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 text-left text-slate-900"
                     >
                         <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-xs">
                                 <Printer size={18} />
                             </div>
                             <div>
@@ -276,9 +276,9 @@ const LegacyOrderPrintSheet: React.FC<{
             />
         )}
         {showVersionSelector && orderRevisions.length > 0 && (
-            <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
+            <div className="fixed inset-0 z-175 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
                 <div
-                    className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                    className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-start justify-between gap-4 mb-4">
@@ -313,7 +313,7 @@ const LegacyOrderPrintSheet: React.FC<{
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm shrink-0 ${
+                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-xs shrink-0 ${
                                             isCurrent ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
                                         }`}>
                                             <History size={18} />
@@ -368,9 +368,9 @@ const OrderPartSelectorSheet: React.FC<{
     );
 
     return (
-        <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+        <div className="fixed inset-0 z-175 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={onClose}>
             <div
-                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -587,9 +587,9 @@ const OrderPrintSheet: React.FC<{
 
     if (showVersionSelector && orderRevisions.length > 0) {
         return (
-            <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
+            <div className="fixed inset-0 z-175 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
                 <div
-                    className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                    className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-start justify-between gap-4 mb-4">
@@ -630,7 +630,7 @@ const OrderPrintSheet: React.FC<{
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm shrink-0 ${
+                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-xs shrink-0 ${
                                             isCurrent ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
                                         }`}>
                                             <History size={18} />
@@ -666,9 +666,9 @@ const OrderPrintSheet: React.FC<{
 
     return (
         <>
-        <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+        <div className="fixed inset-0 z-170 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end" onClick={onClose}>
             <div
-                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                className="bg-white rounded-t-4xl px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -716,7 +716,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 text-left text-slate-900"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-xs">
                                     <Printer size={18} />
                                 </div>
                                 <div className="flex-1">
@@ -746,7 +746,7 @@ const OrderPrintSheet: React.FC<{
                                 className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-xs">
                                         <Truck size={18} />
                                     </div>
                                     <div>
@@ -772,7 +772,7 @@ const OrderPrintSheet: React.FC<{
                                 className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-xs">
                                         <PackageCheck size={18} />
                                     </div>
                                     <div>
@@ -791,7 +791,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 py-4 text-left text-emerald-900 disabled:opacity-50"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-xs">
                                     <Tag size={18} />
                                 </div>
                                 <div>
@@ -812,7 +812,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-teal-200 bg-teal-50 px-4 py-4 text-left text-teal-900 disabled:opacity-50"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-xs">
                                     <BarChart3 size={18} />
                                 </div>
                                 <div>
@@ -835,7 +835,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900 disabled:opacity-50"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-xs">
                                     <FileText size={18} />
                                 </div>
                                 <div>
@@ -853,7 +853,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 py-4 text-left text-purple-900 disabled:opacity-50"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-xs">
                                     <BookOpen size={18} />
                                 </div>
                                 <div>
@@ -871,7 +871,7 @@ const OrderPrintSheet: React.FC<{
                             className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 px-4 py-4 text-left text-orange-900 disabled:opacity-50"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700 shadow-sm">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700 shadow-xs">
                                     <Hammer size={18} />
                                 </div>
                                 <div>
@@ -964,7 +964,7 @@ const OrderCard: React.FC<{
     const netValue = order.total_price / (1 + activeVat);
 
     return (
-        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-[transform,box-shadow] duration-200 active:scale-[0.99] ${
+        <div className={`bg-white rounded-2xl border shadow-xs overflow-hidden transition-[transform,box-shadow] duration-200 active:scale-[0.99] ${
             isSelected ? ORDER_BULK_SELECTED_ROW_CLASS : 'border-slate-100'
         }`}>
             <div
@@ -998,7 +998,7 @@ const OrderCard: React.FC<{
                                 {order.tags.map(t => {
                                     const c = getTagColor(t, tagColorOverrides);
                                     return (
-                                        <span key={t} className={`text-[8px] px-1.5 py-0.5 rounded border font-bold uppercase ${c.bg} ${c.text} ${c.border}`}>{t}</span>
+                                        <span key={t} className={`text-[8px] px-1.5 py-0.5 rounded-sm border font-bold uppercase ${c.bg} ${c.text} ${c.border}`}>{t}</span>
                                     );
                                 })}
                             </div>
@@ -1015,7 +1015,7 @@ const OrderCard: React.FC<{
                             </div>
                         )}
                         {isReady && !isDelivered && !isCancelled && (
-                            <div className="bg-emerald-500 text-white p-1 rounded-full animate-pulse shadow-sm shadow-emerald-200">
+                            <div className="bg-emerald-500 text-white p-1 rounded-full animate-pulse shadow-xs shadow-emerald-200">
                                 <CheckCircle size={14} />
                             </div>
                         )}
@@ -1038,7 +1038,7 @@ const OrderCard: React.FC<{
                     <div className="flex justify-end gap-2 mb-2 flex-wrap">
                         <button
                             onClick={(e) => { e.stopPropagation(); onManage(order); }}
-                            className="flex items-center gap-1 bg-white border border-slate-200 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            className="flex items-center gap-1 bg-white border border-slate-200 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold shadow-xs active:scale-95"
                         >
                             <Settings size={14} /> Διαχείριση
                         </button>
@@ -1055,7 +1055,7 @@ const OrderCard: React.FC<{
                         {onPrintLabels && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); handlePrintLabels(); }}
-                                className="flex items-center gap-1 bg-white border border-slate-200 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                                className="flex items-center gap-1 bg-white border border-slate-200 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold shadow-xs active:scale-95"
                             >
                                 <Tag size={14} /> Ετικέτες
                             </button>
@@ -1063,7 +1063,7 @@ const OrderCard: React.FC<{
                         {onPrint && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onPrint(order); }}
-                                className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                                className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold shadow-xs active:scale-95"
                             >
                                 <Printer size={14} /> Εκτύπωση
                             </button>
@@ -1071,14 +1071,14 @@ const OrderCard: React.FC<{
 
                         <button
                             onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-                            className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95"
+                            className="flex items-center gap-1 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold shadow-xs active:scale-95"
                         >
                             <Edit size={14} /> Επεξεργασία
                         </button>
                     </div>
 
                     {order.status === OrderStatus.InProduction && stageProgress && (
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Στάδια Παραγωγής</div>
@@ -1491,7 +1491,7 @@ export default function MobileOrders({
         <div className="min-h-full bg-slate-50 pb-4">
 
             {/* Sticky Header Group */}
-            <div className={`sticky top-0 z-10 shadow-sm ${MOBILE_HEADER_SURFACE}`}>
+            <div className={`sticky top-0 z-10 shadow-xs ${MOBILE_HEADER_SURFACE}`}>
                 <div className="space-y-3 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
                 <MobileScreenHeader
                     embedded
@@ -1502,14 +1502,14 @@ export default function MobileOrders({
                 />
                 <div className="flex justify-between items-center">
                     <div className="flex bg-slate-200 p-1 rounded-xl">
-                        <button onClick={() => { setActiveTab('active'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Ενεργές</button>
-                        <button onClick={() => { setActiveTab('archived'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Αρχείο</button>
+                        <button onClick={() => { setActiveTab('active'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>Ενεργές</button>
+                        <button onClick={() => { setActiveTab('archived'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>Αρχείο</button>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={() => setSkuSearchOpen(true)}
-                            className="flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white shadow-sm text-emerald-600 active:scale-95 transition-transform"
+                            className="flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white shadow-xs text-emerald-600 active:scale-95 transition-transform"
                             aria-label="Αναζήτηση SKU"
                         >
                             <Hash size={17} strokeWidth={2.5} />
@@ -1528,12 +1528,12 @@ export default function MobileOrders({
                         onDebouncedChange={handleSearchFilterChange}
                         placeholder="Αναζήτηση πελάτη, ID ή ετικέτας..."
                         className="relative flex-1 min-w-0"
-                        inputClassName="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                        inputClassName="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-500/20 shadow-xs font-medium"
                     />
                     <button
                         type="button"
                         onClick={() => setFiltersSheetOpen(true)}
-                        className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm font-bold text-slate-700 active:scale-95 transition-transform"
+                        className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs font-bold text-slate-700 active:scale-95 transition-transform"
                     >
                         <SlidersHorizontal size={18} className="text-slate-500" />
                         <span className="text-xs">Φίλτρα</span>
@@ -1637,7 +1637,7 @@ export default function MobileOrders({
 
             {/* MOBILE MANAGEMENT MODAL */}
             {managingOrder && (
-                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end">
+                <div className="fixed inset-0 z-150 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end">
                     <div className="bg-white rounded-t-[2.5rem] p-6 pb-safe animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-start mb-6">
                             <div>
@@ -1657,7 +1657,7 @@ export default function MobileOrders({
                                         onChange={e => setTagInput(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleAddTag()}
                                         placeholder="Προσθήκη ετικέτας..."
-                                        className="flex-1 p-3 bg-white border border-indigo-200 rounded-xl text-sm font-bold outline-none"
+                                        className="flex-1 p-3 bg-white border border-indigo-200 rounded-xl text-sm font-bold outline-hidden"
                                     />
                                     <button onClick={handleAddTag} disabled={!tagInput.trim()} className="bg-indigo-600 text-white px-4 rounded-xl font-bold shadow-md">Προσθήκη</button>
                                 </div>
@@ -1665,7 +1665,7 @@ export default function MobileOrders({
                                     {managingOrder.tags && managingOrder.tags.map(t => {
                                         const c = getTagColor(t, tagColorOverrides);
                                         return (
-                                            <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm`}>
+                                            <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-xs`}>
                                                 {t}{' '}
                                                 <button type="button" onClick={() => handleRemoveTag(t)} aria-label={`Αφαίρεση ${t}`}>
                                                     <X size={14} className="opacity-50 hover:opacity-100 hover:text-red-600 transition-opacity" />
@@ -1718,7 +1718,7 @@ export default function MobileOrders({
                             </div>
 
                             {isOrderReady(managingOrder, batches) && managingOrder.status !== OrderStatus.Delivered && (
-                                <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full flex items-center justify-center gap-2 p-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm"><CheckSquare size={18} /> Ολοκλήρωση & Παράδοση</button>
+                                <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full flex items-center justify-center gap-2 p-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-xs"><CheckSquare size={18} /> Ολοκλήρωση & Παράδοση</button>
                             )}
 
                             <button onClick={() => handleDeleteOrder(managingOrder)} className="w-full flex items-center justify-center gap-2 p-3 text-red-400 text-xs font-bold"><Trash2 size={14} /> Οριστική Διαγραφή</button>
@@ -1740,7 +1740,7 @@ export default function MobileOrders({
 
             {/* SELLER ASSIGNMENT MODAL */}
             {sellerAssignOrder && (
-                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end">
+                <div className="fixed inset-0 z-150 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end">
                     <div className="bg-white rounded-t-[2.5rem] p-6 pb-safe animate-in slide-in-from-bottom-full duration-300">
                         <div className="flex justify-between items-start mb-5">
                             <div>
@@ -1807,10 +1807,10 @@ export default function MobileOrders({
             )}
 
             {filtersSheetOpen && (
-                <div className="fixed inset-0 z-[160] flex flex-col bg-slate-900/50" role="dialog" aria-modal="true">
+                <div className="fixed inset-0 z-160 flex flex-col bg-slate-900/50" role="dialog" aria-modal="true">
                     <button type="button" className="absolute inset-0" aria-label="Κλείσιμο" onClick={() => setFiltersSheetOpen(false)} />
                     <div
-                        className="relative mt-auto max-h-[min(92vh,720px)] flex flex-col rounded-t-[2rem] bg-white shadow-2xl border-t border-slate-200"
+                        className="relative mt-auto max-h-[min(92vh,720px)] flex flex-col rounded-t-4xl bg-white shadow-2xl border-t border-slate-200"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-slate-100 shrink-0">

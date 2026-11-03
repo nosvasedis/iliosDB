@@ -54,14 +54,14 @@ function StatCard({
   tone: string;
 }) {
   return (
-    <div className={`rounded-3xl border p-4 shadow-sm ${tone}`}>
+    <div className={`rounded-3xl border p-4 shadow-xs ${tone}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] opacity-70">{title}</p>
-          <p className="mt-2 break-words text-2xl font-black tracking-tight">{value}</p>
+          <p className="mt-2 wrap-break-word text-2xl font-black tracking-tight">{value}</p>
           {hint ? <p className="mt-1 text-xs font-medium leading-snug opacity-75">{hint}</p> : null}
         </div>
-        <div className="shrink-0 rounded-2xl bg-white/70 p-3 shadow-sm">{icon}</div>
+        <div className="shrink-0 rounded-2xl bg-white/70 p-3 shadow-xs">{icon}</div>
       </div>
     </div>
   );
@@ -103,7 +103,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
       <div className="min-h-full bg-slate-50">
         <MobileScreenHeader icon={BarChart3} title="Οικονομικά" subtitle="Πραγματοποιημένα έσοδα και εκκρεμότητες" iconClassName="text-indigo-700" />
         <div className="px-5 py-10">
-          <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-700 shadow-sm">
+          <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-700 shadow-xs">
             <p className="text-sm font-black">Δεν φορτώθηκαν τα οικονομικά στοιχεία.</p>
             <p className="mt-2 text-xs font-medium">{(error as Error)?.message || 'Δοκιμάστε ξανά σε λίγο.'}</p>
             <button type="button" onClick={refetch} className="mt-4 rounded-xl bg-rose-700 px-4 py-2 text-xs font-black text-white">
@@ -126,7 +126,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white shadow-sm"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white shadow-xs"
           >
             <Printer size={14} />
             PDF
@@ -183,7 +183,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
 
         <ResourceQuantitiesPanel realized={stats.resourceQuantities} backlog={stats.backlogResourceQuantities} periodLabel={stats.period.label} />
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-900">Πορεία εσόδων και κέρδους</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Αποστολές</span>
@@ -214,7 +214,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           ) : <EmptyState text="Δεν υπάρχουν αποστολές για την επιλεγμένη περίοδο." />}
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-500" /> Πιο δυνατά προϊόντα</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Top 5</span>
@@ -235,7 +235,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           ) : <EmptyState text="Δεν υπάρχουν προϊόντα με πραγματοποιημένα έσοδα." />}
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-black text-slate-900">Κατηγορίες SKU</h3>
             <button type="button" aria-pressed={categoryDetail} onClick={() => setCategoryDetail(value => !value)} className="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">{categoryDetail ? 'Κύριες κατηγορίες' : 'Αναλυτικές υποκατηγορίες'}</button>
@@ -249,7 +249,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <h3 className="mb-3 text-sm font-black text-slate-900">Θέματα</h3>
           <div className="space-y-2">{stats.themeChartData.map(row => <div key={row.name} className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs font-bold text-slate-800">{row.name}</p>
@@ -257,7 +257,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           </div>)}</div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Boxes size={16} className="text-fuchsia-600" /> Συλλογές που ξεχώρισαν</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Έσοδα</span>
@@ -265,13 +265,13 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           <p className="mb-3 text-xs text-slate-500">Τα είδη χωρίς συλλογή εμφανίζονται ανά φύλο και αναλυτική κατηγορία.</p>
           <div className="max-h-80 space-y-2 overflow-y-auto">
             {topCollections.length ? topCollections.map((row) => <div key={row.key || String(row.id)} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <p className="break-words text-xs font-bold text-slate-800">{row.name}</p>
+              <p className="wrap-break-word text-xs font-bold text-slate-800">{row.name}</p>
               <p className="mt-1 text-xs text-slate-500">{formatNumber(row.quantity)} τεμ. · Έσοδα {formatCurrency(row.revenue)} · Κέρδος {formatCurrency(row.profit)}</p>
             </div>) : <EmptyState text="Δεν υπάρχουν πωλήσεις για την περίοδο." />}
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-900">Καλύτεροι πελάτες</h3>
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Top 5</span>
@@ -280,7 +280,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
             {topCustomers.length > 0 ? topCustomers.map((customer, index) => (
               <div key={`${customer.name}-${index}`} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-xs">
                     <Users size={16} />
                   </div>
                   <div className="min-w-0">
@@ -294,7 +294,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-xs">
           <button
             type="button"
             onClick={() => setLegalReconciliationOpen((open) => !open)}

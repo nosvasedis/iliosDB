@@ -77,11 +77,11 @@ function MenuTile({
       type="button"
       onClick={() => onNavigate(item.id)}
       className={`group relative flex flex-col items-start rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${
-        large ? 'min-h-[5.5rem]' : 'min-h-[4.75rem]'
+        large ? 'min-h-22' : 'min-h-19'
       } ${
         active
-          ? 'border-emerald-500/40 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-900/20'
-          : 'border-slate-100 bg-white text-slate-800 shadow-sm hover:border-slate-200 hover:shadow-md'
+          ? 'border-emerald-500/40 bg-linear-to-br from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-900/20'
+          : 'border-slate-100 bg-white text-slate-800 shadow-xs hover:border-slate-200 hover:shadow-md'
       }`}
     >
       <div className="mb-3 flex w-full items-start justify-between gap-2">
@@ -130,7 +130,7 @@ function MenuRow({
       type="button"
       onClick={() => onNavigate(item.id)}
       className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
-        active ? 'border-slate-800 bg-slate-900 text-white shadow-lg' : 'border-slate-100 bg-white text-slate-800 shadow-sm hover:border-slate-200'
+        active ? 'border-slate-800 bg-slate-900 text-white shadow-lg' : 'border-slate-100 bg-white text-slate-800 shadow-xs hover:border-slate-200'
       }`}
     >
       <div className="flex items-center gap-3">
@@ -197,11 +197,11 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   ];
 
   return (
-    <div className="min-h-full animate-in bg-gradient-to-b from-slate-50 to-slate-100/80 pb-28 duration-300 slide-in-from-bottom-4">
+    <div className="min-h-full animate-in bg-linear-to-b from-slate-50 to-slate-100/80 pb-28 duration-300 slide-in-from-bottom-4">
       <MobileScreenHeader icon={Menu} title="Μενού" subtitle="Όλες οι λειτουργίες" iconClassName="text-slate-700" />
 
       <div className="px-4 pt-4">
-      <header className="mb-8 flex items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+      <header className="mb-8 flex items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-5 shadow-xs backdrop-blur-xs">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-inner ring-1 ring-slate-100">
           <img src={APP_LOGO} alt="Ilios" className="h-full w-full object-contain" />
         </div>

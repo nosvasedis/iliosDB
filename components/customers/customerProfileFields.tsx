@@ -25,7 +25,7 @@ const EU_COUNTRIES = new Set([
 export const isEuCountry = (country?: string | null) => EU_COUNTRIES.has(normalizeCountry(country));
 
 const fieldClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-50 disabled:text-slate-400';
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-hidden transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-50 disabled:text-slate-400';
 
 /** Country of the fiscal seat (or of a shop). */
 export function CountrySelect({ value, onChange, className = '', disabled }: {
@@ -82,7 +82,7 @@ export function CountryMismatchHint({ customer, onFix, busy }: { customer: Custo
         type="button"
         disabled={busy}
         onClick={() => onFix(detected)}
-        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-black text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
+        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-black text-white shadow-xs hover:bg-amber-700 disabled:opacity-50"
       >
         Ορισμός χώρας: {countryDisplayName(detected)}
       </button>
@@ -114,7 +114,7 @@ export function OverseasVatSuggestion({ customer, onChange }: { customer: Custom
         <button
           type="button"
           onClick={() => onChange({ ...customer, vat_rate: 0, vat_exemption_category: category, vat_exemption_legal_note: option?.description ?? null })}
-          className="rounded-lg bg-violet-700 px-3 py-1.5 text-[11px] font-black text-white shadow-sm hover:bg-violet-800"
+          className="rounded-lg bg-violet-700 px-3 py-1.5 text-[11px] font-black text-white shadow-xs hover:bg-violet-800"
         >
           Εφαρμογή 0% · κατ. {category}
         </button>
@@ -206,7 +206,7 @@ export function CustomerBranchesEditor({ customer, onChange, disabled, disabledR
               <Copy size={13} /> Από έδρα
             </button>
           )}
-          <button type="button" disabled={disabled} onClick={() => add()} className="flex items-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-black disabled:opacity-40">
+          <button type="button" disabled={disabled} onClick={() => add()} className="flex items-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2 text-xs font-bold text-white shadow-xs hover:bg-black disabled:opacity-40">
             <Plus size={14} /> Κατάστημα
           </button>
         </div>

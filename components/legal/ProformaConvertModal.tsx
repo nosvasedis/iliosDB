@@ -38,9 +38,9 @@ export default function ProformaConvertModal({
   const invoiceNumber = createdDocument ? getLegalDocumentDisplayNumber(createdDocument) : '—';
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-700 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-sky-50 to-white px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-linear-to-r from-sky-50 to-white px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-sky-100 p-2.5 text-sky-700">
               {step === 'success' ? <CheckCircle2 size={22} /> : <Copy size={22} />}

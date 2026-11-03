@@ -35,42 +35,42 @@ const SHEET_STYLES: Record<
     { card: string; iconWrap: string; ring: string }
 > = {
     indigo: {
-        card: 'border-indigo-300/80 bg-gradient-to-br from-indigo-500/[0.14] to-indigo-600/[0.08] active:from-indigo-500/25 active:to-indigo-600/15',
+        card: 'border-indigo-300/80 bg-linear-to-br from-indigo-500/[0.14] to-indigo-600/8 active:from-indigo-500/25 active:to-indigo-600/15',
         iconWrap: 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25',
         ring: 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-white',
     },
     slate: {
-        card: 'border-slate-300/80 bg-gradient-to-br from-slate-500/[0.12] to-slate-600/[0.06] active:from-slate-500/20 active:to-slate-600/12',
+        card: 'border-slate-300/80 bg-linear-to-br from-slate-500/12 to-slate-600/6 active:from-slate-500/20 active:to-slate-600/12',
         iconWrap: 'bg-slate-700 text-white shadow-lg shadow-slate-700/20',
         ring: 'ring-2 ring-slate-500 ring-offset-2 ring-offset-white',
     },
     orange: {
-        card: 'border-orange-300/80 bg-gradient-to-br from-orange-500/[0.16] to-amber-600/[0.08] active:from-orange-500/25 active:to-amber-600/15',
+        card: 'border-orange-300/80 bg-linear-to-br from-orange-500/16 to-amber-600/8 active:from-orange-500/25 active:to-amber-600/15',
         iconWrap: 'bg-orange-600 text-white shadow-lg shadow-orange-600/25',
         ring: 'ring-2 ring-orange-500 ring-offset-2 ring-offset-white',
     },
     purple: {
-        card: 'border-purple-300/80 bg-gradient-to-br from-purple-500/[0.14] to-violet-600/[0.08] active:from-purple-500/22 active:to-violet-600/14',
+        card: 'border-purple-300/80 bg-linear-to-br from-purple-500/[0.14] to-violet-600/8 active:from-purple-500/22 active:to-violet-600/14',
         iconWrap: 'bg-purple-600 text-white shadow-lg shadow-purple-600/25',
         ring: 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white',
     },
     blue: {
-        card: 'border-sky-300/80 bg-gradient-to-br from-sky-500/[0.12] to-blue-600/[0.08] active:from-sky-500/20 active:to-blue-600/14',
+        card: 'border-sky-300/80 bg-linear-to-br from-sky-500/12 to-blue-600/8 active:from-sky-500/20 active:to-blue-600/14',
         iconWrap: 'bg-sky-600 text-white shadow-lg shadow-sky-600/25',
         ring: 'ring-2 ring-sky-500 ring-offset-2 ring-offset-white',
     },
     pink: {
-        card: 'border-pink-300/80 bg-gradient-to-br from-pink-500/[0.14] to-rose-600/[0.08] active:from-pink-500/22 active:to-rose-600/14',
+        card: 'border-pink-300/80 bg-linear-to-br from-pink-500/[0.14] to-rose-600/8 active:from-pink-500/22 active:to-rose-600/14',
         iconWrap: 'bg-pink-600 text-white shadow-lg shadow-pink-600/25',
         ring: 'ring-2 ring-pink-500 ring-offset-2 ring-offset-white',
     },
     yellow: {
-        card: 'border-amber-300/80 bg-gradient-to-br from-amber-400/[0.18] to-yellow-600/[0.08] active:from-amber-400/28 active:to-yellow-600/14',
+        card: 'border-amber-300/80 bg-linear-to-br from-amber-400/18 to-yellow-600/8 active:from-amber-400/28 active:to-yellow-600/14',
         iconWrap: 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/30',
         ring: 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white',
     },
     emerald: {
-        card: 'border-emerald-300/80 bg-gradient-to-br from-emerald-500/[0.14] to-teal-600/[0.08] active:from-emerald-500/22 active:to-teal-600/14',
+        card: 'border-emerald-300/80 bg-linear-to-br from-emerald-500/[0.14] to-teal-600/8 active:from-emerald-500/22 active:to-teal-600/14',
         iconWrap: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25',
         ring: 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white',
     },
@@ -120,7 +120,7 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
 
     const overlay = (
         <div
-            className="fixed inset-0 z-[300] flex flex-col justify-end bg-slate-950/75 backdrop-blur-[2px] animate-in fade-in duration-150"
+            className="fixed inset-0 z-300 flex flex-col justify-end bg-slate-950/75 backdrop-blur-[2px] animate-in fade-in duration-150"
             onClick={onClose}
             role="presentation"
         >
@@ -183,11 +183,11 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
                                             onClick={() => tryMove(ProductionStage.Polishing, { pendingDispatch: true })}
                                             className={`flex min-h-[100px] flex-col items-start justify-between rounded-2xl border-2 p-3.5 text-left transition-transform active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${
                                                 isCurrentPending
-                                                    ? 'border-teal-500 bg-gradient-to-br from-teal-500/20 to-emerald-600/10 shadow-md ' +
+                                                    ? 'border-teal-500 bg-linear-to-br from-teal-500/20 to-emerald-600/10 shadow-md ' +
                                                       'ring-2 ring-teal-500 ring-offset-2 ring-offset-white'
                                                     : isPast && !isCurrent
                                                       ? 'border-teal-200/60 bg-teal-50/40'
-                                                      : 'border-teal-300/70 bg-gradient-to-br from-teal-500/12 to-emerald-600/6'
+                                                      : 'border-teal-300/70 bg-linear-to-br from-teal-500/12 to-emerald-600/6'
                                             }`}
                                         >
                                             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-600/30">
@@ -206,11 +206,11 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
                                             onClick={() => tryMove(ProductionStage.Polishing, { pendingDispatch: false })}
                                             className={`flex min-h-[100px] flex-col items-start justify-between rounded-2xl border-2 p-3.5 text-left transition-transform active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${
                                                 isCurrentDispatched
-                                                    ? 'border-sky-500 bg-gradient-to-br from-sky-500/18 to-blue-600/10 shadow-md ' +
+                                                    ? 'border-sky-500 bg-linear-to-br from-sky-500/18 to-blue-600/10 shadow-md ' +
                                                       'ring-2 ring-sky-500 ring-offset-2 ring-offset-white'
                                                     : isPast && !isCurrent
                                                       ? 'border-sky-200/60 bg-sky-50/40'
-                                                      : 'border-sky-300/70 bg-gradient-to-br from-sky-500/12 to-blue-600/6'
+                                                      : 'border-sky-300/70 bg-linear-to-br from-sky-500/12 to-blue-600/6'
                                             }`}
                                         >
                                             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-600 text-white shadow-md shadow-sky-600/30">

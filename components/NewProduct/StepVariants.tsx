@@ -83,7 +83,7 @@ export const StepVariants: React.FC<Props> = ({ formState, settings, materials, 
                                         type="text"
                                         value={variant.description}
                                         onChange={(e) => actions.updateVariant(index, 'description', e.target.value)}
-                                        className="w-full truncate rounded-md bg-transparent px-1 py-0.5 text-sm font-bold text-slate-800 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:ring-2 focus:ring-emerald-500/20"
+                                        className="w-full truncate rounded-md bg-transparent px-1 py-0.5 text-sm font-bold text-slate-800 outline-hidden transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:ring-2 focus:ring-emerald-500/20"
                                     />
                                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 px-1">
                                         <span className="font-mono text-[11px] font-bold text-slate-500">{formatCurrency(liveCost)}</span>

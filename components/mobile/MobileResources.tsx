@@ -179,8 +179,8 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     />
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex rounded-xl bg-slate-100 p-1">
-                            <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
-                            <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Λάστιχα</button>
+                            <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500'}`}>Υλικά</button>
+                            <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500'}`}>Λάστιχα</button>
                         </div>
                         <button type="button" aria-label={viewMode === 'materials' ? 'Νέο Υλικό' : 'Νέο Λάστιχο'} onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: defaultMoldCode, location: '', description: '' }), setIsCreating(true))} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
                             <Plus size={20} />
@@ -210,19 +210,19 @@ export default function MobileResources({ products }: { products?: Product[] }) 
             <div className="p-4 flex flex-col gap-3 shrink-0">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"/>
+                    <input type="text" placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-500/20 shadow-xs font-medium"/>
                 </div>
                 {viewMode === 'materials' && activeTab === MaterialType.Stone && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
-                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Συμβατικές</button>
-                        <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κορδόνι</button>
+                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>Συμβατικές</button>
+                        <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>Κορδόνι</button>
                     </div>
                 )}
                 {viewMode === 'materials' && activeTab === MaterialType.Stone && stoneSubFilter === 'standard' && <StoneFamilyFilters value={stoneFamily} onChange={setStoneFamily} materials={(materials || []).filter(m => isStoneResource(m) && getStoneFamily(m) !== 'strand')} />}
                 {viewMode === 'molds' && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
-                        <button type="button" onClick={() => { setMoldTab('standard'); setSearch(''); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κανονικά</button>
-                        <button type="button" onClick={() => { setMoldTab('lstx'); setSearch(''); }} className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'}`}><Puzzle size={12} /> LSTX</button>
+                        <button type="button" onClick={() => { setMoldTab('standard'); setSearch(''); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'standard' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>Κανονικά</button>
+                        <button type="button" onClick={() => { setMoldTab('lstx'); setSearch(''); }} className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500'}`}><Puzzle size={12} /> LSTX</button>
                     </div>
                 )}
             </div>
@@ -230,7 +230,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
             {/* List */}
             <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3 custom-scrollbar">
                 {viewMode === 'materials' ? filteredMaterials.map(m => (
-                    <div key={m.id} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                    <div key={m.id} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xs">
                     <div onClick={() => handleEditMaterial(m)} className="p-4 active:scale-[0.98] transition-all flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isStoneResource(m) ? (m.stones_per_strand ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600') : 'bg-slate-100 text-slate-500'}`}>
@@ -256,7 +256,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     <ResourceUsageStrip kind="material" id={m.id} label={m.name} />
                     </div>
                 )) : filteredMolds.map(m => (
-                    <div key={m.code} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                    <div key={m.code} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xs">
                     <div onClick={() => { setEditingMold(m); setIsCreating(false); }} className="p-4 active:scale-[0.98] transition-all flex justify-between items-center">
                         <div className="flex items-center gap-3">
                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm border ${isLstxMold(m.code) ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
@@ -279,7 +279,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
 
             {/* EDIT MATERIAL MODAL */}
             {editingMaterial && (
-                <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in zoom-in-95">
+                <div className="fixed inset-0 z-150 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in zoom-in-95">
                     <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <h3 className="text-lg font-black text-slate-800">{isCreating ? 'Νέο Υλικό' : 'Επεξεργασία Υλικού'}</h3>
@@ -288,11 +288,11 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                         <div className="p-6 overflow-y-auto space-y-4">
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Όνομα</label>
-                                <input value={editingMaterial.name} onChange={e => setEditingMaterial({...editingMaterial, name: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold text-slate-800"/>
+                                <input value={editingMaterial.name} onChange={e => setEditingMaterial({...editingMaterial, name: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800"/>
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Περιγραφή</label>
-                                <input value={editingMaterial.description || ''} onChange={e => setEditingMaterial({...editingMaterial, description: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-medium text-slate-800" placeholder="π.χ. Μέγεθος, χρώμα..."/>
+                                <input value={editingMaterial.description || ''} onChange={e => setEditingMaterial({...editingMaterial, description: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden font-medium text-slate-800" placeholder="π.χ. Μέγεθος, χρώμα..."/>
                             </div>
                             
                             {isStoneResource(editingMaterial) && <StoneFamilyHint material={editingMaterial} />}
@@ -338,11 +338,11 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                                 <div className="flex gap-4">
                                     <div className="flex-1">
                                         <label className="text-xs font-bold text-slate-400 uppercase ml-1">Κόστος Μονάδας</label>
-                                        <input type="number" step="0.001" value={editingMaterial.cost_per_unit} onChange={e => setEditingMaterial({...editingMaterial, cost_per_unit: parseFloat(e.target.value)})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-mono font-bold"/>
+                                        <input type="number" step="0.001" value={editingMaterial.cost_per_unit} onChange={e => setEditingMaterial({...editingMaterial, cost_per_unit: parseFloat(e.target.value)})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden font-mono font-bold"/>
                                     </div>
                                     <div className="w-24">
                                         <label className="text-xs font-bold text-slate-400 uppercase ml-1">Μονάδα</label>
-                                        <input value={editingMaterial.unit} onChange={e => setEditingMaterial({...editingMaterial, unit: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-center font-bold"/>
+                                        <input value={editingMaterial.unit} onChange={e => setEditingMaterial({...editingMaterial, unit: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden text-center font-bold"/>
                                     </div>
                                 </div>
                             )}
@@ -350,7 +350,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Προμηθευτής</label>
                                 <select 
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden text-sm font-medium"
                                     value={editingMaterial.supplier_id || ''}
                                     onChange={e => setEditingMaterial({...editingMaterial, supplier_id: e.target.value || undefined})}
                                 >
@@ -361,7 +361,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                             
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Απόθεμα</label>
-                                <input type="number" value={editingMaterial.stock_qty} onChange={e => setEditingMaterial({...editingMaterial, stock_qty: parseInt(e.target.value)})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold"/>
+                                <input type="number" value={editingMaterial.stock_qty} onChange={e => setEditingMaterial({...editingMaterial, stock_qty: parseInt(e.target.value)})} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden font-bold"/>
                             </div>
                         </div>
                         <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
@@ -374,7 +374,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
 
             {/* EDIT MOLD MODAL */}
             {editingMold && (
-                 <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in zoom-in-95">
+                 <div className="fixed inset-0 z-150 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in zoom-in-95">
                     <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="text-lg font-black text-slate-900">{isCreating ? 'Νέο Λάστιχο' : 'Επεξεργασία'}</h3>

@@ -31,7 +31,7 @@ export default function LinkedProductsBadge({ linkedSkus, onOpen, className = ''
                 event.stopPropagation();
                 onOpen(event.currentTarget);
             }}
-            className={`z-20 inline-flex items-center justify-center gap-1 rounded-full border font-bold shadow-sm backdrop-blur-md transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${toneClass} ${sizeClass} ${className}`}
+            className={`z-20 inline-flex items-center justify-center gap-1 rounded-full border font-bold shadow-xs backdrop-blur-md transition-all hover:scale-105 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-violet-400 ${toneClass} ${sizeClass} ${className}`}
         >
             <Link2 size={size === 'sm' ? 11 : 12} className={tone === 'dark' ? 'text-violet-300' : 'text-violet-500'} strokeWidth={2.75} />
             <span className="tabular-nums">{formatNumber(linkedSkus.length)}</span>

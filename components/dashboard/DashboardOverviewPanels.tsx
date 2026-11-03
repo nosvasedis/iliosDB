@@ -57,7 +57,7 @@ export const AttentionStrip = memo(function AttentionStrip({
     return (
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3">
         {Array.from({ length: 4 }, (_, index) => (
-          <Shimmer key={index} className="h-[4.25rem] rounded-2xl" />
+          <Shimmer key={index} className="h-17 rounded-2xl" />
         ))}
       </div>
     );
@@ -86,9 +86,9 @@ export const AttentionStrip = memo(function AttentionStrip({
             type="button"
             role="listitem"
             onClick={() => onSelect(item)}
-            className={`group flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${style.card}`}
+            className={`group flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-xs ${style.card}`}
           >
-            <span className={`flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-xl px-2 text-lg font-black tabular-nums leading-none ${style.badge}`}>
+            <span className={`flex h-11 min-w-11 shrink-0 items-center justify-center rounded-xl px-2 text-lg font-black tabular-nums leading-none ${style.badge}`}>
               {item.id === 'legal' ? <Icon size={18} /> : formatNumber(item.count)}
             </span>
             <div className="min-w-0 flex-1">
@@ -115,7 +115,7 @@ function TrendTooltip({ active, payload, metric, hidden }: { active?: boolean; p
   const point = payload[0].payload;
   const money = (value: number) => (hidden ? '•••' : formatCurrency(value));
   return (
-    <div className="min-w-[11rem] rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-xs shadow-xl">
+    <div className="min-w-44 rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-xs shadow-xl">
       <p className="mb-1.5 font-black text-slate-800">{point.label}</p>
       {metric === 'revenue' ? (
         <>
@@ -203,7 +203,7 @@ export const TrendPanel = memo(function TrendPanel({
               </div>
             </div>
             <div className="flex items-center gap-4 text-[11px] font-semibold text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-teal-700" />{metric === 'revenue' ? 'Έσοδα' : 'Τεμάχια'}</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-xs bg-teal-700" />{metric === 'revenue' ? 'Έσοδα' : 'Τεμάχια'}</span>
               <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 rounded-full bg-amber-500" />{metric === 'revenue' ? 'Κέρδος' : 'Παραγγελίες'}</span>
             </div>
           </div>
@@ -568,7 +568,7 @@ export const StuckBatchesPanel = memo(function StuckBatchesPanel({
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 truncate text-xs font-bold text-slate-800">
                   {row.label}
-                  {row.priority ? <span className="rounded bg-rose-100 px-1 text-[9px] font-black uppercase text-rose-600">Επείγον</span> : null}
+                  {row.priority ? <span className="rounded-sm bg-rose-100 px-1 text-[9px] font-black uppercase text-rose-600">Επείγον</span> : null}
                 </p>
                 <p className="truncate text-[11px] font-medium text-slate-500">
                   {stageLabel(row.stage)} · {formatNumber(row.quantity)} τεμ.{row.customerName ? ` · ${row.customerName}` : ''}

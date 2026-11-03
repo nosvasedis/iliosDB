@@ -55,7 +55,7 @@ const DesignRow = memo(function DesignRow({
     <button
       type="button"
       onClick={onSelect}
-      className="group w-full rounded-2xl bg-white p-3 text-left ring-1 ring-slate-200/70 transition-all hover:shadow-sm hover:ring-slate-300"
+      className="group w-full rounded-2xl bg-white p-3 text-left ring-1 ring-slate-200/70 transition-all hover:shadow-xs hover:ring-slate-300"
     >
       <div className="flex items-center gap-3">
         <span
@@ -105,7 +105,7 @@ const DesignRow = memo(function DesignRow({
           </div>
         ))}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 pl-[6.25rem] text-[10px] font-semibold text-slate-500">
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 pl-25 text-[10px] font-semibold text-slate-500">
         {ORION_TYPE_CHIPS.filter((chip) => row.typeMix[chip.id].quantity > 0).map((chip) => (
           <span key={chip.id} className="inline-flex items-center gap-1">
             <span className={`h-1.5 w-1.5 rounded-full ${TYPE_DOT[chip.id]}`} />

@@ -21,7 +21,7 @@ export default function MobileDeliveryDetailSheet(props: Props) {
   if (!props.item) return null;
 
   return (
-    <div className="fixed inset-0 z-[165] bg-slate-900/50 backdrop-blur-sm flex items-end">
+    <div className="fixed inset-0 z-165 bg-slate-900/50 backdrop-blur-xs flex items-end">
       <div className="w-full max-h-[92vh] overflow-y-auto bg-slate-50 rounded-t-[2.5rem] p-4 pb-safe animate-in slide-in-from-bottom-full duration-300">
         <div className="flex justify-end mb-3">
           <button

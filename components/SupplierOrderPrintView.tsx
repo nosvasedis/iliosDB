@@ -81,10 +81,10 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
         idx: number
     ) => (
         <div key={idx} className="flex items-start min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid">
-            <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums flex-shrink-0">{formatNumber(idx + 1)}</div>
+            <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums shrink-0">{formatNumber(idx + 1)}</div>
 
-            <div className="w-14 text-center flex-shrink-0">
-                <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+            <div className="w-14 text-center shrink-0">
+                <div className="w-12 h-12 bg-slate-50 rounded-sm overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                     {imageUrl ? (
                         <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
                     ) : (
@@ -100,26 +100,26 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                         <span className="text-[8px] text-slate-400 truncate">({item.item_name})</span>
                     )}
                 </div>
-                <div className="text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">
+                <div className="text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal wrap-break-word">
                     {mainDescription}
                     {detailLine ? <span className="text-slate-400"> — {detailLine}</span> : null}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-0.5">
                     {item.size_info && (
-                        <span className="bg-slate-800 text-white px-1 py-px rounded text-[8px] font-bold">Νο {item.size_info}</span>
+                        <span className="bg-slate-800 text-white px-1 py-px rounded-sm text-[8px] font-bold">Νο {item.size_info}</span>
                     )}
                 </div>
                 {(() => {
                     const lineNotes = normalizeSupplierItemNotesForDisplay(item.notes);
                     return lineNotes ? (
-                        <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-[1.25] text-amber-900 italic whitespace-pre-wrap">
+                        <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-tight text-amber-900 italic whitespace-pre-wrap">
                             {lineNotes}
                         </p>
                     ) : null;
                 })()}
             </div>
 
-            <div className="w-14 text-right font-black text-slate-900 text-[13px] tabular-nums flex-shrink-0">{formatNumber(item.quantity)}</div>
+            <div className="w-14 text-right font-black text-slate-900 text-[13px] tabular-nums shrink-0">{formatNumber(item.quantity)}</div>
         </div>
     );
 

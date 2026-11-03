@@ -36,7 +36,7 @@ const CustomerCard = React.memo<{ customer: Customer; lastOrder?: string; onOpen
             style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 76px' }}
         >
             <button type="button" onClick={() => onOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-black ${isRetail ? 'bg-fuchsia-50 text-fuchsia-700' : 'bg-gradient-to-br from-[#1c2812] to-[#060b00] text-amber-300'}`}>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-black ${isRetail ? 'bg-fuchsia-50 text-fuchsia-700' : 'bg-linear-to-br from-[#1c2812] to-[#060b00] text-amber-300'}`}>
                     {initialsOf(c.full_name)}
                 </span>
                 <span className="min-w-0 flex-1">

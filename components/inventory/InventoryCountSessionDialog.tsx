@@ -899,7 +899,7 @@ export default function InventoryCountSessionDialog({
 
   if (!initialized) {
     return (
-      <div className="fixed inset-0 z-[450] flex items-center justify-center bg-slate-950/55 p-4">
+      <div className="fixed inset-0 z-450 flex items-center justify-center bg-slate-950/55 p-4">
         <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-bold text-slate-700 shadow-2xl" role="status">
           <Loader2 size={18} className="animate-spin" aria-hidden="true" />
           Ανάκτηση Συνεδρίας Απογραφής…
@@ -914,7 +914,7 @@ export default function InventoryCountSessionDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-[450] flex items-end bg-slate-950/60 sm:items-center sm:justify-center sm:p-4"
+        className="fixed inset-0 z-450 flex items-end bg-slate-950/60 sm:items-center sm:justify-center sm:p-4"
         role="presentation"
         onMouseDown={() => {
           if (!submitting && !entryOpen) onClose();
@@ -973,7 +973,7 @@ export default function InventoryCountSessionDialog({
 
           {!session ? (
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+              <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-7">
                 <div className="flex items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                     <ClipboardList size={21} aria-hidden="true" />
@@ -1055,7 +1055,7 @@ export default function InventoryCountSessionDialog({
                       onChange={(event) => setSetupTitle(event.target.value)}
                       maxLength={100}
                       placeholder="π.χ. Ετήσια Απογραφή 2026"
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-hidden focus:border-emerald-500"
                     />
                   </label>
                   <label className="text-sm font-black text-slate-700">
@@ -1066,7 +1066,7 @@ export default function InventoryCountSessionDialog({
                       maxLength={500}
                       rows={3}
                       placeholder="π.χ. Ετήσια φυσική απογραφή αποθεμάτων"
-                      className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
+                      className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-hidden focus:border-emerald-500"
                     />
                   </label>
                   <label className="text-sm font-black text-slate-700">
@@ -1074,7 +1074,7 @@ export default function InventoryCountSessionDialog({
                     <select
                       value={setupWarehouseId}
                       onChange={(event) => setSetupWarehouseId(event.target.value)}
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-normal outline-hidden focus:border-emerald-500"
                       aria-label="Επιλογή προεπιλεγμένης αποθήκης για τη Συνεδρία Απογραφής"
                     >
                       <option value="">Επιλέξτε αποθήκη</option>
@@ -1229,14 +1229,14 @@ export default function InventoryCountSessionDialog({
                     </div>
 
                     <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto]">
-                      <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-sm">
+                      <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-xs">
                         <Search size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
                         <span className="sr-only">Αναζήτηση στις καταμετρήσεις της συνεδρίας</span>
                         <input
                           value={entryQuery}
                           onChange={(event) => setEntryQuery(event.target.value)}
                           placeholder="Αναζήτηση SKU, μεγέθους ή αποθήκης…"
-                          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+                          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm font-semibold text-slate-700 outline-hidden placeholder:text-slate-400"
                         />
                       </label>
                       <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" aria-label="Φίλτρο κατάστασης καταμετρήσεων">
@@ -1253,7 +1253,7 @@ export default function InventoryCountSessionDialog({
                             aria-pressed={entryFilter === value}
                             className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-black transition-colors ${
                               entryFilter === value
-                                ? 'bg-white text-slate-900 shadow-sm'
+                                ? 'bg-white text-slate-900 shadow-xs'
                                 : 'text-slate-500 hover:text-slate-800'
                             }`}
                           >
@@ -1475,7 +1475,7 @@ export default function InventoryCountSessionDialog({
 
       {abandonTarget && (
         <div
-          className="fixed inset-0 z-[520] flex items-center justify-center bg-slate-950/60 p-4"
+          className="fixed inset-0 z-520 flex items-center justify-center bg-slate-950/60 p-4"
           role="presentation"
           onMouseDown={() => { if (!abandoning) setAbandonTarget(null); }}
         >
@@ -1504,7 +1504,7 @@ export default function InventoryCountSessionDialog({
                   rows={3}
                   maxLength={500}
                   placeholder="π.χ. Η απογραφή θα επαναληφθεί με νέα οργάνωση"
-                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-rose-500"
+                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-hidden focus:border-rose-500"
                 />
               </label>
             </div>

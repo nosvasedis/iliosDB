@@ -48,7 +48,7 @@ import { useCollections } from '../../hooks/api/useCollections';
 import { formatCurrency } from '../../utils/numberFormat';
 
 const fieldClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10';
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-hidden transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10';
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -118,7 +118,7 @@ export function CollapsiblePane({ icon: Icon, title, badge, preview, defaultOpen
   const toggle = () => { const next = !open; setInnerOpen(next); onToggle?.(next); };
   const tones = {
     slate: 'bg-slate-100 text-slate-600',
-    pink: 'bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 text-white',
+    pink: 'bg-linear-to-br from-fuchsia-500 via-rose-500 to-amber-400 text-white',
     violet: 'bg-violet-100 text-violet-700',
     emerald: 'bg-emerald-100 text-emerald-700',
   };
@@ -155,7 +155,7 @@ function Segmented<T extends string>({ value, options, onChange, allowClear = tr
         return (
           <button key={opt.id} type="button" title={opt.hint} aria-pressed={active}
             onClick={() => onChange(active && allowClear ? null : opt.id)}
-            className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition ${active ? 'border-[#060b00] bg-[#060b00] text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+            className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition ${active ? 'border-[#060b00] bg-[#060b00] text-white shadow-xs' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
             {opt.label}
           </button>
         );
@@ -185,7 +185,7 @@ function SocialChip({ meta, url, large }: { meta: SocialNetworkMeta; url: string
       rel="noopener noreferrer"
       onClick={e => e.stopPropagation()}
       title={`${meta.label}: ${url}`}
-      className={`group flex min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${large ? 'px-3 py-2.5' : 'px-2.5 py-2'}`}
+      className={`group flex min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-white text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-md ${large ? 'px-3 py-2.5' : 'px-2.5 py-2'}`}
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white" style={{ background: meta.color }}>
         <SocialIcon network={meta.key} size={15} />
@@ -208,7 +208,7 @@ export function SocialIconRow({ customer, size = 'sm', max }: { customer: Pick<C
     <div className="flex flex-wrap items-center gap-1">
       {links.map(({ meta, url }) => (
         <a key={meta.key} href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={`${meta.label} · ${socialDisplayHandle(meta.key, url)}`}
-          className={`flex ${box} items-center justify-center rounded-lg text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow`} style={{ background: meta.color }}>
+          className={`flex ${box} items-center justify-center rounded-lg text-white shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm`} style={{ background: meta.color }}>
           <SocialIcon network={meta.key} size={size === 'md' ? 15 : 13} />
         </a>
       ))}
@@ -266,7 +266,7 @@ export function CustomerSocialsPane({ customer, onEdit, defaultOpen }: { custome
           {links.map(({ meta, url }) => <SocialChip key={meta.key} meta={meta} url={url} />)}
           {messaging.map(m => (
             <a key={m.key} href={m.href} target={m.key === 'whatsapp' ? '_blank' : undefined} rel="noopener noreferrer"
-              className="group flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              className="group flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg text-white" style={{ background: m.color }}><MessageCircle size={15} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">{m.label}</span>
@@ -284,10 +284,10 @@ export function CustomerSocialsPane({ customer, onEdit, defaultOpen }: { custome
 function ProfileFact({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 rounded-xl px-1.5 py-1.5">
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm ring-1 ring-slate-100"><Icon size={13} /></span>
+      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-xs ring-1 ring-slate-100"><Icon size={13} /></span>
       <div className="min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
-        <div className="break-words text-[12.5px] font-bold text-slate-800">{value}</div>
+        <div className="wrap-break-word text-[12.5px] font-bold text-slate-800">{value}</div>
       </div>
     </div>
   );
@@ -561,7 +561,7 @@ export function CustomerProfileEditor({ value, onChange, mobilePhone, tagSuggest
             </span>
           ))}
           <input
-            className="min-w-[10rem] flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold outline-none focus:border-slate-400"
+            className="min-w-40 flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold outline-hidden focus:border-slate-400"
             list="customer-tag-suggestions"
             value={tagDraft}
             placeholder="Νέα ετικέτα + Enter"
@@ -621,7 +621,7 @@ export function CustomerProfileEditor({ value, onChange, mobilePhone, tagSuggest
                         <button type="button" onClick={() => toggleScope(s)} className="rounded-full p-0.5 hover:bg-white/20" aria-label={`Αφαίρεση ${s.key}`}><X size={11} /></button>
                       </span>
                     ))}
-                    <input className="w-40 rounded-xl border border-slate-200 px-3 py-1.5 font-mono text-xs font-semibold uppercase outline-none focus:border-slate-400"
+                    <input className="w-40 rounded-xl border border-slate-200 px-3 py-1.5 font-mono text-xs font-semibold uppercase outline-hidden focus:border-slate-400"
                       placeholder="Κωδικός + Enter" value={skuDraft} onChange={e => setSkuDraft(e.target.value.toUpperCase())}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const k = skuDraft.trim(); if (k && !hasScope({ kind: 'sku', key: k })) toggleScope({ kind: 'sku', key: k }); setSkuDraft(''); } }} />
                   </div>

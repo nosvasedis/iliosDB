@@ -126,7 +126,7 @@ export const DELIVERY_SKU_FINISH_STYLES: Record<string, string> = {
 /** Stone chip styles for SKU suffix in delivery pane (match Παραγωγή). */
 export const DELIVERY_SKU_STONE_STYLES: Record<string, string> = {
   'CI': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'MUL': 'bg-fuchsia-100 bg-gradient-to-r from-rose-100 via-yellow-100 to-sky-100 text-fuchsia-800 border-fuchsia-200',
+  'MUL': 'bg-fuchsia-100 bg-linear-to-r from-rose-100 via-yellow-100 to-sky-100 text-fuchsia-800 border-fuchsia-200',
   'KR': 'bg-rose-100 text-rose-800 border-rose-200', 'QN': 'bg-slate-200 text-slate-900 border-slate-300', 'LA': 'bg-blue-100 text-blue-800 border-blue-200', 'TY': 'bg-teal-100 text-teal-800 border-teal-200',
   'TG': 'bg-orange-100 text-orange-800 border-orange-200', 'IA': 'bg-red-100 text-red-800 border-red-200', 'BSU': 'bg-slate-200 text-slate-800 border-slate-300', 'GSU': 'bg-emerald-100 text-emerald-800 border-emerald-200',
   'RSU': 'bg-rose-100 text-rose-800 border-rose-200', 'MA': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'FI': 'bg-slate-100 text-slate-600 border-slate-200', 'OP': 'bg-indigo-100 text-indigo-800 border-indigo-200',

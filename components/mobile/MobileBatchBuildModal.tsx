@@ -115,7 +115,7 @@ export default function MobileBatchBuildModal({
 
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-0 sm:p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-200 flex items-end justify-center sm:items-center p-0 sm:p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div
@@ -127,7 +127,7 @@ export default function MobileBatchBuildModal({
                 {/* Compact header — keeps vertical footprint small on phones */}
                 <div className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4 sm:pb-3 border-b border-slate-100 flex justify-between items-start gap-2 bg-slate-50/80 shrink-0">
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                             {product.image_url ? (
                                 <button type="button" className="w-full h-full" onClick={() => setIsImageZoomed(true)}>
                                     <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
@@ -157,7 +157,7 @@ export default function MobileBatchBuildModal({
                             )}
                             {product.production_type === ProductionType.Imported && product.supplier_sku && (
                                 <div className="mt-0.5">
-                                    <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                    <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-sm border border-purple-200">
                                         SUP {product.supplier_sku}
                                     </span>
                                 </div>
@@ -197,8 +197,8 @@ export default function MobileBatchBuildModal({
                                     role="tab"
                                     aria-selected={selected}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] sm:text-xs font-black uppercase tracking-wide transition-colors touch-manipulation min-w-[4.5rem] sm:min-w-0 sm:px-3 ${selected
-                                        ? 'bg-slate-900 text-white shadow-sm'
+                                    className={`flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] sm:text-xs font-black uppercase tracking-wide transition-colors touch-manipulation min-w-18 sm:min-w-0 sm:px-3 ${selected
+                                        ? 'bg-slate-900 text-white shadow-xs'
                                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
                                         }`}
                                 >
@@ -239,7 +239,7 @@ export default function MobileBatchBuildModal({
                                 )}
 
                                 {batch.notes ? (
-                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-2 items-start shadow-sm relative">
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-2 items-start shadow-xs relative">
                                         <StickyNote className="text-amber-500 shrink-0" size={18} />
                                         <div className="min-w-0 pr-8">
                                             <h4 className="font-bold text-amber-800 text-[10px] uppercase tracking-wide mb-0.5">Σημείωση</h4>
@@ -284,7 +284,7 @@ export default function MobileBatchBuildModal({
                                     </div>
                                 </div>
 
-                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                                     <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
                                         <Box size={16} className="text-blue-500 shrink-0" />
                                         <h3 className="font-bold text-slate-700 text-sm">Υλικά & Εξαρτήματα</h3>
@@ -324,7 +324,7 @@ export default function MobileBatchBuildModal({
                         )}
 
                         {activeTab === 'molds' && (
-                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
                                 <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
                                     <Layers size={16} className="text-orange-500 shrink-0" />
                                     <h3 className="font-bold text-slate-700 text-sm">Απαιτούμενα Λάστιχα</h3>
@@ -337,7 +337,7 @@ export default function MobileBatchBuildModal({
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 flex-wrap mb-1">
                                                             <span className="font-black text-slate-800 text-base">{m.code}</span>
-                                                            <span className="text-[10px] font-bold bg-white text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">
+                                                            <span className="text-[10px] font-bold bg-white text-orange-600 px-1.5 py-0.5 rounded-sm border border-orange-200">
                                                                 ×{formatNumber(m.quantity)}
                                                             </span>
                                                         </div>
@@ -373,7 +373,7 @@ export default function MobileBatchBuildModal({
                                 )}
 
                                 {onMove && (
-                                    <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                    <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
                                         {onToggleHold && (
                                             <button
                                                 type="button"
@@ -451,7 +451,7 @@ export default function MobileBatchBuildModal({
                                                         type="button"
                                                         onClick={() => handleStageSelect(stage.id)}
                                                         disabled={disabled}
-                                                        className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${isCurrent
+                                                        className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-10 flex flex-col items-center justify-center gap-0.5 touch-manipulation ${isCurrent
                                                             ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/25`
                                                             : disabled
                                                                 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-60'
@@ -487,11 +487,11 @@ export default function MobileBatchBuildModal({
 
             {/* Image zoom overlay */}
             {isImageZoomed && product.image_url && ReactDOM.createPortal(
-                <div className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center" onClick={() => setIsImageZoomed(false)}>
+                <div className="fixed inset-0 z-600 bg-black/90 flex items-center justify-center" onClick={() => setIsImageZoomed(false)}>
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setIsImageZoomed(false); }}
-                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-colors"
                     >
                         <X size={22} />
                     </button>

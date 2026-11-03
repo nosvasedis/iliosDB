@@ -136,7 +136,7 @@ export default function OverviewImportedPanel({
                 <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <DetailsField label="Τιμή Πώλησης (€)" icon={Coins}>
                         <div className="relative">
-                            <input type="number" step="0.01" className="w-full rounded-xl border border-amber-200 bg-white p-2.5 pr-7 font-mono text-base font-bold text-amber-900 shadow-sm outline-none transition-all focus:border-amber-300 focus:ring-2 focus:ring-amber-400/20" value={product.selling_price} onChange={e => setProduct(prev => ({ ...prev, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true }))} />
+                            <input type="number" step="0.01" className="w-full rounded-xl border border-amber-200 bg-white p-2.5 pr-7 font-mono text-base font-bold text-amber-900 shadow-xs outline-hidden transition-all focus:border-amber-300 focus:ring-2 focus:ring-amber-400/20" value={product.selling_price} onChange={e => setProduct(prev => ({ ...prev, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true }))} />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-400">€</span>
                         </div>
                     </DetailsField>

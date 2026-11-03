@@ -155,8 +155,8 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
         }`;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-center shadow-sm z-10 gap-2">
+        <div className="fixed inset-0 z-100 bg-slate-50 flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-center shadow-xs z-10 gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                     <button type="button" onClick={onClose} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 shrink-0">
                         <ChevronLeft size={24} />
@@ -172,7 +172,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                         <button
                             type="button"
                             onClick={onEditSupplier}
-                            className="bg-slate-100 text-slate-800 p-2 rounded-xl shadow-sm active:scale-95"
+                            className="bg-slate-100 text-slate-800 p-2 rounded-xl shadow-xs active:scale-95"
                             title="Επεξεργασία προμηθευτή"
                         >
                             <Pencil size={20} />
@@ -254,7 +254,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                         {supplierOrders.map(order => {
                             const lineCount = order.items?.length ?? 0;
                             return (
-                                <div key={order.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div key={order.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
                                     <div className="flex justify-between items-start mb-2 gap-2">
                                         <div className="min-w-0">
                                             <div className="text-[10px] font-mono text-slate-400 mb-0.5">#{order.id.slice(0, 6).toUpperCase()}</div>
@@ -302,7 +302,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                             <button
                                                 type="button"
                                                 onClick={() => handleReceiveOrder(order)}
-                                                className="flex-1 min-w-[100px] py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-sm active:scale-95 transition-transform"
+                                                className="flex-1 min-w-[100px] py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-xs active:scale-95 transition-transform"
                                             >
                                                 Παραλαβή
                                             </button>
@@ -325,17 +325,17 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
 
                 {viewTab === 'products' && (
                     <div className="space-y-4">
-                        <div className="bg-white p-2 pl-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+                        <div className="bg-white p-2 pl-3 rounded-xl border border-slate-200 shadow-xs flex items-center gap-2">
                             <Search className="text-slate-400 shrink-0" size={18} />
                             <input
-                                className="flex-1 outline-none text-sm font-bold bg-transparent min-w-0"
+                                className="flex-1 outline-hidden text-sm font-bold bg-transparent min-w-0"
                                 placeholder="Αναζήτηση SKU για σύνδεση..."
                                 value={productSearchTerm}
                                 onChange={e => setProductSearchTerm(e.target.value)}
                             />
                         </div>
                         {productSearchTerm.trim() && availableProductsForLink.length > 0 && (
-                            <div className="bg-white rounded-2xl border border-purple-100 shadow-sm p-2 space-y-1">
+                            <div className="bg-white rounded-2xl border border-purple-100 shadow-xs p-2 space-y-1">
                                 <h4 className="text-[10px] font-bold text-slate-500 px-2 py-1 uppercase">Αποτελέσματα</h4>
                                 {availableProductsForLink.map((p: Product) => (
                                     <div key={p.sku} className="flex justify-between items-center px-2 py-2 rounded-xl hover:bg-slate-50 gap-2">
@@ -355,7 +355,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                             {assignedProducts.map(p => (
                                 <div
                                     key={p.sku}
-                                    className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex gap-3 items-center"
+                                    className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex gap-3 items-center"
                                 >
                                     <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
                                         {p.image_url ? (
@@ -392,7 +392,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                         {assignedMaterials.map(m => (
                             <div
                                 key={m.id}
-                                className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2"
+                                className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-2"
                             >
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
@@ -420,7 +420,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
             {viewOrder && (
                 <div
                     role="presentation"
-                    className="fixed inset-0 z-[160] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+                    className="fixed inset-0 z-160 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
                     onClick={() => setViewOrderId(null)}
                 >
                     <div
@@ -450,7 +450,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                 return (
                                     <div
                                         key={item.id || `${item.item_id}-${i}`}
-                                        className="flex gap-3 rounded-2xl border border-slate-100 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-sm"
+                                        className="flex gap-3 rounded-2xl border border-slate-100 bg-linear-to-b from-white to-slate-50/80 p-3 shadow-xs"
                                     >
                                         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100 shadow-inner">
                                             {thumbUrl ? (

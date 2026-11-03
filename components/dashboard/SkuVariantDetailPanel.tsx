@@ -81,7 +81,7 @@ function TimelineBars({ timeline }: { timeline: SkuVariantDetail['timeline'] }) 
           <div key={point.monthKey} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${formatMonthLabel(point.monthKey)}: ${formatNumber(point.quantity)} τεμ.`}>
             <span className="text-[9px] font-black tabular-nums text-slate-600">{formatNumber(point.quantity)}</span>
             <div
-              className="w-full max-w-[2rem] rounded-t-md bg-emerald-500"
+              className="w-full max-w-8 rounded-t-md bg-emerald-500"
               style={{ height: `${Math.max(6, (point.quantity / maxQty) * 64)}px` }}
             />
             <span className="w-full truncate text-center text-[9px] font-bold text-slate-400">{formatMonthLabel(point.monthKey)}</span>

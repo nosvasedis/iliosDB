@@ -71,7 +71,7 @@ function QtyStepper({ value, min, onChange, size = 'md' }: { value: number; min:
     const button = size === 'sm' ? 'h-7 w-7' : 'h-8 w-8';
     return (
         <div className="flex items-center gap-0.5 rounded-xl bg-slate-100 p-0.5">
-            <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} className={`${button} flex items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition-colors hover:text-slate-900 disabled:opacity-40`} aria-label="Μείωση">
+            <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} className={`${button} flex items-center justify-center rounded-lg bg-white text-slate-600 shadow-xs transition-colors hover:text-slate-900 disabled:opacity-40`} aria-label="Μείωση">
                 <Minus size={13} strokeWidth={3} />
             </button>
             <input
@@ -80,9 +80,9 @@ function QtyStepper({ value, min, onChange, size = 'md' }: { value: number; min:
                 value={value}
                 onChange={(event) => onChange(Math.max(min, parseInt(event.target.value, 10) || 0))}
                 onFocus={(event) => event.target.select()}
-                className={`${size === 'sm' ? 'w-9 text-xs' : 'w-12 text-sm'} min-w-0 bg-transparent text-center font-black tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                className={`${size === 'sm' ? 'w-9 text-xs' : 'w-12 text-sm'} min-w-0 bg-transparent text-center font-black tabular-nums outline-hidden [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
             />
-            <button type="button" onClick={() => onChange(value + 1)} className={`${button} flex items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm transition-colors hover:text-slate-900`} aria-label="Αύξηση">
+            <button type="button" onClick={() => onChange(value + 1)} className={`${button} flex items-center justify-center rounded-lg bg-white text-slate-600 shadow-xs transition-colors hover:text-slate-900`} aria-label="Αύξηση">
                 <Plus size={13} strokeWidth={3} />
             </button>
         </div>
@@ -559,7 +559,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
             : { icon: 'bg-blue-100 text-blue-700', button: 'bg-blue-600 hover:bg-blue-700', ring: 'border-blue-100' };
 
         return (
-            <section className={`overflow-hidden rounded-3xl border bg-white shadow-sm ${tone.ring}`}>
+            <section className={`overflow-hidden rounded-3xl border bg-white shadow-xs ${tone.ring}`}>
                 <div className="flex items-center gap-3 p-3 pl-4">
                     <button
                         type="button"
@@ -579,7 +579,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                     <button
                         type="button"
                         onClick={onAddAll}
-                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black text-white shadow-sm transition-colors ${tone.button}`}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black text-white shadow-xs transition-colors ${tone.button}`}
                     >
                         <ListPlus size={14} /> Όλα
                     </button>
@@ -617,13 +617,13 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
     ];
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm animate-in fade-in">
-            <div role="dialog" aria-modal="true" aria-labelledby="po-builder-title" className="flex h-[92vh] w-full max-w-[92rem] flex-col overflow-hidden rounded-[2rem] border border-white/40 bg-slate-100 shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-xs animate-in fade-in">
+            <div role="dialog" aria-modal="true" aria-labelledby="po-builder-title" className="flex h-[92vh] w-full max-w-368 flex-col overflow-hidden rounded-4xl border border-white/40 bg-slate-100 shadow-2xl animate-in zoom-in-95">
                 {/* Header */}
                 <div className="relative z-10 flex shrink-0 items-center justify-between gap-4 overflow-hidden border-b border-slate-200 bg-white px-6 py-4">
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300" />
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-linear-to-r from-emerald-400 via-teal-400 to-amber-300" />
                     <div className="flex min-w-0 items-center gap-4">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md">
                             <ShoppingCart size={20} />
                         </div>
                         <div className="min-w-0">
@@ -653,7 +653,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
 
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-12">
                     {/* Sources */}
-                    <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-sm lg:col-span-7">
+                    <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xs lg:col-span-7">
                         <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-100 p-3">
                             {sourceTabs.map(({ id, label, hint, icon: Icon, count }) => {
                                 const active = activeTab === id;
@@ -664,12 +664,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         onClick={() => setSourceTab(id)}
                                         className={`flex items-center gap-3 rounded-2xl p-3 text-left transition-all ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
                                     >
-                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/10 text-emerald-300' : 'bg-white text-slate-500 shadow-sm'}`}><Icon size={18} /></span>
+                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/10 text-emerald-300' : 'bg-white text-slate-500 shadow-xs'}`}><Icon size={18} /></span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm font-black">{label}</span>
                                             <span className={`block truncate text-[11px] font-semibold ${active ? 'text-white/60' : 'text-slate-400'}`}>{hint}</span>
                                         </span>
-                                        <span className={`rounded-lg px-2 py-1 text-xs font-black tabular-nums ${active ? 'bg-white/15' : 'bg-white text-slate-500 shadow-sm'}`}>
+                                        <span className={`rounded-lg px-2 py-1 text-xs font-black tabular-nums ${active ? 'bg-white/15' : 'bg-white text-slate-500 shadow-xs'}`}>
                                             {id === 'needs' && needsLoading ? <Loader2 size={12} className="animate-spin" /> : formatNumber(count)}
                                         </span>
                                     </button>
@@ -680,7 +680,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                         {activeTab === 'needs' ? (
                             <div className="flex-1 space-y-3 overflow-y-auto p-4 custom-scrollbar">
                                 {needCount > 0 && (
-                                    <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-4 ring-1 ring-indigo-100">
+                                    <div className="flex items-center gap-4 rounded-3xl bg-linear-to-br from-indigo-50 via-white to-blue-50 p-4 ring-1 ring-indigo-100">
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-black text-slate-800">
                                                 {formatNumber(needCount)} ανάγκες · {formatNumber(needPieces)} τεμάχια περιμένουν αυτόν τον προμηθευτή
@@ -765,7 +765,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                     key={type}
                                                     type="button"
                                                     onClick={() => setSearchType(type)}
-                                                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${searchType === type ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
+                                                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${searchType === type ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
                                                 >
                                                     <Icon size={13} /> {label} <span className="tabular-nums opacity-50">{formatNumber(catalogCounts[type])}</span>
                                                 </button>
@@ -777,7 +777,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                         <input
                                             ref={searchInputRef}
-                                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-10 text-sm font-bold text-slate-800 outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-10 text-sm font-bold text-slate-800 outline-hidden transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                                             placeholder={searchType === 'Product' ? 'Κωδικός, παραλλαγή ή κωδικός προμηθευτή…' : 'Όνομα υλικού…'}
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -818,7 +818,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                     const already = inOrderQty.get(lineKey(result.kind, result.name)) || 0;
                                                     const qty = catalogQty[result.key] || 1;
                                                     return (
-                                                        <div key={result.key} className={`flex items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-sm transition-all ${already ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-200'}`}>
+                                                        <div key={result.key} className={`flex items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-xs transition-all ${already ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-200'}`}>
                                                             <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-slate-400">
                                                                 {result.image ? <img src={result.image} className="h-full w-full object-cover" alt="" /> : result.kind === 'Material' ? <Box size={18} /> : <Gem size={18} />}
                                                             </span>
@@ -827,16 +827,16 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                                 <span className="block truncate text-[11px] font-semibold text-slate-400">{result.sub}</span>
                                                                 <span className="mt-0.5 flex flex-wrap gap-1">
                                                                     {result.stock !== undefined && result.stock !== null && (
-                                                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${result.stock > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-600'}`}>Απόθ. {formatNumber(result.stock)}</span>
+                                                                        <span className={`rounded-sm px-1.5 py-0.5 text-[9px] font-black ${result.stock > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-600'}`}>Απόθ. {formatNumber(result.stock)}</span>
                                                                     )}
-                                                                    {already > 0 && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">Στην εντολή: {formatNumber(already)}</span>}
+                                                                    {already > 0 && <span className="rounded-sm bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">Στην εντολή: {formatNumber(already)}</span>}
                                                                 </span>
                                                             </span>
                                                             <QtyStepper size="sm" value={qty} min={1} onChange={(next) => setCatalogQty((previous) => ({ ...previous, [result.key]: next }))} />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => addSearchResult(result)}
-                                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm transition-colors hover:bg-emerald-700"
+                                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs transition-colors hover:bg-emerald-700"
                                                                 aria-label={`Προσθήκη ${result.name}`}
                                                             >
                                                                 <Plus size={17} strokeWidth={3} />
@@ -858,7 +858,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                     </section>
 
                     {/* Order contents */}
-                    <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-sm lg:col-span-5">
+                    <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xs lg:col-span-5">
                         <div className="shrink-0 border-b border-slate-100 px-5 py-4">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
@@ -888,7 +888,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         value={cartSearchTerm}
                                         onChange={(e) => setCartSearchTerm(e.target.value)}
                                         placeholder="Αναζήτηση μέσα στην εντολή..."
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-bold text-slate-700 outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/10"
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs font-bold text-slate-700 outline-hidden transition-all focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/10"
                                     />
                                 </div>
                             )}
@@ -913,7 +913,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                 return (
                                     <div
                                         key={`${item.id}-${index}`}
-                                        className={`rounded-2xl border bg-white p-3 shadow-sm transition-all duration-500 ${hasConflict ? 'border-red-400 ring-2 ring-red-100' : flashing ? 'border-emerald-300 ring-4 ring-emerald-400/20' : 'border-slate-100 hover:border-slate-200'}`}
+                                        className={`rounded-2xl border bg-white p-3 shadow-xs transition-all duration-500 ${hasConflict ? 'border-red-400 ring-2 ring-red-100' : flashing ? 'border-emerald-300 ring-4 ring-emerald-400/20' : 'border-slate-100 hover:border-slate-200'}`}
                                     >
                                         <div className="flex items-start gap-3">
                                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -963,7 +963,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         </div>
 
                                         {!!item.source_allocations?.length && (
-                                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[3.75rem]">
+                                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-15">
                                                 <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Δεσμεύσεις</span>
                                                 {item.source_allocations.map((allocation) => (
                                                     <button
@@ -979,13 +979,13 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                             </div>
                                         )}
                                         {!item.source_allocations?.length && item.customer_reference && (
-                                            <div className="mt-2 pl-[3.75rem] text-[11px] font-bold text-slate-600">
+                                            <div className="mt-2 pl-15 text-[11px] font-bold text-slate-600">
                                                 <span className="mr-1 text-[9px] font-black uppercase text-slate-400">Πελάτης:</span>
                                                 {item.customer_reference}
                                             </div>
                                         )}
 
-                                        <div className="mt-2.5 flex gap-2 pl-[3.75rem]">
+                                        <div className="mt-2.5 flex gap-2 pl-15">
                                             {showSizeInput && (
                                                 <input
                                                     value={item.size_info || ''}
@@ -993,7 +993,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                     disabled={allocatedQty > 0}
                                                     placeholder="Μέγεθος"
                                                     aria-label={`Μέγεθος για ${item.item_name}`}
-                                                    className="w-24 rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-1.5 font-mono text-xs font-black text-blue-900 outline-none placeholder:font-sans placeholder:text-blue-300 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60"
+                                                    className="w-24 rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-1.5 font-mono text-xs font-black text-blue-900 outline-hidden placeholder:font-sans placeholder:text-blue-300 focus:ring-2 focus:ring-blue-500/15 disabled:opacity-60"
                                                 />
                                             )}
                                             <input
@@ -1001,7 +1001,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                 onChange={(e) => updateItem(index, 'notes', e.target.value)}
                                                 placeholder="Σημείωση γραμμής…"
                                                 aria-label={`Σημείωση για ${item.item_name}`}
-                                                className="min-w-0 flex-1 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-all placeholder:italic placeholder:text-slate-400 hover:border-slate-200 focus:border-emerald-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/10"
+                                                className="min-w-0 flex-1 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-600 outline-hidden transition-all placeholder:italic placeholder:text-slate-400 hover:border-slate-200 focus:border-emerald-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/10"
                                             />
                                         </div>
                                     </div>
@@ -1009,7 +1009,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                             })}
 
                             {items.length === 0 && (
-                                <div className="flex h-full min-h-[20rem] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
+                                <div className="flex h-full min-h-80 flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
                                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-slate-300"><ShoppingCart size={30} /></div>
                                     <p className="mt-4 text-base font-black text-slate-500">Η εντολή είναι κενή.</p>
                                     <p className="mt-1 max-w-xs text-xs font-semibold text-slate-400">
@@ -1038,7 +1038,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                         onChange={(e) => setNotes(e.target.value)}
                                         rows={2}
                                         placeholder="Γενικές σημειώσεις για τον προμηθευτή (εμφανίζονται στην εκτύπωση)…"
-                                        className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                                        className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 outline-hidden transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                                     />
                                 )}
                             </div>
@@ -1051,7 +1051,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                     type="button"
                                     onClick={handleSave}
                                     disabled={isSaving || items.length === 0}
-                                    className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] px-6 py-3.5 text-sm font-black text-white shadow-xl ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                    className="inline-flex items-center gap-2.5 rounded-2xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] px-6 py-3.5 text-sm font-black text-white shadow-xl ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                                 >
                                     {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                                     {initialOrder ? 'Αποθήκευση αλλαγών' : 'Δημιουργία εντολής'}

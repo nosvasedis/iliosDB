@@ -220,7 +220,7 @@ function LevelHeader({
     if (groupMode === 'customer') {
         return (
             <div className="pb-3">
-                <div className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center">
+                <div className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-xs flex justify-between items-center">
                     <div className="flex items-center gap-2 min-w-0">
                         <button
                             type="button"
@@ -230,7 +230,7 @@ function LevelHeader({
                             }}
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                                 allSelected
-                                    ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                                    ? 'bg-blue-500 border-blue-500 shadow-xs shadow-blue-200'
                                     : someSelected
                                       ? 'bg-blue-300 border-blue-300'
                                       : 'bg-transparent border-white/50 hover:border-white'

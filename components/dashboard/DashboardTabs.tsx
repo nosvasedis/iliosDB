@@ -291,7 +291,7 @@ export const SalesTab = memo(function SalesTab({
             <EmptyNote message={emptySales} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[30rem] text-left text-xs">
+              <table className="w-full min-w-120 text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     <th className="py-2 pr-2 font-bold">#</th>
@@ -550,8 +550,8 @@ export const FinanceTab = memo(function FinanceTab({
           className="xl:col-span-7"
           action={{ label: 'Αναλυτικά', onClick: () => onNavigate('analytics') }}
         >
-          <div className="max-h-[26rem] overflow-auto">
-            <table className="w-full min-w-[28rem] text-left text-xs">
+          <div className="max-h-104 overflow-auto">
+            <table className="w-full min-w-md text-left text-xs">
               <thead className="sticky top-0 bg-white">
                 <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   <th className="py-2 pr-2 font-bold">Μήνας</th>
@@ -655,13 +655,13 @@ export const FinanceTab = memo(function FinanceTab({
           <button
             type="button"
             onClick={() => onNavigate('analytics')}
-            className="group relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-left text-white shadow-md ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-950/30"
+            className="group relative isolate overflow-hidden rounded-3xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] p-5 text-left text-white shadow-md ring-1 ring-inset ring-white/10 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-950/30"
           >
             <span className="pointer-events-none absolute -right-12 -top-16 -z-10 h-40 w-40 rounded-full bg-emerald-500/25 blur-3xl transition-opacity group-hover:opacity-90" aria-hidden />
-            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]" aria-hidden />
+            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-linear-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-[300%]" aria-hidden />
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-inner shadow-white/20">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-teal-500 shadow-inner shadow-white/20">
                   <BarChart3 size={19} strokeWidth={2.5} />
                 </span>
                 <div>
@@ -673,7 +673,7 @@ export const FinanceTab = memo(function FinanceTab({
             </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {['Τάσεις & πέρσι', 'Ανάλυση ABC', 'Χάρτης κερδοφορίας', 'Πελάτες', 'Παραστατικά'].map((chip) => (
-                <span key={chip} className="rounded-full bg-white/[0.08] px-2.5 py-1 text-[10px] font-bold text-white/75 ring-1 ring-inset ring-white/10">
+                <span key={chip} className="rounded-full bg-white/8 px-2.5 py-1 text-[10px] font-bold text-white/75 ring-1 ring-inset ring-white/10">
                   {chip}
                 </span>
               ))}
@@ -882,7 +882,7 @@ function StockTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[26rem] text-left text-xs">
+      <table className="w-full min-w-104 text-left text-xs">
         <thead>
           <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
             <th className="py-2 pr-2 font-bold">Είδος</th>

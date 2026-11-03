@@ -20,7 +20,7 @@ export function OrderBulkTagModal({
     const trimmed = tag.trim();
 
     return (
-        <div className="fixed inset-0 z-[350] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-350 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-violet-50/50">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -37,7 +37,7 @@ export function OrderBulkTagModal({
                     <input
                         value={tag}
                         onChange={(event) => setTag(event.target.value)}
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-500/20 text-sm font-medium"
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-violet-500/20 text-sm font-medium"
                         placeholder="π.χ. Έκθεση Αθηνών"
                         autoFocus
                         onKeyDown={(event) => {

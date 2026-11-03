@@ -69,7 +69,7 @@ export function CustomerPrintSummaryFooter({
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 text-[8px] leading-snug text-slate-600">
                     <p className="mb-0.5 font-bold uppercase tracking-wide text-slate-500">Σημειώσεις</p>
-                    <p className="rounded border border-slate-100 bg-slate-50 px-1 py-0.5 italic leading-[1.25]">
+                    <p className="rounded-sm border border-slate-100 bg-slate-50 px-1 py-0.5 italic leading-tight">
                         {notes || notesFallback}
                     </p>
                 </div>
@@ -114,8 +114,8 @@ export function CustomerPrintSkuNote({ sku, note }: { sku?: string | null; note?
     const missing = isSpecialCreationSku(sku) && !note?.trim();
 
     return (
-        <div className={`customer-print-sku-note mt-0.5 flex items-start gap-0.5 rounded-sm px-1 py-[1px] text-[8px] font-semibold leading-[1.15] whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${missing ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50/70 text-emerald-800'}`}>
-            <StickyNote size={8} className="mt-[1px] shrink-0" />
+        <div className={`customer-print-sku-note mt-0.5 flex items-start gap-0.5 rounded-xs px-1 py-px text-[8px] font-semibold leading-[1.15] whitespace-pre-wrap wrap-break-word wrap-anywhere ${missing ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50/70 text-emerald-800'}`}>
+            <StickyNote size={8} className="mt-px shrink-0" />
             <span className="min-w-0 flex-1">{trimmed}</span>
         </div>
     );

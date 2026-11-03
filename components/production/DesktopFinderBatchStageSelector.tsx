@@ -192,7 +192,7 @@ function DesktopFinderBatchStageSelector({
                             onToggleHold(batch);
                         }}
                         disabled={isMoving}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 ${
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors shadow-xs active:scale-95 ${
                             isMoving
                                 ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                 : batch.on_hold
@@ -211,7 +211,7 @@ function DesktopFinderBatchStageSelector({
                         ref={buttonRef}
                         onClick={handleToggle}
                         disabled={isMoving}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 ${
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors shadow-xs active:scale-95 ${
                             isMoving
                                 ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -232,7 +232,7 @@ function DesktopFinderBatchStageSelector({
                 ReactDOM.createPortal(
                     <div
                         ref={popupRef}
-                        className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[150px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                        className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-9999 min-w-[150px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
                         style={{
                             top: popupPosition.top,
                             left: popupPosition.left,

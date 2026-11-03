@@ -9,9 +9,9 @@ export const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: 
   AK: { bg: 'bg-cyan-50', text: 'text-cyan-800', dot: 'bg-cyan-400' },
   CI: { bg: 'bg-yellow-50', text: 'text-yellow-800', dot: 'bg-yellow-400' },
   MUL: {
-    bg: 'bg-fuchsia-50 bg-gradient-to-r from-rose-50 via-yellow-50 to-sky-50',
+    bg: 'bg-fuchsia-50 bg-linear-to-r from-rose-50 via-yellow-50 to-sky-50',
     text: 'text-fuchsia-800',
-    dot: 'bg-fuchsia-400 bg-gradient-to-r from-rose-400 via-yellow-400 to-sky-400',
+    dot: 'bg-fuchsia-400 bg-linear-to-r from-rose-400 via-yellow-400 to-sky-400',
   },
   PAX: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },
   MAX: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },

@@ -21,7 +21,7 @@ export function InventorySheet({
   width = 'max-w-xl',
   footer,
   children,
-  zIndex = 'z-[500]',
+  zIndex = 'z-500',
 }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
@@ -151,7 +151,7 @@ export function SizeChips({
             maxLength={40}
             placeholder="π.χ. 18cm"
             aria-label="Άλλο μέγεθος"
-            className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-bold outline-none focus:border-slate-900"
+            className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-bold outline-hidden focus:border-slate-900"
           />
         </span>
       ) : (
@@ -198,7 +198,7 @@ export function QtyStepper({
           const digits = event.target.value.replace(/[^\d]/g, '');
           onChange(clamp(digits ? Number(digits) : 0));
         }}
-        className="w-12 border-x border-slate-200 py-1.5 text-center text-sm font-black tabular-nums outline-none disabled:bg-slate-50"
+        className="w-12 border-x border-slate-200 py-1.5 text-center text-sm font-black tabular-nums outline-hidden disabled:bg-slate-50"
       />
       <button type="button" aria-label="Αύξηση" disabled={disabled || (max !== undefined && value >= max)} onClick={() => onChange(clamp(value + 1))} className={`${button} flex items-center justify-center rounded-r-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30`}>
         <Plus size={15} />
@@ -269,7 +269,7 @@ export function SkuQuickInput({
           aria-label="Κωδικός προϊόντος"
           autoComplete="off"
           spellCheck={false}
-          className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 font-mono text-sm font-bold uppercase outline-none placeholder:font-sans placeholder:font-normal placeholder:normal-case ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-200 focus:border-slate-900'}`}
+          className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 font-mono text-sm font-bold uppercase outline-hidden placeholder:font-sans placeholder:font-normal placeholder:normal-case ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-200 focus:border-slate-900'}`}
         />
         {onScan && (
           <button type="button" onClick={onScan} aria-label="Σάρωση" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50">

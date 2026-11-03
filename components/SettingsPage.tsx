@@ -102,7 +102,7 @@ function SettingsCard({ icon: Icon, tone, title, description, actions, children,
     icon: LucideIcon; tone: Tone; title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string;
 }) {
     return (
-        <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm ${className}`}>
+        <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs ${className}`}>
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/70 p-5 md:px-6">
                 <div className="flex items-start gap-3">
                     <div className={`rounded-2xl p-3 ${TONE_TILE[tone]}`}><Icon size={20} /></div>
@@ -130,7 +130,7 @@ function NumberField({ label, value, unit, onChange, step = '0.01', min = 0, inv
                     value={numberInputValue(value)}
                     onChange={event => onChange(parseNumberInput(event.target.value))}
                     aria-invalid={invalid || undefined}
-                    className="min-w-0 w-full bg-transparent py-3 font-mono text-base font-semibold text-slate-900 outline-none"
+                    className="min-w-0 w-full bg-transparent py-3 font-mono text-base font-semibold text-slate-900 outline-hidden"
                 />
                 <span className="shrink-0 text-xs font-medium text-slate-400">{unit}</span>
             </span>
@@ -154,7 +154,7 @@ function ToggleRow({ icon: Icon, title, description, checked, onChange, disabled
             <span className="relative inline-flex shrink-0">
                 <input type="checkbox" role="switch" className="peer sr-only" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
                 <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-300 peer-focus-visible:ring-offset-2" />
-                <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+                <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
             </span>
         </label>
     );
@@ -175,7 +175,7 @@ function Segmented<T extends string>({ label, value, options, onChange, disabled
                         aria-checked={value === option.value}
                         disabled={disabled}
                         onClick={() => onChange(option.value)}
-                        className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 ${value === option.value ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 ${value === option.value ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         {option.label}
                     </button>
@@ -225,10 +225,10 @@ function LabelPreview({ width, height, tone }: { width: number; height: number; 
     const valid = isPositive(width) && isPositive(height);
     const scale = valid ? Math.min(220 / width, 96 / height) : 0;
     return (
-        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[radial-gradient(rgba(15,23,42,0.06)_1px,transparent_1px)] [background-size:12px_12px]">
+        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[radial-gradient(rgba(15,23,42,0.06)_1px,transparent_1px)] bg-size-[12px_12px]">
             {valid ? (
                 <div
-                    className={`flex items-center justify-center rounded-md border-2 bg-white font-mono text-[10px] font-bold shadow-sm ${tone === 'purple' ? 'border-purple-300 text-purple-700' : 'border-amber-300 text-amber-700'}`}
+                    className={`flex items-center justify-center rounded-md border-2 bg-white font-mono text-[10px] font-bold shadow-xs ${tone === 'purple' ? 'border-purple-300 text-purple-700' : 'border-amber-300 text-amber-700'}`}
                     style={{ width: Math.max(24, width * scale), height: Math.max(14, height * scale) }}
                 >
                     {formatDecimal(width, 1)} × {formatDecimal(height, 1)}
@@ -1030,7 +1030,7 @@ export default function SettingsPage() {
                                     autoComplete="off"
                                     spellCheck={false}
                                     aria-label="Κλειδί Gemini API"
-                                    className="min-w-0 w-full bg-transparent py-3 font-mono text-sm text-slate-900 outline-none"
+                                    className="min-w-0 w-full bg-transparent py-3 font-mono text-sm text-slate-900 outline-hidden"
                                 />
                                 <button type="button" onClick={() => setShowGeminiKey(v => !v)} aria-label={showGeminiKey ? 'Απόκρυψη κλειδιού' : 'Εμφάνιση κλειδιού'} className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
                                     {showGeminiKey ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -1108,7 +1108,7 @@ export default function SettingsPage() {
                 </div>
             </SettingsCard>
 
-            <section className="overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-xs">
                 <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50/60 p-5 md:px-6">
                     <div className="rounded-2xl bg-rose-100 p-3 text-rose-700"><AlertTriangle size={20} /></div>
                     <div>
@@ -1167,7 +1167,7 @@ export default function SettingsPage() {
                             <button type="button" onClick={handleDiscardChanges} disabled={isSaving} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50">
                                 <RotateCcw size={16} /> Απόρριψη
                             </button>
-                            <button type="button" onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 px-5 py-2.5 text-sm font-bold text-[#060b00] shadow-lg transition hover:brightness-105 disabled:opacity-50">
+                            <button type="button" onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 rounded-xl bg-linear-to-br from-emerald-400 to-teal-500 px-5 py-2.5 text-sm font-bold text-[#060b00] shadow-lg transition hover:brightness-105 disabled:opacity-50">
                                 {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Αποθήκευση
                             </button>
                         </div>
@@ -1176,7 +1176,7 @@ export default function SettingsPage() {
             )}
 
             {isImageOptimizationOpen && (
-                <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-220 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-5xl max-h-[88vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
                         <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-4 shrink-0">
                             <div className="flex items-center gap-3">
@@ -1215,7 +1215,7 @@ export default function SettingsPage() {
                                             value={imageOptimizationFilter}
                                             onChange={(e) => setImageOptimizationFilter(e.target.value)}
                                             placeholder="Φίλτρο SKU, π.χ. DM, KN, SK..."
-                                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-500/20 text-sm font-medium"
+                                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-4 focus:ring-emerald-500/20 text-sm font-medium"
                                         />
                                     </div>
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
@@ -1254,14 +1254,14 @@ export default function SettingsPage() {
                                                 <button
                                                     key={`${product.sku}-${imageUrl}`}
                                                     onClick={() => toggleSelectedImageUrl(imageUrl)}
-                                                    className={`text-left bg-white rounded-xl border overflow-hidden shadow-sm transition-all ${selected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100 hover:border-slate-300'}`}
+                                                    className={`text-left bg-white rounded-xl border overflow-hidden shadow-xs transition-all ${selected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100 hover:border-slate-300'}`}
                                                 >
                                                     <div className="aspect-square bg-slate-100 overflow-hidden">
                                                         <img src={imageUrl} alt={product.sku} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                                     </div>
                                                     <div className="p-2 flex items-center justify-between gap-2">
                                                         <span className="text-xs font-black text-slate-800 truncate">{product.sku}</span>
-                                                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                                                        <span className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 ${selected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
                                                             {selected && <CheckSquare size={12} className="text-white" />}
                                                         </span>
                                                     </div>

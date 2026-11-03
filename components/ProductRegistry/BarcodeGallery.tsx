@@ -113,7 +113,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
           type="button"
           onClick={() => handlePrint()}
           title="Εκτύπωση όλων των ετικετών με τις επιλεγμένες ρυθμίσεις"
-          className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-slate-800"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:bg-slate-800"
         >
           <Printer size={14} /> Εκτύπωση όλων
         </button>
@@ -124,7 +124,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
           const edited = hasLabelTextOverrides(labelOverrideDrafts[key]);
 
           return (
-            <div key={key} className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300">
+            <div key={key} className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-xs transition-all hover:border-slate-300">
               <div className="custom-scrollbar relative flex min-h-[96px] w-full items-center justify-center overflow-x-auto rounded-lg border border-slate-100 bg-slate-50/40 p-2">
                 <div className={`${format === 'retail' ? 'origin-center scale-110' : ''} transition-transform`}>
                   <BarcodeView

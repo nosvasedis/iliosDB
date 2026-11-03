@@ -100,7 +100,7 @@ function FinderStageJumpButton({
             onClick={onClick}
             title={`Μετάβαση στο ${verb} στάδιο: ${target.label}`}
             aria-label={`Μετάβαση στο ${verb} στάδιο: ${target.label}`}
-            className={`flex h-7 max-w-[5.5rem] items-center gap-0.5 rounded-lg border px-1.5 shadow-sm active:scale-95 ${target.buttonClass}`}
+            className={`flex h-7 max-w-22 items-center gap-0.5 rounded-lg border px-1.5 shadow-xs active:scale-95 ${target.buttonClass}`}
         >
             {direction === 'up' ? <ChevronUp size={12} strokeWidth={2.75} className="shrink-0" /> : null}
             <span className="truncate text-[9px] font-black leading-none">{target.shortLabel}</span>
@@ -189,7 +189,7 @@ const ProductionFinderSearchInput = memo(function ProductionFinderSearchInput({
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full pl-10 p-3 rounded-2xl bg-slate-100 border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold text-slate-800 uppercase"
+                className="w-full pl-10 p-3 rounded-2xl bg-slate-100 border border-slate-200 outline-hidden focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold text-slate-800 uppercase"
             />
             <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 pointer-events-none"

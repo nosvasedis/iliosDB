@@ -120,11 +120,11 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
   if (!isOpen) return null;
 
   const containerClasses = mobile
-    ? 'fixed inset-0 z-[170] bg-slate-900/50 backdrop-blur-sm flex items-end'
-    : 'fixed inset-0 z-[170] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4';
+    ? 'fixed inset-0 z-170 bg-slate-900/50 backdrop-blur-xs flex items-end'
+    : 'fixed inset-0 z-170 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4';
   const panelClasses = mobile
     ? 'w-full bg-white rounded-t-[2.5rem] p-5 pb-safe max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-full duration-300'
-    : 'w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-6 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200';
+    : 'w-full max-w-2xl bg-white rounded-4xl shadow-2xl p-6 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200';
 
   const useAdvancedValidation = advancedOpen;
   const effectiveModeForValidation = useAdvancedValidation ? mode : 'exact';
@@ -260,7 +260,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
           <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 space-y-4">
             <div>
               <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Παραγγελία</label>
-              <select value={orderId} onChange={(e) => setOrderId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
+              <select value={orderId} onChange={(e) => setOrderId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden">
                 <option value="">Επιλέξτε παραγγελία</option>
                 {orders.map((item) => (
                   <option key={item.id} value={item.id}>{getOrderDisplayName(item)} · #{item.id.slice(-6)}</option>
@@ -292,7 +292,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                 type="datetime-local"
                 value={targetAt}
                 onChange={(e) => setTargetAt(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden"
               />
             </div>
 
@@ -302,7 +302,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                   type="checkbox"
                   checked={wantCallReminder}
                   onChange={(e) => setWantCallReminder(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300"
+                  className="w-4 h-4 rounded-sm border-slate-300"
                 />
                 <span className="text-sm font-bold text-slate-700">Υπενθύμιση κλήσης πριν την παράδοση</span>
               </label>
@@ -311,7 +311,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
             <input
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-hidden"
               placeholder="Σημειώσεις (προαιρετικά)"
             />
           </div>
@@ -347,32 +347,32 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                 </div>
 
                 {mode === 'month' && (
-                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
+                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden" />
                 )}
 
                 {mode === 'custom_period' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input type="datetime-local" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                    <input type="datetime-local" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
+                    <input type="datetime-local" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden" />
+                    <input type="datetime-local" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden" />
                   </div>
                 )}
 
                 {mode === 'holiday_anchor' && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select value={holidayAnchor} onChange={(e) => setHolidayAnchor(e.target.value as DeliveryHolidayAnchor)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
+                    <select value={holidayAnchor} onChange={(e) => setHolidayAnchor(e.target.value as DeliveryHolidayAnchor)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden">
                       {(Object.keys(DELIVERY_HOLIDAY_LABELS) as DeliveryHolidayAnchor[]).map((value) => (
                         <option key={value} value={value}>{DELIVERY_HOLIDAY_LABELS[value]}</option>
                       ))}
                     </select>
-                    <input type="number" value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                    <input type="number" value={holidayOffsetDays} onChange={(e) => setHolidayOffsetDays(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" placeholder="Μετατόπιση ημερών" />
+                    <input type="number" value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden" />
+                    <input type="number" value={holidayOffsetDays} onChange={(e) => setHolidayOffsetDays(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden" placeholder="Μετατόπιση ημερών" />
                   </div>
                 )}
 
                 <input
                   value={contactPhoneOverride}
                   onChange={(e) => setContactPhoneOverride(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-hidden"
                   placeholder="Τηλέφωνο επικοινωνίας"
                 />
 
@@ -425,13 +425,13 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
                                 <Trash2 size={12} />
                               </button>
                             </div>
-                            <input type="datetime-local" value={reminder.trigger_at} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, trigger_at: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none" />
-                            <select value={reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'call_client' : reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none">
+                            <input type="datetime-local" value={reminder.trigger_at} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, trigger_at: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-hidden" />
+                            <select value={reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'call_client' : reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-hidden">
                               {REMINDER_ACTION_DROPDOWN_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                               ))}
                             </select>
-                            <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none" placeholder="Λόγος υπενθύμισης" />
+                            <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-hidden" placeholder="Λόγος υπενθύμισης" />
                           </div>
                         );
                       })}

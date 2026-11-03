@@ -68,14 +68,14 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                 {notes.length > 0 && (
                     <button
                         onClick={() => setIsNotesModalOpen(true)}
-                        className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border-2 border-indigo-100 bg-white px-3 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
+                        className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border-2 border-indigo-100 bg-white px-3 shadow-xs hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
                         title="Άνοιγμα όλων των οδηγιών παραγωγής"
                     >
                         <span className="flex min-w-0 items-center gap-2">
                             <ClipboardList size={13} className="text-indigo-600 shrink-0" />
                             <span className="truncate text-[10px] font-black uppercase tracking-widest text-indigo-700">Οδηγίες</span>
                         </span>
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{formatNumber(notes.length)}</span>
+                        <span className="rounded-sm bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{formatNumber(notes.length)}</span>
                     </button>
                 )}
 
@@ -128,7 +128,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
             </div>
 
             {isNotesModalOpen && (
-                <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNotesModalOpen(false)}>
+                <div className="fixed inset-0 z-230 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setIsNotesModalOpen(false)}>
                     <div className="bg-white w-full max-w-4xl max-h-[86vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                         <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
                             <div>
@@ -149,7 +149,7 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                                         <span className="font-black text-sm">{note.customer}</span>
                                         <span className="text-xs font-mono font-bold opacity-80">#{formatOrderId(note.id)}</span>
                                     </div>
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium italic">"{note.note}"</p>
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word font-medium italic">"{note.note}"</p>
                                 </div>
                             ))}
                         </div>

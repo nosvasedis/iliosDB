@@ -155,7 +155,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                 <section key={`${customerGroup.customerName}_${orderGroup.orderId}`} className="space-y-1">
                                     {/* Order sub-header — break-after:avoid to stay with products */}
                                     <div
-                                        className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-2 py-1"
+                                        className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-sm px-2 py-1"
                                         style={{ breakAfter: 'avoid', pageBreakAfter: 'avoid' }}
                                     >
                                         <p className="text-[10px] font-black text-slate-600 uppercase tracking-wide">
@@ -221,12 +221,12 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                             </span>
                                                         )}
                                                         {row.cord_color && (
-                                                            <span className="text-[9px] font-black text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 leading-tight">
+                                                            <span className="text-[9px] font-black text-amber-800 bg-amber-50 px-1 py-0.5 rounded-sm border border-amber-200 leading-tight">
                                                                 Κορδόνι: {getProductOptionColorLabel(row.cord_color)}
                                                             </span>
                                                         )}
                                                         {row.enamel_color && (
-                                                            <span className="text-[9px] font-black text-rose-800 bg-rose-50 px-1 py-0.5 rounded border border-rose-200 leading-tight">
+                                                            <span className="text-[9px] font-black text-rose-800 bg-rose-50 px-1 py-0.5 rounded-sm border border-rose-200 leading-tight">
                                                                 Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}
                                                             </span>
                                                         )}
@@ -245,7 +245,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                                     const perPieceQty = pm.quantity || 1;
                                                                     const totalQty = perPieceQty * (row.quantity || 0);
                                                                     return (
-                                                                        <span key={i} className="text-[7px] font-bold bg-orange-50 text-orange-800 border border-orange-200 px-1 py-0.5 rounded leading-tight flex items-baseline gap-0.5 min-w-0">
+                                                                        <span key={i} className="text-[7px] font-bold bg-orange-50 text-orange-800 border border-orange-200 px-1 py-0.5 rounded-sm leading-tight flex items-baseline gap-0.5 min-w-0">
                                                                             <span className="font-black shrink-0">{pm.code}</span>
                                                                             {totalQty > 1 && (
                                                                                 <span
@@ -256,7 +256,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                                                 </span>
                                                                             )}
                                                                             {details?.description && (
-                                                                                <span className="font-medium text-orange-600 italic break-words min-w-0 flex-1"> {details.description}</span>
+                                                                                <span className="font-medium text-orange-600 italic wrap-break-word min-w-0 flex-1"> {details.description}</span>
                                                                             )}
                                                                         </span>
                                                                     );
@@ -268,8 +268,8 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                         {recipeStones.length > 0 && (
                                                             <div className="flex flex-col gap-0.5 mt-0.5">
                                                                 {recipeStones.map((r, i) => (
-                                                                    <span key={i} className="text-[7px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded leading-tight flex items-baseline gap-0.5 min-w-0">
-                                                                        <span className="break-words min-w-0 flex-1">
+                                                                    <span key={i} className="text-[7px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded-sm leading-tight flex items-baseline gap-0.5 min-w-0">
+                                                                        <span className="wrap-break-word min-w-0 flex-1">
                                                                             {r.material!.name}{r.material!.description ? ` · ${r.material!.description}` : ''}
                                                                         </span>
                                                                         <span className="whitespace-nowrap font-black shrink-0">×{formatNumber(r.quantity)}</span>
@@ -281,7 +281,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                         {/* Quantity */}
                                                         <div className="flex items-center justify-between mt-auto">
                                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Ποσ.</span>
-                                                            <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded text-xs font-black border border-pink-200 leading-tight">
+                                                            <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded-sm text-xs font-black border border-pink-200 leading-tight">
                                                                 x{formatNumber(row.quantity)}
                                                             </span>
                                                         </div>

@@ -1,6 +1,6 @@
 // Build-time Tailwind (replaces the runtime Play CDN). Keep the content globs
 // in sync with every folder that renders className strings.
-const PRODUCTION_STAGE_COLORS = ['indigo', 'slate', 'orange', 'purple', 'blue', 'pink', 'yellow', 'emerald'];
+// The production-stage safelist lives in index.css (@source inline); v4 ignores `safelist` here.
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -18,12 +18,6 @@ export default {
     './utils/**/*.{ts,tsx}',
     './lib/**/*.{ts,tsx}',
     './app-shell/**/*.{ts,tsx}',
-  ],
-  // ProductionPage builds `text-${stage.color}-600`, `hover:bg-${stage.color}-50`
-  // and `bg-${stage.color}-500` from utils/productionStages.ts colorKeys.
-  safelist: [
-    { pattern: new RegExp(`^text-(${PRODUCTION_STAGE_COLORS.join('|')})-600$`) },
-    { pattern: new RegExp(`^bg-(${PRODUCTION_STAGE_COLORS.join('|')})-(50|500)$`), variants: ['hover'] },
   ],
   theme: {
     extend: {},

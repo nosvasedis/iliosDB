@@ -95,7 +95,7 @@ const ORDER_SORT_OPTIONS: Array<{ id: OrderSortMode; label: string; helper: stri
     { id: 'amount_low', label: 'Μικρότερο ποσό', helper: 'Καθαρή αξία', icon: BarChart3 },
 ];
 
-const ORDER_STATUS_BADGE_CLASS = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-sm transition-all';
+const ORDER_STATUS_BADGE_CLASS = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-xs transition-all';
 
 function getOrderPrimaryTag(order: Order): string {
     return (order.tags || []).map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'))[0] || '';
@@ -144,7 +144,7 @@ function SellerAssignmentModal({ order, onClose, onSaved }: {
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 bg-sky-50/70 flex items-center justify-between">
                     <div>
@@ -218,7 +218,7 @@ const OrderPartSelectorModal = ({
     const allValue = order.total_price;
 
     return (
-        <div className="fixed inset-0 z-[160] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-160 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
@@ -258,7 +258,7 @@ const OrderPartSelectorModal = ({
                                 key={dateKey}
                                 onClick={() => toggleShipment(dateKey)}
                                 className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${isSelected
-                                        ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                        ? 'border-blue-500 bg-blue-50 shadow-xs'
                                         : 'border-slate-200 bg-white hover:border-slate-300'
                                     }`}
                             >
@@ -276,7 +276,7 @@ const OrderPartSelectorModal = ({
                                             {/* Stage Pills */}
                                             <div className="flex flex-wrap gap-1 mt-2">
                                                 {Object.entries(stageBreakdown).map(([stage, qty]) => (
-                                                    <span key={stage} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                                    <span key={stage} className="text-[9px] px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-600 font-medium">
                                                         {stage}: {formatNumber(qty)}
                                                     </span>
                                                 ))}
@@ -587,7 +587,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
 
     return (
         <>
-        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-150 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
@@ -617,7 +617,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                         {opt.badge}
                                     </span>
                                 )}
-                                <div className="p-3 bg-white rounded-xl shadow-sm">{opt.icon}</div>
+                                <div className="p-3 bg-white rounded-xl shadow-xs">{opt.icon}</div>
                                 <span className="text-xs uppercase tracking-wider">{opt.label}</span>
                             </button>
                         );
@@ -626,7 +626,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             </div>
         </div>
         {showShipmentPrompt && shouldShowShipmentPrompt && (
-            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-170 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-amber-50">
                         <h3 className="text-xl font-bold text-slate-900">{'\u03A5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE'}</h3>
@@ -726,7 +726,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             />
         )}
         {showVersionSelector && orderRevisions.length > 0 && (
-            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-170 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-indigo-50">
                         <div className="flex items-center gap-2 mb-1">
@@ -812,9 +812,9 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                     </div>
                 </div>
                 {showCurrentRevisionDiff && currentRevisionDiff && (
-                    <div className="fixed inset-0 z-[180] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="fixed inset-0 z-180 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
                         <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
-                            <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-indigo-50 flex items-start justify-between gap-4">
+                            <div className="p-6 border-b border-slate-100 bg-linear-to-r from-sky-50 to-indigo-50 flex items-start justify-between gap-4">
                                 <div>
                                     <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
                                         <HelpCircle size={18} className="text-indigo-600" />
@@ -1711,14 +1711,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 subtitle="Διαχείριση λιανικής και χονδρικής."
                 tail={(
                     <div className="flex flex-wrap gap-3">
-                        <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
+                        <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-xs">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setActiveTab('active');
                                     setMultiSelectIds(new Set());
                                 }}
-                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <ShoppingCart size={16} /> Ενεργές
                             </button>
@@ -1728,7 +1728,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     setActiveTab('archived');
                                     setMultiSelectIds(new Set());
                                 }}
-                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Archive size={16} /> Αρχείο
                             </button>
@@ -1736,7 +1736,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         <button
                             type="button"
                             onClick={() => setSkuSearchOpen(true)}
-                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
+                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-xs transition-all hover:bg-slate-50 hover:border-slate-300"
                         >
                             <Search size={16} className="text-emerald-600" /> Αναζήτηση SKU
                         </button>
@@ -1748,13 +1748,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 below={(
               <div className="space-y-4">
                 {/* SEARCH / FILTERS / SORT */}
-                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-xs">
                   <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(16rem,22rem)] lg:items-center">
                     <DebouncedSearchInput
                       value={searchFilter}
                       onDebouncedChange={handleSearchFilterChange}
                       placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
-                      inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                      inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-hidden transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                     />
                     <div className="flex items-center gap-2">
                       <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:flex">
@@ -1764,7 +1764,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         <select
                           value={sortMode}
                           onChange={event => setSortMode(event.target.value as OrderSortMode)}
-                          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-hidden transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                           aria-label="Ταξινόμηση παραγγελιών"
                         >
                           {ORDER_SORT_OPTIONS.map(option => (
@@ -1838,8 +1838,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
           />
 
           <div ref={ordersScrollRef} className={`flex-1 overflow-auto min-h-0 ${multiSelectIds.size > 0 ? 'pb-28' : ''}`}>
-                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
-                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-xs">
+                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-xs backdrop-blur-sm">
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <CircularSelectButton
@@ -1876,7 +1876,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         className="absolute left-0 top-0 w-full pb-2"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
-                                        <div className={`group grid w-full grid-cols-[2.25rem_minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(6.5rem,0.6fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border text-sm shadow-sm transition-[border-color,box-shadow,ring-color] ${
+                                        <div className={`group grid w-full grid-cols-[2.25rem_minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(6.5rem,0.6fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border text-sm shadow-xs transition-[border-color,box-shadow,ring-color] ${
                                             isSelected
                                                 ? ORDER_BULK_SELECTED_ROW_CLASS
                                                 : 'border-slate-200/80 bg-white ring-1 ring-transparent hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100'
@@ -1909,7 +1909,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 const sc = sellerColors[hash % sellerColors.length];
                                                 return (
                                                     <div className="mt-2">
-                                                        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold leading-none ${sc.bg} ${sc.text} ${sc.border}`}>
+                                                        <span className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[9px] font-bold leading-none ${sc.bg} ${sc.text} ${sc.border}`}>
                                                             {order.seller_name}
                                                             {order.seller_commission_percent != null && (
                                                                 <span className="opacity-60">{formatNumber(order.seller_commission_percent)}%</span>
@@ -1938,7 +1938,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {transferIndicators.length > 0 && (
                                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                                     {transferIndicators.map((indicator) => (
-                                                        <span key={indicator.detail} title={indicator.detail} className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700 shadow-sm">
+                                                        <span key={indicator.detail} title={indicator.detail} className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700 shadow-xs">
                                                             <ArrowRightLeft size={11} /> {indicator.label}
                                                         </span>
                                                     ))}
@@ -1954,7 +1954,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     {order.tags.map(t => {
                                                         const c = getTagColor(t, tagColorOverrides);
                                                         return (
-                                                            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-sm ${c.bg} ${c.text} ${c.border}`}>
+                                                            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-xs ${c.bg} ${c.text} ${c.border}`}>
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-current opacity-55" />
                                                                 {t}
                                                             </span>
@@ -2041,7 +2041,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="col-span-full -mt-1 flex items-center gap-1 px-4 pb-3" title="Όλα τα τεμάχια είναι έτοιμα">
                                                 <span className="w-5 shrink-0" />
                                                 <div className="h-2 flex-1 rounded-full border border-emerald-500 bg-emerald-500" />
-                                                <span className="ml-0.5 min-w-[2.25rem] shrink-0 text-right text-[10px] font-black tabular-nums text-emerald-600">100%</span>
+                                                <span className="ml-0.5 min-w-9 shrink-0 text-right text-[10px] font-black tabular-nums text-emerald-600">100%</span>
                                             </div>
                                         ) : !ready && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled ? (
                                             <div className="col-span-full -mt-1 px-4 pb-3 empty:hidden">
@@ -2054,7 +2054,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     showPercentLabel={false}
                                                     fullWidth
                                                     trailing={
-                                                        <span className="min-w-[2.25rem] shrink-0 text-right text-[10px] font-black tabular-nums text-slate-500">
+                                                        <span className="min-w-9 shrink-0 text-right text-[10px] font-black tabular-nums text-slate-500">
                                                             {formatNumber(Math.max(0, orderMeta?.readinessPercent ?? 0))}%
                                                         </span>
                                                     }
@@ -2071,7 +2071,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             </div>
 
             {managingOrder && (
-                <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-xl animate-in zoom-in-95 border border-slate-200 flex flex-col max-h-[90vh]">
                         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
                             <div>
@@ -2094,7 +2094,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }}
                                     className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-amber-100"><Edit size={17} className="text-amber-600" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-xs border border-amber-100"><Edit size={17} className="text-amber-600" /></div>
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Επεξεργασία</span>
                                 </button>
 
@@ -2107,7 +2107,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {formatNumber(managingOrder.tags?.length)}
                                         </span>
                                     )}
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-violet-100"><Layers size={17} className="text-violet-600" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-xs border border-violet-100"><Layers size={17} className="text-violet-600" /></div>
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700">Ετικέτες</span>
                                 </button>
 
@@ -2115,7 +2115,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => setShowWorkflowActions(true)}
                                     className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-blue-100"><Factory size={17} className="text-blue-600" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-xs border border-blue-100"><Factory size={17} className="text-blue-600" /></div>
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Παράδοση & Παραγωγή</span>
                                 </button>
 
@@ -2123,7 +2123,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => setShowStatusActions(true)}
                                     className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-rose-200 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-rose-100"><Archive size={17} className="text-rose-600" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-xs border border-rose-100"><Archive size={17} className="text-rose-600" /></div>
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Κατάσταση & Αρχείο</span>
                                 </button>
 
@@ -2131,7 +2131,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => setShowSellerAssignment(true)}
                                     className="col-span-2 p-4 rounded-xl flex items-center gap-4 border border-teal-200 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-teal-100 shrink-0"><UserCheck size={17} className="text-teal-600" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-xs border border-teal-100 shrink-0"><UserCheck size={17} className="text-teal-600" /></div>
                                     <div className="flex-1 text-left">
                                         <span className="text-[11px] font-semibold uppercase tracking-wider text-teal-700 block">Ανάθεση Πλασιέ</span>
                                         {managingOrder.seller_name
@@ -2147,7 +2147,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             )}
 
             {managingOrder && showTagsManager && (
-                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-60 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95">
                         <div className="p-6 border-b border-violet-100 bg-violet-50/60 flex items-center justify-between">
                             <div>
@@ -2180,7 +2180,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         onFocus={() => setTagInputFocused(true)}
                                         onBlur={() => setTimeout(() => setTagInputFocused(false), 150)}
                                         placeholder="Προσθήκη ετικέτας (π.χ. 'Έκθεση A')..."
-                                        className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400/20 bg-white"
+                                        className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-slate-400/20 bg-white"
                                     />
                                     <button
                                         onClick={handleAddTag}
@@ -2220,7 +2220,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             )}
 
             {managingOrder && showWorkflowActions && (
-                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-60 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
                         <div className="p-6 border-b border-blue-100 bg-blue-50/60 flex items-center justify-between">
                             <div>
@@ -2307,7 +2307,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             )}
 
             {managingOrder && showStatusActions && (
-                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-60 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
                         <div className="p-6 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
                             <div>

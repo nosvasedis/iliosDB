@@ -38,17 +38,17 @@ function ResourceRow({ row, booked, share }: { row: ResourceQuantityRow; booked:
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"
+        className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"
       >
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${meta.glyph}`} aria-hidden="true"><Icon size={16} /></span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="break-words text-sm font-black text-slate-900">{row.name}</span>
+            <span className="wrap-break-word text-sm font-black text-slate-900">{row.name}</span>
             {family && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-black ring-1 ring-inset ${family.tone}`}>{family.shortLabel}</span>}
           </span>
-          {row.description && <span className="mt-0.5 block break-words text-xs font-medium text-slate-500">{row.description}</span>}
+          {row.description && <span className="mt-0.5 block wrap-break-word text-xs font-medium text-slate-500">{row.description}</span>}
           <span className="mt-1.5 flex items-center gap-2">
-            <span className="h-1.5 w-full max-w-[12rem] overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+            <span className="h-1.5 w-full max-w-48 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
               <span className={`block h-full rounded-full ${meta.bar}`} style={{ width: `${Math.max(3, share * 100)}%` }} />
             </span>
             <span className="shrink-0 text-[11px] font-semibold text-slate-400">{formatNumber(row.products.length)} {sourceLabel}</span>
@@ -78,7 +78,7 @@ function ResourceSources({ row, booked, limit, onMore }: { row: ResourceQuantity
         <div className="divide-y divide-slate-50">
           {row.products.slice(0, limit).map((source, index) => (
             <div key={JSON.stringify([source.sku, source.variantSuffix, index])} className="flex items-center gap-3 px-3 py-2 text-xs">
-              <span className="min-w-0 flex-1 break-words">
+              <span className="min-w-0 flex-1 wrap-break-word">
                 {booked ? <span className="font-bold text-slate-700">{source.sku}</span> : (
                   <>
                     <SkuColorizedText sku={source.sku} suffix={source.variantSuffix} />
@@ -181,10 +181,10 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
     : 'Υπολογισμός από τις τρέχουσες συνταγές, μαζί με τα υλικά μέσα στα STX. Τα εξαρτήματα και τα υλικά τους εμφανίζονται χωριστά και δεν αθροίζονται μεταξύ τους. Δεν αποτελεί μέτρηση πραγματικής κατανάλωσης εργαστηρίου.';
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm" aria-label="Ποσότητες πετρών, υλικών και STX">
+    <section className="min-w-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xs" aria-label="Ποσότητες πετρών, υλικών και STX">
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3.5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 text-white shadow-sm" aria-hidden="true"><Boxes size={18} /></span>
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-linear-to-br from-slate-50 to-white px-4 py-3.5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-violet-500 to-violet-700 text-white shadow-xs" aria-hidden="true"><Boxes size={18} /></span>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-black text-slate-900">{booked ? 'Αγορές · Πέτρες, υλικά & STX' : 'Πέτρες, υλικά & STX'}</h3>
           <p className="truncate text-xs font-semibold text-slate-500">
@@ -200,14 +200,14 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
                   key={value}
                   aria-pressed={scope === value}
                   onClick={() => { setScope(value); resetPage(); }}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition ${scope === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition ${scope === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                 >
                   {value === 'realized' ? 'Αποσταλμένα' : 'Εκκρεμή'}
                 </button>
               ))}
             </div>
           )}
-          <button type="button" onClick={exportCsv} aria-label="Εξαγωγή ποσοτήτων σε CSV" title="Εξαγωγή CSV" className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-800">
+          <button type="button" onClick={exportCsv} aria-label="Εξαγωγή ποσοτήτων σε CSV" title="Εξαγωγή CSV" className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-800">
             <Download size={15} />
           </button>
         </div>
@@ -227,7 +227,7 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
                 aria-pressed={active}
                 disabled={rows === 0}
                 onClick={() => chooseKind(key)}
-                className={`flex items-center gap-3 rounded-2xl bg-gradient-to-br to-white p-3 text-left ring-1 transition disabled:cursor-default disabled:opacity-50 ${meta.tile} ${active ? 'ring-2 shadow-sm' : 'ring-slate-100 hover:shadow-sm'}`}
+                className={`flex items-center gap-3 rounded-2xl bg-linear-to-br to-white p-3 text-left ring-1 transition disabled:cursor-default disabled:opacity-50 ${meta.tile} ${active ? 'ring-2 shadow-xs' : 'ring-slate-100 hover:shadow-xs'}`}
               >
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${meta.glyph}`} aria-hidden="true"><Icon size={17} /></span>
                 <span className="min-w-0 flex-1">
@@ -269,14 +269,14 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
 
         {/* Search + active filters */}
         <div className="flex flex-wrap items-center gap-2">
-          <label className="relative min-w-[12rem] flex-1">
+          <label className="relative min-w-48 flex-1">
             <span className="sr-only">Αναζήτηση υλικού ή SKU</span>
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={search}
               onChange={(event) => { setSearch(event.target.value); resetPage(); }}
               placeholder="Υλικό, πέτρα ή SKU…"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-semibold text-slate-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-semibold text-slate-800 outline-hidden transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5"
             />
           </label>
           {filtersActive && (
@@ -317,7 +317,7 @@ export default memo(function ResourceQuantitiesPanel({ realized, backlog, period
             <span className="pr-7">Ποσότητα</span>
           </div>
         )}
-        <div key={`${scope}:${kind}:${stoneFamily}:${componentFamily}:${search}:${currentPage}`} className="max-h-[28rem] overflow-y-auto overscroll-contain custom-scrollbar">
+        <div key={`${scope}:${kind}:${stoneFamily}:${componentFamily}:${search}:${currentPage}`} className="max-h-112 overflow-y-auto overscroll-contain custom-scrollbar">
           {filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE).map((row) => (
             <ResourceRow key={row.key} row={row} booked={booked} share={row.quantity / (maxByUnit.get(row.unit) || 1)} />
           ))}

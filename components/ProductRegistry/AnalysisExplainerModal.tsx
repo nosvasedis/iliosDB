@@ -6,11 +6,11 @@ interface AnalysisExplainerModalProps {
 }
 
 export const AnalysisExplainerModal: React.FC<AnalysisExplainerModalProps> = ({ onClose }) => (
-    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-200 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-linear-to-r from-blue-50 to-indigo-50">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-xl shadow-sm text-blue-600">
+                    <div className="p-2 bg-white rounded-xl shadow-xs text-blue-600">
                         <BookOpen size={24} />
                     </div>
                     <div>
@@ -18,7 +18,7 @@ export const AnalysisExplainerModal: React.FC<AnalysisExplainerModalProps> = ({ 
                         <p className="text-sm text-slate-500">Οδηγός Ανάλυσης Κόστους Προμηθευτή</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm transition-all"><X size={20} /></button>
+                <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-xs transition-all"><X size={20} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-8">

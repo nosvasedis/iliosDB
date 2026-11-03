@@ -78,7 +78,7 @@ export default function SupplierReceiptModal({ order, onClose, onConfirm }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-[350] flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-4" role="presentation">
+    <div className="fixed inset-0 z-350 flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-4" role="presentation">
       <div className="flex max-h-[94vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-3xl" role="dialog" aria-modal="true" aria-labelledby="supplier-receipt-title">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export default function SupplierReceiptModal({ order, onClose, onConfirm }: Prop
 
           <label className="block">
             <span className="mb-2 flex items-center gap-2 text-sm font-black text-slate-800"><Building2 size={16} aria-hidden="true" /> Αποθήκη Παραλαβής</span>
-            <select autoFocus value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} disabled={isSubmitting || warehousesQuery.isLoading} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10" aria-label="Αποθήκη παραλαβής">
+            <select autoFocus value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} disabled={isSubmitting || warehousesQuery.isLoading} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-hidden focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10" aria-label="Αποθήκη παραλαβής">
               {(warehousesQuery.data || []).map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
             </select>
           </label>

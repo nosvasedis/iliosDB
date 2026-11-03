@@ -15,7 +15,7 @@ export default function MobileDeliveryCard({ item, onClick }: Props) {
   const transferIndicators = getOrderTransferIndicators(item.order.notes);
 
   return (
-    <button onClick={onClick} className="w-full text-left rounded-3xl border border-slate-100 bg-white shadow-sm p-4 active:scale-[0.99] transition-all">
+    <button onClick={onClick} className="w-full text-left rounded-3xl border border-slate-100 bg-white shadow-xs p-4 active:scale-[0.99] transition-all">
       <div className="flex justify-between gap-3">
         <div className="min-w-0">
           <div className="font-black text-slate-900 truncate"><OrderCustomerName order={item.order} /></div>

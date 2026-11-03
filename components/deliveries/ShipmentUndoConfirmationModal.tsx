@@ -50,7 +50,7 @@ export default function ShipmentUndoConfirmationModal({
   }, [shipment.id]);
 
   return (
-    <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:hidden">
+    <div className="fixed inset-0 z-260 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 print:hidden">
       <div role="dialog" aria-modal="true" aria-labelledby="shipment-undo-title" className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-red-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="bg-red-600 text-white px-5 py-4 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -90,7 +90,7 @@ export default function ShipmentUndoConfirmationModal({
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Παραγγελία</div>
               <div className="mt-1 text-sm font-black text-slate-900">#{formatOrderId(order.id)}</div>
-              <div className="text-xs font-bold text-slate-600 break-words"><OrderCustomerName order={order} /></div>
+              <div className="text-xs font-bold text-slate-600 wrap-break-word"><OrderCustomerName order={order} /></div>
             </div>
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
               <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Αποστολή</div>
@@ -119,7 +119,7 @@ export default function ShipmentUndoConfirmationModal({
               value={confirmationText}
               onChange={(event) => setConfirmationText(event.target.value)}
               disabled={isSubmitting}
-              className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-red-100 focus:border-red-400 disabled:bg-slate-100"
+              className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm font-black text-slate-900 outline-hidden focus:ring-4 focus:ring-red-100 focus:border-red-400 disabled:bg-slate-100"
               placeholder={requiredToken}
               autoFocus
             />

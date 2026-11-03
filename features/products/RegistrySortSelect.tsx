@@ -23,7 +23,7 @@ export default function RegistrySortSelect({ value, onChange, className = '', co
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as RegistrySortMode)}
-        className={`w-full appearance-none rounded-xl border font-bold outline-none transition-all focus:ring-4 focus:ring-emerald-500/10 ${
+        className={`w-full appearance-none rounded-xl border font-bold outline-hidden transition-all focus:ring-4 focus:ring-emerald-500/10 ${
           compact ? 'py-3 pl-8 pr-8 text-xs' : 'py-3 pl-9 pr-9 text-sm'
         } ${
           isNonDefault

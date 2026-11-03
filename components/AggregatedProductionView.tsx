@@ -104,7 +104,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
             >
                 <div className="w-5 text-center text-slate-400 font-mono text-[9px] shrink-0">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-7 shrink-0">
-                    <div className="w-5 h-5 rounded bg-slate-100 overflow-hidden border border-slate-200 mx-auto">
+                    <div className="w-5 h-5 rounded-sm bg-slate-100 overflow-hidden border border-slate-200 mx-auto">
                         {batch.product_details?.image_url && (
                             <img src={batch.product_details.image_url} className="w-full h-full object-cover" />
                         )}
@@ -113,17 +113,17 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                 <div className="flex-1 px-1 min-w-0">
                     <div className="flex flex-wrap items-baseline gap-0.5">
                         <span className="font-black text-slate-800 text-[12px]">{batch.sku}{batch.variant_suffix}</span>
-                        {batch.size_info && <span className="text-[8px] font-bold bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 whitespace-nowrap">{batch.size_info}</span>}
-                        {batch.cord_color && <span className="text-[8px] font-bold bg-amber-50 px-0.5 rounded text-amber-700 border border-amber-100 whitespace-nowrap">Κ: {getProductOptionColorLabel(batch.cord_color)}</span>}
-                        {batch.enamel_color && <span className="text-[8px] font-bold bg-rose-50 px-0.5 rounded text-rose-700 border border-rose-100 whitespace-nowrap">Σ: {getProductOptionColorLabel(batch.enamel_color)}</span>}
-                        {batch.product_details?.is_component && <span className="text-[7px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
-                        {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[7px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase">IMP</span>}
+                        {batch.size_info && <span className="text-[8px] font-bold bg-slate-100 px-1 rounded-sm text-slate-600 border border-slate-200 whitespace-nowrap">{batch.size_info}</span>}
+                        {batch.cord_color && <span className="text-[8px] font-bold bg-amber-50 px-0.5 rounded-sm text-amber-700 border border-amber-100 whitespace-nowrap">Κ: {getProductOptionColorLabel(batch.cord_color)}</span>}
+                        {batch.enamel_color && <span className="text-[8px] font-bold bg-rose-50 px-0.5 rounded-sm text-rose-700 border border-rose-100 whitespace-nowrap">Σ: {getProductOptionColorLabel(batch.enamel_color)}</span>}
+                        {batch.product_details?.is_component && <span className="text-[7px] font-bold bg-blue-50 text-blue-600 px-1 rounded-sm border border-blue-100">STX</span>}
+                        {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[7px] font-bold bg-purple-50 text-purple-600 px-1 rounded-sm border border-purple-100 uppercase">IMP</span>}
                     </div>
                     <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-0.5" />
                     {(batch.product_details?.supplier_sku || batch.notes) && (
                         <div className="flex flex-wrap gap-1 text-[8px]">
                             {batch.product_details?.supplier_sku && <span className="text-slate-400 font-mono">Ref: {batch.product_details.supplier_sku}</span>}
-                            {batch.notes && !isSpecialCreationSku(batch.sku) && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded flex items-center gap-0.5"><StickyNote size={7}/> {batch.notes}</span>}
+                            {batch.notes && !isSpecialCreationSku(batch.sku) && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded-sm flex items-center gap-0.5"><StickyNote size={7}/> {batch.notes}</span>}
                         </div>
                     )}
                 </div>
@@ -282,7 +282,7 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                                     <td className="py-1 px-2 text-center text-slate-400 font-mono text-[9px]">{formatNumber(idx + 1)}</td>
                                     <td className="py-1 px-2 font-bold text-slate-800">
                                         {batch.sku}{batch.variant_suffix}
-                                        <span className="ml-1 text-[8px] font-bold text-purple-600 bg-purple-50 px-1 rounded border border-purple-100 uppercase">IMP</span>
+                                        <span className="ml-1 text-[8px] font-bold text-purple-600 bg-purple-50 px-1 rounded-sm border border-purple-100 uppercase">IMP</span>
                                     </td>
                                     <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-700">{formatNumber(batch.quantity)}</td>
                                     <td className="py-1 px-2 text-right font-mono text-[10px] text-slate-800">

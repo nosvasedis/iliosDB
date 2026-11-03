@@ -55,7 +55,7 @@ export default function RepairCard({ ctl, item, onOpen, onRework }: { ctl: Servi
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(event) => { if (event.key === 'Enter') onOpen(); }}
-      className="cursor-pointer rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+      className="cursor-pointer rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-slate-300 hover:shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-300"
     >
       <div className="flex items-start gap-2.5">
         {item.product_sku

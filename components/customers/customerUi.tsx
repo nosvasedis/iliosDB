@@ -18,7 +18,7 @@ import { formatCurrency } from '../../utils/numberFormat';
 export function CustomerAvatar({ name, seed, size = 44, className = '' }: { name: string; seed: string; size?: number; className?: string }) {
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-2xl font-black text-white shadow-sm ring-2 ring-white ${className}`}
+      className={`flex shrink-0 items-center justify-center rounded-2xl font-black text-white shadow-xs ring-2 ring-white ${className}`}
       style={{ width: size, height: size, background: customerAvatarGradient(seed), fontSize: Math.round(size * 0.36) }}
       aria-hidden
     >

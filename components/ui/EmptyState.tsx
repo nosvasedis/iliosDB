@@ -30,7 +30,7 @@ export default function EmptyState({
 
   return (
     <div className={`flex flex-col items-center justify-center text-center ${compact ? 'px-4 py-8' : 'px-6 py-14'} ${frame} ${className}`}>
-      <div className={`flex items-center justify-center border border-slate-100 bg-white text-slate-300 shadow-sm ${compact ? 'mb-3 h-11 w-11 rounded-xl' : 'mb-4 h-14 w-14 rounded-2xl'}`}>
+      <div className={`flex items-center justify-center border border-slate-100 bg-white text-slate-300 shadow-xs ${compact ? 'mb-3 h-11 w-11 rounded-xl' : 'mb-4 h-14 w-14 rounded-2xl'}`}>
         <Icon size={compact ? 20 : 24} />
       </div>
       <p className="text-sm font-black text-slate-600">{title}</p>

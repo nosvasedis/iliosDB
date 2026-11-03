@@ -23,7 +23,7 @@ export default function FulfillmentModeToggle({
   return (
     <div className={`flex items-center gap-2 ${compact ? '' : ''}`}>
       {label ? <span className="text-[10px] font-bold text-slate-500">{label}</span> : null}
-      <div className="flex items-center rounded-lg bg-white p-0.5 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-center rounded-lg bg-white p-0.5 shadow-xs ring-1 ring-slate-200">
         <button
           type="button"
           onClick={() => onChange('sale')}

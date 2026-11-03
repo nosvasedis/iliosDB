@@ -42,7 +42,7 @@ export default function PurchaseOrderCustomerFilterBar({
 
     return (
         <div
-            className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${isDesktop ? 'p-4' : 'p-3'}`}
+            className={`rounded-2xl border border-slate-200 bg-white shadow-xs ${isDesktop ? 'p-4' : 'p-3'}`}
         >
             <button
                 type="button"
@@ -80,7 +80,7 @@ export default function PurchaseOrderCustomerFilterBar({
                                 type="button"
                                 onClick={() => onTabChange(tk)}
                                 className={`rounded-lg font-black uppercase tracking-wide transition-colors touch-manipulation ${
-                                    isDesktop ? 'px-3 py-1.5 text-[10px]' : 'px-2 py-1.5 text-[9px] flex-1 min-w-[4.5rem]'
+                                    isDesktop ? 'px-3 py-1.5 text-[10px]' : 'px-2 py-1.5 text-[9px] flex-1 min-w-18'
                                 } ${
                                     tab === tk
                                         ? 'bg-slate-900 text-white shadow-md'
@@ -105,7 +105,7 @@ export default function PurchaseOrderCustomerFilterBar({
                                     value={q}
                                     onChange={e => setQ(e.target.value)}
                                     placeholder={tab === 'exclude' ? 'Αναζήτηση για εξαίρεση…' : 'Αναζήτηση πελατών…'}
-                                    className={`w-full rounded-xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-2 focus:ring-slate-300/80 ${
+                                    className={`w-full rounded-xl border border-slate-200 bg-slate-50 font-bold outline-hidden focus:ring-2 focus:ring-slate-300/80 ${
                                         isDesktop ? 'pl-10 pr-3 py-2 text-sm' : 'pl-9 pr-2 py-2 text-xs'
                                     }`}
                                 />
@@ -133,7 +133,7 @@ export default function PurchaseOrderCustomerFilterBar({
                                                     type="checkbox"
                                                     checked={on}
                                                     onChange={() => onTogglePicked(display)}
-                                                    className="rounded border-slate-300 w-4 h-4 shrink-0 accent-slate-900"
+                                                    className="rounded-sm border-slate-300 w-4 h-4 shrink-0 accent-slate-900"
                                                 />
                                                 <span className={`font-bold text-slate-800 truncate flex-1 min-w-0 ${isDesktop ? 'text-xs' : 'text-[11px]'}`}>
                                                     {display}

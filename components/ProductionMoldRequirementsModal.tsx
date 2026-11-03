@@ -260,13 +260,13 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
     const isAllStages = selectedStageIds.size === 0;
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-7xl h-[88vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+        <div className="fixed inset-0 z-200 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-6 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-7xl h-[88vh] rounded-4xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
 
                 {/* ── Header ── */}
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-indigo-50/60 to-white shrink-0">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-linear-to-r from-indigo-50/60 to-white shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-sm">
+                        <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
                             <Grid size={20} />
                         </div>
                         <div>
@@ -293,7 +293,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                     placeholder="Αναζήτηση πελάτη ή κωδικού..."
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
+                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
                                 />
                             </div>
                             <button
@@ -304,7 +304,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                     ? <CheckSquare size={14} className="text-indigo-600" />
                                     : <Square size={14} />}
                                 Επιλογή Όλων
-                                <span className="ml-auto bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black text-[10px]">
+                                <span className="ml-auto bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-sm font-black text-[10px]">
                                     {formatNumber(relevantOrders.length)}
                                 </span>
                             </button>
@@ -321,8 +321,8 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                         key={order.id}
                                         onClick={() => toggleOrder(order.id)}
                                         className={`p-3 rounded-xl border cursor-pointer transition-all ${isSelected
-                                            ? 'bg-white border-indigo-400 shadow-sm ring-1 ring-indigo-400/20'
-                                            : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                                            ? 'bg-white border-indigo-400 shadow-xs ring-1 ring-indigo-400/20'
+                                            : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
                                         }`}
                                     >
                                         <div className="flex items-start gap-2.5">
@@ -384,7 +384,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                 <button
                                     onClick={() => setSelectedStageIds(new Set())}
                                     className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${isAllStages
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                                         : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
                                     }`}
                                 >
@@ -400,9 +400,9 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                             key={def.id}
                                             onClick={() => toggleStage(def.id)}
                                             className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5 ${isActive
-                                                ? `${def.activeBg} ${def.activeText} ${def.activeBorder} shadow-sm`
+                                                ? `${def.activeBg} ${def.activeText} ${def.activeBorder} shadow-xs`
                                                 : hasData
-                                                    ? `${def.bg} ${def.text} ${def.border} hover:shadow-sm`
+                                                    ? `${def.bg} ${def.text} ${def.border} hover:shadow-xs`
                                                     : 'bg-slate-50 text-slate-300 border-slate-100 opacity-50 cursor-default'
                                             }`}
                                         >
@@ -440,7 +440,7 @@ export default function ProductionMoldRequirementsModal({ isOpen, onClose, order
                                         {aggregation.map(item => {
                                             const stagesPresent = STAGE_DEFS.filter(def => (item.byStageId[def.id] || 0) > 0);
                                             return (
-                                                <div key={item.code} className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden hover:shadow-md hover:border-slate-300 transition-all">
+                                                <div key={item.code} className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col overflow-hidden hover:shadow-md hover:border-slate-300 transition-all">
                                                     {/* Mold header */}
                                                     <div className="p-3.5 flex justify-between items-start">
                                                         <div>

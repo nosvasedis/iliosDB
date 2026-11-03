@@ -12,7 +12,7 @@ export default function CustomerPhoneFields({ customer, onChange, disabled = fal
         {field === 'mobile_phone' ? 'Κινητό' : 'Σταθερό'}
         <input type="tel" disabled={disabled} value={phones[field]} placeholder={field === 'mobile_phone' ? '69…' : '2…'}
           onChange={event => onChange(withCustomerPhones(customer, { [field]: event.target.value }))}
-          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 disabled:opacity-50" />
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium text-slate-800 outline-hidden focus:border-blue-400 disabled:opacity-50" />
       </label>)}
     </div>
     {phones.phone_unclassified && <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-950">

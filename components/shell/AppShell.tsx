@@ -103,7 +103,7 @@ function ShellSidebar<P extends string>({
       type="button"
       onClick={primaryAction.onClick}
       aria-label={primaryAction.label}
-      className={`relative mb-1 flex w-full items-center rounded-xl bg-gradient-to-r from-amber-300 to-amber-400 font-bold text-[#060b00] shadow-[0_8px_24px_-10px_rgba(251,191,36,0.6)] transition-transform hover:-translate-y-px active:translate-y-0 ${
+      className={`relative mb-1 flex w-full items-center rounded-xl bg-linear-to-r from-amber-300 to-amber-400 font-bold text-[#060b00] shadow-[0_8px_24px_-10px_rgba(251,191,36,0.6)] transition-transform hover:-translate-y-px active:translate-y-0 ${
         railMode ? 'h-10 justify-center' : 'h-10 gap-2.5 px-3 text-[13px]'
       } ${primaryAction.isActive ? 'ring-2 ring-amber-200/70 ring-offset-2 ring-offset-[#070c02]' : ''}`}
     >
@@ -125,7 +125,7 @@ function ShellSidebar<P extends string>({
   return (
     <aside
       className={`relative isolate z-30 flex h-full shrink-0 flex-col overflow-hidden border-r border-amber-200/[0.07] bg-[#070c02] text-white shadow-[1px_0_0_rgba(251,191,36,0.04),16px_0_48px_rgba(6,11,0,0.32)] transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-        railMode ? 'w-[4.25rem]' : 'w-64'
+        railMode ? 'w-17' : 'w-64'
       }`}
       aria-label="Κύρια πλοήγηση"
     >
@@ -150,12 +150,12 @@ function ShellSidebar<P extends string>({
           </div>
         ))}
       </nav>
-      <div className="shrink-0 border-t border-white/[0.06] bg-black/10 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="shrink-0 border-t border-white/6 bg-black/10 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
         <SidebarLogoutButton name={profile?.full_name || undefined} railMode={railMode} onLogout={() => signOut()} />
         {canCollapse ? (
           <SidebarFooterMeta railMode={railMode} isCollapsed={isCollapsed} onToggle={toggle} status={status} />
         ) : (
-          <div className="mt-1.5 border-t border-white/[0.05] pt-1.5">{status}</div>
+          <div className="mt-1.5 border-t border-white/5 pt-1.5">{status}</div>
         )}
       </div>
     </aside>
@@ -174,7 +174,7 @@ const BarButton = ({ icon: Icon, label, active, badge, onClick }: { icon: React.
     <span className={`relative flex h-7 w-11 items-center justify-center rounded-full transition-colors ${active ? 'bg-amber-100' : ''}`}>
       <Icon size={20} strokeWidth={active ? 2.5 : 2} />
       {!!badge && badge > 0 && (
-        <span className="absolute -top-1 right-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white ring-2 ring-white">
+        <span className="absolute -top-1 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white ring-2 ring-white">
           {badgeText(badge)}
         </span>
       )}
@@ -194,7 +194,7 @@ function MobileMenuSheet<P extends string>({ activePage, onNavigate, onClose, se
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end" role="dialog" aria-modal="true" aria-label="Μενού">
+    <div className="fixed inset-0 z-60 flex items-end" role="dialog" aria-modal="true" aria-label="Μενού">
       <button type="button" aria-label="Κλείσιμο" onClick={onClose} className="absolute inset-0 bg-[#060b00]/45" />
       <div className="relative w-full rounded-t-3xl bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl">
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200" />
@@ -221,14 +221,14 @@ function MobileMenuSheet<P extends string>({ activePage, onNavigate, onClose, se
                       key={item.id}
                       type="button"
                       onClick={() => { onNavigate(item.id); onClose(); }}
-                      className={`relative flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border px-1 text-center transition-colors active:scale-[0.97] ${
+                      className={`relative flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border px-1 text-center transition-colors active:scale-[0.97] ${
                         active ? 'border-[#060b00] bg-[#060b00] text-amber-300' : 'border-slate-200 bg-slate-50 text-slate-700'
                       }`}
                     >
                       {renderNavIcon(item.icon, 20, active ? 2.5 : 2)}
                       <span className={`w-full truncate text-[11px] font-bold ${active ? 'text-white' : ''}`}>{item.label}</span>
                       {!!badge && badge > 0 && (
-                        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white">{badgeText(badge)}</span>
+                        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white">{badgeText(badge)}</span>
                       )}
                     </button>
                   );
@@ -273,15 +273,15 @@ function MobileBottomBar<P extends string>({ activePage, onNavigate, barItems, p
   return (
     <>
       <nav className="relative z-40 shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]" aria-label="Κύρια πλοήγηση">
-        <div className="mx-auto flex h-[3.75rem] max-w-lg items-stretch px-1">
+        <div className="mx-auto flex h-15 max-w-lg items-stretch px-1">
           {renderItem(barItems[0])}
           {renderItem(barItems[1])}
-          <div className="flex min-w-[3.75rem] flex-1 items-start justify-center">
+          <div className="flex min-w-15 flex-1 items-start justify-center">
             <button
               type="button"
               onClick={primaryAction.onClick}
               aria-label={primaryAction.label}
-              className="-mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-lg shadow-[#060b00]/30 ring-4 ring-slate-50 active:scale-95"
+              className="-mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-lg shadow-[#060b00]/30 ring-4 ring-slate-50 active:scale-95"
             >
               <Plus size={26} strokeWidth={2.75} />
             </button>
@@ -307,7 +307,7 @@ export default function AppShell<P extends string>(props: AppShellProps<P>) {
 
   if (hasRail) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden bg-slate-50 font-sans text-[#060b00]">
+      <div className="flex h-dvh overflow-hidden bg-slate-50 font-sans text-[#060b00]">
         <ShellSidebar
           activePage={props.activePage}
           onNavigate={props.onNavigate}
@@ -329,7 +329,7 @@ export default function AppShell<P extends string>(props: AppShellProps<P>) {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-slate-50 text-[#060b00]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 text-[#060b00]">
       <SyncBanner connectivity={connectivity} />
       <main className="relative min-h-0 flex-1 overflow-hidden">{children}</main>
       {!hideBottomBar && (

@@ -30,7 +30,7 @@ export default function ImageZoomButton({ onZoom, className = '', size = 'md', a
                 event.stopPropagation();
                 onZoom();
             }}
-            className={`z-20 inline-flex ${dimension} items-center justify-center rounded-full border border-white/20 bg-[#060b00]/75 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-[#060b00]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${visibility} ${className}`}
+            className={`z-20 inline-flex ${dimension} items-center justify-center rounded-full border border-white/20 bg-[#060b00]/75 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-[#060b00]/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 ${visibility} ${className}`}
         >
             <ZoomIn size={size === 'sm' ? 13 : 16} strokeWidth={2.5} />
         </button>

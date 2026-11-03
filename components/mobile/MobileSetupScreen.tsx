@@ -77,21 +77,21 @@ export default function MobileSetupScreen() {
                      <p className="text-slate-500 text-sm mt-1 font-medium">Επιλέξτε τρόπο λειτουργίας</p>
                 </div>
 
-                <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 flex mb-6">
+                <div className="bg-white p-1.5 rounded-2xl shadow-xs border border-slate-200 flex mb-6">
                     <button onClick={() => setMode('cloud')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'cloud' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Σύνδεση cloud</button>
                     <button onClick={() => setMode('local')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'local' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Τοπική βάση</button>
                 </div>
 
                 {mode === 'cloud' ? (
                     <form onSubmit={handleSave} className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">URL έργου Supabase</label>
                                 <div className="relative">
                                     <Server className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                     <input 
                                         type="text" required value={url} onChange={e => setUrl(e.target.value)}
-                                        className="w-full pl-10 p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm font-bold"
+                                        className="w-full pl-10 p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-sm font-bold"
                                     />
                                 </div>
                             </div>
@@ -101,7 +101,7 @@ export default function MobileSetupScreen() {
                                     <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                     <input 
                                         type="password" required value={key} onChange={e => setKey(e.target.value)}
-                                        className="w-full pl-10 p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm font-bold"
+                                        className="w-full pl-10 p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-sm font-bold"
                                     />
                                 </div>
                             </div>
@@ -111,7 +111,7 @@ export default function MobileSetupScreen() {
                         </button>
                     </form>
                 ) : (
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 animate-in fade-in slide-in-from-left-4">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 animate-in fade-in slide-in-from-left-4">
                         <div className="text-center mb-2">
                             <HardDrive size={32} className="text-slate-300 mx-auto mb-2"/>
                             <p className="text-xs text-slate-500 font-medium">Λειτουργία χωρίς ίντερνετ. Τα δεδομένα αποθηκεύονται στη συσκευή.</p>

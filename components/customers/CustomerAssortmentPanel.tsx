@@ -66,7 +66,7 @@ type NamedOverlap = Omit<TerritoryOverlap, 'breaches'> & {
   breaches: Array<ExclusivityBreach & { holderName: string; otherName: string }>;
 };
 
-const card = 'rounded-2xl border border-slate-100 bg-white shadow-sm';
+const card = 'rounded-2xl border border-slate-100 bg-white shadow-xs';
 
 const formatDate = (t: number | null | undefined) => (t && Number.isFinite(t) ? new Date(t).toLocaleDateString('el-GR') : '—');
 
@@ -75,7 +75,7 @@ function Pills<T extends string | number>({ value, options, onChange, label }: {
     <div className="inline-flex rounded-xl bg-slate-100 p-1" role="group" aria-label={label}>
       {options.map(o => (
         <button key={String(o.id)} type="button" aria-pressed={value === o.id} onClick={() => onChange(o.id)}
-          className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-black transition ${value === o.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+          className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-black transition ${value === o.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>
           {o.label}
         </button>
       ))}
@@ -315,7 +315,7 @@ export default function CustomerAssortmentPanel({ customer, onOpenCustomer, onOp
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-100" role="tablist" aria-label="Ενότητες">
+        <div className="flex gap-1 rounded-xl bg-white p-1 shadow-xs ring-1 ring-slate-100" role="tablist" aria-label="Ενότητες">
           {sections.map(s => {
             const Icon = s.icon;
             const active = section === s.id;
@@ -330,9 +330,9 @@ export default function CustomerAssortmentPanel({ customer, onOpenCustomer, onOp
         <span className="flex-1" />
         <Pills label="Περίοδος" value={period} onChange={prefs.setWindow} options={WINDOW_OPTIONS.map(o => ({ id: o.id, label: o.short }))} />
         {territory && section !== 'range' && (
-          <label className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-100">
+          <label className="flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-500 shadow-xs ring-1 ring-slate-100">
             <Radar size={13} /> Ακτίνα
-            <select value={radiusKm} onChange={e => prefs.setRadius(Number(e.target.value))} className="bg-transparent font-black text-slate-800 outline-none">
+            <select value={radiusKm} onChange={e => prefs.setRadius(Number(e.target.value))} className="bg-transparent font-black text-slate-800 outline-hidden">
               {RADIUS_OPTIONS.map(r => <option key={r} value={r}>{formatRadius(r)}</option>)}
             </select>
           </label>
@@ -381,9 +381,9 @@ export default function CustomerAssortmentPanel({ customer, onOpenCustomer, onOp
                 <span className="flex-1" />
                 <div className="relative">
                   <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Κωδικός, περιγραφή…" className="w-44 rounded-xl border border-slate-200 py-1.5 pl-8 pr-2 text-xs font-semibold outline-none focus:border-slate-400" />
+                  <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Κωδικός, περιγραφή…" className="w-44 rounded-xl border border-slate-200 py-1.5 pl-8 pr-2 text-xs font-semibold outline-hidden focus:border-slate-400" />
                 </div>
-                <select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none" aria-label="Ταξινόμηση">
+                <select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-hidden" aria-label="Ταξινόμηση">
                   <option value="qty">Τεμάχια</option>
                   <option value="net">Αξία</option>
                   <option value="orders">Παραγγελίες</option>
@@ -415,7 +415,7 @@ export default function CustomerAssortmentPanel({ customer, onOpenCustomer, onOp
                           </div>
                           {!compact && row.variants.length > 1 && (
                             <div className="mt-0.5 flex flex-wrap gap-1">
-                              {row.variants.slice(0, 6).map(v => <span key={v.suffix || '_'} className="rounded bg-slate-100 px-1 font-mono text-[9px] font-bold text-slate-500">{v.suffix || 'βάση'} ×{formatNumber(v.qty)}</span>)}
+                              {row.variants.slice(0, 6).map(v => <span key={v.suffix || '_'} className="rounded-sm bg-slate-100 px-1 font-mono text-[9px] font-bold text-slate-500">{v.suffix || 'βάση'} ×{formatNumber(v.qty)}</span>)}
                             </div>
                           )}
                         </div>

@@ -648,7 +648,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     onClick={() => setShowHistoryModal(true)}
                                     title="Ιστορικό εκτυπώσεων"
                                     aria-label="Ιστορικό εκτυπώσεων"
-                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-100"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold text-slate-700 shadow-xs transition-all hover:border-slate-300 hover:bg-slate-100"
                                 >
                                     <History size={18} />
                                     <span className="hidden text-sm sm:inline">Ιστορικό</span>
@@ -659,7 +659,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     disabled={isProcessing}
                                     title="Εισαγωγή PDF"
                                     aria-label="Εισαγωγή PDF"
-                                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-50"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 font-bold text-amber-700 shadow-xs transition-all hover:bg-amber-100 disabled:opacity-50"
                                 >
                                     {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <FileUp size={18} />}
                                     <span className="hidden text-sm sm:inline">PDF</span>
@@ -669,7 +669,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     onClick={() => setShowScanner(true)}
                                     title="Σάρωση barcode"
                                     aria-label="Σάρωση barcode"
-                                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 font-bold text-blue-700 shadow-sm transition-all hover:bg-blue-100"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 font-bold text-blue-700 shadow-xs transition-all hover:bg-blue-100"
                                 >
                                     <Camera size={18} />
                                     <span className="hidden text-sm sm:inline">Σάρωση</span>
@@ -681,7 +681,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 below={(
                     <div className="flex flex-wrap items-center gap-3">
                         {/* TAB SWITCHER — integrated in header */}
-                        <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 flex gap-1 w-fit">
+                        <div className="bg-white p-1 rounded-2xl shadow-xs border border-slate-100 flex gap-1 w-fit">
                             <button
                                 onClick={() => setActiveTab('labels')}
                                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'labels'
@@ -711,15 +711,15 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             {activeTab === 'labels' && (<>
 
                 {/* SMART ENTRY AREA — redesigned to match Inventory */}
-                <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/30 rounded-[2rem] border-2 border-emerald-200/40 shadow-xl overflow-visible p-6 sm:p-8 animate-in slide-in-from-top-4 duration-500 ring-2 ring-emerald-500/5 relative">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 via-amber-500/5 to-emerald-500/5 rounded-[2rem] blur-xl opacity-50 animate-pulse pointer-events-none" />
+                <div className="bg-linear-to-br from-white via-slate-50 to-emerald-50/30 rounded-4xl border-2 border-emerald-200/40 shadow-xl overflow-visible p-6 sm:p-8 animate-in slide-in-from-top-4 duration-500 ring-2 ring-emerald-500/5 relative">
+                    <div className="absolute -inset-1 bg-linear-to-r from-emerald-500/5 via-amber-500/5 to-emerald-500/5 rounded-4xl blur-xl opacity-50 animate-pulse pointer-events-none" />
                     <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-gradient-to-br from-[#060b00] to-slate-800 text-white rounded-xl shadow-lg shadow-emerald-900/10 ring-2 ring-emerald-500/20">
+                        <div className="p-2.5 bg-linear-to-br from-[#060b00] to-slate-800 text-white rounded-xl shadow-lg shadow-emerald-900/10 ring-2 ring-emerald-500/20">
                             <Zap size={22} className="text-amber-500" />
                         </div>
                         <div>
-                          <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg bg-gradient-to-r from-[#060b00] to-emerald-700 bg-clip-text text-transparent">Έξυπνη Ταχεία Εισαγωγή</h2>
+                          <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg bg-linear-to-r from-[#060b00] to-emerald-700 bg-clip-text text-transparent">Έξυπνη Ταχεία Εισαγωγή</h2>
                           <p className="text-[10px] text-slate-400 font-bold tracking-wide">Γρήγορη προσθήκη κωδικών για εκτύπωση</p>
                         </div>
                     </div>
@@ -739,7 +739,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         onKeyDown={handleSmartEntryKeyDown}
                                         placeholder="Πληκτρολογήστε..."
                                         title="Μέγεθος μετά τον πλήρη κωδικό: RN001P-62 · Εύρος: DA050-DA063"
-                                        className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-sm relative z-10"
+                                        className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-hidden focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest transition-all shadow-xs relative z-10"
                                     />
                                 </div>
                             </div>
@@ -752,7 +752,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     value={scanQty}
                                     onChange={e => setScanQty(parseInt(e.target.value) || 1)}
                                     onKeyDown={handleSmartEntryKeyDown}
-                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-hidden bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-xs"
                                 />
                             </div>
 
@@ -818,7 +818,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                 <button
                                                     key={s.suffix}
                                                     onClick={() => selectSuffix(s.suffix)}
-                                                    className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-sm border border-slate-200 hover:border-emerald-200 flex items-center gap-1 group active:scale-95"
+                                                    className="bg-white hover:bg-emerald-50 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-xs border border-slate-200 hover:border-emerald-200 flex items-center gap-1 group active:scale-95"
                                                     title={s.desc}
                                                 >
                                                     <span className={fColor}>{finish.code || 'LUSTRE'}</span>
@@ -837,7 +837,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
                 <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
                     <div className="lg:col-span-8">
-                        <div className="flex h-full flex-col rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                        <div className="flex h-full flex-col rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
                             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                                     <div>
@@ -868,7 +868,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     }
                                 }}
                                 rows={12}
-                                className="custom-scrollbar min-h-[220px] w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 font-mono text-sm text-slate-900 outline-none transition-all placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/20"
+                                className="custom-scrollbar min-h-[220px] w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 font-mono text-sm text-slate-900 outline-hidden transition-all placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/20"
                                 placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nRN001P-62 2\nDA050-DA063 2\nXR2020 5`}
                             />
                             {(readyLineCount > 0 || missingCount > 0) ? (
@@ -916,8 +916,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="truncate font-mono text-sm font-black text-slate-900">{text.displaySku}</span>
-                                                                {item.size && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">{item.size}</span>}
-                                                                {edited && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">ΕΠΕΞ.</span>}
+                                                                {item.size && <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">{item.size}</span>}
+                                                                {edited && <span className="rounded-sm bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">ΕΠΕΞ.</span>}
                                                             </div>
                                                             <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
                                                                 {text.stone || item.variant?.description || item.product.category}
@@ -958,7 +958,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     </div>
 
                     <div className="space-y-5 lg:sticky lg:top-4 lg:col-span-4">
-                        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
                             <div className="mb-4">
                                 <h2 className="font-bold text-slate-800">Ρυθμίσεις Ετικέτας</h2>
                                 <p className="mt-0.5 text-[11px] font-medium text-slate-400">Εφαρμόζονται σε όλες τις ετικέτες της ουράς.</p>
@@ -975,7 +975,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             />
                         </div>
 
-                        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xs">
                             <h2 className="font-bold text-slate-800">Εκτύπωση</h2>
                             <div className="mt-4 grid grid-cols-2 gap-3">
                                 <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
@@ -1025,7 +1025,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
                         {/* History Modal */}
                         {showHistoryModal && (
-                            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowHistoryModal(false)}>
+                            <div className="fixed inset-0 z-150 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in" onClick={() => setShowHistoryModal(false)}>
                                 <div role="dialog" aria-modal="true" aria-labelledby="batch-print-history-title" className="flex h-[80vh] w-full max-w-lg flex-col rounded-3xl bg-white p-6 shadow-2xl animate-in zoom-in-95" onClick={(event) => event.stopPropagation()}>
                                     <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
                                         <h3 id="batch-print-history-title" className="flex items-center gap-2 text-lg font-bold text-slate-800">
@@ -1049,7 +1049,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto pr-1">
                                         {actionLogs.length > 0 ? actionLogs.map(log => (
                                             <div key={log.id} className="relative border-l-2 border-slate-200 pb-2 pl-4">
-                                                <div className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-slate-400 shadow-sm" />
+                                                <div className="absolute left-[-5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-slate-400 shadow-xs" />
                                                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                                                     <div className="mb-1 flex items-start justify-between">
                                                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Εκτύπωση</span>
@@ -1061,7 +1061,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                                 type="button"
                                                                 onClick={() => handleReloadLog(log)}
                                                                 title="Επαναφόρτωση στην ουρά"
-                                                                className="rounded bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-100"
+                                                                className="rounded-sm bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-100"
                                                             >
                                                                 <RotateCcw size={12} />
                                                             </button>
@@ -1070,7 +1070,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                     <div className="mb-2 text-sm font-bold text-slate-800">{log.summary}</div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {log.details.map((d, i) => (
-                                                            <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
+                                                            <span key={i} className="rounded-sm border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
                                                                 {d.sku}{d.variant}{d.size && <span className="text-blue-600">-{d.size}</span>} <span className="font-medium text-slate-400">x{formatNumber(d.qty)}</span>
                                                             </span>
                                                         ))}
@@ -1094,7 +1094,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
 
                     {/* FILTERS */}
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-6">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-2.5 bg-violet-600 text-white rounded-xl shadow-md">
                                 <Search size={20} />
@@ -1116,7 +1116,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         value={catalogSearch}
                                         onChange={e => setCatalogSearch(e.target.value)}
                                         placeholder="π.χ. DA050 ή βραχιόλι..."
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-hidden focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
                                     />
                                 </div>
                             </div>
@@ -1129,7 +1129,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <select
                                         value={catalogCollectionId}
                                         onChange={e => setCatalogCollectionId(e.target.value)}
-                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
+                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-hidden focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
                                     >
                                         <option value="">Όλες</option>
                                         {collectionOptions.map(c => (
@@ -1147,7 +1147,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <select
                                         value={catalogCategory}
                                         onChange={e => setCatalogCategory(e.target.value)}
-                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
+                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-hidden focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
                                     >
                                         <option value="">Όλες</option>
                                         {getProductCategoryOptions(allCategories).map(c => (
@@ -1167,7 +1167,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <select
                                         value={catalogGender}
                                         onChange={e => setCatalogGender(e.target.value)}
-                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
+                                        className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-sm outline-hidden focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer transition-all"
                                     >
                                         <option value="">Όλα</option>
                                         <option value="Women">Γυναικεία</option>
@@ -1198,11 +1198,11 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     </div>
 
                     {/* SELECTION BAR */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-xs px-5 py-3">
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={handleToggleSelectAll}
-                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${selectedSkus.size > 0 && selectedSkus.size === catalogProducts.length
+                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${selectedSkus.size > 0 && selectedSkus.size === catalogProducts.length
                                     ? 'bg-violet-600 border-violet-600 text-white'
                                     : selectedSkus.size > 0
                                         ? 'bg-violet-100 border-violet-400 text-violet-600'
@@ -1264,7 +1264,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                 />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                                                <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-slate-100 to-slate-200">
                                                     <ImageIcon size={32} className="text-slate-300" />
                                                 </div>
                                             )}

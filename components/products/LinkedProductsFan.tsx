@@ -158,7 +158,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
             aria-label={`Συνδεδεμένα προϊόντα του ${originSku}`}
             tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
-            className={`fixed z-[700] flex flex-col overflow-hidden border border-slate-200/80 bg-white/95 shadow-2xl shadow-slate-900/25 outline-none backdrop-blur-xl animate-in fade-in duration-200 ${isNarrow ? 'inset-x-0 bottom-0 rounded-t-3xl pb-[env(safe-area-inset-bottom)] slide-in-from-bottom-6' : 'rounded-3xl zoom-in-95'}`}
+            className={`fixed z-700 flex flex-col overflow-hidden border border-slate-200/80 bg-white/95 shadow-2xl shadow-slate-900/25 outline-hidden backdrop-blur-xl animate-in fade-in duration-200 ${isNarrow ? 'inset-x-0 bottom-0 rounded-t-3xl pb-[env(safe-area-inset-bottom)] slide-in-from-bottom-6' : 'rounded-3xl zoom-in-95'}`}
             style={isNarrow ? undefined : { width: PANEL_WIDTH, left: position?.left ?? -9999, top: position?.top ?? -9999 }}
         >
             <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-3">
@@ -185,7 +185,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
                             key={set.groupId}
                             type="button"
                             onClick={() => setSetIndex(index)}
-                            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black transition ${index === setIndex ? 'border-violet-300 bg-violet-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-500 hover:border-violet-200 hover:text-violet-700'}`}
+                            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black transition ${index === setIndex ? 'border-violet-300 bg-violet-600 text-white shadow-xs' : 'border-slate-200 bg-white text-slate-500 hover:border-violet-200 hover:text-violet-700'}`}
                             title={set.items.map((item) => item.sku).join(' · ')}
                         >
                             Σετ {formatNumber(index + 1)} · {formatNumber(set.items.length)} τμχ
@@ -240,7 +240,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
                                         <div className="flex h-full w-full items-center justify-center text-slate-300"><ImageIcon size={32} /></div>
                                     )}
                                     {item.sku === originSku && (
-                                        <span className="absolute left-2 top-2 rounded-full bg-[#060b00]/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white backdrop-blur">Τρέχον</span>
+                                        <span className="absolute left-2 top-2 rounded-full bg-[#060b00]/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white backdrop-blur-sm">Τρέχον</span>
                                     )}
                                     {isFront && item.imageUrl && (
                                         <button
@@ -249,7 +249,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
                                             onPointerDown={(event) => event.stopPropagation()}
                                             onPointerUp={(event) => event.stopPropagation()}
                                             onClick={(event) => { event.stopPropagation(); onZoom(items, index); }}
-                                            className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-[#060b00]/75 text-white shadow-lg backdrop-blur transition hover:scale-110"
+                                            className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-[#060b00]/75 text-white shadow-lg backdrop-blur-sm transition hover:scale-110"
                                         >
                                             <ZoomIn size={15} strokeWidth={2.5} />
                                         </button>
@@ -269,10 +269,10 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
 
                 {items.length > 1 && (
                     <>
-                        <button type="button" aria-label="Προηγούμενο" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={() => step(-1)} className="absolute left-2 top-1/2 z-[60] flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-md transition hover:text-violet-700">
+                        <button type="button" aria-label="Προηγούμενο" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={() => step(-1)} className="absolute left-2 top-1/2 z-60 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-md transition hover:text-violet-700">
                             <ChevronLeft size={18} />
                         </button>
-                        <button type="button" aria-label="Επόμενο" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={() => step(1)} className="absolute right-2 top-1/2 z-[60] flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-md transition hover:text-violet-700">
+                        <button type="button" aria-label="Επόμενο" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={() => step(1)} className="absolute right-2 top-1/2 z-60 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-md transition hover:text-violet-700">
                             <ChevronRight size={18} />
                         </button>
                     </>
@@ -296,7 +296,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
                     <button
                         type="button"
                         onClick={() => onOpenProduct(frontItem.sku)}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#060b00] px-3 py-2 text-xs font-black text-white shadow-xs transition hover:bg-slate-800"
                     >
                         <ExternalLink size={13} /> Άνοιγμα
                     </button>
@@ -307,7 +307,7 @@ export default function LinkedProductsFan({ originSku, sets, anchor, onClose, on
 
     return createPortal(
         <>
-            {isNarrow && <div className="fixed inset-0 z-[690] bg-black/40 animate-in fade-in duration-200" aria-hidden />}
+            {isNarrow && <div className="fixed inset-0 z-690 bg-black/40 animate-in fade-in duration-200" aria-hidden />}
             {panel}
         </>,
         document.body,

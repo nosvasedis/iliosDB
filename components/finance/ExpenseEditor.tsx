@@ -214,7 +214,7 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
           <div>
             <span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500">Κατηγορία</span>
             {!pickingCategory && selected ? (
-              <button type="button" onClick={() => setPickingCategory(true)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-300">
+              <button type="button" onClick={() => setPickingCategory(true)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-xs transition hover:border-slate-300">
                 <CategoryGlyph icon={categoryIconKey(categoryId, workspace.categories)} color={color} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black text-slate-900">{selected.name}</span>
@@ -229,7 +229,7 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
                     {recent.map((id) => {
                       const category = workspace.categories.find((row) => row.id === id)!;
                       return (
-                        <button key={id} type="button" onClick={() => chooseCategory(id)} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300">
+                        <button key={id} type="button" onClick={() => chooseCategory(id)} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-xs ring-1 ring-slate-200 hover:ring-slate-300">
                           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColor(id, workspace.categories) }} />
                           {category.name}
                         </button>
@@ -309,8 +309,8 @@ export default function ExpenseEditor({ workspace, parties, settings, initial = 
             <div className="mb-3 flex items-center justify-between">
               <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">Ποσό</span>
               <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-black">
-                <button type="button" onClick={() => setUseLines(false)} className={`rounded-md px-2.5 py-1 ${!useLines ? 'bg-white shadow-sm' : 'text-slate-500'}`}>Σύνολο</button>
-                <button type="button" onClick={() => setUseLines(true)} className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${useLines ? 'bg-white shadow-sm' : 'text-slate-500'}`}><Layers size={12} /> Γραμμές</button>
+                <button type="button" onClick={() => setUseLines(false)} className={`rounded-md px-2.5 py-1 ${!useLines ? 'bg-white shadow-xs' : 'text-slate-500'}`}>Σύνολο</button>
+                <button type="button" onClick={() => setUseLines(true)} className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${useLines ? 'bg-white shadow-xs' : 'text-slate-500'}`}><Layers size={12} /> Γραμμές</button>
               </div>
             </div>
             {useLines ? (

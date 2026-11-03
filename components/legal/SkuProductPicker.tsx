@@ -344,7 +344,7 @@ export default function SkuProductPicker({
               />
             </div>
             {option.hint ? <div className="truncate text-[11px] font-medium text-slate-500">{option.hint}</div> : null}
-            {legalDocument && getLegalDocumentItemKind(option.sku) !== 'goods' && <span className="mt-1 inline-flex rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">{LEGAL_DOCUMENT_ITEM_KINDS.find(kind => kind.id === getLegalDocumentItemKind(option.sku))?.label}</span>}
+            {legalDocument && getLegalDocumentItemKind(option.sku) !== 'goods' && <span className="mt-1 inline-flex rounded-sm bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">{LEGAL_DOCUMENT_ITEM_KINDS.find(kind => kind.id === getLegalDocumentItemKind(option.sku))?.label}</span>}
           </div>
           {typeof option.price === 'number' && option.price > 0 ? (
             <div className="shrink-0 text-[11px] font-black text-emerald-700">{formatCurrency(option.price)}</div>
@@ -372,7 +372,7 @@ export default function SkuProductPicker({
   ) : null;
 
   return (
-    <div ref={containerRef} className={`${compact ? 'flex min-w-0 items-center gap-1.5' : 'relative min-w-[10rem]'} ${className}`}>
+    <div ref={containerRef} className={`${compact ? 'flex min-w-0 items-center gap-1.5' : 'relative min-w-40'} ${className}`}>
       {inlineThumb}
       <div className={`relative min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
         {showLiveOverlay ? (
@@ -411,7 +411,7 @@ export default function SkuProductPicker({
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
-          className={`relative z-10 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-xs font-bold uppercase tracking-wide outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
+          className={`relative z-10 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-xs font-bold uppercase tracking-wide outline-hidden transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
             showLiveOverlay ? 'text-transparent caret-slate-800' : 'text-slate-900'
           } ${inputClassName}`}
         />

@@ -37,7 +37,7 @@ export const LaborCostCard: React.FC<LaborCostCardProps> = React.memo(({
                 value={value}
                 readOnly={readOnly || (onToggleOverride && !isOverridden)}
                 onChange={!readOnly && onChange ? (e => onChange(parseFloat(e.target.value.replace(',', '.')) || 0)) : undefined}
-                className={`w-full bg-transparent font-mono font-bold text-lg outline-none pr-2 transition-colors ${readOnly || (onToggleOverride && !isOverridden) ? 'text-slate-500' : 'text-slate-800'}`}
+                className={`w-full bg-transparent font-mono font-bold text-lg outline-hidden pr-2 transition-colors ${readOnly || (onToggleOverride && !isOverridden) ? 'text-slate-500' : 'text-slate-800'}`}
             />
         </div>
         {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}

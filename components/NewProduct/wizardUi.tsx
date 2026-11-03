@@ -7,7 +7,7 @@ import SkuColorizedText from '../SkuColorizedText';
 // Shared building blocks for the Νέο Προϊόν wizard so every step reads as one surface.
 
 export const npInputClass =
-    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-300 hover:border-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition-all placeholder:font-medium placeholder:text-slate-300 hover:border-slate-300 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 export const npMonoInputClass = `${npInputClass} font-mono uppercase tracking-wide`;
 
@@ -37,9 +37,9 @@ export function StepHeader({ step, title, subtitle, icon: Icon, aside }: StepHea
     return (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-                <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25">
+                <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25">
                     <Icon size={22} strokeWidth={2.2} />
-                    <span className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-[10px] font-black text-emerald-700 shadow ring-1 ring-emerald-100">
+                    <span className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-[10px] font-black text-emerald-700 shadow-sm ring-1 ring-emerald-100">
                         {step}
                     </span>
                 </div>
@@ -66,7 +66,7 @@ interface PanelProps {
 
 export function Panel({ title, subtitle, icon: Icon, tone = 'slate', actions, className = '', bodyClassName = '', children }: PanelProps) {
     return (
-        <section className={`rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/40 ${className}`}>
+        <section className={`rounded-2xl border border-slate-200/80 bg-white shadow-xs shadow-slate-200/40 ${className}`}>
             {title && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
                     <div className="flex min-w-0 items-center gap-2.5">
@@ -107,7 +107,7 @@ export function Toggle({ checked, onChange, label, description, tone = 'emerald'
     return (
         <label
             htmlFor={id}
-            className={`flex cursor-pointer select-none items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${checked ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/60 hover:bg-white'}`}
+            className={`flex cursor-pointer select-none items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${checked ? 'border-slate-300 bg-white shadow-xs' : 'border-slate-200 bg-slate-50/60 hover:bg-white'}`}
         >
             <button
                 id={id}
@@ -117,7 +117,7 @@ export function Toggle({ checked, onChange, label, description, tone = 'emerald'
                 onClick={() => onChange(!checked)}
                 className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? TOGGLE_ON[tone] : 'bg-slate-300'}`}
             >
-                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
             </button>
             <span className="min-w-0">
                 <span className="block text-xs font-bold text-slate-700">{label}</span>
@@ -138,7 +138,7 @@ export function StatPill({ label, value, tone = 'slate' }: { label: string; valu
         indigo: 'border-indigo-200 bg-indigo-50 text-indigo-800',
     };
     return (
-        <div className={`flex items-baseline gap-2 rounded-xl border px-3 py-1.5 shadow-sm ${tones[tone]}`}>
+        <div className={`flex items-baseline gap-2 rounded-xl border px-3 py-1.5 shadow-xs ${tones[tone]}`}>
             <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">{label}</span>
             <span className="font-mono text-sm font-black tabular-nums">{value}</span>
         </div>
@@ -155,9 +155,9 @@ interface VariantSuffixBadgeProps {
 }
 
 const BADGE_SIZE: Record<NonNullable<VariantSuffixBadgeProps['size']>, string> = {
-    sm: 'h-7 min-w-[3rem] px-2 text-xs rounded-lg',
-    md: 'h-9 min-w-[4rem] px-2.5 text-sm rounded-xl',
-    lg: 'h-12 min-w-[5.5rem] px-3 text-lg rounded-2xl',
+    sm: 'h-7 min-w-12 px-2 text-xs rounded-lg',
+    md: 'h-9 min-w-16 px-2.5 text-sm rounded-xl',
+    lg: 'h-12 min-w-22 px-3 text-lg rounded-2xl',
 };
 
 /** Finish-tinted surface with finish/stone coloured letters, matching the registry cards. */
@@ -166,7 +166,7 @@ export function VariantSuffixBadge({ suffix, gender, sku, size = 'md', className
     const { finish } = getVariantComponents(suffix, resolvedGender);
     const surface = getSkuFinishBadgeSurface(finish.code);
     return (
-        <span className={`inline-flex shrink-0 items-center justify-center border font-mono shadow-sm ${surface} ${BADGE_SIZE[size]} ${className}`}>
+        <span className={`inline-flex shrink-0 items-center justify-center border font-mono shadow-xs ${surface} ${BADGE_SIZE[size]} ${className}`}>
             {suffix || sku ? (
                 <SkuColorizedText sku={sku || ''} suffix={suffix} gender={resolvedGender} mono />
             ) : (

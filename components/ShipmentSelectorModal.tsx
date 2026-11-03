@@ -76,7 +76,7 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
   );
 
   return (
-    <div className="fixed inset-0 z-[180] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-180 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}

@@ -36,7 +36,7 @@ export const StageFlowRail = React.memo(function StageFlowRail({ batch, onMove, 
                     ? 'bg-slate-50 text-slate-400 border-slate-200'
                     : isCompletedStage
                     ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} opacity-45`
-                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:-translate-y-0.5 hover:shadow-sm`;
+                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:-translate-y-0.5 hover:shadow-xs`;
 
                 const title = isCurrentStage
                     ? `${stage.label} (τρέχον στάδιο)`
@@ -60,11 +60,11 @@ export const StageFlowRail = React.memo(function StageFlowRail({ batch, onMove, 
                                         ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/25 shadow-md'
                                         : isPast
                                           ? 'bg-teal-50 text-teal-700 border-teal-200 opacity-45'
-                                          : 'bg-teal-50 text-teal-700 border-teal-200 hover:-translate-y-0.5 hover:shadow-sm'
+                                          : 'bg-teal-50 text-teal-700 border-teal-200 hover:-translate-y-0.5 hover:shadow-xs'
                                 } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                                 title={`${stage.label} • Αναμονή Αποστολής`}
                             >
-                                <span className="text-[10px] font-black leading-tight break-words">Τεχν. • Αναμ. Αποστ.</span>
+                                <span className="text-[10px] font-black leading-tight wrap-break-word">Τεχν. • Αναμ. Αποστ.</span>
                                 <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide opacity-75">
                                     {isCurrentPending ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
                                 </span>
@@ -77,11 +77,11 @@ export const StageFlowRail = React.memo(function StageFlowRail({ batch, onMove, 
                                         ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/25 shadow-md'
                                         : isPast
                                           ? 'bg-blue-50 text-blue-700 border-blue-200 opacity-45'
-                                          : 'bg-blue-50 text-blue-700 border-blue-200 hover:-translate-y-0.5 hover:shadow-sm'
+                                          : 'bg-blue-50 text-blue-700 border-blue-200 hover:-translate-y-0.5 hover:shadow-xs'
                                 } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                                 title={`${stage.label} • Στον Τεχνίτη`}
                             >
-                                <span className="text-[10px] font-black leading-tight break-words">Τεχν. • Στον Τεχνίτη</span>
+                                <span className="text-[10px] font-black leading-tight wrap-break-word">Τεχν. • Στον Τεχνίτη</span>
                                 <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide opacity-75">
                                     {isCurrentDispatched ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
                                 </span>
@@ -99,7 +99,7 @@ export const StageFlowRail = React.memo(function StageFlowRail({ batch, onMove, 
                         title={title}
                     >
                         <span className="flex items-start justify-between gap-1">
-                            <span className="text-[10px] font-black leading-tight break-words">{stage.label}</span>
+                            <span className="text-[10px] font-black leading-tight wrap-break-word">{stage.label}</span>
                             {isCurrentStage && <CheckCircle size={11} className="shrink-0" />}
                             {isCompletedStage && !isCurrentStage && !isUnavailableStage && <Check size={11} className="shrink-0 opacity-80" />}
                         </span>

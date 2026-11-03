@@ -460,25 +460,25 @@ export default function PricingManager({ products, settings, materials }: Props)
         roundedClassName="rounded-2xl"
         tail={(
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
+            <div className="flex rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-xs">
               <button
                 type="button"
                 onClick={() => switchMode('cost')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'cost' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'cost' ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <RefreshCw size={14} /> Κόστος (Ασήμι)
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('selling')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'selling' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'selling' ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <TrendingUp size={14} /> Χονδρική
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('history')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'history' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'history' ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <History size={14} /> Ιστορικό
               </button>
@@ -522,21 +522,21 @@ export default function PricingManager({ products, settings, materials }: Props)
                   <button
                     type="button"
                     onClick={() => { setMarkupMode('adjust'); setMarkupPercent(0); }}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Αναπροσαρμογή
                   </button>
                   <button
                     type="button"
                     onClick={() => { setMarkupMode('target'); setMarkupPercent(60); }}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Στόχος
                   </button>
                   <button
                     type="button"
                     onClick={() => { setMarkupMode('formula'); setMarkupPercent(0); }}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'formula' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'formula' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Τύπος Ilios
                   </button>
@@ -547,7 +547,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                       type="number"
                       value={markupPercent}
                       onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
-                      className="w-full py-1.5 pl-2 pr-7 border border-amber-200 rounded-lg bg-white text-slate-900 font-mono text-sm font-bold focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
+                      className="w-full py-1.5 pl-2 pr-7 border border-amber-200 rounded-lg bg-white text-slate-900 font-mono text-sm font-bold focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden"
                       placeholder="0"
                     />
                     <Percent className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -570,7 +570,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                 <button
                   type="button"
                   onClick={handleRecalculate}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 text-white shadow-sm transition-all hover:-translate-y-px ${mode === 'cost' ? 'bg-slate-900 hover:bg-slate-800' : 'bg-amber-500 hover:bg-amber-600'}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 text-white shadow-xs transition-all hover:-translate-y-px ${mode === 'cost' ? 'bg-slate-900 hover:bg-slate-800' : 'bg-amber-500 hover:bg-amber-600'}`}
                 >
                   {mode === 'cost' ? <RefreshCw size={14} /> : <TrendingUp size={14} />}
                   {mode === 'cost' ? 'Υπολογισμός Κόστους' : 'Υπολογισμός Τιμών'}
@@ -585,13 +585,13 @@ export default function PricingManager({ products, settings, materials }: Props)
                   )}
                   {mode === 'selling' && markupMode === 'formula' && (
                     <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer whitespace-nowrap">
-                      <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                      <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-500" />
                       Σε όλους
                     </label>
                   )}
                   {mode === 'selling' && (
                     <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer whitespace-nowrap">
-                      <input type="checkbox" checked={includeManualPrices} onChange={e => setIncludeManualPrices(e.target.checked)} className="rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                      <input type="checkbox" checked={includeManualPrices} onChange={e => setIncludeManualPrices(e.target.checked)} className="rounded-sm border-slate-300 text-amber-600 focus:ring-amber-500" />
                       Χειροκίνητες
                     </label>
                   )}
@@ -607,7 +607,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                     type="button"
                     onClick={commitPrices}
                     disabled={isCommitting || pendingCommitCount === 0}
-                    className="px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-70"
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 transition-all disabled:opacity-70"
                   >
                     {isCommitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                     {isCommitting
@@ -627,25 +627,25 @@ export default function PricingManager({ products, settings, materials }: Props)
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                         {isCalculated ? <Layers size={14} className="text-emerald-500"/> : <AlertCircle size={14}/>}
                         {isCalculated ? 'Προεπισκόπηση' : 'Όλοι οι Κωδικοί'}
-                        <span className="bg-white px-1.5 py-0.5 rounded text-[10px] border border-slate-200 font-mono">{formatNumber(filteredList.length)}</span>
+                        <span className="bg-white px-1.5 py-0.5 rounded-sm text-[10px] border border-slate-200 font-mono">{formatNumber(filteredList.length)}</span>
                     </div>
 
                     {isCalculated && previewSummary && (
                         <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-sm border border-emerald-200">
                                 ↑ {formatNumber(previewSummary.willUpdate)} ενημέρωση
                             </span>
-                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-sm border border-amber-200 flex items-center gap-1">
                                 <Lock size={10}/> {formatNumber(previewSummary.manualProtected)} προστατευμένες
                             </span>
-                            <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
+                            <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-sm border border-slate-200">
                                 = {formatNumber(previewSummary.unchanged)} χωρίς αλλαγή
                             </span>
                         </div>
                     )}
 
                     {!isCalculated && mode === 'selling' && manualPriceCount > 0 && (
-                        <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-bold">
+                        <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-sm border border-amber-200 flex items-center gap-1 font-bold">
                             <Lock size={10} /> {formatNumber(manualPriceCount)} χειροκίνητες
                         </span>
                     )}
@@ -673,14 +673,14 @@ export default function PricingManager({ products, settings, materials }: Props)
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as PricingSortBy)}
-                            className="text-[10px] font-bold bg-white border border-slate-200 rounded-md px-2 py-1 outline-none"
+                            className="text-[10px] font-bold bg-white border border-slate-200 rounded-md px-2 py-1 outline-hidden"
                         >
                             <option value="sku">Κωδικός (Α-Ω)</option>
                             <option value="diff_desc">Μεγαλύτερη διαφορά</option>
                             <option value="margin_asc">Μικρότερο περιθώριο</option>
                         </select>
                         {isCalculated && mode === 'cost' && (
-                            <span className="text-[10px] bg-amber-50 px-2 py-0.5 rounded text-amber-700 font-bold border border-amber-100 whitespace-nowrap">Νέα βάση: {formatNumber(settings.silver_price_gram)}€/g</span>
+                            <span className="text-[10px] bg-amber-50 px-2 py-0.5 rounded-sm text-amber-700 font-bold border border-amber-100 whitespace-nowrap">Νέα βάση: {formatNumber(settings.silver_price_gram)}€/g</span>
                         )}
                         <div className="relative w-44">
                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={12}/>
@@ -689,7 +689,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 placeholder="Αναζήτηση..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-7 py-1 text-[11px] bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                className="w-full pl-7 py-1 text-[11px] bg-white border border-slate-200 rounded-md outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                             />
                         </div>
                     </div>
@@ -776,9 +776,9 @@ export default function PricingManager({ products, settings, materials }: Props)
                                     <div className="px-4 pl-8 flex flex-col justify-center min-w-0">
                                         <div className="font-mono font-bold text-slate-700 flex items-center gap-2 flex-wrap">
                                             {item.sku}
-                                            {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">Παρ.</span>}
+                                            {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm border border-blue-100 font-bold">Παρ.</span>}
                                             {item.isManualPrice && (
-                                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 font-bold flex items-center gap-1">
+                                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-sm border border-amber-200 font-bold flex items-center gap-1">
                                                     <Lock size={10} /> Χειροκίνητη
                                                 </span>
                                             )}
@@ -843,7 +843,7 @@ export default function PricingManager({ products, settings, materials }: Props)
 
       {mode === 'history' && (
           <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in">
-              <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col">
                   <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18} className="text-blue-500"/> Λίστα Αντιγράφων</h3>
                   </div>
@@ -852,7 +852,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                           <div 
                             key={snap.id} 
                             onClick={() => viewSnapshotDetails(snap)}
-                            className={`p-4 rounded-2xl border cursor-pointer transition-all relative group ${selectedSnapshot?.id === snap.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
+                            className={`p-4 rounded-2xl border cursor-pointer transition-all relative group ${selectedSnapshot?.id === snap.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200 shadow-xs'}`}
                           >
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleDeleteSnapshot(snap); }}
@@ -863,7 +863,7 @@ export default function PricingManager({ products, settings, materials }: Props)
 
                               <div className="flex justify-between items-start mb-2 mr-6">
                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(snap.created_at).toLocaleDateString('el-GR')}</span>
-                                  <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-black text-slate-500">{formatNumber(snap.item_count)} είδη</span>
+                                  <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-sm font-black text-slate-500">{formatNumber(snap.item_count)} είδη</span>
                               </div>
                               <p className="font-bold text-slate-800 text-sm mb-3">{snap.notes}</p>
                               <div className="flex gap-2">
@@ -880,7 +880,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                   </div>
               </div>
 
-              <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col">
                   {selectedSnapshot ? (
                       <>
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -893,7 +893,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             {isLoadingSnapshotItems ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-500"/></div> : (
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-sm">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-xs">
                                         <tr>
                                             <th className="p-4 pl-8">Κωδικός / Παράλλαγη</th>
                                             <th className="p-4 text-right">Τιμή Αντιγράφου</th>

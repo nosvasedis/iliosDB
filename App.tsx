@@ -497,7 +497,7 @@ function ErpAppContent() {
       />
 
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
-        {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
+        {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <SidebarEscapeListener
           active={isSidebarOpen || (!isCollapsed && prefersCollapsedDesktopSidebar(window.innerWidth))}
@@ -533,7 +533,7 @@ function ErpAppContent() {
               );
             })}
           </nav>
-          <div className="shrink-0 border-t border-white/[0.06] bg-black/10 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+          <div className="shrink-0 border-t border-white/6 bg-black/10 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
             {adminFooterNavItems.map((item) => (
               <SidebarNavButton
                 key={item.id}
@@ -562,7 +562,7 @@ function ErpAppContent() {
           </div>
         </aside>
         <main className={sidebarMainClass(isCollapsed)}>
-          <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200">
+          <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-xs flex items-center justify-between z-30 sticky top-0 border-b border-slate-200">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div className="h-8"><img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" /></div>
             <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />

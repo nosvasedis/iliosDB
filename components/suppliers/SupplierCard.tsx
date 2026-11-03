@@ -27,7 +27,7 @@ export function SupplierAvatar({ name, logoUrl, size = 'md' }: { name: string; l
         );
     }
     return (
-        <div className={`flex shrink-0 items-center justify-center bg-gradient-to-br font-black tracking-tight text-white shadow-md ring-1 ring-inset ring-white/20 ${supplierAvatarTone(name || '?')} ${sizing}`}>
+        <div className={`flex shrink-0 items-center justify-center bg-linear-to-br font-black tracking-tight text-white shadow-md ring-1 ring-inset ring-white/20 ${supplierAvatarTone(name || '?')} ${sizing}`}>
             {supplierInitials(name || '?')}
         </div>
     );
@@ -60,9 +60,9 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
             tabIndex={0}
             onClick={onOpen}
             onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
-            className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white p-5 shadow-sm outline-none transition-all hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white p-5 shadow-xs outline-hidden transition-all hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-emerald-500/40"
         >
-            {stats.pendingOrderCount > 0 && <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400" />}
+            {stats.pendingOrderCount > 0 && <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-amber-300 via-amber-400 to-orange-400" />}
 
             <div className="flex items-start gap-3">
                 <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} />
@@ -117,7 +117,7 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
                 <button
                     type="button"
                     onClick={(event) => { stop(event); onNewOrder(); }}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-black text-white opacity-0 shadow-sm transition-all hover:bg-black focus:opacity-100 group-hover:opacity-100"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-black text-white opacity-0 shadow-xs transition-all hover:bg-black focus:opacity-100 group-hover:opacity-100"
                     title="Νέα εντολή αγοράς"
                 >
                     <Plus size={12} strokeWidth={3} /> Εντολή

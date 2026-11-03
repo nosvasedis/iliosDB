@@ -255,7 +255,7 @@ const BarcodeView: React.FC<Props> = ({
                             </div>
                         )}
                         {labelText.brand && (
-                            <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
+                            <div className="font-black tracking-wider text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
                                 {labelText.brand}
                             </div>
                         )}
@@ -301,7 +301,7 @@ const BarcodeView: React.FC<Props> = ({
                 className="w-full grid items-center border-t border-black pt-0.5 leading-none"
                 style={{ gridTemplateColumns: 'auto minmax(0, 1fr) auto', columnGap: '0.6mm' }}
             >
-                 <span className="font-black tracking-[0.1em] text-black uppercase text-left whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
+                 <span className="font-black tracking-widest text-black uppercase text-left whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     {labelText.brand}
                 </span>
                 <span

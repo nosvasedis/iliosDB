@@ -26,7 +26,7 @@ function Segment({ label, value, tone = 'slate', strong = false }: { label: stri
         teal: 'bg-teal-600 text-white ring-teal-600',
     };
     return (
-        <div className={`min-w-[5.5rem] rounded-lg px-3 py-1.5 ring-1 ring-inset ${tones[tone]}`}>
+        <div className={`min-w-22 rounded-lg px-3 py-1.5 ring-1 ring-inset ${tones[tone]}`}>
             <div className={`text-[10px] font-semibold uppercase tracking-wide ${tone === 'teal' ? 'text-teal-50' : tone === 'blue' ? 'text-blue-500' : 'text-slate-400'}`}>{label}</div>
             <div className={`font-mono text-sm tabular-nums ${strong ? 'font-bold' : 'font-semibold'}`}>{value}</div>
         </div>

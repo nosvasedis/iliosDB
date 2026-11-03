@@ -10,7 +10,7 @@ export const LABOR_GRID = 'grid grid-cols-[minmax(0,1fr)_5.25rem_0.75rem_5.25rem
 const round = (value: number, decimals: number) => (Number.isFinite(value) ? parseFloat(value.toFixed(decimals)) : 0);
 const parseNum = (raw: string) => parseFloat(raw.replace(',', '.')) || 0;
 
-const cellInput = 'h-8 w-full rounded-md border px-2 text-right font-mono text-[13px] tabular-nums outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10';
+const cellInput = 'h-8 w-full rounded-md border px-2 text-right font-mono text-[13px] tabular-nums outline-hidden transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10';
 const inputTone = {
     auto: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
     manual: 'border-amber-300 bg-amber-50 font-bold text-amber-900',
@@ -78,8 +78,8 @@ export function LaborSheetRow({
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-1.5">
                             <span className="truncate text-[13px] font-semibold text-slate-800">{label}</span>
-                            {contextLabel && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">{contextLabel}</span>}
-                            {isOverridden && !readOnly && <span className="shrink-0 rounded bg-amber-100 px-1.5 py-px text-[10px] font-semibold text-amber-800">Χειροκίνητο</span>}
+                            {contextLabel && <span className="shrink-0 rounded-sm bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">{contextLabel}</span>}
+                            {isOverridden && !readOnly && <span className="shrink-0 rounded-sm bg-amber-100 px-1.5 py-px text-[10px] font-semibold text-amber-800">Χειροκίνητο</span>}
                         </div>
                         {hint && <p className="truncate text-[11px] text-slate-400" title={hint}>{hint}</p>}
                     </div>
@@ -129,11 +129,11 @@ export function LaborSheetRow({
                         icon={isOverridden ? Unlock : Lock}
                         label={isOverridden ? 'Επιστροφή σε αυτόματο υπολογισμό' : 'Κλείδωμα για χειροκίνητη τιμή'}
                         onClick={onToggleOverride}
-                        className={isOverridden ? '!bg-amber-100 !text-amber-700 hover:!bg-amber-200' : 'text-slate-300'}
+                        className={isOverridden ? 'bg-amber-100! text-amber-700! hover:bg-amber-200!' : 'text-slate-300'}
                     />
                 ) : <span />}
             </div>
-            {footer ? <div className="mt-2 pl-[2.625rem]">{footer}</div> : null}
+            {footer ? <div className="mt-2 pl-10.5">{footer}</div> : null}
         </div>
     );
 }

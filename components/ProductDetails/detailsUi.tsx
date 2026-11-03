@@ -31,10 +31,10 @@ const SECTION_TONES: Record<DetailsSectionTone, { iconWrap: string; icon: string
 };
 
 export const detailsInputClass =
-    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-800 shadow-sm shadow-slate-100 outline-none transition-all hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:text-slate-400';
+    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-800 shadow-xs shadow-slate-100 outline-hidden transition-all hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:text-slate-400';
 
 export const detailsMonoInputClass =
-    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-sm font-bold text-slate-800 shadow-sm shadow-slate-100 outline-none transition-all hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:text-slate-400';
+    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-sm font-bold text-slate-800 shadow-xs shadow-slate-100 outline-hidden transition-all hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:text-slate-400';
 
 /** Shared margin thresholds for every SKU-card readout (KPI strip, variants table, policy). */
 export function getMarginTone(margin: number) {
@@ -62,7 +62,7 @@ export function DetailsSection({
 }) {
     const t = SECTION_TONES[tone];
     return (
-        <section data-tone={tone} className={`sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
+        <section data-tone={tone} className={`sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs ${className}`}>
             <div className="sku-section-heading mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <span className={`shrink-0 rounded-lg p-1.5 ring-1 ${t.iconWrap}`}>
@@ -130,9 +130,9 @@ const BUTTON_SIZES: Record<ButtonSize, string> = {
 };
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-    primary: 'bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:bg-black',
-    success: 'bg-emerald-600 text-white shadow-sm shadow-emerald-700/20 hover:bg-emerald-700 active:bg-emerald-800',
-    secondary: 'border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-200/60 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100',
+    primary: 'bg-slate-900 text-white shadow-xs hover:bg-slate-800 active:bg-black',
+    success: 'bg-emerald-600 text-white shadow-xs shadow-emerald-700/20 hover:bg-emerald-700 active:bg-emerald-800',
+    secondary: 'border border-slate-200 bg-white text-slate-700 shadow-xs shadow-slate-200/60 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100',
     subtle: 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 active:bg-slate-200',
     ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200/70',
     danger: 'text-rose-600 hover:bg-rose-50 hover:text-rose-700 active:bg-rose-100',
@@ -225,7 +225,7 @@ export function DetailsSwitch({
             className={`inline-flex h-8 select-none items-center gap-2 rounded-lg px-2 text-xs font-semibold normal-case tracking-normal transition-colors ${checked ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'} hover:bg-slate-100/80`}
         >
             <span className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors duration-200 ${checked ? on : 'bg-slate-300'}`}>
-                <span className={`h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[15px]' : 'translate-x-0.5'}`} />
+                <span className={`h-3.5 w-3.5 rounded-full bg-white shadow-xs transition-transform duration-200 ${checked ? 'translate-x-[15px]' : 'translate-x-0.5'}`} />
             </span>
             {label}
         </button>
@@ -254,7 +254,7 @@ export function DetailsSubTabs<T extends string>({
                         aria-selected={isActive}
                         onClick={() => onChange(tab.id)}
                         className={`flex h-8 min-w-0 flex-1 select-none items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-150 sm:flex-none ${
-                            isActive ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:bg-white/50 hover:text-slate-800'
+                            isActive ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-900/5' : 'text-slate-500 hover:bg-white/50 hover:text-slate-800'
                         }`}
                     >
                         {Icon ? <Icon size={14} className={isActive ? 'text-sky-600' : 'text-slate-400'} /> : null}

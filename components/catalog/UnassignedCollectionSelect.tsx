@@ -9,7 +9,7 @@ export default function UnassignedCollectionSelect({ options, value, onChange, a
   if (!unassigned.length) return null;
   return <label className="mt-3 block w-full min-w-0 space-y-1.5 text-xs font-bold text-slate-500">
     <span>Είδη χωρίς συλλογή</span>
-    <select className="w-full min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+    <select className="w-full min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 outline-hidden focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
       value={String(value).startsWith('none') ? value : ''} onChange={event => onChange(event.target.value || allValue)}>
       <option value="">Επιλογή ομάδας ειδών…</option>
       {unassigned.map(option => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name.replace('Χωρίς συλλογή · ', '')}</option>)}

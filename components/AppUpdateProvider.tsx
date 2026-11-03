@@ -40,7 +40,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   return (
     <NotificationCornerContext.Provider value={activityHost}>
       <div ref={workspace} style={{ display: 'contents' }} aria-busy={state.restarting || undefined}>{children}</div>
-      <div className="ilios-notification-corner fixed left-4 bottom-4 z-[250] flex flex-col gap-2 pointer-events-none print:hidden">
+      <div className="ilios-notification-corner fixed left-4 bottom-4 z-250 flex flex-col gap-2 pointer-events-none print:hidden">
         {visible && <section aria-label="Ενημέρωση εφαρμογής" className="pointer-events-auto shrink-0 max-h-full overflow-y-auto text-white rounded-2xl border border-white/10 shadow-xl" style={{ background: 'rgba(5,9,0,0.96)', borderLeft: '3px solid #f59e0b', width: 'min(340px, calc(100vw - 32px))' }}>
           {!state.expanded ? (
             <button type="button" onClick={() => appUpdates.expand()} className="w-full min-h-[44px] flex items-center gap-2 px-4 py-3 text-xs font-semibold rounded-2xl"><RefreshCw size={15} className="text-amber-400" />{state.availableBuildId ? 'Διαθέσιμη ενημέρωση' : 'Επανεκκίνηση εφαρμογής'}</button>
@@ -60,7 +60,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
         </section>}
         <div ref={setActivityHost} className="flex flex-col min-h-0 overflow-hidden pointer-events-none" />
       </div>
-      {state.restarting && <div role="status" className="fixed inset-0 z-[2000] bg-black/20 cursor-wait print:hidden" aria-label="Προετοιμασία επανεκκίνησης" />}
+      {state.restarting && <div role="status" className="fixed inset-0 z-2000 bg-black/20 cursor-wait print:hidden" aria-label="Προετοιμασία επανεκκίνησης" />}
     </NotificationCornerContext.Provider>
   );
 }

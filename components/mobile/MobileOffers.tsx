@@ -441,7 +441,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         return (
             <div className="flex flex-col h-full bg-slate-50 relative">
                 {/* Header */}
-                <div className="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+                <div className="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-xs z-20">
                     <button onClick={() => setView('list')} className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
                     <h2 className="text-lg font-black text-slate-800">{editingId ? 'Επεξεργασία' : 'Νέα Προσφορά'}</h2>
                     <button onClick={handleSave} disabled={isSaving} className="bg-purple-600 text-white p-2 rounded-xl shadow-md disabled:opacity-50"><Save size={20} /></button>
@@ -450,7 +450,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-32">
 
                     {/* Customer Section */}
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100">
                         <div className="flex items-center gap-2 mb-2">
                             <User size={16} className="text-purple-600" />
                             <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Πελάτης</span>
@@ -464,7 +464,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                     value={customerName}
                                     onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
                                     placeholder="Αναζήτηση ή Όνομα..."
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-purple-400"
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:border-purple-400"
                                     onFocus={() => setShowCustSuggestions(true)}
                                 />
                                 {showCustSuggestions && customerName && !customerId && filteredCustomers.length > 0 && (
@@ -487,7 +487,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                         </>}
                         <div className="flex items-center gap-2 mt-2">
                             <Phone size={14} className="text-slate-400" />
-                            <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Τηλέφωνο" className="flex-1 p-2 bg-transparent border-b border-slate-200 outline-none text-sm font-medium" />
+                            <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Τηλέφωνο" className="flex-1 p-2 bg-transparent border-b border-slate-200 outline-hidden text-sm font-medium" />
                         </div>
                     </div>
 
@@ -510,7 +510,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                             type="number" step="0.01"
                                             value={customSilverPrice}
                                             onChange={e => setCustomSilverPrice(parseFloat(e.target.value) || 0)}
-                                            className="flex-1 p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-none text-center"
+                                            className="flex-1 p-2 bg-white border border-amber-200 rounded-lg font-mono font-bold text-amber-900 outline-hidden text-center"
                                         />
                                         <button onClick={fetchLivePrice} disabled={isFetchingPrice} className="p-2 bg-amber-200 text-amber-800 rounded-lg">
                                             {isFetchingPrice ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
@@ -529,7 +529,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                         <span className="block text-[10px] text-amber-600/70 mt-0.5">Η επιλογή αποθηκεύεται στην Προσφορά.</span>
                                     </span>
                                     <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${hideSilverPriceInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
-                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${hideSilverPriceInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${hideSilverPriceInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                     </span>
                                 </button>
                                 <div className="rounded-xl border border-amber-200 bg-white p-3 space-y-2">
@@ -545,7 +545,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                             <span className="block text-[10px] text-amber-600/70 mt-0.5">Απενεργοποιήστε το για να μην εμφανίζεται.</span>
                                         </span>
                                         <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${!hideOfferValidityInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
-                                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${!hideOfferValidityInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${!hideOfferValidityInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                         </span>
                                     </button>
                                     {!hideOfferValidityInPdf && (
@@ -557,7 +557,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                                 step="1"
                                                 value={offerValidityDays}
                                                 onChange={e => setOfferValidityDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                                                className="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-bold text-amber-900 outline-none text-center"
+                                                className="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-bold text-amber-900 outline-hidden text-center"
                                             />
                                         </div>
                                     )}
@@ -566,13 +566,13 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                     <div>
                                         <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1">Έκπτωση (%)</label>
                                         <div className="relative">
-                                            <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-amber-900 outline-none text-center" />
+                                            <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-amber-900 outline-hidden text-center" />
                                             <Percent size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-amber-400" />
                                         </div>
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1">ΦΠΑ</label>
-                                        <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-xs text-amber-900 outline-none">
+                                        <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-white border border-amber-200 rounded-lg font-bold text-xs text-amber-900 outline-hidden">
                                             <option value={VatRegime.Standard}>24%</option>
                                             <option value={VatRegime.Reduced}>17%</option>
                                             <option value={VatRegime.Zero}>0%</option>
@@ -587,7 +587,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                     </div>
 
                     {/* Add Items */}
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                    <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 space-y-3">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-wide flex items-center gap-2"><ListPlus size={16} /> Προσθήκη Ειδών</label>
                         <div className="flex gap-2">
                             <input
@@ -595,14 +595,14 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 onChange={e => setSkuInput(e.target.value.toUpperCase())}
                                 onKeyDown={e => e.key === 'Enter' && handleAddItem(skuInput)}
                                 placeholder="SKU ή Εύρος..."
-                                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold outline-none uppercase focus:ring-2 focus:ring-purple-500/20"
+                                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold outline-hidden uppercase focus:ring-2 focus:ring-purple-500/20"
                             />
                             <button onClick={() => setShowScanner(true)} className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200"><ScanBarcode size={20} /></button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase ml-1">ΠΟΣ.</span>
-                                <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(parseInt(e.target.value) || 1)} className="flex-1 bg-transparent font-black text-center outline-none text-slate-900" />
+                                <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(parseInt(e.target.value) || 1)} className="flex-1 bg-transparent font-black text-center outline-hidden text-slate-900" />
                             </div>
                             <button onClick={() => handleAddItem(skuInput)} className="bg-purple-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95">Προσθήκη</button>
                         </div>
@@ -627,7 +627,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                     <SetCompletionHints products={products} items={items} onChoose={(product, suffix) => setSkuInput(product.sku + (suffix || ''))} />
                     <div className="space-y-2">
                         {items.map((item, idx) => (
-                            <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
+                            <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-2">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
@@ -644,9 +644,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                 </div>
                                 <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">-</button>
+                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); return n; })} className="w-6 h-6 bg-white rounded-sm flex items-center justify-center shadow-xs font-bold text-slate-600">-</button>
                                         <span className="font-black text-sm w-6 text-center">{formatNumber(item.quantity)}</span>
-                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity += 1; return n; })} className="w-6 h-6 bg-white rounded flex items-center justify-center shadow-sm font-bold text-slate-600">+</button>
+                                        <button onClick={() => setItems(prev => { const n = [...prev]; n[idx].quantity += 1; return n; })} className="w-6 h-6 bg-white rounded-sm flex items-center justify-center shadow-xs font-bold text-slate-600">+</button>
                                     </div>
                                     <div className="font-black text-slate-900">{formatCurrency(item.price_at_order * item.quantity)}</div>
                                 </div>
@@ -657,7 +657,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
                     <div className="mt-4">
                         <label className="text-xs font-bold text-slate-400 uppercase ml-1">Σημειώσεις</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-sm h-20 resize-none mt-1" placeholder="Εσωτερικές σημειώσεις..." />
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-hidden text-sm h-20 resize-none mt-1" placeholder="Εσωτερικές σημειώσεις..." />
                     </div>
                 </div>
 
@@ -704,7 +704,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             />
 
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
-            <div className="mb-4 flex shrink-0 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1 shadow-sm">
+            <div className="mb-4 flex shrink-0 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1 shadow-xs">
                 {['ALL', 'Pending', 'Accepted', 'Declined'].map(s => (
                     <button
                         key={s}
@@ -720,20 +720,20 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                     type="text" placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 shadow-sm font-medium"
+                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-purple-500/20 shadow-xs font-medium"
                 />
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
                 {filteredOffers.map(offer => (
-                    <div key={offer.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all">
+                    <div key={offer.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs active:scale-[0.98] transition-all">
                         <div onClick={() => initBuilder(offer)} className="cursor-pointer">
                             <div className="flex justify-between items-start mb-2">
                                 <div>
                                     <div className="font-bold text-slate-800 text-base"><OrderCustomerName order={offer} /></div>
                                     <div className="text-[10px] text-slate-400 font-mono">#{offer.id.slice(0, 8)}</div>
                                 </div>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${STATUS_STYLES[offer.status]}`}>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border uppercase ${STATUS_STYLES[offer.status]}`}>
                                     {OFFER_STATUS_LABELS[offer.status]}
                                 </span>
                             </div>

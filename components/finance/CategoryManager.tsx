@@ -63,7 +63,7 @@ export default function CategoryManager({ workspace, parties, onClose, initialSe
           <button
             type="button"
             onClick={() => setCollapsed((previous) => { const next = new Set(previous); if (next.has(category.id)) next.delete(category.id); else next.add(category.id); return next; })}
-            className={`rounded p-0.5 text-slate-400 ${node.children.length ? '' : 'invisible'}`}
+            className={`rounded-sm p-0.5 text-slate-400 ${node.children.length ? '' : 'invisible'}`}
             aria-label={isCollapsed ? 'Ανάπτυξη' : 'Σύμπτυξη'}
           >
             <ChevronRight size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
@@ -91,7 +91,7 @@ export default function CategoryManager({ workspace, parties, onClose, initialSe
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setEditing({ parent_id: null })} className={secondaryButton}><FolderPlus size={15} /> Νέο Είδος</button>
-            <div className="relative min-w-[10rem] flex-1">
+            <div className="relative min-w-40 flex-1">
               <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Αναζήτηση…" className={`${inputClass} py-2 pl-8 text-xs`} />
             </div>
@@ -106,7 +106,7 @@ export default function CategoryManager({ workspace, parties, onClose, initialSe
           <div className="max-h-[62vh] space-y-0.5 overflow-y-auto pr-1 custom-scrollbar">{tree.map(renderNode)}</div>
         </div>
 
-        <div className="min-w-0 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm lg:max-h-[72vh] lg:overflow-y-auto custom-scrollbar">
+        <div className="min-w-0 rounded-3xl border border-slate-100 bg-white p-4 shadow-xs lg:max-h-[72vh] lg:overflow-y-auto custom-scrollbar">
           {live ? (
             <CategoryForm
               workspace={workspace}
@@ -118,7 +118,7 @@ export default function CategoryManager({ workspace, parties, onClose, initialSe
               onSaved={(saved) => setEditing(saved)}
             />
           ) : (
-            <div className="flex h-full min-h-[18rem] flex-col items-center justify-center gap-2 text-center text-sm font-semibold text-slate-400">
+            <div className="flex h-full min-h-72 flex-col items-center justify-center gap-2 text-center text-sm font-semibold text-slate-400">
               <FolderTree size={30} className="text-slate-300" />
               Επιλέξτε κατηγορία για επεξεργασία ή πατήστε «Νέο Είδος».
             </div>

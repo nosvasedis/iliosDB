@@ -252,7 +252,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
         onClick={() => setHideAmounts((value) => !value)}
         aria-pressed={hideAmounts}
         title={hideAmounts ? 'Εμφάνιση ποσών' : 'Απόκρυψη ποσών'}
-        className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-sm transition-colors ${
+        className={`inline-flex h-10 items-center gap-1.5 rounded-2xl border px-3 text-xs font-bold shadow-xs transition-colors ${
           hideAmounts
             ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
             : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -266,7 +266,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
         onClick={refetch}
         title="Ανανέωση δεδομένων"
         aria-label="Ανανέωση δεδομένων"
-        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-800"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:text-slate-800"
       >
         <RefreshCw size={15} />
       </button>
@@ -279,7 +279,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
 
   const analyticsTabs = (
     <nav className={`flex w-full px-1 ${embedded ? 'justify-start' : 'justify-center'}`} aria-label="Ενότητες ανάλυσης">
-      <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-sm">
+      <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1.5 shadow-xs">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const badge = tab.id === 'costs' ? missingCostRows.length + (stats.legal.issuedCount > 0 && Math.abs(stats.legal.netGap) >= 1 ? 1 : 0) : 0;
@@ -290,7 +290,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
               onClick={() => setActiveTab(tab.id)}
               aria-current={isActive ? 'page' : undefined}
               className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-bold transition-all duration-200 sm:px-5 sm:py-2.5 sm:text-sm ${
-                isActive ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                isActive ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
               }`}
             >
               <tab.icon size={16} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
@@ -307,7 +307,7 @@ export default function AnalyticsView({ products, onBack, onPrint, onNavigate, e
     <DashboardPrivacyContext.Provider value={hideAmounts}>
       <div className={`flex flex-col space-y-5 pb-20 print:hidden ${embedded ? '' : 'mx-auto max-w-[1600px]'}`}>
         {embedded ? (
-          <div className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-white p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-white p-3 shadow-xs lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">{analyticsTabs}</div>
             {analyticsControls}
           </div>

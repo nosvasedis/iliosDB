@@ -144,7 +144,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
             <div key={idx} className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid">
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(idx + 1)}</div>
                 <div className="w-8 text-center">
-                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                    <div className="w-6 h-6 bg-slate-50 rounded-sm overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
@@ -157,17 +157,17 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                         <div className="flex items-baseline gap-1">
                             <span className="font-bold text-slate-900">{fullSku}</span>
                             {item.size_info && (
-                                <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">
+                                <span className="text-[9px] bg-slate-100 px-1 rounded-sm text-slate-600 border border-slate-200 font-bold whitespace-nowrap">
                                     {item.size_info}
                                 </span>
                             )}
                             {item.cord_color && (
-                                <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">
+                                <span className="text-[9px] bg-amber-50 px-1 rounded-sm text-amber-700 border border-amber-100 font-bold whitespace-nowrap">
                                     Κορδόνι: {getProductOptionColorLabel(item.cord_color)}
                                 </span>
                             )}
                             {item.enamel_color && (
-                                <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">
+                                <span className="text-[9px] bg-rose-50 px-1 rounded-sm text-rose-700 border border-rose-100 font-bold whitespace-nowrap">
                                     Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}
                                 </span>
                             )}
@@ -307,7 +307,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
             <footer className="mt-2 pt-2 border-t-2 border-slate-900 flex justify-between items-start shrink-0">
                 <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
                     <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
-                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <p className="italic bg-slate-50 p-1.5 rounded-sm border border-slate-100">
                         {extractRetailClientFromNotes(shipmentNotes || order.notes).cleanNotes || 'Δεν υπάρχουν σημειώσεις.'}
                     </p>
                 </div>

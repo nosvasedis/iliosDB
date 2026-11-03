@@ -35,11 +35,11 @@ export function OrderBulkActionBar({
     const archiveLabel = archiveMode === 'restore' ? 'Ανάκτηση' : 'Αρχειοθέτηση';
 
     return ReactDOM.createPortal(
-        <div className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
+        <div className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] inset-x-0 flex justify-center z-300 pointer-events-none px-4">
             <div className="relative overflow-hidden bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex flex-wrap items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
                 {isProcessing && (
                     <div
-                        className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 transition-[width] duration-300"
+                        className="absolute inset-x-0 bottom-0 h-0.5 bg-linear-to-r from-emerald-400 via-teal-300 to-emerald-500 transition-[width] duration-300"
                         style={{ width: `${visibleProgress}%` }}
                     />
                 )}

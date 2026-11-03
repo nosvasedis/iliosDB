@@ -252,49 +252,49 @@ export default function MobileSettings() {
             <MobileScreenHeader icon={Settings} title="Ρυθμίσεις" subtitle="Λογαριασμός & εφαρμογή" iconClassName="text-slate-600" />
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-32 pt-3">
                 {/* Profile */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-500"><User size={24} /></div>
                     <div><div className="font-bold text-slate-900">{profile?.full_name || 'Χρήστης'}</div><div className="text-xs text-slate-500">{profile?.email}</div></div>
                 </div>
 
                 {/* Silver Price */}
-                <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-4 rounded-2xl text-white shadow-lg">
+                <div className="bg-linear-to-r from-slate-800 to-slate-900 p-4 rounded-2xl text-white shadow-lg">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2"><Coins size={20} className="text-emerald-400" /><span className="font-bold text-sm">Τιμή Ασημιού (€/g)</span></div>
                         <button onClick={fetchLivePrice} disabled={isLoadingPrice} className="p-1.5 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">{isLoadingPrice ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
                     </div>
-                    <input type="number" step="0.01" value={localSettings.silver_price_gram} onChange={(e) => handleLocalUpdate('silver_price_gram', parseFloat(e.target.value))} className="bg-white/10 border border-white/20 rounded-xl p-2 text-xl font-mono font-bold w-full outline-none focus:bg-white/20 transition-colors" />
+                    <input type="number" step="0.01" value={localSettings.silver_price_gram} onChange={(e) => handleLocalUpdate('silver_price_gram', parseFloat(e.target.value))} className="bg-white/10 border border-white/20 rounded-xl p-2 text-xl font-mono font-bold w-full outline-hidden focus:bg-white/20 transition-colors" />
                 </div>
 
                 {/* API Key */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Key size={14} /> Gemini API Key</label>
-                    <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-mono" />
+                    <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden text-sm font-mono" />
                 </div>
 
                 {/* Label Settings */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-4">
                     <h3 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><Tag size={14} /> Διαστάσεις (mm)</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase block">Χονδρική (W x H)</label>
                             <div className="flex gap-2">
-                                <input type="number" value={localSettings.barcode_width_mm} onChange={(e) => handleLocalUpdate('barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-none" />
-                                <input type="number" value={localSettings.barcode_height_mm} onChange={(e) => handleLocalUpdate('barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-none" />
+                                <input type="number" value={localSettings.barcode_width_mm} onChange={(e) => handleLocalUpdate('barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-hidden" />
+                                <input type="number" value={localSettings.barcode_height_mm} onChange={(e) => handleLocalUpdate('barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center outline-hidden" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase block flex items-center gap-1"><ShoppingBag size={10} className="text-fuchsia-600" /> Λιανική</label>
                             <div className="flex gap-2">
-                                <input type="number" value={localSettings.retail_barcode_width_mm} onChange={(e) => handleLocalUpdate('retail_barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
-                                <input type="number" value={localSettings.retail_barcode_height_mm} onChange={(e) => handleLocalUpdate('retail_barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
+                                <input type="number" value={localSettings.retail_barcode_width_mm} onChange={(e) => handleLocalUpdate('retail_barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-hidden" />
+                                <input type="number" value={localSettings.retail_barcode_height_mm} onChange={(e) => handleLocalUpdate('retail_barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-hidden" />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Backup & System */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-3">
                     <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Database size={14} /> Backup & Δεδομένα</h3>
                     <button onClick={() => { setBackupManagerMode('export'); setIsBackupManagerOpen(true); }} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin" /> : <Database size={18} />} Backup & Εξαγωγή</button>
 

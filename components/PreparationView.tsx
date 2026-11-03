@@ -168,7 +168,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                 const platingDesc = variant?.description || product.category;
 
                                 return (
-                                    <div key={batch.id} className="border-2 border-slate-900 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid bg-white min-h-[7rem]">
+                                    <div key={batch.id} className="border-2 border-slate-900 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid bg-white min-h-28">
                                         <div className="flex flex-col items-center justify-between w-12 shrink-0 h-full">
                                             <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                 {product.image_url ? (
@@ -187,17 +187,17 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 <span className="text-[10px] font-bold text-slate-600 truncate block uppercase">{platingDesc}</span>
 
                                                 {batch.size_info && (
-                                                    <span className="text-[9px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                                                    <span className="text-[9px] font-black bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded-sm inline-block mt-0.5">
                                                         {batch.size_info}
                                                     </span>
                                                 )}
                                                 {batch.cord_color && (
-                                                    <span className="text-[9px] font-black bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded inline-block mt-0.5 border border-amber-200">
+                                                    <span className="text-[9px] font-black bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded-sm inline-block mt-0.5 border border-amber-200">
                                                         Κορδόνι: {getProductOptionColorLabel(batch.cord_color)}
                                                     </span>
                                                 )}
                                                 {batch.enamel_color && (
-                                                    <span className="text-[9px] font-black bg-rose-50 text-rose-800 px-1.5 py-0.5 rounded inline-block mt-0.5 border border-rose-200">
+                                                    <span className="text-[9px] font-black bg-rose-50 text-rose-800 px-1.5 py-0.5 rounded-sm inline-block mt-0.5 border border-rose-200">
                                                         Σμάλτο: {getProductOptionColorLabel(batch.enamel_color)}
                                                     </span>
                                                 )}
@@ -250,7 +250,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                     <div className="text-[8px] font-black text-emerald-800 uppercase flex items-center gap-0.5 mb-0.5">
                                                         <StickyNote size={8} /> Σημείωση
                                                     </div>
-                                                    <div className="bg-emerald-50 p-1 rounded border border-emerald-100 text-[9px] font-bold text-emerald-900 leading-tight">
+                                                    <div className="bg-emerald-50 p-1 rounded-sm border border-emerald-100 text-[9px] font-bold text-emerald-900 leading-tight">
                                                         {batch.notes}
                                                     </div>
                                                 </div>
@@ -270,7 +270,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                         </h2>
                         <div className="grid grid-cols-4 gap-2">
                             {aggregatedMolds.map(mold => (
-                                <div key={mold.code} className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between break-inside-avoid shadow-sm">
+                                <div key={mold.code} className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between break-inside-avoid shadow-xs">
                                     <div className="flex justify-between items-start mb-1 gap-2">
                                         <span className="font-black text-sm text-slate-900 leading-none">{mold.code}</span>
                                         <span className="font-bold text-slate-500 text-[9px]">{mold.loc}</span>
@@ -281,7 +281,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
 
                                     <div className="space-y-1 mb-1">
                                         {Object.entries(mold.breakdown).map(([key, qty]) => (
-                                            <div key={key} className={`flex justify-between items-center text-[9px] font-bold px-1.5 py-0.5 rounded border ${getFinishStyle(key)}`}>
+                                            <div key={key} className={`flex justify-between items-center text-[9px] font-bold px-1.5 py-0.5 rounded-sm border ${getFinishStyle(key)}`}>
                                                 <span>{key === 'STD' ? 'ΒΑΣ' : key}</span>
                                                 <span className="font-black">{formatNumber(qty)}</span>
                                             </div>
@@ -335,7 +335,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                 if (!product) return null;
 
                                 return (
-                                    <div key={batch.id} className="border-2 border-dashed border-slate-600 bg-slate-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid min-h-[6rem]">
+                                    <div key={batch.id} className="border-2 border-dashed border-slate-600 bg-slate-50 rounded-xl p-2 flex flex-row gap-2 break-inside-avoid min-h-24">
                                         <div className="flex flex-col items-center justify-between w-12 shrink-0 h-full">
                                             <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                 {product.image_url && <img src={product.image_url} className="w-full h-full object-cover" alt="img" />}
@@ -347,12 +347,12 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{batch.sku}{batch.variant_suffix || ''}</p>
                                                 <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                                 {product.supplier_sku && (
-                                                    <p className="text-[10px] font-bold text-slate-600 bg-white px-1 rounded border border-slate-200 w-fit mt-1">{product.supplier_sku}</p>
+                                                    <p className="text-[10px] font-bold text-slate-600 bg-white px-1 rounded-sm border border-slate-200 w-fit mt-1">{product.supplier_sku}</p>
                                                 )}
                                             </div>
                                             <div className="text-[9px] mt-2">
                                                 {batch.notes ? (
-                                                    <div className="bg-emerald-100 p-1 rounded border border-emerald-200 text-emerald-900 font-bold">
+                                                    <div className="bg-emerald-100 p-1 rounded-sm border border-emerald-200 text-emerald-900 font-bold">
                                                         <span className="block text-[7px] uppercase opacity-70">Σημείωση</span>
                                                         {batch.notes}
                                                     </div>

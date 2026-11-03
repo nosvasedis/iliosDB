@@ -154,7 +154,7 @@ function StageStripAndPills(props: {
         {segments.map((segment, index) => (
           <span
             key={`pill-${segment.kind}-${index}`}
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-sm ${getStagePillClass(segment)}`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-xs ${getStagePillClass(segment)}`}
           >
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -211,7 +211,7 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
       <div className="mt-2 flex flex-wrap gap-1">
         {hasJoinedPolishingPill && (
           <span
-            className="inline-flex max-w-full overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm"
+            className="inline-flex max-w-full overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs"
             style={{ order: polishingPillOrder }}
             title={`Τεχνίτης • Αναμονή: ${formatNumber(polishingPendingQty)} τεμ. · Τεχνίτης • Στον Τεχνίτη: ${formatNumber(polishingDispatchedQty)} τεμ.`}
           >
@@ -230,7 +230,7 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
         {segments.filter((segment) => !(hasJoinedPolishingPill && segment.kind === 'stage' && segment.stage === ProductionStage.Polishing)).map((segment, index) => (
           <span
             key={`pill-${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${segment.kind === 'stage' ? segment.pendingDispatch : ''}-${index}`}
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-sm ${getStagePillClass(segment)}`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-xs ${getStagePillClass(segment)}`}
             style={{ order: index }}
           >
             <span
@@ -302,7 +302,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
 
     const pctLabel = (
       <span
-        className={`font-black text-slate-500 tabular-nums shrink-0 min-w-[2.25rem] text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
+        className={`font-black text-slate-500 tabular-nums shrink-0 min-w-9 text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
       >
         {formatNumber(partial.overallCompletePercent)}%
       </span>
@@ -329,7 +329,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
         </div>
 
         {stagesExpanded && (
-          <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-amber-100 bg-gradient-to-br from-slate-50 to-amber-50/35 px-2.5 py-2 shadow-sm duration-200">
+          <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-amber-100 bg-linear-to-br from-slate-50 to-amber-50/35 px-2.5 py-2 shadow-xs duration-200">
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-amber-800/90">Μερική παράδοση · ανάλυση σταδίων</div>
             <p className="mt-1 text-[9px] font-medium leading-snug text-slate-600">
               Η μπάρα ανά στάδιο αφορά μόνο τα <span className="font-bold text-slate-800">{formatNumber(partial.batchTotal)}</span> τεμ. που
@@ -352,12 +352,12 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
 
             <div className="mt-2 flex flex-wrap gap-1 border-t border-amber-100/80 pt-2">
               {partial.shippedQty > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-700/95 px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-700/95 px-2 py-0.5 text-[9px] font-bold text-white shadow-xs">
                   Παραδόθηκαν · {formatNumber(partial.shippedQty)}
                 </span>
               )}
               {partial.remainderQty > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-300/90 px-2 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-300/90 px-2 py-0.5 text-[9px] font-bold text-slate-800 shadow-xs">
                   Χωρίς ενεργή παραγωγή · {formatNumber(partial.remainderQty)}
                 </span>
               )}
@@ -396,7 +396,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
 
     const pctLabel = (
       <span
-        className={`font-black text-slate-500 tabular-nums shrink-0 min-w-[2.25rem] text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
+        className={`font-black text-slate-500 tabular-nums shrink-0 min-w-9 text-right leading-none ${density === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}
       >
         {formatNumber(inProd.readyPercentVsOrder)}%
       </span>
@@ -425,7 +425,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
         </div>
 
         {stagesExpanded && stageBreakdown && stageBreakdown.segments.length > 0 && (
-          <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-indigo-100 bg-gradient-to-br from-slate-50 to-indigo-50/40 px-2.5 py-2 shadow-sm duration-200">
+          <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-indigo-100 bg-linear-to-br from-slate-50 to-indigo-50/40 px-2.5 py-2 shadow-xs duration-200">
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-indigo-500/90">Ανάλυση ανά στάδιο</div>
             <StageStripAndPillsWithPolishingSplit
               segments={stageBreakdown.segments}

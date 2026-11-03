@@ -195,11 +195,11 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                     ? `MARK αρχικού: ${document.correlated_mark}`
                     : undefined}
                   statusBadge={document.status === 'cancelled' ? (
-                    <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700">
+                    <span className="inline-flex rounded-sm border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700">
                       ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}
                     </span>
                   ) : !isOfficialPrint ? (
-                    <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                    <span className="inline-flex rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
                       Πρόχειρο — όχι νόμιμο παραστατικό
                     </span>
                   ) : undefined}

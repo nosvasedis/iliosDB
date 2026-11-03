@@ -151,10 +151,10 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
     const currentStatusLabel = getProductionTimingStatusLabel(currentTiming.timingStatus);
 
     return (
-        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-250 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-gradient-to-r from-slate-50 to-white shrink-0">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-linear-to-r from-slate-50 to-white shrink-0">
                     <div>
                         <h2 className="text-xl font-black text-slate-900 flex items-center gap-3">
                             <Clock size={22} className="text-blue-600" />
@@ -165,7 +165,7 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                                 {batch.sku}{batch.variant_suffix}
                             </span>
                             {batch.size_info && (
-                                <span className="text-xs font-bold text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                <span className="text-xs font-bold text-slate-600 bg-slate-50 px-2 py-1 rounded-sm border border-slate-200">
                                     {batch.size_info}
                                 </span>
                             )}
@@ -273,16 +273,16 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                                                         </span>
                                                     ) : fromConfig ? (
                                                         <>
-                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${fromConfig.bg} ${fromConfig.color} ${fromConfig.border}`}>
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-sm border ${fromConfig.bg} ${fromConfig.color} ${fromConfig.border}`}>
                                                                 {fromConfig.label}
                                                             </span>
                                                             <ArrowRight size={14} className="text-slate-400" />
-                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${toConfig.bg} ${toConfig.color} ${toConfig.border}`}>
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-sm border ${toConfig.bg} ${toConfig.color} ${toConfig.border}`}>
                                                                 {toConfig.label}
                                                             </span>
                                                         </>
                                                     ) : (
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${toConfig.bg} ${toConfig.color} ${toConfig.border}`}>
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-sm border ${toConfig.bg} ${toConfig.color} ${toConfig.border}`}>
                                                             {toConfig.label}
                                                         </span>
                                                     )}
@@ -322,7 +322,7 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
 
                                                 {/* Latest Badge */}
                                                 {isLatest && (
-                                                    <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                                    <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100">
                                                         <PlayCircle size={10} />
                                                         Τρέχουσα Κατάσταση
                                                     </div>

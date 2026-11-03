@@ -163,7 +163,7 @@ export default function OverviewTab({
             const meta = INSIGHT_TONES[insight.tone];
             const Icon = meta.icon;
             return (
-              <button key={insight.id} type="button" onClick={() => onNavigate(insight.target)} className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition hover:shadow-sm ${meta.tone}`}>
+              <button key={insight.id} type="button" onClick={() => onNavigate(insight.target)} className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition hover:shadow-xs ${meta.tone}`}>
                 <Icon size={18} className={`mt-0.5 shrink-0 ${meta.iconTone}`} />
                 <span className="min-w-0">
                   <span className="block text-sm font-black">{insight.title}</span>
@@ -182,8 +182,8 @@ export default function OverviewTab({
           icon={TrendingUp}
           actions={(
             <div className="flex items-center gap-3 text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: INCOME_COLOR }} /> Εισπράξεις</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: EXPENSE_COLOR }} /> Έξοδα</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-xs" style={{ backgroundColor: INCOME_COLOR }} /> Εισπράξεις</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-xs" style={{ backgroundColor: EXPENSE_COLOR }} /> Έξοδα</span>
             </div>
           )}
         >
@@ -221,7 +221,7 @@ export default function OverviewTab({
                     <CategoryGlyph icon={categoryIconKey(node.category.id, workspace.categories)} color={color} size="sm" />
                     <span className="min-w-0 flex-1">
                       <span className="mb-1 flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate font-bold text-slate-800 group-enabled:group-hover:underline">{node.category.name}</span>
+                        <span className="truncate font-bold text-slate-800 group-hover:group-enabled:underline">{node.category.name}</span>
                         <span className="shrink-0 font-black tabular-nums text-slate-900">{formatEuro(total, 0)} <span className="text-xs font-bold text-slate-400">{Math.round((total / Math.max(1, breakdownTotal)) * 100)}%</span></span>
                       </span>
                       <span className="block h-2 overflow-hidden rounded-full bg-slate-100">

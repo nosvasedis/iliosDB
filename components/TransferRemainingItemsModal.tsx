@@ -220,7 +220,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
   const isConfirmValid = confirmText.trim() === 'ΜΕΤΑΦΟΡΑ';
 
   return (
-    <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-70 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
@@ -434,7 +434,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                             <span className="ml-1 text-slate-500">{item.variant_suffix}</span>
                           )}
                           {item.size_info && (
-                            <span className="ml-2 text-xs bg-slate-100 rounded px-1 text-slate-600">
+                            <span className="ml-2 text-xs bg-slate-100 rounded-sm px-1 text-slate-600">
                               {item.size_info}
                             </span>
                           )}
@@ -519,7 +519,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Για επιβεβαίωση, πληκτρολογήστε{' '}
-                  <code className="bg-slate-100 px-2 py-0.5 rounded font-mono text-red-700">ΜΕΤΑΦΟΡΑ</code>
+                  <code className="bg-slate-100 px-2 py-0.5 rounded-sm font-mono text-red-700">ΜΕΤΑΦΟΡΑ</code>
                   :
                 </label>
                 <input
@@ -528,7 +528,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder="ΜΕΤΑΦΟΡΑ"
-                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-lg font-mono focus:outline-none focus:border-red-400 transition-colors"
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-lg font-mono focus:outline-hidden focus:border-red-400 transition-colors"
                 />
                 {confirmText.length > 0 && !isConfirmValid && (
                   <p className="text-xs text-red-500 mt-1">

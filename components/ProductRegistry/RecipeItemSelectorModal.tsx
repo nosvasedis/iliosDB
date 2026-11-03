@@ -109,10 +109,10 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
                     <div className="flex items-center gap-2">
                         <div className="font-bold text-slate-800 text-sm truncate">{name}</div>
                         {isComponent && item.category && (
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[100px]">{item.category}</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-sm border border-slate-200 truncate max-w-[100px]">{item.category}</span>
                         )}
                         {!isComponent && item.stones_per_strand && (
-                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold whitespace-nowrap">
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm border border-blue-100 font-bold whitespace-nowrap">
                                 {item.stones_per_strand} πέτρες/σειρά
                             </span>
                         )}
@@ -129,7 +129,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
                     {isComponent && <div className="mt-1"><ComponentFamilyBadge product={item} /></div>}
                 </div>
 
-                <div className="p-2 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
+                <div className="p-2 bg-white rounded-full shadow-xs border border-slate-100 text-slate-300 group-hover:text-emerald-500 group-hover:border-emerald-200 transition-all shrink-0">
                     <Plus size={16} />
                 </div>
             </div>
@@ -137,7 +137,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
     };
 
     return (
-        <div className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-150 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col h-[70vh] animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
@@ -152,7 +152,7 @@ export const RecipeItemSelectorModal: React.FC<RecipeItemSelectorModalProps> = R
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             autoFocus
-                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500/20"
                         />
                     </div>
                     {type === 'component' && <div className="mt-3"><ComponentFamilyFilter value={componentFamily} onChange={setComponentFamily} /></div>}

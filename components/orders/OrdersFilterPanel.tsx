@@ -148,8 +148,8 @@ export function OrdersFilterPanel({
           : 'opacity-70 text-slate-500'
         : active
           ? 'opacity-70 hover:opacity-100 text-white'
-          : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 text-slate-500'
-    } ${isPickerOpen ? '!opacity-100' : ''}`;
+          : 'opacity-0 group-hover:opacity-60 hover:opacity-100! text-slate-500'
+    } ${isPickerOpen ? 'opacity-100!' : ''}`;
 
   const filterForm = (
         <div className={`px-4 pb-4 space-y-4 ${variant === 'collapsible' ? 'border-t border-slate-50 pt-3' : 'pt-1'}`}>
@@ -166,7 +166,7 @@ export function OrdersFilterPanel({
                   <button
                     key={s}
                     onClick={() => toggleStatus(s)}
-                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${colorClass} ${active ? 'shadow-sm ring-2 ring-offset-1 ring-current/25' : ''}`}
+                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${colorClass} ${active ? 'shadow-xs ring-2 ring-offset-1 ring-current/25' : ''}`}
                   >
                     {getOrderStatusIcon(s, 10)}
                     {getOrderStatusLabel(s)}
@@ -187,7 +187,7 @@ export function OrdersFilterPanel({
                     onClick={() => setDatePreset(preset.id)}
                     className={`text-[11px] px-3 py-1 rounded-full border font-bold transition-all ${
                       active
-                        ? 'bg-violet-500 text-white border-violet-600 shadow-sm ring-2 ring-offset-1 ring-violet-300'
+                        ? 'bg-violet-500 text-white border-violet-600 shadow-xs ring-2 ring-offset-1 ring-violet-300'
                         : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                     }`}
                   >
@@ -202,14 +202,14 @@ export function OrdersFilterPanel({
                   type="date"
                   value={filters.dateFrom ?? ''}
                   onChange={e => onChange({ ...filters, dateFrom: e.target.value || null })}
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all"
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 outline-hidden focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all"
                 />
                 <span className="text-slate-400 text-xs font-bold">—</span>
                 <input
                   type="date"
                   value={filters.dateTo ?? ''}
                   onChange={e => onChange({ ...filters, dateTo: e.target.value || null })}
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all"
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 outline-hidden focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all"
                 />
               </div>
             )}
@@ -227,7 +227,7 @@ export function OrdersFilterPanel({
                       onClick={() => toggleSeller(seller)}
                       className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${
                         active
-                          ? 'bg-sky-500 text-white border-sky-600 shadow-sm ring-2 ring-offset-1 ring-sky-300'
+                          ? 'bg-sky-500 text-white border-sky-600 shadow-xs ring-2 ring-offset-1 ring-sky-300'
                           : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
                       }`}
                     >
@@ -251,7 +251,7 @@ export function OrdersFilterPanel({
                       onClick={() => setTagLogic(id)}
                       className={`text-[10px] px-2.5 py-0.5 rounded-md font-black transition-all ${
                         filters.tagLogic === id
-                          ? 'bg-white text-slate-700 shadow-sm'
+                          ? 'bg-white text-slate-700 shadow-xs'
                           : 'text-slate-400 hover:text-slate-600'
                       }`}
                     >
@@ -270,7 +270,7 @@ export function OrdersFilterPanel({
                         onClick={() => toggleTag(tag)}
                         className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all pr-7 ${
                           active
-                            ? `${c.activeBg} ${c.activeText} ${c.activeBorder} shadow-sm ring-2 ring-offset-1 ${c.ring}`
+                            ? `${c.activeBg} ${c.activeText} ${c.activeBorder} shadow-xs ring-2 ring-offset-1 ${c.ring}`
                             : `${c.bg} ${c.text} ${c.border} hover:opacity-80`
                         }`}
                       >
@@ -319,7 +319,7 @@ export function OrdersFilterPanel({
     {variant === 'embedded' ? (
       <div className="overflow-visible">{filterForm}</div>
     ) : (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible transition-all">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-visible transition-all">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/70 transition-colors rounded-2xl"
@@ -375,7 +375,7 @@ export function OrdersFilterPanel({
               (tagColorOverrides[pickerState.tag] === i) ||
               (tagColorOverrides[pickerState.tag] === undefined && getDeterministicIndex(pickerState.tag) === i)
                 ? 'border-slate-800 ring-2 ring-slate-400 ring-offset-1 scale-110'
-                : 'border-white shadow-sm'
+                : 'border-white shadow-xs'
             }`}
             title={`Χρώμα ${formatNumber(i + 1)}`}
           />

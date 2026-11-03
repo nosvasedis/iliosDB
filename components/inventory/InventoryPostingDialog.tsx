@@ -372,7 +372,7 @@ export default function InventoryPostingDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-end bg-slate-950/55 sm:items-center sm:justify-center sm:p-4" role="presentation" onMouseDown={() => { if (!saving) onClose(); }}>
+    <div className="fixed inset-0 z-500 flex items-end bg-slate-950/55 sm:items-center sm:justify-center sm:p-4" role="presentation" onMouseDown={() => { if (!saving) onClose(); }}>
       <section
         role="dialog"
         aria-modal="true"
@@ -429,7 +429,7 @@ export default function InventoryPostingDialog({
                   aria-controls="inventory-posting-picker-results"
                   aria-autocomplete="list"
                   placeholder="Αναζήτηση SKU ή παραλλαγής…"
-                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 font-bold text-slate-900 outline-none"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 font-bold text-slate-900 outline-hidden"
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -501,12 +501,12 @@ export default function InventoryPostingDialog({
               {warehouseIds.map((warehouseId, warehouseIndex) => (
                 <article key={`${warehouseId}-${warehouseIndex}`} className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50 p-3">
-                    <label className="min-w-[15rem] flex-1 text-xs font-black text-slate-600">
+                    <label className="min-w-60 flex-1 text-xs font-black text-slate-600">
                       Αποθήκη {formatNumber(warehouseIndex + 1)}
                       <select
                         value={warehouseId}
                         onChange={(event) => changeWarehouse(warehouseIndex, event.target.value)}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-hidden focus:border-emerald-500"
                         aria-label={`Επιλογή αποθήκης ${formatNumber(warehouseIndex + 1)}`}
                       >
                         {warehouses.map((warehouse) => (
@@ -563,7 +563,7 @@ export default function InventoryPostingDialog({
                                     onChange={(event) => setValues((currentValues) => ({ ...currentValues, [inputKey]: event.target.value }))}
                                     placeholder="Κενό"
                                     aria-label={`${mode === 'count' ? 'Μετρημένο φυσικό απόθεμα' : 'Ποσότητα προσθήκης'} για ${sizeInfo ? `μέγεθος ${sizeInfo}` : 'είδος χωρίς μέγεθος'} στην ${warehouses.find((warehouse) => warehouse.id === warehouseId)?.name || 'επιλεγμένη αποθήκη'}`}
-                                    className="ml-auto block w-28 rounded-lg border border-slate-200 px-3 py-2 text-right font-black tabular-nums outline-none focus:border-emerald-500"
+                                    className="ml-auto block w-28 rounded-lg border border-slate-200 px-3 py-2 text-right font-black tabular-nums outline-hidden focus:border-emerald-500"
                                   />
                                 </td>
                               </tr>
@@ -593,7 +593,7 @@ export default function InventoryPostingDialog({
                       }
                     }}
                     placeholder="π.χ. 19,5cm ή ειδική τιμή"
-                    className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-500"
+                    className="mt-1.5 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-sm outline-hidden focus:border-violet-500"
                   />
                 </label>
                 <button type="button" onClick={addCustomSize} className={`${BTN_SECONDARY} justify-center`}>
@@ -618,7 +618,7 @@ export default function InventoryPostingDialog({
                   maxLength={500}
                   rows={4}
                   placeholder={mode === 'count' ? 'π.χ. Αρχική φυσική απογραφή 23/07/2026' : 'π.χ. Παραλαβή εκτός εντολής προμηθευτή'}
-                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
+                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-hidden focus:border-emerald-500"
                 />
               </label>
             )}

@@ -159,7 +159,7 @@ export default function RepairsPage() {
           <div className="space-y-3">
             {byClient.length === 0 && <EmptyState icon={Wrench} title="Καμία επισκευή σε εξέλιξη." size="compact" />}
             {byClient.map(([id, items]) => (
-              <section key={id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <section key={id} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
                 <h3 className="mb-3 px-1 font-black text-slate-900">{ctl.customerName(id)} <span className="text-xs font-bold text-slate-400">· {formatGreekNumber(items.length)} σε εξέλιξη</span></h3>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">{items.map(renderCard)}</div>
               </section>
@@ -171,7 +171,7 @@ export default function RepairsPage() {
               <input type="checkbox" className="accent-[#060b00]" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
               <Archive size={13} /> Μόνο αρχειοθετημένες
             </label>
-            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-xs">
               {history.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν κλεισμένες επισκευές.</p>}
               {history.map((item) => (
                 <button key={item.id} type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSelectedId(item.id)}>
@@ -186,7 +186,7 @@ export default function RepairsPage() {
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-xs">
             {activity.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν κινήσεις.</p>}
             {activity.map(({ event, item }) => (
               <button key={event.id} type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSelectedId(item.id)}>

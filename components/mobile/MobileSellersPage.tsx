@@ -204,7 +204,7 @@ export default function MobileSellersPage() {
   const detailStats = detailSeller ? sellerStatsMap.get(detailSeller.id) : null;
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-slate-50 to-white pb-28">
+    <div className="min-h-full bg-linear-to-b from-slate-50 to-white pb-28">
       <MobileScreenHeader icon={UserCheck} title="Πλασιέ" subtitle="Διαχείριση & Οικονομικά" iconClassName="text-sky-600" />
 
       {/* ── Global Stats Strip ── */}
@@ -225,10 +225,10 @@ export default function MobileSellersPage() {
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Αναζήτηση πλασιέ..." className="w-full pl-9 pr-4 py-3 rounded-xl bg-white border border-slate-200 text-sm font-medium outline-none focus:ring-2 focus:ring-sky-500/20" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Αναζήτηση πλασιέ..." className="w-full pl-9 pr-4 py-3 rounded-xl bg-white border border-slate-200 text-sm font-medium outline-hidden focus:ring-2 focus:ring-sky-500/20" />
             {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X size={14} /></button>}
           </div>
-          <button onClick={openCreate} className="shrink-0 p-3 bg-sky-600 text-white rounded-xl shadow-sm active:scale-95"><Plus size={20} /></button>
+          <button onClick={openCreate} className="shrink-0 p-3 bg-sky-600 text-white rounded-xl shadow-xs active:scale-95"><Plus size={20} /></button>
         </div>
       </div>
 
@@ -246,7 +246,7 @@ export default function MobileSellersPage() {
           filteredSellers.map(seller => {
             const stats = sellerStatsMap.get(seller.id);
             return (
-              <div key={seller.id} className={`bg-white rounded-2xl border p-4 shadow-sm transition-all ${seller.is_approved ? 'border-slate-100' : 'border-slate-200 opacity-60'}`}>
+              <div key={seller.id} className={`bg-white rounded-2xl border p-4 shadow-xs transition-all ${seller.is_approved ? 'border-slate-100' : 'border-slate-200 opacity-60'}`}>
                 {/* Header */}
                 <div className="flex items-start gap-3">
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${seller.is_approved ? 'bg-sky-50 text-sky-600' : 'bg-slate-100 text-slate-400'}`}>
@@ -353,7 +353,7 @@ export default function MobileSellersPage() {
               </div>
 
               {/* 30-day Trend */}
-              <div className="bg-gradient-to-r from-slate-50 to-white rounded-xl border border-slate-100 p-4">
+              <div className="bg-linear-to-r from-slate-50 to-white rounded-xl border border-slate-100 p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Τελευταίες 30 Ημέρες</p>
@@ -442,14 +442,14 @@ export default function MobileSellersPage() {
             {/* Full Name */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ονοματεπώνυμο</label>
-              <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. Γιάννης Παπαδόπουλος" autoFocus />
+              <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. Γιάννης Παπαδόπουλος" autoFocus />
             </div>
             {/* Email */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ηλ. ταχυδρομείο</label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="seller@example.com" type="email" disabled={!!editingSeller} />
+                <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="seller@example.com" type="email" disabled={!!editingSeller} />
               </div>
             </div>
             {/* Password (create) or Reset (edit) */}
@@ -458,7 +458,7 @@ export default function MobileSellersPage() {
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Κωδικός</label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} className="w-full p-3 pl-10 pr-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Τουλάχιστον 6 χαρακτήρες" type={showPassword ? 'text' : 'password'} />
+                  <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} className="w-full p-3 pl-10 pr-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Τουλάχιστον 6 χαρακτήρες" type={showPassword ? 'text' : 'password'} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -475,7 +475,7 @@ export default function MobileSellersPage() {
                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Νέος Κωδικός</label>
                     <div className="relative">
                       <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input value={resetPassword} onChange={e => setResetPassword(e.target.value)} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Νέος κωδικός" type={showPassword ? 'text' : 'password'} />
+                      <input value={resetPassword} onChange={e => setResetPassword(e.target.value)} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="Νέος κωδικός" type={showPassword ? 'text' : 'password'} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
@@ -489,7 +489,7 @@ export default function MobileSellersPage() {
               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Προμήθεια (%)</label>
               <div className="relative">
                 <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={form.commission_percent} onChange={e => { const val = e.target.value.replace(/[^0-9.,]/g, ''); setForm(p => ({ ...p, commission_percent: val })); }} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. 5" inputMode="decimal" />
+                <input value={form.commission_percent} onChange={e => { const val = e.target.value.replace(/[^0-9.,]/g, ''); setForm(p => ({ ...p, commission_percent: val })); }} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-hidden font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="π.χ. 5" inputMode="decimal" />
               </div>
               <p className="text-[10px] text-slate-400 mt-1">Μπορεί να αλλαχτεί ανά παραγγελία</p>
             </div>

@@ -392,7 +392,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     if (viewMode === 'preview' && settings) {
         return (
             <div className="bg-white min-h-screen relative">
-                <div className="print:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 p-4 z-50 flex justify-between items-center shadow-sm">
+                <div className="print:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 p-4 z-50 flex justify-between items-center shadow-xs">
                     <button onClick={() => setViewMode('list')} className="flex items-center gap-2 text-slate-600 font-bold">
                         <ArrowLeft size={20}/> Πίσω
                     </button>
@@ -449,7 +449,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                         </button>
                         <button
                             onClick={() => setActiveTab('catalog')}
-                            className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-sm"
+                            className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-xs"
                         >
                             Φωτοκατάλογος
                         </button>
@@ -457,7 +457,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                 </div>
 
                 <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
-                    <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-xs">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                                 <div className="text-sm font-black text-slate-900">Επιλογή Προϊόντων</div>
@@ -478,7 +478,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 value={catalogSearch}
                                 onChange={(e) => setCatalogSearch(e.target.value)}
                                 placeholder="Αναζήτηση SKU ή περιγραφής..."
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-3 text-sm font-medium outline-none focus:border-slate-400"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-3 text-sm font-medium outline-hidden focus:border-slate-400"
                             />
                         </div>
 
@@ -490,7 +490,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                         </button>
                     </div>
 
-                    <div className="mb-4 flex-1 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                    <div className="mb-4 flex-1 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
                         <div className="space-y-2">
                             {catalogProducts.map((product) => {
                                 const selected = selectedSkus.has(product.sku);
@@ -511,7 +511,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                             <div className="font-black text-slate-900">{product.sku}</div>
                                             <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{product.description || product.category}</div>
                                         </div>
-                                        <div className={`flex h-5 w-5 items-center justify-center rounded border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                        <div className={`flex h-5 w-5 items-center justify-center rounded-sm border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
                                             <Plus size={12} className={selected ? 'rotate-45' : ''} />
                                         </div>
                                     </button>
@@ -543,7 +543,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                 <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
                     <button
                         onClick={() => setActiveTab('labels')}
-                        className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-sm"
+                        className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-xs"
                     >
                         Ετικέτες
                     </button>
@@ -558,7 +558,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
 
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
             {!activeMaster ? (
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
                     <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
                     <div className="relative">
                         <SkuVisualizer />
@@ -571,7 +571,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 onChange={e => setInput(e.target.value.toUpperCase())}
                                 onKeyDown={e => e.key === 'Enter' && executeSmartAdd()}
                                 placeholder="π.χ. DA100 ή 1005..."
-                                className="flex-1 bg-transparent p-2 outline-none font-mono font-bold text-lg text-transparent uppercase placeholder-slate-300 relative z-10"
+                                className="flex-1 bg-transparent p-2 outline-hidden font-mono font-bold text-lg text-transparent uppercase placeholder-slate-300 relative z-10"
                                 autoFocus
                             />
                             {input && <button onClick={() => setInput('')} className="z-10"><X size={18} className="text-slate-400"/></button>}
@@ -617,7 +617,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                     value={qty}
                                     onChange={e => setQty(parseInt(e.target.value)||1)}
                                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); } }}
-                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-slate-50 text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
+                                    className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-hidden bg-slate-50 text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-xs"
                                 />
                             </div>
                             <button 
@@ -643,10 +643,10 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
 
                     <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl mb-6 border border-slate-100">
                         <span className="text-xs font-bold text-slate-500 uppercase ml-1">Ποσότητα</span>
-                        <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-                            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded text-slate-600 font-bold hover:bg-slate-200">-</button>
+                        <div className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 p-1 shadow-xs">
+                            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-sm text-slate-600 font-bold hover:bg-slate-200">-</button>
                             <span className="w-8 text-center font-black text-lg">{formatNumber(qty)}</span>
-                            <button onClick={() => setQty(qty + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded text-slate-600 font-bold hover:bg-slate-200">+</button>
+                            <button onClick={() => setQty(qty + 1)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-sm text-slate-600 font-bold hover:bg-slate-200">+</button>
                         </div>
                     </div>
 
@@ -670,7 +670,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 <button 
                                     key={v.suffix}
                                     onClick={() => handleAddItem(v)}
-                                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-sm bg-white ${finishColor}`}
+                                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 active:scale-95 shadow-xs bg-white ${finishColor}`}
                                 >
                                     <span className="text-lg font-black flex items-center gap-0.5">
                                         {finish.code}
@@ -690,13 +690,13 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
                         <button 
                             onClick={() => setPrintFormat('standard')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'standard' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                         >
                             <Tag size={14}/> Χονδρ.
                         </button>
                         <button 
                             onClick={() => setPrintFormat('retail')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'retail' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
                         >
                             <ShoppingBag size={14}/> Λιαν.
                         </button>
@@ -705,13 +705,13 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
                         <button
                             onClick={() => setShowPrice(true)}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${showPrice ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                         >
                             Τιμή: Ναι
                         </button>
                         <button
                             onClick={() => setShowPrice(false)}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!showPrice ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                         >
                             Τιμή: Όχι
                         </button>
@@ -720,13 +720,13 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     <div className={`flex gap-2 bg-slate-100 p-1 rounded-xl ${!showPrice ? 'opacity-40 pointer-events-none' : ''}`}>
                         <button
                             onClick={() => setPriceTier('wholesale')}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'wholesale' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'wholesale' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                         >
                             Χονδρική
                         </button>
                         <button
                             onClick={() => setPriceTier('retail')}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
                         >
                             Λιανική ×3
                         </button>
@@ -735,13 +735,13 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     <div className={`flex gap-2 bg-slate-100 p-1 rounded-xl ${!showPrice ? 'opacity-40 pointer-events-none' : ''}`}>
                         <button
                             onClick={() => setCodifiedPrice(false)}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!codifiedPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!codifiedPrice ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                         >
                             32,20€
                         </button>
                         <button
                             onClick={() => setCodifiedPrice(true)}
-                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${codifiedPrice ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${codifiedPrice ? 'bg-white text-violet-700 shadow-xs' : 'text-slate-500'}`}
                         >
                             Κωδ. 132209
                         </button>

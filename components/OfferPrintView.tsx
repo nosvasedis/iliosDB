@@ -61,8 +61,8 @@ export default function OfferPrintView({ offer }: Props) {
                 className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-6 text-center text-slate-400 font-mono text-[11px]">{formatNumber(globalIndex + 1)}</div>
-                <div className="w-14 flex justify-center flex-shrink-0">
-                    <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200">
+                <div className="w-14 flex justify-center shrink-0">
+                    <div className="w-12 h-12 bg-slate-50 rounded-sm overflow-hidden border border-slate-200">
                         {imageUrl && (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         )}
@@ -70,9 +70,9 @@ export default function OfferPrintView({ offer }: Props) {
                 </div>
                 <div className="flex-1 px-1 min-w-0">
                     <div className="font-black text-slate-900 truncate">{fullSku}</div>
-                    <div className="text-slate-500 font-medium text-[9px] leading-[1.15] whitespace-normal break-words">{description}</div>
+                    <div className="text-slate-500 font-medium text-[9px] leading-[1.15] whitespace-normal wrap-break-word">{description}</div>
                     <CustomerPrintSkuNote sku={item.sku} note={item.notes} />
-                    {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
+                    {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded-sm text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
                     <div>{formatNumber(item.quantity)} x {formatDecimal(item.price_at_order, 2)}</div>
@@ -118,7 +118,7 @@ export default function OfferPrintView({ offer }: Props) {
                             <span className="font-mono font-bold text-slate-900">{formatDate(offer.created_at)}</span>
                         </div>
                         {!offer.hide_silver_price_in_pdf && (
-                            <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-0.5 inline-flex">
+                            <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded-sm border border-slate-100 mt-0.5 inline-flex">
                                 <Coins size={10} className="text-slate-400"/>
                                 <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span>
                                 <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>

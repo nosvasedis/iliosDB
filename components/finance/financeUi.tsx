@@ -80,7 +80,7 @@ export function BillingToggle({ value, onChange, allowAll = false }: { value: Fi
           type="button"
           onClick={() => onChange(key)}
           className={`rounded-lg px-3 py-1.5 text-xs font-black transition-all ${value === key
-            ? key === 'T' ? 'bg-indigo-600 text-white shadow-sm' : key === 'X' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'bg-white text-slate-900 shadow-sm'
+            ? key === 'T' ? 'bg-indigo-600 text-white shadow-xs' : key === 'X' ? 'bg-amber-400 text-amber-950 shadow-xs' : 'bg-white text-slate-900 shadow-xs'
             : 'text-slate-500 hover:text-slate-800'}`}
         >
           {label}
@@ -123,10 +123,10 @@ export function KpiTile({ icon: Icon, label, value, hint, tone = 'slate', onClic
     <Wrapper
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`group flex min-w-0 flex-col gap-2 rounded-3xl bg-gradient-to-br to-white p-4 text-left shadow-sm ring-1 ${tones} ${onClick ? 'transition-all hover:-translate-y-0.5 hover:shadow-md' : ''}`}
+      className={`group flex min-w-0 flex-col gap-2 rounded-3xl bg-linear-to-br to-white p-4 text-left shadow-xs ring-1 ${tones} ${onClick ? 'transition-all hover:-translate-y-0.5 hover:shadow-md' : ''}`}
     >
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/80 shadow-sm ring-1 ring-black/5"><Icon size={16} /></span>
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/80 shadow-xs ring-1 ring-black/5"><Icon size={16} /></span>
         <span className="truncate text-[11px] font-black uppercase tracking-wide opacity-80">{label}</span>
       </div>
       <div className="truncate text-2xl font-black tracking-tight text-slate-900 tabular-nums">{value}</div>
@@ -146,7 +146,7 @@ export function SectionCard({ title, subtitle, icon: Icon, actions, children, cl
   bodyClassName?: string;
 }) {
   return (
-    <section className={`overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm ${className}`}>
+    <section className={`overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xs ${className}`}>
       <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
         {Icon ? <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-slate-600 ring-1 ring-slate-100"><Icon size={16} /></span> : null}
         <div className="min-w-0 flex-1">
@@ -181,12 +181,12 @@ export function ProgressBar({ ratio, tone }: { ratio: number; tone?: string }) {
 }
 
 export const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5';
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-900/5';
 export const labelClass = 'mb-1.5 block text-[11px] font-black uppercase tracking-wide text-slate-500';
 export const primaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white shadow-sm transition-all hover:bg-black disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white shadow-xs transition-all hover:bg-black disabled:cursor-not-allowed disabled:opacity-50';
 export const secondaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 shadow-xs transition-all hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50';
 export const ghostButton =
   'inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-800';
 
@@ -237,14 +237,14 @@ export function FinanceModal({ title, eyebrow, icon: Icon, onClose, busy = false
   // Portal: a modal opened from inside another (transformed) modal must still cover the screen.
   return createPortal(
     <div
-      className="fixed inset-0 z-[150] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4"
+      className="fixed inset-0 z-150 flex items-end justify-center bg-slate-950/50 backdrop-blur-xs animate-in fade-in sm:items-center sm:p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}
     >
-      <div role="dialog" aria-modal="true" className={`flex max-h-[94vh] w-full ${width} flex-col overflow-hidden rounded-t-[2rem] border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95 sm:rounded-[2rem]`}>
-        <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white px-5 py-4">
+      <div role="dialog" aria-modal="true" className={`flex max-h-[94vh] w-full ${width} flex-col overflow-hidden rounded-t-4xl border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95 sm:rounded-4xl`}>
+        <div className="relative overflow-hidden border-b border-slate-100 bg-linear-to-br from-slate-50 to-white px-5 py-4">
           <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-amber-200/30 blur-3xl" />
           <div className="relative flex items-center gap-3">
-            {Icon ? <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-sm"><Icon size={18} /></span> : null}
+            {Icon ? <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-amber-300 shadow-xs"><Icon size={18} /></span> : null}
             <div className="min-w-0 flex-1">
               {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">{eyebrow}</p> : null}
               <h2 className="truncate text-lg font-black text-slate-900">{title}</h2>

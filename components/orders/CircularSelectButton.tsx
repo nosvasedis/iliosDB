@@ -27,10 +27,10 @@ export function CircularSelectButton({
             }}
             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
                 selected
-                    ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                    ? 'bg-blue-500 border-blue-500 shadow-xs shadow-blue-200'
                     : someSelected
                       ? 'bg-blue-300 border-blue-300'
-                      : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-sm'
+                      : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-xs'
             } ${className}`}
             title={title ?? (selected ? 'Αποεπιλογή' : 'Επιλογή παραγγελίας')}
             aria-pressed={selected}

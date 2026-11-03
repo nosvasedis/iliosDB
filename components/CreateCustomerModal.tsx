@@ -100,7 +100,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
         : '?';
 
     const inputClass =
-        'w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-400 transition-all text-sm font-medium text-slate-800 placeholder:text-slate-400';
+        'w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-500/15 focus:border-blue-400 transition-all text-sm font-medium text-slate-800 placeholder:text-slate-400';
 
     const tabs: { id: CreateTab; label: string; hint: string }[] = [
         { id: 'general', label: 'Γενικά', hint: 'Όνομα, επικοινωνία, διεύθυνση' },
@@ -111,7 +111,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
     ];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-xs sm:items-center sm:p-6 animate-in fade-in duration-200">
             <div
                 className="flex max-h-[96vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-100 bg-white shadow-xl sm:max-h-[90vh] sm:max-w-2xl sm:rounded-3xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
                 role="dialog"
@@ -163,7 +163,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                                 onClick={() => setTab(t.id)}
                                 className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-3 py-2.5 text-center transition-all sm:px-4 ${
                                     tab === t.id
-                                        ? 'bg-white font-bold text-[#060b00] shadow-sm'
+                                        ? 'bg-white font-bold text-[#060b00] shadow-xs'
                                         : 'font-semibold text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -178,7 +178,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                     <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6 custom-scrollbar">
                         {tab === 'general' && (
                             <div className="space-y-5">
-                                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs sm:p-5">
                                     <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         <User size={14} className="text-blue-500" />
                                         Ταυτότητα
@@ -195,7 +195,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                                         autoFocus
                                     />
                                 </div>
-                                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs sm:p-5">
                                     <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         <Phone size={14} className="text-emerald-600" />
                                         Επικοινωνία
@@ -241,7 +241,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                         )}
 
                         {tab === 'fiscal' && (
-                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs sm:p-5">
                                 <div className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                     <CreditCard size={14} className="text-amber-500" />
                                     Φορολογικά
@@ -284,7 +284,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                                         type="button"
                                         onClick={handleAfmLookup}
                                         disabled={isSearchingAfm || !form.vat_number || form.vat_number.length < 9}
-                                        className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-black disabled:pointer-events-none disabled:opacity-40"
+                                        className="flex shrink-0 items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-xs transition-colors hover:bg-black disabled:pointer-events-none disabled:opacity-40"
                                     >
                                         {isSearchingAfm ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
                                         <span className="hidden sm:inline">Αναζήτηση</span>
@@ -344,7 +344,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                         )}
 
                         {tab === 'branches' && (
-                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs sm:p-5">
                                 <CustomerBranchesEditor customer={form} onChange={next => setForm({ ...form, branches: next })} />
                             </div>
                         )}
@@ -360,7 +360,7 @@ export default function CreateCustomerModal({ draft, onSave, onCancel, tagSugges
                         )}
 
                         {tab === 'notes' && (
-                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs sm:p-5">
                                 <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                     <MessageSquare size={14} className="text-violet-500" />
                                     Σημειώσεις

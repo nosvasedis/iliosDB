@@ -341,7 +341,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
                 }}
                 placeholder="Αναζήτηση SKU, κατηγορίας…"
                 aria-label="Αναζήτηση"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm font-semibold outline-none focus:border-slate-900"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm font-semibold outline-hidden focus:border-slate-900"
               />
               {search && (
                 <button type="button" onClick={() => setSearch('')} aria-label="Καθαρισμός" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-700"><X size={15} /></button>
@@ -418,7 +418,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
 
       {scanPurpose && (
         // Above the entry sheet, so scanning adds lines without closing it.
-        <div className="relative z-[600]">
+        <div className="relative z-600">
           <BarcodeScanner products={products} onScan={handleScan} onClose={() => setScanPurpose(null)} />
         </div>
       )}

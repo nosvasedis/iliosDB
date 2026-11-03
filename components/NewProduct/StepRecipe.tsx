@@ -36,14 +36,14 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                 />
 
                 <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('raw')} className="group flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-4 text-left transition-all hover:border-violet-300 hover:shadow-md active:scale-[0.99]">
+                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('raw')} className="group flex items-center gap-3 rounded-2xl border border-violet-200 bg-linear-to-br from-violet-50 to-white p-4 text-left transition-all hover:border-violet-300 hover:shadow-md active:scale-[0.99]">
                         <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-500 text-white shadow-md shadow-violet-500/25 transition-transform group-hover:scale-105"><Plus size={20} /></span>
                         <span>
                             <span className="block text-sm font-black text-violet-900">Προσθήκη υλικού</span>
                             <span className="block text-[11px] font-medium text-violet-600/70">Πέτρες, κορδόνια, σμάλτα…</span>
                         </span>
                     </button>
-                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('component')} className="group flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-md active:scale-[0.99]">
+                    <button type="button" onClick={() => setters.setIsRecipeModalOpen('component')} className="group flex items-center gap-3 rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-md active:scale-[0.99]">
                         <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-500 text-white shadow-md shadow-blue-500/25 transition-transform group-hover:scale-105"><PackageOpen size={20} /></span>
                         <span>
                             <span className="block text-sm font-black text-blue-900">Προσθήκη STX</span>
@@ -52,7 +52,7 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                     </button>
                 </div>
 
-                <Panel bodyClassName="!p-0" className="overflow-hidden">
+                <Panel bodyClassName="p-0!" className="overflow-hidden">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400">
                             <tr>
@@ -164,7 +164,7 @@ export const StepRecipe: React.FC<Props> = ({ formState, materials, products, se
                         <SummaryRow label="Επιμετάλλωση" value={state.costBreakdown?.details?.plating_cost || 0} sub={`${formatDecimal(state.labor.plating_cost_x)}€ x ${formatNumber(state.weight)}g`} color="bg-amber-400" />
                         <SummaryRow label="Καρφωτικά" value={state.costBreakdown?.details?.stone_setting_cost || 0} sub="Σταθερό" color="bg-purple-400" />
                     </div>
-                    <div className="mt-4 flex items-center justify-between rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 text-white shadow-md shadow-emerald-500/20">
+                    <div className="mt-4 flex items-center justify-between rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 px-4 py-3 text-white shadow-md shadow-emerald-500/20">
                         <span className="text-xs font-black uppercase tracking-wider opacity-90">Σύνολο κόστους</span>
                         <span className="font-mono text-2xl font-black">{formatCurrency(state.masterEstimatedCost)}</span>
                     </div>

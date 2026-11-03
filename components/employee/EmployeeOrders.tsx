@@ -152,7 +152,7 @@ export default function EmployeeOrders({ onCreate, onEdit, onOpenDeliveries, ope
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
                 {isDesktop ? (
-                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-xs">
                         <table className="w-full text-left text-sm">
                             <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                                 <tr>

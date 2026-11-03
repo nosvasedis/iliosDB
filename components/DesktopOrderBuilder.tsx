@@ -45,7 +45,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
 
     const viewButton = (active: boolean) =>
         `inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
-            active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
+            active ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
         }`;
 
     return (
@@ -144,7 +144,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
 
             {/* Full-screen Saving Overlay */}
             {state.isSaving && (
-                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-xs flex flex-col items-center justify-center gap-5 animate-in fade-in duration-200">
                     <div className="relative">
                         <div className="w-20 h-20 rounded-full bg-slate-900/10 animate-ping absolute inset-0" />
                         <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center relative">

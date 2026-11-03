@@ -111,7 +111,7 @@ export default function SmartVariantAddPanel({
   };
 
   return (
-    <section data-tone="molds" className="sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+    <section data-tone="molds" className="sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
       <div className="sku-section-heading mb-5 flex items-center gap-2.5 border-b border-slate-100 pb-3">
         <span className="shrink-0 rounded-lg bg-amber-50 p-1.5 ring-1 ring-amber-100">
           <Wand2 size={15} className="text-amber-700" />

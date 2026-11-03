@@ -36,7 +36,7 @@ export function ModalDetailSkeleton() {
       <Shimmer className="mb-5 h-4 w-1/4" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Shimmer key={i} className="h-[4.5rem] rounded-2xl" />
+          <Shimmer key={i} className="h-18 rounded-2xl" />
         ))}
       </div>
       <Shimmer className="mt-5 h-28 rounded-2xl" />
@@ -75,7 +75,7 @@ export function SkuModalShell({ periodLabel, periodMode, onPeriodChange, onPrint
             <button
               type="button"
               onClick={onPrint}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
             >
               <Printer size={14} />
               Εκτύπωση PDF

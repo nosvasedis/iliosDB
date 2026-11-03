@@ -72,11 +72,11 @@ const MoldEditor: React.FC<EditorProps> = ({ initial, seed, existingCodes, locat
         finally { setSaving(false); }
     };
 
-    const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100';
+    const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100';
     const labelCls = 'mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400';
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
             <div
                 className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95"
                 onKeyDown={e => {
@@ -158,7 +158,7 @@ interface MoldCardProps {
 const MoldCard: React.FC<MoldCardProps> = ({ mold, highlighted = false, onEdit, onDuplicate }) => {
     const lstx = isLstxMold(mold.code);
     return (
-        <div className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 ${highlighted ? 'border-amber-400 shadow-lg ring-4 ring-amber-400/40' : 'border-slate-100 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-md'}`}>
+        <div className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-xs transition-all duration-200 ${highlighted ? 'border-amber-400 shadow-lg ring-4 ring-amber-400/40' : 'border-slate-100 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-md'}`}>
             <div className="flex-1 space-y-4 p-4">
                 <div className="flex items-start gap-3">
                     <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${lstx ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -197,7 +197,7 @@ const KpiTile: React.FC<{ icon: React.ElementType; label: string; value: React.R
         type="button"
         onClick={onClick}
         disabled={!onClick}
-        className={`flex min-w-0 items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition ${active ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100'} ${onClick ? 'hover:border-slate-300' : 'cursor-default'}`}
+        className={`flex min-w-0 items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-xs transition ${active ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100'} ${onClick ? 'hover:border-slate-300' : 'cursor-default'}`}
     >
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon size={18} /></div>
         <div className="min-w-0">
@@ -467,15 +467,15 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                     )}
                     below={(
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-sm">
-                                <button type="button" onClick={() => onResourceTabChange?.('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
+                            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-xs">
+                                <button type="button" onClick={() => onResourceTabChange?.('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
                                     <Gem size={16} /> Υλικά
                                 </button>
-                                <button type="button" onClick={() => onResourceTabChange?.('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
+                                <button type="button" onClick={() => onResourceTabChange?.('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
                                     <MapPin size={16} /> Λάστιχα
                                 </button>
                             </div>
-                            <div className="flex gap-1 rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-sm">
+                            <div className="flex gap-1 rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-xs">
                                 {([['standard', 'Κανονικά', MapPin, 'text-amber-600', 'bg-amber-50 text-amber-700 ring-amber-100'], ['lstx', 'LSTX', Puzzle, 'text-blue-600', 'bg-blue-50 text-blue-700 ring-blue-100']] as const).map(([k, label, Icon, accent, chipCls]) => {
                                     const active = moldTab === k;
                                     return (
@@ -505,7 +505,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                 </div>
 
                 {/* Toolbar */}
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2 shadow-xs">
                     <div className="flex min-w-[220px] flex-1 items-center rounded-xl border border-slate-200 bg-slate-50 px-2 focus-within:border-slate-400 focus-within:bg-white">
                         <Search size={16} className="text-slate-400" />
                         <input
@@ -517,18 +517,18 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                                 if (e.key === 'Escape') setSearchTerm('');
                                 if (e.key === 'Enter' && filteredMolds[0]) scrollToMold(filteredMolds[0].code);
                             }}
-                            className="w-full bg-transparent px-2 py-2 text-sm font-semibold text-slate-700 outline-none"
+                            className="w-full bg-transparent px-2 py-2 text-sm font-semibold text-slate-700 outline-hidden"
                         />
                         {searchTerm ? (
                             <button onClick={() => setSearchTerm('')} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
                         ) : (
-                            <kbd className="hidden rounded border border-slate-200 bg-white px-1.5 text-[10px] font-bold text-slate-400 sm:block">/</kbd>
+                            <kbd className="hidden rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] font-bold text-slate-400 sm:block">/</kbd>
                         )}
                     </div>
 
                     <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2">
                         <Archive size={14} className="text-slate-400" />
-                        <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="max-w-[170px] bg-transparent py-2 text-xs font-bold text-slate-600 outline-none">
+                        <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="max-w-[170px] bg-transparent py-2 text-xs font-bold text-slate-600 outline-hidden">
                             <option value="">Όλες οι τοποθεσίες</option>
                             <option value="__none">— Χωρίς τοποθεσία —</option>
                             {locations.map(l => <option key={l} value={l}>{l}</option>)}
@@ -540,7 +540,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                         <select
                             value={`${sortKey}:${sortDir}`}
                             onChange={e => { const [k, d] = e.target.value.split(':'); setSortKey(k as SortKey); setSortDir(Number(d) as 1 | -1); }}
-                            className="bg-transparent py-2 text-xs font-bold text-slate-600 outline-none"
+                            className="bg-transparent py-2 text-xs font-bold text-slate-600 outline-hidden"
                         >
                             <option value="code:1">Κωδικός ↑</option>
                             <option value="code:-1">Κωδικός ↓ (νεότερα)</option>
@@ -555,8 +555,8 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                             <Download size={15} /> CSV
                         </button>
                         <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-0.5">
-                            <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`} title="Κάρτες"><LayoutGrid size={16} /></button>
-                            <button onClick={() => setViewMode('table')} className={`rounded-lg p-1.5 ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`} title="Πίνακας"><ListIcon size={16} /></button>
+                            <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`} title="Κάρτες"><LayoutGrid size={16} /></button>
+                            <button onClick={() => setViewMode('table')} className={`rounded-lg p-1.5 ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`} title="Πίνακας"><ListIcon size={16} /></button>
                         </div>
                     </div>
                 </div>
@@ -587,7 +587,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                             ))}
                         </div>
                     ) : (
-                        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-xs">
                             <table className="w-full min-w-[640px] text-sm">
                                 <thead className="border-b border-slate-100 bg-slate-50/80">
                                     <tr>
@@ -645,7 +645,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                 )}
 
                 {/* FLOATING ACTIONS — shown after scrolling past the header */}
-                <div className={`fixed bottom-8 right-8 z-[100] flex items-end gap-3 transition-all duration-300 ${showFab ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
+                <div className={`fixed bottom-8 right-8 z-100 flex items-end gap-3 transition-all duration-300 ${showFab ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
                     <button
                         type="button"
                         onClick={scrollToLatest}
@@ -659,7 +659,7 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
                     {isFabSearchOpen ? (
                         <form onSubmit={handleFabSearchSubmit} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-2 pl-4 pr-2 shadow-xl animate-in fade-in slide-in-from-right-2 duration-200">
                             <Search size={18} className="shrink-0 text-slate-400" />
-                            <input autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Αναζήτηση λάστιχου..." className="w-40 bg-transparent text-sm font-bold text-slate-700 outline-none sm:w-56" />
+                            <input autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Αναζήτηση λάστιχου..." className="w-40 bg-transparent text-sm font-bold text-slate-700 outline-hidden sm:w-56" />
                             <button type="button" onClick={closeFabSearch} aria-label="Κλείσιμο αναζήτησης" className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">
                                 <X size={18} />
                             </button>

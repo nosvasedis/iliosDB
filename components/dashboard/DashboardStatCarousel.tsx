@@ -67,8 +67,8 @@ export default function DashboardStatCarousel({
 
   return (
     <div
-      className={`relative flex flex-col justify-between overflow-hidden shadow-sm transition-colors duration-300 ${
-        isDesktop ? 'h-[10.5rem] rounded-3xl p-6 pb-8' : 'h-32 rounded-2xl p-5 pb-6'
+      className={`relative flex flex-col justify-between overflow-hidden shadow-xs transition-colors duration-300 ${
+        isDesktop ? 'h-42 rounded-3xl p-6 pb-8' : 'h-32 rounded-2xl p-5 pb-6'
       } ${slide.bg} ${className}`}
       tabIndex={isDesktop ? 0 : undefined}
       onKeyDown={isDesktop ? handleKeyDown : undefined}
@@ -87,7 +87,7 @@ export default function DashboardStatCarousel({
       <div className="relative z-10 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <div
-            className={`shrink-0 rounded-lg bg-white/20 backdrop-blur-sm ${
+            className={`shrink-0 rounded-lg bg-white/20 backdrop-blur-xs ${
               isDesktop ? 'p-2' : 'p-1.5'
             }`}
           >
@@ -130,9 +130,9 @@ export default function DashboardStatCarousel({
         </div>
       </div>
 
-      <div className="relative z-10 min-h-[4.5rem]">
+      <div className="relative z-10 min-h-18">
         {isLoading ? (
-          <div className="flex h-full min-h-[4.5rem] items-center">
+          <div className="flex h-full min-h-18 items-center">
             <MosaicSpinner light />
           </div>
         ) : (

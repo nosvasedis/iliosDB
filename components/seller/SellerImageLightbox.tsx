@@ -96,12 +96,12 @@ export default function SellerImageLightbox({ item, products, onSelectProduct, o
 
     return (
         <div
-            className="fixed inset-0 z-[500] bg-black/95 flex flex-col items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-500 bg-black/95 flex flex-col items-center justify-center animate-in fade-in duration-200"
             onClick={onClose}
         >
             <button
                 onClick={onClose}
-                className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors z-10"
+                className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-colors z-10"
             >
                 <X size={22} />
             </button>
@@ -148,13 +148,13 @@ export default function SellerImageLightbox({ item, products, onSelectProduct, o
                     <>
                         <button
                             onClick={(e) => { e.stopPropagation(); prevVariant(); }}
-                            className="absolute left-2 landscape:left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/25 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all active:scale-95 z-20"
+                            className="absolute left-2 landscape:left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/25 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-all active:scale-95 z-20"
                         >
                             <ChevronLeft size={24} />
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); nextVariant(); }}
-                            className="absolute right-2 landscape:right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/25 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all active:scale-95 z-20"
+                            className="absolute right-2 landscape:right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/25 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-all active:scale-95 z-20"
                         >
                             <ChevronRight size={24} />
                         </button>
@@ -215,7 +215,7 @@ export default function SellerImageLightbox({ item, products, onSelectProduct, o
             </div>
 
             {hasVariants && variants.length > 1 && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm text-white text-xs font-black px-3 py-1.5 rounded-full" onClick={e => e.stopPropagation()}>
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-xs text-white text-xs font-black px-3 py-1.5 rounded-full" onClick={e => e.stopPropagation()}>
                     {formatNumber(variantIdx + 1)} / {formatNumber(variants.length)}
                 </div>
             )}

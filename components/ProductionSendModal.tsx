@@ -1221,8 +1221,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     // ═════════════════════════════════════════════════════════════════════════
 
     return (
-        <div className="fixed inset-0 z-[230] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
+        <div className="fixed inset-0 z-230 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full h-full max-w-[1600px] sm:h-[92vh] sm:rounded-4xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
 
                 {isWorking && (
                     <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-50 flex items-center justify-center">
@@ -1239,10 +1239,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         <div className="min-w-0 flex-1">
                             <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Διαχείριση Παραγωγής</h2>
                             <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500 mt-0.5">
-                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 text-xs">#{formatOrderId(order.id)}</span>
+                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-sm border border-blue-100 text-xs">#{formatOrderId(order.id)}</span>
                                 <span className="flex items-start gap-1 min-w-0 text-slate-600 text-xs">
                                     <User size={13} className="mt-0.5 shrink-0" />
-                                    <span className="break-words"><OrderCustomerName order={order} /></span>
+                                    <span className="wrap-break-word"><OrderCustomerName order={order} /></span>
                                 </span>
                                 {hasUnsavedPrices && (
                                     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 py-0.5 pl-2 pr-0.5 text-[10px] font-black text-amber-800">
@@ -1262,7 +1262,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             {extractRetailClientFromNotes(order.notes).cleanNotes && (
                                 <div className="lg:hidden mt-1.5 flex items-start gap-1.5 rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-1 text-[10px] font-bold leading-snug text-yellow-800">
                                     <AlertCircle size={12} className="shrink-0 mt-px" />
-                                    <span className="break-words line-clamp-2" title={extractRetailClientFromNotes(order.notes).cleanNotes}>{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
+                                    <span className="wrap-break-word line-clamp-2" title={extractRetailClientFromNotes(order.notes).cleanNotes}>{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
                                 </div>
                             )}
 
@@ -1282,7 +1282,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         {extractRetailClientFromNotes(order.notes).cleanNotes && (
                             <div className="hidden lg:flex items-start gap-2 bg-yellow-50 text-yellow-800 px-3 py-1.5 rounded-xl border border-yellow-100 mr-2 max-w-[500px]" title={extractRetailClientFromNotes(order.notes).cleanNotes}>
                                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                <span className="text-[10px] font-bold break-words whitespace-normal leading-snug line-clamp-4">{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
+                                <span className="text-[10px] font-bold wrap-break-word whitespace-normal leading-snug line-clamp-4">{extractRetailClientFromNotes(order.notes).cleanNotes}</span>
                             </div>
                         )}
                         <button
@@ -1314,7 +1314,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 {['All', Gender.Women, Gender.Men, Gender.Unisex].map(g => (
                                     <button
                                         key={g} onClick={() => setFilterGender(g as any)}
-                                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all whitespace-nowrap ${filterGender === g ? 'bg-white shadow-sm text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all whitespace-nowrap ${filterGender === g ? 'bg-white shadow-xs text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         {g === 'All' ? 'Όλα' : (g === Gender.Women ? 'Γ' : (g === Gender.Men ? 'Α' : 'U'))}
                                     </button>
@@ -1325,7 +1325,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 <select
                                     value={filterCollection}
                                     onChange={(e) => setFilterCollection(e.target.value)}
-                                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold py-1.5 pl-2.5 pr-7 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[140px]"
+                                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold py-1.5 pl-2.5 pr-7 rounded-lg outline-hidden focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 max-w-[140px]"
                                 >
                                     <option value="All">Συλλογές</option>
                                     {relevantCollections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1346,7 +1346,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         placeholder="Αναζήτηση..."
                                         value={searchInput}
                                         onChange={(e) => setSearchInput(e.target.value)}
-                                        className="pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-28 focus:w-44 transition-all text-slate-700 placeholder:text-slate-400"
+                                        className="pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold outline-hidden focus:ring-2 focus:ring-blue-500/20 w-28 focus:w-44 transition-all text-slate-700 placeholder:text-slate-400"
                                     />
                                 </div>
                             </div>
@@ -1362,12 +1362,12 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         {/* Virtualized Item List */}
                         <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                             {(sendSelectionSummary.visiblePendingQty > 0 || visibleActiveBatches.length > 0) && (
-                                <div className="sticky top-0 z-[6] space-y-2 bg-gradient-to-b from-slate-50 via-slate-50/95 to-slate-50/0 px-3 pt-3 pb-3">
+                                <div className="sticky top-0 z-6 space-y-2 bg-linear-to-b from-slate-50 via-slate-50/95 to-slate-50/0 px-3 pt-3 pb-3">
                                     {sendSelectionSummary.visiblePendingQty > 0 && (
-                                        <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-2 shadow-sm backdrop-blur-sm">
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-2 shadow-xs backdrop-blur-xs">
                                             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                                                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white shadow-sm">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white shadow-xs">
                                                         <Factory size={12} /> Εκκρεμή για Παραγωγή
                                                     </span>
                                                     <span className="rounded-lg border border-amber-200 bg-white/80 px-2 py-1 text-[11px] font-black text-amber-800" title="Ορατό υπόλοιπο που δεν έχει σταλεί ακόμη στην παραγωγή">
@@ -1383,7 +1383,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     )}
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-1.5">
-                                                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm divide-x divide-slate-200">
+                                                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs divide-x divide-slate-200">
                                                         <button
                                                             onClick={handleSelectVisible}
                                                             disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0}
@@ -1412,7 +1412,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     <button
                                                         onClick={handleSend}
                                                         disabled={isSending || isLoadingShipments || totalToSend === 0}
-                                                        className="lg:hidden flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        className="lg:hidden flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white shadow-xs transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                                                     >
                                                         {isSending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                                                         Έναρξη επιλεγμένων
@@ -1422,7 +1422,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         </div>
                                     )}
                                     {visibleActiveBatches.length > 0 && (
-                                        <div className="rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur-sm">
+                                        <div className="rounded-xl border border-slate-200 bg-white/95 p-2 shadow-xs backdrop-blur-xs">
                                             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                                 <div className="flex flex-wrap items-center gap-1.5">
                                                     <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white divide-x divide-slate-200">
@@ -1553,7 +1553,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     <div className="w-full lg:w-[420px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
 
                         {/* Send Summary */}
-                        <div className="m-3 mb-0 p-4 bg-emerald-50/80 text-slate-900 flex flex-col gap-3 shrink-0 rounded-[1.75rem] border border-emerald-100 shadow-sm">
+                        <div className="m-3 mb-0 p-4 bg-emerald-50/80 text-slate-900 flex flex-col gap-3 shrink-0 rounded-[1.75rem] border border-emerald-100 shadow-xs">
                             <h3 className="font-bold uppercase text-[10px] tracking-widest text-emerald-700 flex items-center gap-2">
                                 <Wallet size={13} /> Τρέχουσα Αποστολή
                             </h3>
@@ -1570,7 +1570,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <button
                                 onClick={handleSend}
                                 disabled={isSending || isLoadingShipments || totalToSend === 0}
-                                className="w-full py-3.5 bg-emerald-600 text-white rounded-2xl font-black text-base shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 active:scale-95"
+                                className="w-full py-3.5 bg-emerald-600 text-white rounded-2xl font-black text-base shadow-xs hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 active:scale-95"
                             >
                                 {isSending ? <Loader2 className="animate-spin" size={18} /> : <Factory size={18} />}
                                 {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
@@ -1581,11 +1581,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 </p>
                             )}
                             <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
-                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
+                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-xs">
                                     <div className="text-slate-500 uppercase tracking-widest">Γραμμές</div>
                                     <div className="text-slate-950 text-sm">{formatNumber(sendSelectionSummary.selectedLineCount)}</div>
                                 </div>
-                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
+                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-xs">
                                     <div className="text-slate-500 uppercase tracking-widest">Υπόλοιπο</div>
                                     <div className="text-slate-950 text-sm">{formatNumber(sendSelectionSummary.totalPendingQty)}</div>
                                 </div>
@@ -1612,7 +1612,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         }
                                     }}
                                     disabled={isShipmentReadinessLoading}
-                                    className={`w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold border-2 transition-colors shadow-sm ${
+                                    className={`w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold border-2 transition-colors shadow-xs ${
                                         isFullyReadyToShip
                                             ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
                                             : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
@@ -1656,13 +1656,13 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             const prettyDate = new Date(shipment.shipped_at).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                                             const isLatestShipment = latestShipmentNumber === shipment.shipment_number;
                                             return (
-                                                <div key={shipment.id} className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-sm">
+                                                <div key={shipment.id} className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-xs">
                                                     <div className="flex items-center justify-between mb-1">
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full uppercase tracking-wide">#{formatNumber(shipment.shipment_number)}</span>
                                                             <span className="text-[11px] font-bold text-slate-700">{prettyDate}</span>
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{formatNumber(totalQty)} τεμ.</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-sm">{formatNumber(totalQty)} τεμ.</span>
                                                     </div>
                                                     {shipment.shipped_by && (
                                                         <div className="text-[9px] text-slate-400 mb-1.5 flex items-center gap-1"><User size={9} /> {shipment.shipped_by}</div>
@@ -1721,10 +1721,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 {memoizedProductionWaves.length > 0 ? memoizedProductionWaves.map(({ dateKey, batches, totalItems, net, vat, total }) => {
                                     const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
                                     return (
-                                        <div key={dateKey} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors mb-2">
+                                        <div key={dateKey} className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs hover:border-blue-300 transition-colors mb-2">
                                             <div className="flex justify-between items-start mb-1.5">
                                                 <div className="text-[11px] font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
-                                                <div className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{formatNumber(totalItems)} τεμ.</div>
+                                                <div className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-sm">{formatNumber(totalItems)} τεμ.</div>
                                             </div>
                                             <div className="space-y-0.5 mb-2 text-[11px]">
                                                 <div className="flex justify-between text-slate-500"><span>Καθαρή:</span><span className="font-mono font-bold">{formatCurrency(net)}</span></div>
@@ -1788,7 +1788,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Split */}
             {splitTarget && (
-                <div className="fixed inset-0 z-[250] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-250 bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <div className="min-w-0">
@@ -1828,7 +1828,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σε Στάδιο</label>
                             <select value={splitStage} onChange={(e) => setSplitStage(e.target.value as ProductionStage)}
-                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none text-sm">
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden text-sm">
                                 {STAGES.map(s => {
                                     const dis = (s.id === ProductionStage.Setting && !splitTarget?.batch.requires_setting) || (s.id === ProductionStage.Assembly && !splitTarget?.batch.requires_assembly);
                                     return <option key={s.id} value={s.id} disabled={dis}>{s.label}{dis ? ' (παραλείπεται)' : ''}</option>;
@@ -1845,7 +1845,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Note */}
             {editingNoteBatch && (
-                <div className="fixed inset-0 z-[270] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-270 bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Σημείωση</h3>
@@ -1856,10 +1856,10 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             <span className="ml-1.5 text-slate-400">· {formatNumber(editingNoteBatch.quantity)} τεμ.</span>
                         </div>
                         <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} onKeyDown={submitOnCtrlEnter(() => { if (!isWorking) void handleSaveNote(); })}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm" placeholder="Σημείωση..." autoFocus />
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm" placeholder="Σημείωση..." autoFocus />
                         <button onClick={handleSaveNote} disabled={isWorking} className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all hover:bg-slate-800 flex items-center justify-center gap-2 text-sm disabled:opacity-60">
                             {isWorking ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
-                            <kbd className="ml-1 hidden sm:inline rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
+                            <kbd className="ml-1 hidden sm:inline rounded-sm bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
                         </button>
                     </div>
                 </div>
@@ -1867,7 +1867,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Bulk Note */}
             {bulkNoteOpen && (
-                <div className="fixed inset-0 z-[275] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-275 bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Μαζική Σημείωση</h3>
@@ -1878,7 +1878,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             value={bulkNoteText}
                             onChange={(e) => setBulkNoteText(e.target.value)}
                             onKeyDown={submitOnCtrlEnter(() => { if (!isSavingBulkNote) void handleSaveBulkNote(); })}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:bg-white focus:border-amber-300 focus:ring-4 focus:ring-amber-500/10 transition-all h-28 resize-none text-sm"
                             placeholder="Σημείωση..."
                             autoFocus
                         />
@@ -1888,7 +1888,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm disabled:opacity-50"
                         >
                             {isSavingBulkNote ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
-                            <kbd className="ml-1 hidden sm:inline rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
+                            <kbd className="ml-1 hidden sm:inline rounded-sm bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-white/70">Ctrl+Enter</kbd>
                         </button>
                     </div>
                 </div>
@@ -1896,7 +1896,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Hold */}
             {holdingBatch && (
-                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-260 bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4 border border-amber-200">
                         <div className="flex justify-between items-center pb-2 border-b border-amber-100">
                             <h3 className="font-black text-base text-amber-800 flex items-center gap-2"><PauseCircle className="text-amber-500" /> Θέση σε Αναμονή</h3>
@@ -1904,7 +1904,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         </div>
                         <div className="text-xs font-bold text-slate-600 mb-2">Γιατί σταματάει η παραγωγή του {holdingBatch.sku}{holdingBatch.variant_suffix || ''};</div>
                         <textarea value={holdReason} onChange={(e) => setHoldReason(e.target.value)} onKeyDown={submitOnCtrlEnter(() => { if (!movingBatchIds.has(holdingBatch.id)) void confirmHold(); })}
-                            className="w-full p-3 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-28 resize-none text-sm font-bold text-slate-800"
+                            className="w-full p-3 bg-white border-2 border-amber-100 rounded-xl outline-hidden focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-28 resize-none text-sm font-bold text-slate-800"
                             placeholder="π.χ. Έλλειψη εξαρτήματος..." autoFocus />
                         {(() => {
                             const holdingMoving = holdingBatch ? movingBatchIds.has(holdingBatch.id) : false;
@@ -1932,7 +1932,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 const visiblePopupTotalQty = visiblePopupBatches.reduce((a, b) => a + b.quantity, 0);
                 const isPopupSearchActive = stagePopupSearchTerm.trim().length > 0;
                 return (
-                <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
+                <div className="fixed inset-0 z-260 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
                     <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
                         {/* Stage popup header */}
                         <div className={`p-4 sm:p-5 flex justify-between items-center ${headerBg} text-white transition-colors`}>
@@ -1980,7 +1980,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     onClick={() => setPolishingPopupTab('pending')}
                                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
                                         polishingPopupTab === 'pending'
-                                            ? 'bg-teal-600 text-white shadow-sm'
+                                            ? 'bg-teal-600 text-white shadow-xs'
                                             : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                     }`}
                                 >
@@ -1999,7 +1999,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     onClick={() => setPolishingPopupTab('dispatched')}
                                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
                                         polishingPopupTab === 'dispatched'
-                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            ? 'bg-blue-600 text-white shadow-xs'
                                             : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                     }`}
                                 >
@@ -2026,7 +2026,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         value={stagePopupSearchInput}
                                         onChange={(e) => setStagePopupSearchInput(e.target.value)}
                                         placeholder="Αναζήτηση σε SKU, πελάτη, παραγγελία, σημειώσεις..."
-                                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 transition-all"
+                                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-hidden focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 transition-all"
                                     />
                                     {stagePopupSearchInput && (
                                         <button
@@ -2058,7 +2058,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 visiblePopupBatches.length > 0 ? (
                                 <>
                                     {/* Sticky bulk bar */}
-                                    <div className="sticky top-0 z-[5] mx-4 mt-4 mb-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-2.5 shadow-sm">
+                                    <div className="sticky top-0 z-5 mx-4 mt-4 mb-2 bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl p-2.5 shadow-xs">
                                         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <button onClick={() => selectBatchIds(visiblePopupBatches.map(b => b.id))}
@@ -2107,7 +2107,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                     }}
                                                 >
                                                     <div className="pb-2.5">
-                                                        <div className={`bg-white rounded-xl border shadow-sm overflow-hidden relative transition-all ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : 'border-slate-200'}`}>
+                                                        <div className={`bg-white rounded-xl border shadow-xs overflow-hidden relative transition-all ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : 'border-slate-200'}`}>
                                                             {isRowMoving && (
                                                                 <div className="absolute inset-0 z-20 rounded-xl bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-2 pointer-events-auto cursor-wait">
                                                                     <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
@@ -2139,9 +2139,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                                             <Clock size={10} className="inline mr-0.5" />{timeInfo.timingLabel}
                                                                         </span>
                                                                         {batch.on_hold && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md border bg-amber-50 text-amber-800 border-amber-200"><PauseCircle size={10} className="inline mr-0.5" />Αναμονή</span>}
-                                                                        {batch.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded border border-blue-100 font-bold">#{batch.size_info}</span>}
-                                                                        {batch.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1 py-0.5 rounded border border-amber-100 font-bold">{getProductOptionColorLabel(batch.cord_color)}</span>}
-                                                                        {batch.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1 py-0.5 rounded border border-rose-100 font-bold">{getProductOptionColorLabel(batch.enamel_color)}</span>}
+                                                                        {batch.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded-sm border border-blue-100 font-bold">#{batch.size_info}</span>}
+                                                                        {batch.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1 py-0.5 rounded-sm border border-amber-100 font-bold">{getProductOptionColorLabel(batch.cord_color)}</span>}
+                                                                        {batch.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1 py-0.5 rounded-sm border border-rose-100 font-bold">{getProductOptionColorLabel(batch.enamel_color)}</span>}
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex flex-col items-center justify-center pl-2 border-l border-slate-50">
@@ -2224,7 +2224,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Stock Decision */}
             {stockDecision && (
-                <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => { if (!isSending) setStockDecision(null); }}>
+                <div className="fixed inset-0 z-500 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => { if (!isSending) setStockDecision(null); }}>
                     <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="px-5 py-4 border-b border-slate-100">
                             <div className="flex items-center justify-between">
@@ -2309,7 +2309,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {selectedProductDetails && (
                 <React.Suspense fallback={
-                    <div className="fixed inset-0 z-[650] flex items-center justify-center bg-slate-900/60 p-4">
+                    <div className="fixed inset-0 z-650 flex items-center justify-center bg-slate-900/60 p-4">
                         <div className="rounded-2xl bg-white p-6 text-center shadow-xl" role="status">
                             <Loader2 size={24} className="mx-auto mb-3 animate-spin text-slate-500" />
                             <p className="text-sm font-bold text-slate-700">Φόρτωση στοιχείων SKU…</p>
@@ -2330,9 +2330,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
             {/* Image Zoom */}
             {zoomImageUrl && ReactDOM.createPortal(
-                <div className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center" onClick={() => { setZoomImageUrl(null); setZoomImageAlt(''); }}>
+                <div className="fixed inset-0 z-600 bg-black/90 flex items-center justify-center" onClick={() => { setZoomImageUrl(null); setZoomImageAlt(''); }}>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setZoomImageUrl(null); setZoomImageAlt(''); }}
-                        className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors">
+                        className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-colors">
                         <X size={20} />
                     </button>
                     <img src={zoomImageUrl} alt={zoomImageAlt || 'Product'} className="max-w-[95vw] max-h-[95vh] object-contain rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()} />

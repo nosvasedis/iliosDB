@@ -36,7 +36,7 @@ const CollectionCover = ({ product, priority }: { product?: SellerCatalogProduct
         );
     }
     return (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300">
+        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-slate-100 to-slate-200 text-slate-300">
             <FolderKanban size={48} strokeWidth={1} />
         </div>
     );
@@ -124,12 +124,12 @@ export default function SellerCollections({ products, collections, onAddToOrder 
                             key={collection.id}
                             type="button"
                             onClick={() => setSelectedId(collection.id)}
-                            className="group relative flex aspect-[4/5] flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-200 text-left shadow-sm transition-shadow active:scale-[0.985] lg:rounded-3xl lg:hover:shadow-xl"
+                            className="group relative flex aspect-4/5 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-200 text-left shadow-xs transition-shadow active:scale-[0.985] lg:rounded-3xl lg:hover:shadow-xl"
                             style={{ contentVisibility: 'auto', containIntrinsicSize: '240px 300px' }}
                         >
                             <div className="absolute inset-0">
                                 <CollectionCover product={previewProduct} priority={index < 4} />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                                <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/20 to-transparent" />
                             </div>
                             <div className="relative z-10 mt-auto w-full p-3 lg:p-5">
                                 <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-amber-300/90">

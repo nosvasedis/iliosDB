@@ -114,7 +114,7 @@ export default function SetupScreen() {
                                 <input
                                     type="text" required value={url} onChange={e => setUrl(e.target.value)}
                                     placeholder="URL έργου Supabase"
-                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
+                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>
                             <div className="relative">
@@ -122,7 +122,7 @@ export default function SetupScreen() {
                                 <input
                                     type="password" required value={key} onChange={e => setKey(e.target.value)}
                                     placeholder="Ανώνυμο κλειδί Supabase"
-                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
+                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>
                             <div className="relative">
@@ -130,7 +130,7 @@ export default function SetupScreen() {
                                 <input
                                     type="password" value={workerKey} onChange={e => setWorkerKey(e.target.value)}
                                     placeholder="Cloudflare Worker Key (Optional)"
-                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
+                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>
                             <button className="w-full bg-[#060b00] text-white py-3 rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 text-sm">

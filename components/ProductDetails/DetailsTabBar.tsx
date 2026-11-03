@@ -38,7 +38,7 @@ export default function DetailsTabBar({
                         <tab.icon size={15} className={`transition-colors ${isActive ? 'text-sky-600' : 'text-slate-400 group-hover:text-slate-500'}`} />
                         <span>{tab.label}</span>
                         {typeof tab.count === 'number' && (
-                            <span className={`min-w-[1.25rem] rounded-full px-1.5 py-px text-center text-[10px] font-bold tabular-nums transition-colors ${isActive ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className={`min-w-5 rounded-full px-1.5 py-px text-center text-[10px] font-bold tabular-nums transition-colors ${isActive ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {formatNumber(tab.count)}
                             </span>
                         )}

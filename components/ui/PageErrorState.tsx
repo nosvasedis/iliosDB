@@ -21,7 +21,7 @@ export default function PageErrorState({
   return (
     <div
       role="alert"
-      className={`max-w-2xl rounded-3xl border border-red-100 bg-white p-6 shadow-sm ${className}`}
+      className={`max-w-2xl rounded-3xl border border-red-100 bg-white p-6 shadow-xs ${className}`}
     >
       <div className="flex items-start gap-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100">
@@ -31,7 +31,7 @@ export default function PageErrorState({
           <p className="text-base font-black text-slate-900">{title}</p>
           <p className="mt-0.5 text-sm font-medium text-slate-600">{message}</p>
           {detail ? (
-            <p className="mt-3 break-words rounded-xl border border-red-100 bg-red-50/60 px-3 py-2 font-mono text-xs text-red-700">
+            <p className="mt-3 wrap-break-word rounded-xl border border-red-100 bg-red-50/60 px-3 py-2 font-mono text-xs text-red-700">
               {detail}
             </p>
           ) : null}

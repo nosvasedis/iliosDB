@@ -313,8 +313,8 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             onClick={onToggleSelect}
                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
                                 isSelected
-                                    ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
-                                    : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-sm'
+                                    ? 'bg-blue-500 border-blue-500 shadow-xs shadow-blue-200'
+                                    : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-xs'
                             }`}
                             title={isSelected ? 'Αποεπιλογή' : 'Επιλογή παρτίδας'}
                         >
@@ -441,7 +441,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                         </div>
                     )}
                     {batch.quantity > 1 && (
-                        <div className="absolute bottom-0 left-0 bg-slate-900/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-lg shadow-sm">
+                        <div className="absolute bottom-0 left-0 bg-slate-900/95 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-lg shadow-xs">
                             x{formatNumber(batch.quantity)}
                         </div>
                     )}
@@ -456,7 +456,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                        {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.size_info}</span>}
+                        {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200">{batch.size_info}</span>}
                     </div>
                     <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                 </div>
@@ -496,7 +496,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                 <button
                                     onClick={(e) => { e.stopPropagation(); if (!isMoving) onDispatch(); }}
                                     disabled={isMoving}
-                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 ${
                                         isMoving
                                             ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                             : 'bg-teal-100 hover:bg-teal-200 text-teal-700'
@@ -510,7 +510,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                 <button
                                     onClick={(e) => { e.stopPropagation(); if (!isMoving) onRecallDispatch(); }}
                                     disabled={isMoving}
-                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 ${
                                         isMoving
                                             ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                             : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
@@ -524,7 +524,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                 ref={buttonRef}
                                 onClick={handleToggle}
                                 disabled={isMoving}
-                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 ${
                                     isMoving
                                         ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                         : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -543,7 +543,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             {stageSelectorOpen && onMoveToStage && ReactDOM.createPortal(
                 <div 
                     ref={popupRef}
-                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
+                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-9999 min-w-[140px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
                     style={{ 
                         top: popupPosition.top,
                         left: popupPosition.left,
@@ -642,13 +642,13 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             {/* Image zoom overlay */}
             {isImageZoomed && batch.product_image && ReactDOM.createPortal(
                 <div
-                    className="fixed inset-0 z-[600] bg-black/90 flex items-center justify-center"
+                    className="fixed inset-0 z-600 bg-black/90 flex items-center justify-center"
                     onClick={() => setIsImageZoomed(false)}
                 >
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setIsImageZoomed(false); }}
-                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors"
+                        className="absolute top-4 right-4 w-11 h-11 bg-white/10 hover:bg-white/20 backdrop-blur-xs rounded-full flex items-center justify-center text-white transition-colors"
                     >
                         <X size={22} />
                     </button>

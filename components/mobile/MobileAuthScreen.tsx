@@ -84,7 +84,7 @@ export default function MobileAuthScreen() {
                          required={!isLogin}
                          value={fullName}
                          onChange={e => setFullName(e.target.value)}
-                         className="w-full pl-4 p-4 bg-transparent outline-none text-white font-bold placeholder-slate-500"
+                         className="w-full pl-4 p-4 bg-transparent outline-hidden text-white font-bold placeholder-slate-500"
                          placeholder="Ονοματεπώνυμο"
                        />
                    </div>
@@ -99,7 +99,7 @@ export default function MobileAuthScreen() {
                       required
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      className="w-full pl-4 p-4 bg-transparent outline-none text-white font-bold placeholder-slate-500"
+                      className="w-full pl-4 p-4 bg-transparent outline-hidden text-white font-bold placeholder-slate-500"
                       placeholder="Email"
                     />
                 </div>
@@ -113,7 +113,7 @@ export default function MobileAuthScreen() {
                       required
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className="w-full pl-4 p-4 bg-transparent outline-none text-white font-bold placeholder-slate-500"
+                      className="w-full pl-4 p-4 bg-transparent outline-hidden text-white font-bold placeholder-slate-500"
                       placeholder="Κωδικός"
                     />
                 </div>

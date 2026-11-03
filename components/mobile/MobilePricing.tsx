@@ -78,18 +78,18 @@ export default function MobilePricing() {
                     placeholder="Αναζήτηση..." 
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm font-medium"
+                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500/20 shadow-xs font-medium"
                 />
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pb-24 custom-scrollbar">
                 {pricingList.map(item => (
-                    <div key={item.sku} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <div key={item.sku} className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs">
                         <div className="flex justify-between items-start mb-2">
                             <div>
                                 <div className="font-black text-slate-800 text-base flex items-center gap-2">
                                     {item.sku}
-                                    {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">VAR</span>}
+                                    {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm border border-blue-100 font-bold">VAR</span>}
                                 </div>
                                 <div className="text-[10px] text-slate-500 flex items-center gap-1">
                                     <Tag size={10}/> {item.category} • {item.description}

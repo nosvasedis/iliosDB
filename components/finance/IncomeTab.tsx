@@ -93,7 +93,7 @@ export default function IncomeTab({ workspace, orderIncome, customerBalances, le
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-2xl bg-slate-100 p-1">
           {views.map(([key, label, count]) => (
-            <button key={key} type="button" onClick={() => setView(key)} className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-black ${view === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+            <button key={key} type="button" onClick={() => setView(key)} className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-black ${view === key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>
               {label}{count > 0 && <span className="rounded-md bg-slate-200 px-1.5 text-[10px] text-slate-600">{count}</span>}
             </button>
           ))}
@@ -112,7 +112,7 @@ export default function IncomeTab({ workspace, orderIncome, customerBalances, le
           actions={(
             <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-black">
               {([['owed', 'Οφειλόμενες'], ['open', 'Με υπόλοιπο'], ['settled', 'Εξοφλημένες'], ['all', 'Όλες']] as Array<[OrderFilter, string]>).map(([key, label]) => (
-                <button key={key} type="button" onClick={() => setFilter(key)} className={`rounded-lg px-2.5 py-1.5 ${filter === key ? 'bg-white shadow-sm' : 'text-slate-500'}`}>{label}</button>
+                <button key={key} type="button" onClick={() => setFilter(key)} className={`rounded-lg px-2.5 py-1.5 ${filter === key ? 'bg-white shadow-xs' : 'text-slate-500'}`}>{label}</button>
               ))}
             </div>
           )}

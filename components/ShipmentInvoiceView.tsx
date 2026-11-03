@@ -100,8 +100,8 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(globalIndex + 1)}</div>
-                <div className="w-14 text-center flex-shrink-0">
-                    <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                <div className="w-14 text-center shrink-0">
+                    <div className="w-12 h-12 bg-slate-50 rounded-sm overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
@@ -113,11 +113,11 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     <div className="flex flex-col">
                         <div className="flex items-baseline gap-1 min-w-0">
                             <span className="font-bold text-slate-900 truncate">{fullSku}</span>
-                            {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
-                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                            {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded-sm text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
+                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded-sm text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded-sm text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
-                        <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
+                        <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal wrap-break-word">{description}</span>
                         <CustomerPrintSkuNote sku={item.sku} note={getOrderItemNoteForShipmentItem(item)} />
                     </div>
                 </div>

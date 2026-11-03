@@ -47,7 +47,7 @@ export default function BackupProgressModal({ isOpen, title, progress, isComplet
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
                 {/* Header */}
                 <div className="p-6 pb-4">
@@ -76,7 +76,7 @@ export default function BackupProgressModal({ isOpen, title, progress, isComplet
                             {/* Progress bar */}
                             <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                                 <div
-                                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out"
+                                    className="h-full bg-linear-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out"
                                     style={{ width: `${pct}%` }}
                                 />
                             </div>

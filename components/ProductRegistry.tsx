@@ -157,7 +157,7 @@ const RegistryPagination: React.FC<{
                     type="button"
                     onClick={() => onPageChange(Math.max(0, page - 1))}
                     disabled={page === 0}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-xs disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
                     aria-label="Προηγούμενη σελίδα"
                 >
                     <ChevronLeft size={16} />
@@ -176,7 +176,7 @@ const RegistryPagination: React.FC<{
                                 key={val}
                                 onClick={() => onPageChange(val as number)}
                                 aria-current={val === page ? 'page' : undefined}
-                                className={`h-8 min-w-8 rounded-lg px-2 text-xs font-black tabular-nums transition-all ${val === page ? 'bg-[#060b00] text-white shadow-md shadow-[#060b00]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
+                                className={`h-8 min-w-8 rounded-lg px-2 text-xs font-black tabular-nums transition-all ${val === page ? 'bg-[#060b00] text-white shadow-md shadow-[#060b00]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-xs'}`}
                             >
                                 {formatNumber((val as number) + 1)}
                             </button>
@@ -187,7 +187,7 @@ const RegistryPagination: React.FC<{
                     type="button"
                     onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
                     disabled={page >= totalPages - 1}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-all hover:bg-white hover:text-slate-900 hover:shadow-xs disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
                     aria-label="Επόμενη σελίδα"
                 >
                     <ChevronRight size={16} />
@@ -686,7 +686,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2.5 lg:ml-auto lg:max-w-none lg:justify-end"
                 tail={(
                     <>
-                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur" role="tablist" aria-label="Τύπος κωδικών">
+                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur-sm" role="tablist" aria-label="Τύπος κωδικών">
                             <button type="button" role="tab" aria-selected={!showStxOnly} onClick={() => setShowStxOnly(false)} className={`${segmentBase} px-3.5 py-2 ${!showStxOnly ? segmentOn : segmentOff}`}>
                                 <Database size={15} className={!showStxOnly ? 'text-emerald-600' : ''} /> Προϊόντα
                             </button>
@@ -694,16 +694,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 <Puzzle size={15} className={showStxOnly ? 'text-indigo-600' : ''} /> Εξαρτήματα
                             </button>
                         </div>
-                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur" role="tablist" aria-label="Προβολή">
-                            <button type="button" role="tab" aria-selected={viewMode === 'grid'} title="Κάρτες" onClick={() => setViewMode('grid')} className={`${segmentBase} h-9 w-10 ${viewMode === 'grid' ? `${segmentOn} !text-emerald-600` : segmentOff}`}>
+                        <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur-sm" role="tablist" aria-label="Προβολή">
+                            <button type="button" role="tab" aria-selected={viewMode === 'grid'} title="Κάρτες" onClick={() => setViewMode('grid')} className={`${segmentBase} h-9 w-10 ${viewMode === 'grid' ? `${segmentOn} text-emerald-600!` : segmentOff}`}>
                                 <LayoutGrid size={17} />
                             </button>
-                            <button type="button" role="tab" aria-selected={viewMode === 'table'} title="Λίστα παραλλαγών" onClick={() => setViewMode('table')} className={`${segmentBase} h-9 w-10 ${viewMode === 'table' ? `${segmentOn} !text-emerald-600` : segmentOff}`}>
+                            <button type="button" role="tab" aria-selected={viewMode === 'table'} title="Λίστα παραλλαγών" onClick={() => setViewMode('table')} className={`${segmentBase} h-9 w-10 ${viewMode === 'table' ? `${segmentOn} text-emerald-600!` : segmentOff}`}>
                                 <List size={17} />
                             </button>
                         </div>
                         <div className="hidden h-8 w-px bg-slate-200 md:block" aria-hidden />
-                        <button type="button" onClick={() => setShowScanner(true)} className="group flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 pl-1.5 pr-4 text-sm font-bold text-slate-700 shadow-sm transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-md active:translate-y-0">
+                        <button type="button" onClick={() => setShowScanner(true)} className="group flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 pl-1.5 pr-4 text-sm font-bold text-slate-700 shadow-xs transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-md active:translate-y-0">
                             <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-600"><ScanLine size={17} /></span>
                             <span className="hidden sm:inline">Σάρωση</span>
                         </button>
@@ -724,14 +724,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onKeyDown={(e) => { if (e.key === 'Escape') { setSearchTerm(''); e.currentTarget.blur(); } }}
-                                    className="w-full rounded-xl border border-slate-200 bg-white/80 py-3 pl-12 pr-12 font-medium text-slate-900 shadow-inner shadow-slate-100 outline-none backdrop-blur transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/15"
+                                    className="w-full rounded-xl border border-slate-200 bg-white/80 py-3 pl-12 pr-12 font-medium text-slate-900 shadow-inner shadow-slate-100 outline-hidden backdrop-blur-sm transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/15"
                                 />
                                 {searchTerm ? (
                                     <button type="button" onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Καθαρισμός αναζήτησης">
                                         <X size={15} />
                                     </button>
                                 ) : (
-                                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-400 shadow-sm md:block">/</kbd>
+                                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-400 shadow-xs md:block">/</kbd>
                                 )}
                             </div>
                             <div className="flex w-full gap-2 md:w-auto">
@@ -801,7 +801,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                             key={chip.key}
                                             type="button"
                                             onClick={chip.clear}
-                                            className="group inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white py-1 pl-3 pr-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                            className="group inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white py-1 pl-3 pr-1.5 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                                             title="Αφαίρεση φίλτρου"
                                         >
                                             {chip.label}
@@ -930,7 +930,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     <div className="text-sm font-bold text-slate-700">{formatCurrency(item.cost)}</div>
 
                                                     {/* Detailed Cost Tooltip */}
-                                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover/cost:block z-[100] w-56 bg-[#060b00] text-white p-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 border border-white/10 ring-1 ring-white/5">
+                                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover/cost:block z-100 w-56 bg-[#060b00] text-white p-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 border border-white/10 ring-1 ring-white/5">
                                                         <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-3 border-b border-white/10 pb-1.5">Ανάλυση Κόστους</div>
                                                         {showStxOnly
                                 ? <ComponentFamilyFilter value={subFilters.componentFamily} onChange={value => setSubFilters(previous => ({ ...previous, componentFamily: value }))} />
@@ -1020,11 +1020,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                                     setPriceEditUsedFormula(item.variantSku);
                                                                     setEditingPrice({ sku: item.variantSku, price: item.suggestedPrice.toString() });
                                                                 }}
-                                                                className="p-1 rounded bg-amber-50 text-amber-500 hover:bg-amber-100 hover:text-amber-600 transition-colors border border-amber-200 mr-1"
+                                                                className="p-1 rounded-sm bg-amber-50 text-amber-500 hover:bg-amber-100 hover:text-amber-600 transition-colors border border-amber-200 mr-1"
                                                             >
                                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08" /><path d="M7.07 14.94L5.5 16.5a2.85 2.85 0 0 0 4.03 4.03l1.56-1.57" /><path d="m3.46 10.54.92.92" /><path d="m11.54 3.46.92.92" /><path d="m4.46  4.46 1.84 1.84" /><path d="m17.7 17.7 1.84 1.84" /></svg>
                                                             </button>
-                                                            <input autoFocus type="text" className="w-20 text-right font-black text-lg bg-emerald-50 text-emerald-700 border border-emerald-500 rounded-lg px-2 py-1 outline-none"
+                                                            <input autoFocus type="text" className="w-20 text-right font-black text-lg bg-emerald-50 text-emerald-700 border border-emerald-500 rounded-lg px-2 py-1 outline-hidden"
                                                                 value={editingPrice.price}
                                                                 onChange={e => setEditingPrice({ sku: item.variantSku, price: e.target.value })}
                                                                 onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(item.variantSku); if (e.key === 'Escape') setEditingPrice(null); }}
@@ -1107,7 +1107,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             {showScanner && <BarcodeScanner products={products} onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
 
             {viewMode === 'table' && selectedSkus.size > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 md:left-72 z-[100] bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-8">
+                <div className="fixed bottom-0 left-0 right-0 md:left-72 z-100 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-8">
                     <div className="flex items-center gap-4">
                         <div className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl font-black text-lg">
                             {selectedSkus.size} <span className="text-emerald-600/70 text-sm font-bold">Επιλεγμένα</span>
@@ -1128,14 +1128,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             )}
 
             <div className={`fixed bottom-8 right-8 z-50 transition-all duration-300 ${showFab && selectedSkus.size === 0 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-gradient-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white rounded-full font-bold shadow-2xl shadow-[#060b00]/30 ring-1 ring-inset ring-white/10 transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:py-2.5 sm:pl-2.5 sm:pr-6">
-                    <span className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500"><Plus size={22} strokeWidth={2.75} /></span> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
+                <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-3 bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white rounded-full font-bold shadow-2xl shadow-[#060b00]/30 ring-1 ring-inset ring-white/10 transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:py-2.5 sm:pl-2.5 sm:pr-6">
+                    <span className="grid h-11 w-11 place-items-center rounded-full bg-linear-to-br from-emerald-400 to-teal-500"><Plus size={22} strokeWidth={2.75} /></span> <span className="hidden sm:inline whitespace-nowrap">Νέο Προϊόν</span>
                 </button>
             </div>
 
             {/* Print Format Modal */}
             {showPrintModal && (
-                <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowPrintModal(false)}>
+                <div className="fixed inset-0 z-300 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs" onClick={() => setShowPrintModal(false)}>
                     <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
                         <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
                             <Printer size={28} className="text-slate-700" />
@@ -1167,18 +1167,18 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
             {/* Sidebar Filters Drawer */}
             {showFiltersSidebar && (
-                <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setShowFiltersSidebar(false)}>
+                <div className="fixed inset-0 z-200 flex justify-end bg-slate-900/20 backdrop-blur-xs transition-opacity" onClick={() => setShowFiltersSidebar(false)}>
                     <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
-                        <div className="relative flex items-center justify-between overflow-hidden border-b border-slate-100 bg-gradient-to-br from-white to-emerald-50/50 p-6">
-                            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300"></div>
+                        <div className="relative flex items-center justify-between overflow-hidden border-b border-slate-100 bg-linear-to-br from-white to-emerald-50/50 p-6">
+                            <div className="absolute inset-x-0 top-0 h-[3px] bg-linear-to-r from-emerald-400 via-teal-400 to-amber-300"></div>
                             <div className="flex items-center gap-3">
-                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-[#1c2812] to-[#060b00] text-white shadow-md"><SlidersHorizontal size={18} /></span>
+                                <span className="grid h-10 w-10 place-items-center rounded-xl bg-linear-to-br from-[#1c2812] to-[#060b00] text-white shadow-md"><SlidersHorizontal size={18} /></span>
                                 <div>
                                     <h2 className="text-lg font-black tracking-tight text-slate-900">Προηγμένα Φίλτρα</h2>
                                     <p className="text-xs font-medium text-slate-500">{formatNumber(filteredProducts.length)} αποτελέσματα{activeFilterChips.length > 0 ? ` · ${formatNumber(activeFilterChips.length)} ενεργά φίλτρα` : ''}</p>
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setShowFiltersSidebar(false)} className="rounded-full bg-white p-2 text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:text-slate-700" aria-label="Κλείσιμο"><X size={16} /></button>
+                            <button type="button" onClick={() => setShowFiltersSidebar(false)} className="rounded-full bg-white p-2 text-slate-400 shadow-xs ring-1 ring-slate-200 transition-colors hover:text-slate-700" aria-label="Κλείσιμο"><X size={16} /></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
@@ -1252,7 +1252,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${isDisabled
                                                         ? 'bg-slate-100 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed'
                                                         : isActive
-                                                            ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow`
+                                                            ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow-sm`
                                                             : `${style.bg} ${style.text} border-transparent hover:border-current/40 opacity-80 hover:opacity-100`
                                                         }`}
                                                 >
@@ -1344,7 +1344,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             </button>
                             <button
                                 onClick={() => setShowFiltersSidebar(false)}
-                                className="flex-[2] px-4 py-3 rounded-xl font-bold text-white bg-gradient-to-br from-[#1c2812] to-[#060b00] hover:to-black transition-all shadow-md shadow-[#060b00]/20 active:scale-[0.98]"
+                                className="flex-2 px-4 py-3 rounded-xl font-bold text-white bg-linear-to-br from-[#1c2812] to-[#060b00] hover:to-black transition-all shadow-md shadow-[#060b00]/20 active:scale-[0.98]"
                             >
                                 Εφαρμογή ({formatNumber(filteredProducts.length)})
                             </button>

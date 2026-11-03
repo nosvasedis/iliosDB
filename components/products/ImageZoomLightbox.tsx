@@ -237,7 +237,7 @@ export default function ImageZoomLightbox({ imageUrl, sku, onClose, gallery, ini
                         <button type="button" aria-label="Σμίκρυνση" title="Σμίκρυνση (−)" disabled={!canZoom || view.scale <= MIN_SCALE} onClick={() => zoomAt(view.scale / STEP)} className="rounded-lg p-2 hover:bg-white/20 disabled:opacity-30">
                             <ZoomOut size={20} />
                         </button>
-                        <button type="button" aria-label="Επαναφορά ζουμ" title="Επαναφορά (0)" disabled={!canZoom} onClick={() => setView(RESET_VIEW)} className="flex min-w-[4.5rem] items-center justify-center gap-1 rounded-lg p-2 text-sm font-bold tabular-nums hover:bg-white/20 disabled:opacity-30">
+                        <button type="button" aria-label="Επαναφορά ζουμ" title="Επαναφορά (0)" disabled={!canZoom} onClick={() => setView(RESET_VIEW)} className="flex min-w-18 items-center justify-center gap-1 rounded-lg p-2 text-sm font-bold tabular-nums hover:bg-white/20 disabled:opacity-30">
                             {view.scale > 1 && <RotateCcw size={13} />}
                             {zoomPercent}%
                         </button>
@@ -290,7 +290,7 @@ export default function ImageZoomLightbox({ imageUrl, sku, onClose, gallery, ini
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onPointerUp={(event) => event.stopPropagation()}
                                 onClick={() => goTo(-1)}
-                                className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm transition hover:bg-white/25"
+                                className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 backdrop-blur-xs transition hover:bg-white/25"
                             >
                                 <ChevronLeft size={24} />
                             </button>
@@ -300,7 +300,7 @@ export default function ImageZoomLightbox({ imageUrl, sku, onClose, gallery, ini
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onPointerUp={(event) => event.stopPropagation()}
                                 onClick={() => goTo(1)}
-                                className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm transition hover:bg-white/25"
+                                className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 backdrop-blur-xs transition hover:bg-white/25"
                             >
                                 <ChevronRight size={24} />
                             </button>

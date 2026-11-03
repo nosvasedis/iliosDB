@@ -90,7 +90,7 @@ function SearchField({ value, onChange, placeholder, className = '', inputClassN
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
-                className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-9 text-sm font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10 ${inputClassName}`}
+                className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-9 text-sm font-medium text-slate-800 outline-hidden transition-all placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10 ${inputClassName}`}
             />
             {value && (
                 <button
@@ -110,7 +110,7 @@ function SearchField({ value, onChange, placeholder, className = '', inputClassN
 function CollectionCover({ images, total }: { images: string[]; total: number }) {
     if (images.length === 0) {
         return (
-            <div className="flex h-36 flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
+            <div className="flex h-36 flex-col items-center justify-center gap-1.5 bg-linear-to-br from-slate-50 to-slate-100 text-slate-300">
                 {total === 0 ? <FolderKanban size={26} /> : <ImageOff size={24} />}
                 <span className="text-[10px] font-bold uppercase tracking-wider">
                     {total === 0 ? 'Κενή συλλογή' : 'Χωρίς φωτογραφίες'}
@@ -612,7 +612,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             aria-pressed={gallerySort === value}
             title={label}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${gallerySort === value
-                ? 'bg-white text-[#060b00] shadow-sm'
+                ? 'bg-white text-[#060b00] shadow-xs'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
         >
@@ -647,7 +647,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                 /* ── GALLERY ─────────────────────────────────────────────── */
                 <div className="flex min-h-0 flex-1 flex-col gap-5">
                     {/* Toolbar: find / sort / create — one create affordance for the whole page */}
-                    <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-3 shadow-sm">
+                    <div className="shrink-0 rounded-3xl border border-slate-100 bg-white p-3 shadow-xs">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                             <SearchField
                                 value={gallerySearch}
@@ -671,7 +671,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                         onChange={(e) => setNewCollectionName(e.target.value)}
                                         placeholder="Όνομα νέας συλλογής..."
                                         aria-label="Όνομα νέας συλλογής"
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 outline-hidden transition-all placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
                                     />
                                 </div>
                                 <button
@@ -696,7 +696,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             key={c.id}
                                             type="button"
                                             onClick={() => openCollection(c.id)}
-                                            className="group flex flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white text-left shadow-sm transition-all hover:-translate-y-1 hover:border-slate-200 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                                            className="group flex flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white text-left shadow-xs transition-all hover:-translate-y-1 hover:border-slate-200 hover:shadow-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-900/20"
                                         >
                                             <CollectionCover images={preview.images} total={preview.total} />
                                             <div className="flex flex-1 flex-col p-5">
@@ -723,7 +723,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                             </div>
                         ) : (
                             <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white/60 px-6 text-center">
-                                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
+                                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-xs">
                                     {gallerySearch ? <Search size={22} className="text-slate-300" /> : <FolderKanban size={22} className="text-slate-300" />}
                                 </div>
                                 <p className="text-sm font-black text-slate-600">
@@ -742,7 +742,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                 /* ── WORKSPACE ───────────────────────────────────────────── */
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
                     {/* Collections rail — quick switching without leaving the workspace */}
-                    <aside className="hidden min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm lg:flex">
+                    <aside className="hidden min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xs lg:flex">
                         <div className="space-y-3 border-b border-slate-100 p-3">
                             <button
                                 type="button"
@@ -787,7 +787,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
                     <div ref={workspaceScrollRef} className="min-h-0 space-y-5 overflow-y-auto custom-scrollbar pr-1 pb-2">
                         {/* Collection header: identity + every collection-level action, once */}
-                        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                 <div className="flex min-w-0 items-start gap-3">
                                     <button
@@ -817,7 +817,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                         if (e.key === 'Escape') { e.preventDefault(); setIsRenaming(false); }
                                                     }}
                                                     aria-label="Νέο όνομα συλλογής"
-                                                    className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-2xl font-black tracking-tight text-slate-900 outline-none focus:ring-2 focus:ring-slate-900/10"
+                                                    className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-2xl font-black tracking-tight text-slate-900 outline-hidden focus:ring-2 focus:ring-slate-900/10"
                                                 />
                                                 <button type="submit" aria-label="Αποθήκευση ονόματος" className="rounded-xl bg-[#060b00] p-2.5 text-white transition-colors hover:bg-slate-800">
                                                     <Check size={16} />
@@ -863,7 +863,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                     <button
                                         type="button"
                                         onClick={openDescModal}
-                                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition-all hover:border-purple-300 hover:text-purple-700 hover:shadow-sm"
+                                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition-all hover:border-purple-300 hover:text-purple-700 hover:shadow-xs"
                                     >
                                         <Sparkles size={15} className="text-purple-500" />
                                         Περιγραφή
@@ -896,10 +896,10 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         {addPanelOpen && (
                             <section
                                 id="add-products-panel"
-                                className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm animate-in fade-in slide-in-from-top-2 duration-200"
+                                className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-xs animate-in fade-in slide-in-from-top-2 duration-200"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100/70 bg-emerald-50/40 px-5 py-3">
-                                    <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-emerald-100">
+                                    <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-xs ring-1 ring-emerald-100">
                                         {([
                                             { id: 'registry', label: 'Από Μητρώο', icon: Database },
                                             { id: 'bulk', label: 'Μαζική Εισαγωγή', icon: ScanBarcode },
@@ -910,7 +910,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                 onClick={() => setAddMode(id)}
                                                 aria-pressed={addMode === id}
                                                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${addMode === id
-                                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                                    ? 'bg-emerald-600 text-white shadow-xs'
                                                     : 'text-slate-500 hover:text-emerald-700'
                                                 }`}
                                             >
@@ -933,7 +933,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                 placeholder="Αναζήτηση με κωδικό ή κατηγορία..."
                                                 value={registrySearch}
                                                 onChange={(e) => setRegistrySearch(e.target.value)}
-                                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium outline-none transition-all focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15"
+                                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium outline-hidden transition-all focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/15"
                                             />
                                             {registrySearch && (
                                                 <button
@@ -956,7 +956,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                         disabled={pending}
                                                         onClick={() => handleToggleProduct(p.sku, selectedCollection.id)}
                                                         title={`Προσθήκη ${p.sku}`}
-                                                        className="group flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-2 text-left transition-all hover:border-emerald-300 hover:bg-emerald-50/40 hover:shadow-sm disabled:opacity-60"
+                                                        className="group flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-2 text-left transition-all hover:border-emerald-300 hover:bg-emerald-50/40 hover:shadow-xs disabled:opacity-60"
                                                     >
                                                         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
                                                             {p.image_url
@@ -996,7 +996,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             value={bulkSkus}
                                             onChange={(e) => setBulkSkus(e.target.value)}
                                             placeholder={`Επικολλήστε κωδικούς (π.χ. από Excel)...\nDA100\nXR2020\nMN050S-MN063S`}
-                                            className="h-36 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs outline-none transition-all focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/15"
+                                            className="h-36 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs outline-hidden transition-all focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/15"
                                         />
                                         <div className="flex flex-col gap-3">
                                             <p className="text-xs font-medium leading-relaxed text-slate-500">
@@ -1018,7 +1018,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         )}
 
                         {/* Contents */}
-                        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
                             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                                 <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-slate-800">
                                     Περιεχόμενα
@@ -1057,7 +1057,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             type="button"
                                             disabled={isAddingSetMates}
                                             onClick={() => handleAddSetMates(missingSetMates.map((product) => product.sku))}
-                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-black text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-50"
+                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-black text-white shadow-xs transition hover:bg-violet-700 disabled:opacity-50"
                                         >
                                             {isAddingSetMates ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} strokeWidth={3} />}
                                             Προσθήκη όλων
@@ -1077,12 +1077,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                                 tabIndex={0}
                                                 onClick={() => setViewProduct(p)}
                                                 onKeyDown={(e) => { if (e.key === 'Enter') setViewProduct(p); }}
-                                                className={`group relative cursor-pointer rounded-2xl border border-slate-100 bg-white p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 ${pending ? 'pointer-events-none opacity-50' : ''}`}
+                                                className={`group relative cursor-pointer rounded-2xl border border-slate-100 bg-white p-2.5 shadow-xs transition-all hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-lg focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-900/20 ${pending ? 'pointer-events-none opacity-50' : ''}`}
                                             >
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); handleToggleProduct(p.sku, selectedCollection.id); }}
-                                                    className="absolute right-4 top-4 z-10 rounded-full border border-slate-100 bg-white/95 p-1 text-slate-400 opacity-0 shadow-sm transition-all hover:bg-red-50 hover:text-red-500 focus:opacity-100 group-hover:opacity-100"
+                                                    className="absolute right-4 top-4 z-10 rounded-full border border-slate-100 bg-white/95 p-1 text-slate-400 opacity-0 shadow-xs transition-all hover:bg-red-50 hover:text-red-500 focus:opacity-100 group-hover:opacity-100"
                                                     title="Αφαίρεση από τη συλλογή"
                                                     aria-label={`Αφαίρεση ${p.sku} από τη συλλογή`}
                                                 >
@@ -1129,7 +1129,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                 </div>
                             ) : (
                                 <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-14 text-center">
-                                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm">
+                                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-xs">
                                         {collectionSearch ? <Search size={22} className="text-slate-300" /> : <PackagePlus size={22} className="text-slate-300" />}
                                     </div>
                                     <p className="text-sm font-black text-slate-500">
@@ -1150,7 +1150,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             {/* DESCRIPTION / AI MODAL */}
             {isDescModalOpen && selectedCollection && (
                 <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in"
+                    className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in"
                     onMouseDown={(e) => { if (e.target === e.currentTarget) setIsDescModalOpen(false); }}
                 >
                     <div role="dialog" aria-modal="true" aria-labelledby="collection-desc-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95">
@@ -1181,7 +1181,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                         value={aiGuidance}
                                         onChange={(e) => setAiGuidance(e.target.value)}
                                         placeholder="Ύφος, π.χ. 'Καλοκαιρινή διάθεση', 'Πολυτέλεια', 'Minimal'..."
-                                        className="min-w-0 flex-1 rounded-xl border border-purple-200 bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-purple-500/20"
+                                        className="min-w-0 flex-1 rounded-xl border border-purple-200 bg-white p-3 text-sm outline-hidden focus:ring-2 focus:ring-purple-500/20"
                                     />
                                     <button
                                         type="submit"
@@ -1208,7 +1208,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                     id="collection-desc-text"
                                     value={collectionDesc}
                                     onChange={(e) => setCollectionDesc(e.target.value)}
-                                    className="h-48 w-full resize-none rounded-2xl border border-slate-200 bg-white p-5 font-serif text-base leading-relaxed text-slate-700 shadow-inner outline-none focus:ring-4 focus:ring-slate-100"
+                                    className="h-48 w-full resize-none rounded-2xl border border-slate-200 bg-white p-5 font-serif text-base leading-relaxed text-slate-700 shadow-inner outline-hidden focus:ring-4 focus:ring-slate-100"
                                     placeholder="Γράψτε εδώ ή χρησιμοποιήστε το AI..."
                                 />
                             </div>

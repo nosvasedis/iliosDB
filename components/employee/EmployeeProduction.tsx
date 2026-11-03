@@ -147,9 +147,9 @@ export default function EmployeeProduction() {
                         key={col.key}
                         type="button"
                         onClick={() => setActiveColumn(col.key)}
-                        className={`flex min-w-0 flex-col items-center rounded-xl px-1 py-1.5 transition-colors ${active ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'text-slate-500'}`}
+                        className={`flex min-w-0 flex-col items-center rounded-xl px-1 py-1.5 transition-colors ${active ? 'bg-white shadow-xs ring-1 ring-slate-200' : 'text-slate-500'}`}
                     >
-                        <span className={`flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[10px] font-black tabular-nums text-white ${count > 0 ? col.tone.tab : 'bg-slate-300'}`}>{formatNumber(count)}</span>
+                        <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black tabular-nums text-white ${count > 0 ? col.tone.tab : 'bg-slate-300'}`}>{formatNumber(count)}</span>
                         <span className={`mt-0.5 w-full truncate text-center text-[10px] font-bold ${active ? 'text-slate-900' : ''}`}>{col.short}</span>
                     </button>
                 );
@@ -174,7 +174,7 @@ export default function EmployeeProduction() {
                                 <section key={col.key} className={`rounded-2xl border p-3 ${col.tone.panel}`}>
                                     <h3 className={`mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${col.tone.title}`}>
                                         <Icon size={15} /> <span className="truncate">{col.title}</span>
-                                        <span className={`ml-auto rounded-full bg-white px-2 py-0.5 shadow-sm ${col.tone.count}`}>{formatNumber(grouped[col.key].length)}</span>
+                                        <span className={`ml-auto rounded-full bg-white px-2 py-0.5 shadow-xs ${col.tone.count}`}>{formatNumber(grouped[col.key].length)}</span>
                                     </h3>
                                     {renderColumnBody(col)}
                                 </section>

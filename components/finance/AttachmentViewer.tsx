@@ -29,7 +29,7 @@ export default function AttachmentViewer({ attachmentKey, onClose }: { attachmen
       {error ? (
         <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>
       ) : url ? (
-        <img src={url} alt="Παραστατικό" className="mx-auto max-h-[75vh] rounded-2xl object-contain shadow" />
+        <img src={url} alt="Παραστατικό" className="mx-auto max-h-[75vh] rounded-2xl object-contain shadow-sm" />
       ) : (
         <div className="flex justify-center py-16"><Loader2 className="animate-spin text-slate-400" /></div>
       )}

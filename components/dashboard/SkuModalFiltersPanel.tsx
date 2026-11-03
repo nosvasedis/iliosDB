@@ -25,7 +25,7 @@ type FilterScheme = {
 
 const CHIP_SCHEME: FilterScheme = {
   title: 'text-slate-500',
-  active: 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600',
+  active: 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-600',
   inactive: 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-slate-300 hover:text-slate-900',
 };
 

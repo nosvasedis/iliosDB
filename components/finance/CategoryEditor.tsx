@@ -180,7 +180,7 @@ export function CategoryForm({ workspace, parties, initial, onSaved, onCancel, o
   return (
     <div className="space-y-5">
       {/* Live preview */}
-      <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3">
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-linear-to-br from-slate-50 to-white p-3">
         <CategoryGlyph icon={icon} color={color} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
@@ -288,7 +288,7 @@ export function CategoryForm({ workspace, parties, initial, onSaved, onCancel, o
         <Field label="Φύση">
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-0.5 text-xs font-black">
             {([['fixed', 'Πάγιο'], ['variable', 'Μεταβλητό']] as const).map(([value, label]) => (
-              <button key={value} type="button" onClick={() => set({ nature: value })} className={`rounded-lg py-2 ${(draft.nature || inheritedNature(draft.parent_id) || 'variable') === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{label}</button>
+              <button key={value} type="button" onClick={() => set({ nature: value })} className={`rounded-lg py-2 ${(draft.nature || inheritedNature(draft.parent_id) || 'variable') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}>{label}</button>
             ))}
           </div>
         </Field>

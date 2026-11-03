@@ -598,8 +598,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onSelect={handleSelectRecipeItem}
                 />
             )}
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={requestClose} />
-            <div role="dialog" aria-modal="true" aria-label={`Καρτέλα SKU ${displayedSku}`} className="sku-details relative flex h-[94vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={requestClose} />
+            <div role="dialog" aria-modal="true" aria-label={`Καρτέλα SKU ${displayedSku}`} className="sku-details relative flex h-[94vh] w-full max-w-360 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
 
                 <DetailsHeader
                     displayedSku={displayedSku}
@@ -656,7 +656,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                 {/* Below lg the whole body scrolls; from lg the sidebar and the tab content scroll independently under a fixed tab bar. */}
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-slate-50 lg:flex-row lg:overflow-hidden">
-                        <aside className="shrink-0 border-slate-200 bg-white/70 p-4 md:p-5 lg:w-[17.5rem] lg:overflow-y-auto lg:border-r xl:w-[19.5rem]">
+                        <aside className="shrink-0 border-slate-200 bg-white/70 p-4 md:p-5 lg:w-70 lg:overflow-y-auto lg:border-r xl:w-78">
                             <DetailsSidebar
                                 sku={editedProduct.sku}
                                 imageUrl={editedProduct.image_url}
@@ -673,7 +673,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         </aside>
 
                         <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
-                            <div className="sticky top-0 z-[5] shrink-0 border-b border-slate-200 bg-white/95 px-3 backdrop-blur-sm md:px-5">
+                            <div className="sticky top-0 z-5 shrink-0 border-b border-slate-200 bg-white/95 px-3 backdrop-blur-xs md:px-5">
                                 <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
                             </div>
 

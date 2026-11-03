@@ -208,12 +208,12 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
         finally { setSaving(false); }
     };
 
-    const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100';
+    const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-hidden transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100';
     const labelCls = 'mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400';
     const isStone = form.type === MaterialType.Stone;
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
             <div
                 className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl animate-in zoom-in-95"
                 onKeyDown={e => {
@@ -268,7 +268,7 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
 
                     {isStone && (
                         <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-                            <button type="button" onClick={() => set('isStrand', false)} className={`flex-1 rounded-lg py-2 text-xs font-black transition ${!form.isStrand ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500'}`}>
+                            <button type="button" onClick={() => set('isStrand', false)} className={`flex-1 rounded-lg py-2 text-xs font-black transition ${!form.isStrand ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200' : 'text-slate-500'}`}>
                                 Τιμή ανά πέτρα
                             </button>
                             <button
@@ -279,7 +279,7 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
                                     stonesPerStrand: prev.stonesPerStrand || '1',
                                     strandPrice: prev.strandPrice || prev.cost,
                                 }))}
-                                className={`flex-1 rounded-lg py-2 text-xs font-black transition ${form.isStrand ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500'}`}
+                                className={`flex-1 rounded-lg py-2 text-xs font-black transition ${form.isStrand ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-500'}`}
                             >
                                 Πώληση σε σειρά (κορδόνι)
                             </button>
@@ -332,7 +332,7 @@ const MaterialEditor: React.FC<EditorProps> = ({ initial, defaults, seed, suppli
                                 <div className="mt-2 flex items-center gap-1.5">
                                     <input
                                         inputMode="numeric"
-                                        className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-slate-400"
+                                        className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-hidden focus:border-slate-400"
                                         placeholder="Ποσότ."
                                         value={stockDelta}
                                         onChange={e => setStockDelta(e.target.value.replace(/[^0-9]/g, ''))}
@@ -390,7 +390,7 @@ const MaterialCard: React.FC<CardProps> = ({ material, supplierName, onEdit, onD
     const variants = variantCount(material);
 
     return (
-        <div className="group flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-md">
+        <div className="group flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-md">
             <div className="flex-1 space-y-4 p-4">
                 <div className="flex items-start gap-3">
                     <MaterialBadge material={material} />
@@ -455,7 +455,7 @@ const MaterialCard: React.FC<CardProps> = ({ material, supplierName, onEdit, onD
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-3 py-2">
                 <button onClick={() => onEditVariants(material)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-50">
                     <Tag size={13} />
-                    {variants > 0 ? <><span className="rounded bg-blue-100 px-1.5 text-[10px]">{formatNumber(variants)}</span> Ειδικές Τιμές</> : 'Ειδικές Τιμές'}
+                    {variants > 0 ? <><span className="rounded-sm bg-blue-100 px-1.5 text-[10px]">{formatNumber(variants)}</span> Ειδικές Τιμές</> : 'Ειδικές Τιμές'}
                 </button>
             </div>
             <ResourceUsageStrip kind="material" id={material.id} label={material.name} />
@@ -475,7 +475,7 @@ const KpiTile: React.FC<{ icon: React.ElementType; label: string; value: React.R
         type="button"
         onClick={onClick}
         disabled={!onClick}
-        className={`flex min-w-0 items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition ${active ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100'} ${onClick ? 'hover:border-slate-300' : 'cursor-default'}`}
+        className={`flex min-w-0 items-center gap-3 rounded-2xl border bg-white p-4 text-left shadow-xs transition ${active ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100'} ${onClick ? 'hover:border-slate-300' : 'cursor-default'}`}
     >
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon size={18} /></div>
         <div className="min-w-0">
@@ -766,15 +766,15 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                     )}
                     below={(
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-sm">
-                                <button type="button" onClick={() => onResourceTabChange?.('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
+                            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-xs">
+                                <button type="button" onClick={() => onResourceTabChange?.('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
                                     <Gem size={16} /> Υλικά
                                 </button>
-                                <button type="button" onClick={() => onResourceTabChange?.('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
+                                <button type="button" onClick={() => onResourceTabChange?.('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-xs ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}>
                                     <MapPin size={16} /> Λάστιχα
                                 </button>
                             </div>
-                            <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-sm">
+                            <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/60 bg-slate-50 p-1 shadow-xs">
                                 {TABS.map(tab => {
                                     const active = activeTab === tab.id;
                                     return (
@@ -807,7 +807,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                 </div>
 
                 {/* Toolbar */}
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-white p-2 shadow-xs">
                     <div className="flex min-w-[220px] flex-1 items-center rounded-xl border border-slate-200 bg-slate-50 px-2 focus-within:border-slate-400 focus-within:bg-white">
                         <Search size={16} className="text-slate-400" />
                         <input
@@ -816,12 +816,12 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Escape') setSearchTerm(''); }}
-                            className="w-full bg-transparent px-2 py-2 text-sm font-semibold text-slate-700 outline-none"
+                            className="w-full bg-transparent px-2 py-2 text-sm font-semibold text-slate-700 outline-hidden"
                         />
                         {searchTerm ? (
                             <button onClick={() => setSearchTerm('')} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
                         ) : (
-                            <kbd className="hidden rounded border border-slate-200 bg-white px-1.5 text-[10px] font-bold text-slate-400 sm:block">/</kbd>
+                            <kbd className="hidden rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] font-bold text-slate-400 sm:block">/</kbd>
                         )}
                     </div>
 
@@ -831,7 +831,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                 <button
                                     key={k}
                                     onClick={() => setStoneSubFilter(k)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-black transition-all ${stoneSubFilter === k ? (k === 'strand' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-900 text-white shadow-sm') : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-black transition-all ${stoneSubFilter === k ? (k === 'strand' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-900 text-white shadow-xs') : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     {label} <span className="opacity-60">{stoneCounts[k]}</span>
                                 </button>
@@ -841,7 +841,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
 
                     <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2">
                         <Globe size={14} className="text-slate-400" />
-                        <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)} className="max-w-[170px] bg-transparent py-2 text-xs font-bold text-slate-600 outline-none">
+                        <select value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)} className="max-w-[170px] bg-transparent py-2 text-xs font-bold text-slate-600 outline-hidden">
                             <option value="">Όλοι οι προμηθευτές</option>
                             <option value="__none">— Χωρίς προμηθευτή —</option>
                             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -853,7 +853,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                         <select
                             value={`${sortKey}:${sortDir}`}
                             onChange={e => { const [k, d] = e.target.value.split(':'); setSortKey(k as SortKey); setSortDir(Number(d) as 1 | -1); }}
-                            className="bg-transparent py-2 text-xs font-bold text-slate-600 outline-none"
+                            className="bg-transparent py-2 text-xs font-bold text-slate-600 outline-hidden"
                         >
                             <option value="name:1">Όνομα (Α→Ω)</option>
                             <option value="name:-1">Όνομα (Ω→Α)</option>
@@ -870,8 +870,8 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                             <Download size={15} /> CSV
                         </button>
                         <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-0.5">
-                            <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`} title="Κάρτες"><LayoutGrid size={16} /></button>
-                            <button onClick={() => setViewMode('table')} className={`rounded-lg p-1.5 ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`} title="Πίνακας"><ListIcon size={16} /></button>
+                            <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`} title="Κάρτες"><LayoutGrid size={16} /></button>
+                            <button onClick={() => setViewMode('table')} className={`rounded-lg p-1.5 ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`} title="Πίνακας"><ListIcon size={16} /></button>
                         </div>
                     </div>
                 </div>
@@ -915,7 +915,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+                            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-xs">
                                 <table className="w-full min-w-[860px] text-sm">
                                     <thead className="border-b border-slate-100 bg-slate-50/80">
                                         <tr>
@@ -952,9 +952,9 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                                     <td className="px-4 py-2.5 text-right">
                                                         {strand ? <span className="text-slate-300">—</span> : (
                                                             <span className="inline-flex items-center gap-1.5">
-                                                                <button onClick={() => handleQuickStock(m, -1)} disabled={(m.stock_qty || 0) <= 0} className="rounded p-0.5 text-slate-300 opacity-0 hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 disabled:opacity-0"><Minus size={12} /></button>
-                                                                <span className={`min-w-[2.5rem] rounded-md px-1.5 py-0.5 font-black tabular-nums ${low ? 'bg-amber-50 text-amber-700' : 'text-slate-800'}`}>{formatNumber(m.stock_qty || 0)}</span>
-                                                                <button onClick={() => handleQuickStock(m, 1)} className="rounded p-0.5 text-slate-300 opacity-0 hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100"><Plus size={12} /></button>
+                                                                <button onClick={() => handleQuickStock(m, -1)} disabled={(m.stock_qty || 0) <= 0} className="rounded-sm p-0.5 text-slate-300 opacity-0 hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 disabled:opacity-0"><Minus size={12} /></button>
+                                                                <span className={`min-w-10 rounded-md px-1.5 py-0.5 font-black tabular-nums ${low ? 'bg-amber-50 text-amber-700' : 'text-slate-800'}`}>{formatNumber(m.stock_qty || 0)}</span>
+                                                                <button onClick={() => handleQuickStock(m, 1)} className="rounded-sm p-0.5 text-slate-300 opacity-0 hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100"><Plus size={12} /></button>
                                                             </span>
                                                         )}
                                                     </td>
@@ -1004,7 +1004,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
 
                 {/* VARIANT PRICING MODAL */}
                 {activeMaterialForVariants && (
-                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !savingVariants) setActiveMaterialForVariants(null); }}>
+                    <div className="fixed inset-0 z-150 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in" onMouseDown={e => { if (e.target === e.currentTarget && !savingVariants) setActiveMaterialForVariants(null); }}>
                         <div className="w-full max-w-md rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl animate-in zoom-in-95" onKeyDown={e => { if (e.key === 'Escape' && !savingVariants) setActiveMaterialForVariants(null); }}>
                             <div className="mb-5 flex items-start justify-between border-b border-slate-100 pb-4">
                                 <div>
@@ -1028,7 +1028,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                                 placeholder="Κωδικός (π.χ. LA)"
                                                 value={vp.code}
                                                 onChange={e => setVariantPrices(prev => prev.map((p, i) => i === idx ? { ...p, code: e.target.value.toUpperCase() } : p))}
-                                                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-2 font-mono text-sm font-bold uppercase outline-none focus:border-blue-500"
+                                                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-2 font-mono text-sm font-bold uppercase outline-hidden focus:border-blue-500"
                                             />
                                             <div className="relative w-24">
                                                 <input
@@ -1036,7 +1036,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                                     value={vp.price}
                                                     onChange={e => setVariantPrices(prev => prev.map((p, i) => i === idx ? { ...p, price: e.target.value } : p))}
                                                     onKeyDown={e => { if (e.key === 'Enter') setVariantPrices(prev => [...prev, { code: '', price: '' }]); }}
-                                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 pr-6 text-right text-sm font-bold outline-none focus:border-blue-500"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 pr-6 text-right text-sm font-bold outline-hidden focus:border-blue-500"
                                                 />
                                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">€</span>
                                             </div>
@@ -1055,7 +1055,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                                 <button onClick={() => setVariantPrices(prev => [...prev, { code: '', price: '' }])} className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-3 text-sm font-bold text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50">
                                     <Plus size={16} /> Προσθήκη
                                 </button>
-                                <button onClick={saveVariantPrices} disabled={savingVariants || variantIssues.size > 0} className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-black disabled:opacity-40">
+                                <button onClick={saveVariantPrices} disabled={savingVariants || variantIssues.size > 0} className="flex flex-2 items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-black disabled:opacity-40">
                                     {savingVariants && <Loader2 size={15} className="animate-spin" />} Αποθήκευση
                                 </button>
                             </div>
@@ -1064,7 +1064,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                 )}
 
                 {/* FLOATING ACTION BUTTON */}
-                <div className={`fixed bottom-8 right-8 z-[100] transition-all duration-300 ${showFab ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
+                <div className={`fixed bottom-8 right-8 z-100 transition-all duration-300 ${showFab ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
                     <button
                         onClick={openCreate}
                         className="flex h-16 w-16 transform items-center justify-center gap-3 rounded-full bg-[#060b00] font-bold text-white shadow-2xl transition-all duration-200 ease-in-out hover:-translate-y-1 hover:scale-105 hover:bg-black sm:h-auto sm:w-auto sm:px-6 sm:py-4"

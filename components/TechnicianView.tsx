@@ -94,16 +94,16 @@ export default function TechnicianView({ batches }: Props) {
 
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (
-                    <div key={`${item.sku}${item.variantSuffix}-${Array.from(item.notes).join('|')}`} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[8rem] bg-white">
+                    <div key={`${item.sku}${item.variantSuffix}-${Array.from(item.notes).join('|')}`} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-32 bg-white">
                         {/* Top part: SKU, Description */}
                         <div className="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <div>
                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{item.sku}{item.variantSuffix}</p>
-                                <p className="text-[10px] font-bold text-slate-600 mt-0.5 uppercase break-words max-w-[120px] leading-tight">
+                                <p className="text-[10px] font-bold text-slate-600 mt-0.5 uppercase wrap-break-word max-w-[120px] leading-tight">
                                     {item.description}
                                 </p>
                             </div>
-                            <div className="w-10 h-10 bg-slate-100 rounded overflow-hidden border border-slate-200 shrink-0">
+                            <div className="w-10 h-10 bg-slate-100 rounded-sm overflow-hidden border border-slate-200 shrink-0">
                                 {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover"/>}
                             </div>
                         </div>
@@ -113,7 +113,7 @@ export default function TechnicianView({ batches }: Props) {
                             {Object.keys(item.sizes).length > 0 && (
                                 <div className="flex flex-wrap gap-1 mb-1">
                                     {Object.entries(item.sizes).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([size, qty]) => (
-                                        <div key={size} className="bg-slate-100 border border-slate-300 rounded px-2 py-1 flex items-baseline gap-1 shadow-sm">
+                                        <div key={size} className="bg-slate-100 border border-slate-300 rounded-sm px-2 py-1 flex items-baseline gap-1 shadow-xs">
                                             <span className="font-black text-slate-900 text-xs">{size}</span>
                                             <span className="font-bold text-slate-500 text-[8px] whitespace-nowrap">({formatNumber(qty)} τμχ)</span>
                                         </div>
@@ -124,7 +124,7 @@ export default function TechnicianView({ batches }: Props) {
                             {item.notes.size > 0 && (
                                 <div className="space-y-1 mt-1">
                                     {Array.from(item.notes).map((note, nIdx) => (
-                                        <div key={nIdx} className="bg-emerald-50 border border-emerald-100 text-emerald-900 p-1 rounded">
+                                        <div key={nIdx} className="bg-emerald-50 border border-emerald-100 text-emerald-900 p-1 rounded-sm">
                                             <div className="text-[7px] font-black uppercase flex items-center gap-0.5 text-emerald-700 mb-0.5">
                                                 <StickyNote size={6}/> ΣΗΜΕΙΩΣΗ
                                             </div>

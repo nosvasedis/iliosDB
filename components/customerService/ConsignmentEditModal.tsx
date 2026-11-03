@@ -161,8 +161,8 @@ export default function ConsignmentEditModal({
 
   return (
     <ViewportPortal>
-      <div className="fixed inset-0 z-[190] flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label={`Επεξεργασία ${entry.code}`}>
-        <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6">
+      <div className="fixed inset-0 z-190 flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label={`Επεξεργασία ${entry.code}`}>
+        <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-xs sm:px-6">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-700 text-white">
@@ -200,17 +200,17 @@ export default function ConsignmentEditModal({
                   </div>
                   <label>
                     <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-slate-500"><Warehouse size={12} /> Αποθήκη προέλευσης</span>
-                    <select className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
+                    <select className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-hidden" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
                       {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
                     </select>
                   </label>
                   <label>
                     <span className="mb-1 block text-[11px] font-bold text-slate-500">Επανέλεγχος</span>
-                    <input type="date" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" value={reviewDueAt} onChange={(event) => setReviewDueAt(event.target.value)} />
+                    <input type="date" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-hidden" value={reviewDueAt} onChange={(event) => setReviewDueAt(event.target.value)} />
                   </label>
                   <label className="md:col-span-2">
                     <span className="mb-1 block text-[11px] font-bold text-slate-500">Σημείωση</span>
-                    <textarea className="min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none" value={notes} onChange={(event) => setNotes(event.target.value)} />
+                    <textarea className="min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-hidden" value={notes} onChange={(event) => setNotes(event.target.value)} />
                   </label>
                 </div>
               </section>
@@ -237,17 +237,17 @@ export default function ConsignmentEditModal({
                       />
                       <label>
                         <span className="mb-1 block text-[10px] font-bold text-slate-400">Ποσ.</span>
-                        <input type="number" min={1} className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-black outline-none" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: Number(event.target.value) })} />
+                        <input type="number" min={1} className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-black outline-hidden" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: Number(event.target.value) })} />
                       </label>
                       {canSeeCost && (
                         <label>
                           <span className="mb-1 block text-[10px] font-bold text-slate-400">Κόστος</span>
-                          <input aria-label="Κόστος ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: Number(event.target.value) })} />
+                          <input aria-label="Κόστος ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-hidden" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: Number(event.target.value) })} />
                         </label>
                       )}
                       <label>
                         <span className="mb-1 block text-[10px] font-bold text-slate-400">Τιμή</span>
-                        <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-none" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} />
+                        <input aria-label="Τιμή ανά τεμάχιο" type="number" min={0} step="0.01" className="w-full rounded-xl border border-slate-200 px-2 py-2 text-sm font-bold outline-hidden" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} />
                       </label>
                       <div>
                         <span className="mb-1 block text-[10px] font-bold text-slate-400">Μέγεθος</span>

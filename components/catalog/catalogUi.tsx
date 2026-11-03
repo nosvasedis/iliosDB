@@ -31,7 +31,7 @@ export function CategoryChips({ groups, value, onChange }: { groups: readonly st
 }
 
 export const optionClass = (active: boolean) =>
-    `min-h-[2.25rem] rounded-xl border px-3 text-[12px] font-bold transition-colors active:scale-[0.97] ${
+    `min-h-9 rounded-xl border px-3 text-[12px] font-bold transition-colors active:scale-[0.97] ${
         active ? 'border-[#060b00] bg-[#060b00] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
     }`;
 
@@ -55,7 +55,7 @@ export const FilterToggle = ({ title, hint, checked, onChange }: { title: string
             onClick={() => onChange(!checked)}
             className={`relative h-7 w-12 rounded-full transition-colors ${checked ? 'bg-emerald-500' : 'bg-slate-200'}`}
         >
-            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
     </section>
 );
@@ -97,7 +97,7 @@ export function FilterSheet({ title = 'Φίλτρα', resultCount, activeCount, 
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="fixed inset-0 z-70 flex items-end justify-center lg:items-stretch lg:justify-end" role="dialog" aria-modal="true" aria-label={title}>
             <button type="button" aria-label="Κλείσιμο" onClick={onClose} className="absolute inset-0 bg-[#060b00]/40" />
             <div className="relative flex max-h-[88dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl lg:max-h-none lg:w-[400px] lg:rounded-none lg:rounded-l-3xl">
                 <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200 lg:hidden" />

@@ -211,7 +211,7 @@ export default function StockEntryDialog({
                 role="radio"
                 aria-checked={mode === option}
                 onClick={() => switchMode(option)}
-                className={`rounded-lg px-3 py-2 text-sm font-black transition ${mode === option ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`rounded-lg px-3 py-2 text-sm font-black transition ${mode === option ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {option === 'increase' ? 'Προσθήκη' : 'Απογραφή'}
               </button>
@@ -221,7 +221,7 @@ export default function StockEntryDialog({
             value={warehouseId}
             onChange={(event) => setWarehouseId(event.target.value)}
             aria-label="Αποθήκη"
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-slate-900"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 outline-hidden focus:border-slate-900"
           >
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
           </select>
@@ -318,7 +318,7 @@ export default function StockEntryDialog({
               onChange={(event) => setCustomReason(event.target.value)}
               maxLength={500}
               placeholder="Γράψτε την αιτία"
-              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-hidden focus:border-slate-900"
             />
           )}
         </div>

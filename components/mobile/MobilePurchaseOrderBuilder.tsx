@@ -416,7 +416,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         const buttonClasses = accent === 'indigo' ? 'bg-indigo-600 active:bg-indigo-700' : 'bg-blue-600 active:bg-blue-700';
 
         return (
-            <div className={`rounded-2xl border p-3 shadow-sm ${accentClasses}`}>
+            <div className={`rounded-2xl border p-3 shadow-xs ${accentClasses}`}>
                 <div className="flex items-start justify-between gap-2">
                     <button
                         type="button"
@@ -424,7 +424,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                         className="flex min-w-0 flex-1 items-start gap-2 rounded-xl p-1 text-left active:bg-white/50"
                         aria-expanded={open}
                     >
-                        <span className="mt-0.5 rounded-xl bg-white/75 p-1.5 shadow-sm">{icon}</span>
+                        <span className="mt-0.5 rounded-xl bg-white/75 p-1.5 shadow-xs">{icon}</span>
                         <span className="min-w-0">
                             <span className="block text-[11px] font-black uppercase tracking-wide">{title}</span>
                             <span className="mt-0.5 block text-[10px] font-bold opacity-75">{subtitle}</span>
@@ -436,7 +436,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                         <button
                             type="button"
                             onClick={onAddAll}
-                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase text-white shadow-sm ${buttonClasses}`}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase text-white shadow-xs ${buttonClasses}`}
                         >
                             <ListPlus size={13} /> Όλα
                         </button>
@@ -470,8 +470,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex flex-col bg-slate-50 animate-in slide-in-from-bottom duration-300">
-            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="fixed inset-0 z-110 flex flex-col bg-slate-50 animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 py-3 shadow-xs">
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-purple-700 ring-1 ring-purple-100">
@@ -569,7 +569,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     </div>
                 )}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                     <div className="mb-3 flex items-center gap-2">
                         <Search size={15} className="text-purple-600" />
                         <h3 className={sectionTitle}>Χειροκίνητη προσθήκη</h3>
@@ -578,14 +578,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                         <button
                             type="button"
                             onClick={() => setSearchType('Product')}
-                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}
+                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'}`}
                         >
                             Προϊόντα
                         </button>
                         <button
                             type="button"
                             onClick={() => setSearchType('Material')}
-                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}
+                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-500'}`}
                         >
                             Υλικά
                         </button>
@@ -593,7 +593,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
                         <input
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm font-bold text-slate-800 outline-none focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm font-bold text-slate-800 outline-hidden focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
                             placeholder="Αναζήτηση..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -611,7 +611,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                             : result.item,
                                         result.kind,
                                     )}
-                                    className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left shadow-sm active:bg-emerald-50"
+                                    className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left shadow-xs active:bg-emerald-50"
                                 >
                                     <span className="flex min-w-0 items-center gap-3">
                                         <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-slate-400">
@@ -636,7 +636,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     )}
                 </div>
 
-                <div ref={cartSectionRef} className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div ref={cartSectionRef} className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white shadow-xs">
                     <div className="border-b border-slate-100 bg-slate-50/70 p-4">
                         <div className="flex items-center justify-between gap-3">
                             <div>
@@ -665,7 +665,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                 value={cartSearchTerm}
                                 onChange={(e) => setCartSearchTerm(e.target.value)}
                                 placeholder="Αναζήτηση μέσα στην εντολή..."
-                                className="w-full rounded-xl border border-slate-100 bg-white py-2 pl-9 pr-3 text-xs font-bold text-slate-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/10"
+                                className="w-full rounded-xl border border-slate-100 bg-white py-2 pl-9 pr-3 text-xs font-bold text-slate-700 outline-hidden focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/10"
                             />
                         </div>
                     </div>
@@ -679,7 +679,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                             const manualQty = supplierOrderItemManualQty(item);
 
                             return (
-                                <div key={`${item.id}-${index}`} className={`rounded-2xl border bg-white p-3 shadow-sm ${item.source_allocations?.some((allocation) => conflictingSourceIds.has(allocation.source_id)) ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-100'}`}>
+                                <div key={`${item.id}-${index}`} className={`rounded-2xl border bg-white p-3 shadow-xs ${item.source_allocations?.some((allocation) => conflictingSourceIds.has(allocation.source_id)) ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-100'}`}>
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="flex min-w-0 gap-3">
                                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -738,15 +738,15 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                 {allocatedQty > 0 ? `Έξτρα · ${formatNumber(allocatedQty)} δεσμευμένα` : 'Ποσότητα'}
                                             </label>
                                             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">-</button>
+                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-xs">-</button>
                                                 <input
                                                     type="number"
                                                     min={allocatedQty > 0 ? 0 : 1}
                                                     value={allocatedQty > 0 ? manualQty : item.quantity}
                                                     onChange={(e) => updateItem(index, 'qty', allocatedQty + Math.max(0, parseInt(e.target.value, 10) || 0))}
-                                                    className="min-w-0 flex-1 bg-transparent text-center text-sm font-black tabular-nums outline-none"
+                                                    className="min-w-0 flex-1 bg-transparent text-center text-sm font-black tabular-nums outline-hidden"
                                                 />
-                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity + 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">+</button>
+                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity + 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-xs">+</button>
                                             </div>
                                         </div>
                                         {showSizeInput && (
@@ -758,7 +758,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                     disabled={allocatedQty > 0}
                                                     placeholder="54"
                                                     aria-label={`Μέγεθος για ${item.item_name}`}
-                                                    className="w-full rounded-xl border border-blue-100 bg-blue-50/60 px-2 py-2 text-right font-mono text-xs font-black text-blue-900 outline-none"
+                                                    className="w-full rounded-xl border border-blue-100 bg-blue-50/60 px-2 py-2 text-right font-mono text-xs font-black text-blue-900 outline-hidden"
                                                 />
                                             </div>
                                         )}
@@ -770,7 +770,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                     value={item.notes || ''}
                                                     onChange={(e) => updateItem(index, 'notes', e.target.value)}
                                                     placeholder="..."
-                                                    className="w-full rounded-xl border border-slate-100 bg-slate-50 py-2 pl-7 pr-2 text-xs font-bold text-slate-600 outline-none"
+                                                    className="w-full rounded-xl border border-slate-100 bg-slate-50 py-2 pl-7 pr-2 text-xs font-bold text-slate-600 outline-hidden"
                                                 />
                                             </div>
                                         </div>
@@ -793,14 +793,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                     <label className={`${sectionTitle} mb-2 flex items-center gap-1`}>
                         <StickyNote size={12} /> Σημειώσεις εντολής
                     </label>
                     <textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="h-24 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700 outline-none focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
+                        className="h-24 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700 outline-hidden focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
                         placeholder="Σημειώσεις για τον προμηθευτή..."
                     />
                 </div>

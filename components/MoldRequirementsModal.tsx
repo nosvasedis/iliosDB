@@ -138,26 +138,26 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                         <div className="flex-1 min-w-0">
                             {isEditing ? (
                                 <input 
-                                    className="font-bold text-slate-900 border-b border-amber-300 outline-none w-full text-sm"
+                                    className="font-bold text-slate-900 border-b border-amber-300 outline-hidden w-full text-sm"
                                     value={editForm.name}
                                     onChange={e => setEditForm({...editForm, name: e.target.value})}
                                     placeholder="Όνομα Υλικού"
                                     autoFocus
                                 />
                             ) : (
-                                <h3 className="font-bold text-slate-800 text-sm break-words leading-tight" title={material.name}>{material.name}</h3>
+                                <h3 className="font-bold text-slate-800 text-sm wrap-break-word leading-tight" title={material.name}>{material.name}</h3>
                             )}
                             
                             <div className="flex items-center gap-2 mt-1">
                                 {isEditing ? (
                                     <input 
-                                        className="text-xs text-slate-500 border-b border-slate-200 outline-none w-full"
+                                        className="text-xs text-slate-500 border-b border-slate-200 outline-hidden w-full"
                                         value={editForm.description || ''}
                                         onChange={e => setEditForm({...editForm, description: e.target.value})}
                                         placeholder="Περιγραφή..."
                                     />
                                 ) : (
-                                    <span className="text-xs text-slate-500 max-w-[150px] block min-h-[1rem]">
+                                    <span className="text-xs text-slate-500 max-w-[150px] block min-h-4">
                                         {/* FIX: Use Greek Map */}
                                         {material.description || MAT_TYPE_MAP[material.type] || material.type}
                                     </span>
@@ -185,7 +185,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 {isEditing ? (
                                     <input 
                                         type="number" step="0.01"
-                                        className="w-16 bg-white border border-purple-200 rounded px-1 text-sm font-bold text-purple-800 outline-none text-right"
+                                        className="w-16 bg-white border border-purple-200 rounded-sm px-1 text-sm font-bold text-purple-800 outline-hidden text-right"
                                         value={strandPrice}
                                         onChange={e => setStrandPrice(parseFloat(e.target.value) || 0)}
                                     />
@@ -198,7 +198,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 {isEditing ? (
                                     <input 
                                         type="number"
-                                        className="w-16 bg-white border border-purple-200 rounded px-1 text-sm font-bold text-purple-800 outline-none text-right"
+                                        className="w-16 bg-white border border-purple-200 rounded-sm px-1 text-sm font-bold text-purple-800 outline-hidden text-right"
                                         value={editForm.stones_per_strand || 0}
                                         onChange={e => setEditForm({...editForm, stones_per_strand: parseInt(e.target.value) || 0})}
                                     />
@@ -218,7 +218,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 {isEditing ? (
                                     <input 
                                         type="number" step="0.001"
-                                        className="w-16 bg-white border border-slate-300 rounded px-1 text-sm font-mono font-bold outline-none text-right"
+                                        className="w-16 bg-white border border-slate-300 rounded-sm px-1 text-sm font-mono font-bold outline-hidden text-right"
                                         value={editForm.cost_per_unit}
                                         onChange={e => setEditForm({...editForm, cost_per_unit: parseFloat(e.target.value) || 0})}
                                     />
@@ -227,7 +227,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 )}
                                 <span className="text-[10px] text-slate-400">
                                     /{isEditing ? (
-                                        <input className="w-8 border-b bg-transparent outline-none" value={editForm.unit} onChange={e => setEditForm({...editForm, unit: e.target.value})}/>
+                                        <input className="w-8 border-b bg-transparent outline-hidden" value={editForm.unit} onChange={e => setEditForm({...editForm, unit: e.target.value})}/>
                                     ) : material.unit}
                                 </span>
                             </div>
@@ -242,7 +242,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 {isEditing ? (
                                     <input 
                                         type="number"
-                                        className="w-16 bg-white border border-slate-300 rounded px-1 text-sm font-bold outline-none"
+                                        className="w-16 bg-white border border-slate-300 rounded-sm px-1 text-sm font-bold outline-hidden"
                                         value={editForm.stock_qty}
                                         onChange={e => setEditForm({...editForm, stock_qty: parseInt(e.target.value) || 0})}
                                     />
@@ -260,7 +260,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                             <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5">
                                 <Globe size={14} className="text-slate-400"/>
                                 <select 
-                                    className="w-full text-xs outline-none bg-transparent"
+                                    className="w-full text-xs outline-hidden bg-transparent"
                                     value={editForm.supplier_id || ''}
                                     onChange={e => setEditForm({...editForm, supplier_id: e.target.value || null})}
                                 >
@@ -285,14 +285,14 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                 {isEditing ? (
                     <div className="flex gap-2 w-full">
                         <button onClick={handleCancel} className="flex-1 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"><X size={14} className="mx-auto"/></button>
-                        <button onClick={handleSave} className="flex-[2] py-1.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-black flex items-center justify-center gap-2"><Check size={14}/> Αποθήκευση</button>
+                        <button onClick={handleSave} className="flex-2 py-1.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-black flex items-center justify-center gap-2"><Check size={14}/> Αποθήκευση</button>
                         <button onClick={() => onDelete(material.id)} className="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 border border-red-100"><Trash2 size={14}/></button>
                     </div>
                 ) : (
                     <>
                         <button onClick={() => onEditVariants(material)} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
                             {(Object.keys(material.variant_prices || {}).length > 0) ? (
-                                <><span className="bg-blue-100 px-1.5 rounded text-[9px]">{formatNumber(Object.keys(material.variant_prices || {}).length)}</span> Ειδικές Τιμές</>
+                                <><span className="bg-blue-100 px-1.5 rounded-sm text-[9px]">{formatNumber(Object.keys(material.variant_prices || {}).length)}</span> Ειδικές Τιμές</>
                             ) : '+ Ειδικές Τιμές'}
                         </button>
                     </>
@@ -463,7 +463,7 @@ export default function MaterialsPage({ settings }: Props) {
   return (
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS */}
-        <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
+        <div ref={headerRef} className="bg-white p-6 rounded-4xl border border-slate-100 shadow-xs shrink-0">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -503,29 +503,29 @@ export default function MaterialsPage({ settings }: Props) {
                 <div className="flex items-center gap-4">
                     {/* SUB-FILTER FOR STONES */}
                     {activeTab === MaterialType.Stone && (
-                        <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
+                        <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-xs">
                             <button 
                                 onClick={() => setStoneSubFilter('standard')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'standard' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Συμβατικές
                             </button>
                             <button 
                                 onClick={() => setStoneSubFilter('strand')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'strand' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'strand' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Κορδόνι
                             </button>
                         </div>
                     )}
                     
-                    <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm w-64">
+                    <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-xs w-64">
                          <Search size={16} className="ml-3 text-slate-400"/>
                          <input 
                             placeholder="Αναζήτηση..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-none text-slate-700"
+                            className="w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-hidden text-slate-700"
                          />
                          {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
                     </div>
@@ -566,7 +566,7 @@ export default function MaterialsPage({ settings }: Props) {
 
         {/* VARIANT PRICING MODAL */}
         {isVariantModalOpen && activeMaterialForVariants && (
-             <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+             <div className="fixed inset-0 z-150 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
                  <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 border border-slate-100">
                       <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
                           <div>
@@ -588,7 +588,7 @@ export default function MaterialsPage({ settings }: Props) {
                                         updated[idx] = { ...updated[idx], code };
                                         setVariantPrices(updated);
                                       }}
-                                      className="flex-1 p-2 bg-white border border-slate-200 rounded-lg uppercase font-mono text-sm font-bold outline-none focus:border-blue-500"
+                                      className="flex-1 p-2 bg-white border border-slate-200 rounded-lg uppercase font-mono text-sm font-bold outline-hidden focus:border-blue-500"
                                   />
                                   <div className="relative w-24">
                                       <input 
@@ -600,7 +600,7 @@ export default function MaterialsPage({ settings }: Props) {
                                             updated[idx] = { ...updated[idx], price };
                                             setVariantPrices(updated);
                                           }}
-                                          className="w-full p-2 pr-6 bg-white border border-slate-200 rounded-lg font-bold text-sm text-right outline-none focus:border-blue-500"
+                                          className="w-full p-2 pr-6 bg-white border border-slate-200 rounded-lg font-bold text-sm text-right outline-hidden focus:border-blue-500"
                                       />
                                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">€</span>
                                   </div>
@@ -614,7 +614,7 @@ export default function MaterialsPage({ settings }: Props) {
                           <button onClick={() => setVariantPrices([...variantPrices, { code: '', price: 0 }])} className="flex-1 py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm font-bold text-slate-500 hover:border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
                               <Plus size={16}/> Προσθήκη
                           </button>
-                          <button onClick={saveVariantPrices} className="flex-[2] bg-slate-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg">
+                          <button onClick={saveVariantPrices} className="flex-2 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg">
                               Αποθήκευση
                           </button>
                       </div>
@@ -623,7 +623,7 @@ export default function MaterialsPage({ settings }: Props) {
         )}
 
         {/* FLOATING ACTION BUTTON */}
-        <div className={`fixed bottom-8 right-8 z-[100] transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+        <div className={`fixed bottom-8 right-8 z-100 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
             <button
                 onClick={handleCreate}
                 className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
