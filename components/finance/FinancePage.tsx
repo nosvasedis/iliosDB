@@ -142,7 +142,6 @@ export default function FinancePage({ products, settings, initialTab = 'overview
               workspace={hub.workspace}
               orderIncome={hub.derived.orderIncome}
               customerBalances={hub.derived.customerBalances}
-              invoiceGaps={hub.derived.invoiceGaps}
               legalDocuments={legalQuery.data || []}
               period={period}
               billingFilter={billingFilter}

@@ -1,7 +1,6 @@
 import {
   OrderStatus,
   type Customer,
-  type LegalDocument,
   type Offer,
   type Order,
   type OrderShipment,
@@ -36,7 +35,6 @@ export interface IncomeInput {
   orderBilling: readonly FinanceOrderBilling[];
   customerTerms: readonly FinanceCustomerTerms[];
   receipts: readonly FinanceReceipt[];
-  legalDocuments?: readonly LegalDocument[];
   today: string;
 }
 
@@ -67,11 +65,7 @@ export interface OrderIncome {
   lastShippedAt?: string;
   dueDate?: string;
   daysOverdue: number;
-  /** Τ already covered by issued invoices for this order. */
-  invoicedT: number;
 }
-
-const ACTIVE_LEGAL_STATUSES = new Set(['issued', 'submitted']);
 
 /** Effective Χ/Τ split: order override → customer terms → Τ. */
 export function resolveOrderSplit(
@@ -110,13 +104,6 @@ export function buildOrderIncome(input: IncomeInput): OrderIncome[] {
   const receiptsByOrder = new Map<string, FinanceReceipt[]>();
   input.receipts.forEach((receipt) => {
     if (receipt.order_id) receiptsByOrder.set(receipt.order_id, [...(receiptsByOrder.get(receipt.order_id) || []), receipt]);
-  });
-  const invoicedByOrder = new Map<string, number>();
-  (input.legalDocuments || []).forEach((document) => {
-    if (!document.order_id || !ACTIVE_LEGAL_STATUSES.has(document.status)) return;
-    if (document.document_kind === 'delivery_note') return;
-    const sign = document.document_kind === 'credit' ? -1 : 1;
-    invoicedByOrder.set(document.order_id, (invoicedByOrder.get(document.order_id) || 0) + sign * Number(document.totals?.gross || 0));
   });
 
   return input.orders.filter(isIncomeOrder).map((order) => {
@@ -165,7 +152,6 @@ export function buildOrderIncome(input: IncomeInput): OrderIncome[] {
       lastShippedAt,
       dueDate,
       daysOverdue: dueDate && outstandingTotal > 0.01 ? Math.max(0, daysBetween(dueDate, input.today)) : 0,
-      invoicedT: roundMoney(invoicedByOrder.get(order.id) || 0),
     };
   });
 }
@@ -364,20 +350,6 @@ export function buildPipeline(
     offerX += split.X;
   });
   return { backlog: pair(backlogT, backlogX), backlogOrders, offers: pair(offerT, offerX), offerCount: pending.length };
-}
-
-export interface InvoiceGap {
-  income: OrderIncome;
-  /** Τ delivered but not yet covered by an issued invoice. */
-  missing: number;
-}
-
-/** Orders whose delivered Τ part exceeds what was invoiced. */
-export function findInvoiceGaps(orderIncome: readonly OrderIncome[], tolerance = 1): InvoiceGap[] {
-  return orderIncome
-    .map((income) => ({ income, missing: roundMoney(income.due.T - income.invoicedT) }))
-    .filter((gap) => gap.missing > tolerance)
-    .sort((a, b) => b.missing - a.missing);
 }
 
 /** Splits an amount the user is collecting into Τ/Χ the way the order is agreed. */

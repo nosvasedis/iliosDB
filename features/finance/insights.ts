@@ -1,7 +1,7 @@
 import { categoryPath } from './categoryTree';
 import { formatEuro } from './financeMath';
 import type { BudgetUsage, ExpensePeriodSummary, PartyBalance } from './expenseLedger';
-import type { CustomerBalance, InvoiceGap } from './incomeLedger';
+import type { CustomerBalance } from './incomeLedger';
 import type { SellerCommission } from './commissions';
 import type { FinanceCategory, FinanceExpense, ProductionStageAssignment } from './types';
 
@@ -26,7 +26,6 @@ export function buildInsights(params: {
   categories: readonly FinanceCategory[];
   customerBalances: readonly CustomerBalance[];
   partyBalances: readonly PartyBalance[];
-  invoiceGaps: readonly InvoiceGap[];
   budgets: readonly BudgetUsage[];
   commissions: readonly SellerCommission[];
   assignments: readonly ProductionStageAssignment[];
@@ -53,15 +52,6 @@ export function buildInsights(params: {
       id: 'credit-limit', tone: 'warn', target: 'income', weight: 80,
       title: `${overLimit.length} ${overLimit.length === 1 ? 'πελάτης ξεπερνά' : 'πελάτες ξεπερνούν'} το πιστωτικό όριο`,
       detail: overLimit.slice(0, 3).map((balance) => balance.customerName).join(', '),
-    });
-  }
-
-  const gapTotal = params.invoiceGaps.reduce((sum, gap) => sum + gap.missing, 0);
-  if (gapTotal > 1) {
-    insights.push({
-      id: 'invoice-gaps', tone: 'warn', target: 'income', weight: 90,
-      title: `Τ ${formatEuro(gapTotal)} χωρίς παραστατικό`,
-      detail: `${params.invoiceGaps.length} παραδομένες παραγγελίες με Τ που δεν έχει τιμολογηθεί ακόμη.`,
     });
   }
 

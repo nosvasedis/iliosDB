@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { legalKeys } from '../../features/legal/keys';
-import { legalRepository } from '../../features/legal/repository';
 import { financeKeys } from '../../features/finance/keys';
 import { financeRepository } from '../../features/finance/repository';
 import { buildCashflowForecast } from '../../features/finance/cashflowForecast';
@@ -16,7 +14,6 @@ import {
   buildOrderIncome,
   buildPipeline,
   deliveredInPeriod,
-  findInvoiceGaps,
   summarizeReceipts,
   type IncomeInput,
 } from '../../features/finance/incomeLedger';
@@ -52,7 +49,6 @@ export function useFinanceHub(params: {
   const materialsQuery = useMaterials();
   const batchesQuery = useProductionBatches();
   const offersQuery = useQuery({ queryKey: ['offers'], queryFn: api.getOffers });
-  const legalQuery = useQuery({ queryKey: legalKeys.documents(), queryFn: legalRepository.getDocuments });
   const { allRealizedEvents, backlogEvents, isLoading: resourcesLoading, isError: resourcesError, refetch: refetchResources } = useFinanceAnalytics({ products: params.products, settings: params.settings });
   const resourceQuantities = useMemo(() => ({
     realized: summarizeResourceQuantities(dedupeIdenticalFinanceEvents(allRealizedEvents.filter((event) => inPeriod(event.date, params.period)))),
@@ -73,7 +69,6 @@ export function useFinanceHub(params: {
       orderBilling: workspace.orderBilling,
       customerTerms: workspace.customerTerms,
       receipts: workspace.receipts,
-      legalDocuments: legalQuery.data || EMPTY,
       today,
     };
     const orderIncome = buildOrderIncome(incomeInput);
@@ -87,7 +82,6 @@ export function useFinanceHub(params: {
     const previousReceiptSummary = summarizeReceipts(filteredReceipts, previous);
     const customerBalances = buildCustomerBalances(orderIncome, workspace.receipts, customers);
     const partyBalances = buildPartyBalances(workspace.expenses, workspace.expensePayments, parties, today);
-    const invoiceGaps = findInvoiceGaps(orderIncome);
     const budgets = budgetUsage(expenseSummary, workspace.categories, params.period);
     const commissions = buildSellerCommissions({
       realized: allRealizedEvents,
@@ -105,7 +99,6 @@ export function useFinanceHub(params: {
       delivered: deliveredInPeriod(incomeInput, orderIncome, params.period),
       pipeline: buildPipeline(orderIncome, offersQuery.data || EMPTY, workspace.customerTerms),
       customerBalances,
-      invoiceGaps,
       expenseSummary,
       previousExpenseSummary,
       paidOut: paymentsInPeriod.reduce((sum, payment) => sum + payment.amount, 0),
@@ -125,7 +118,6 @@ export function useFinanceHub(params: {
         categories: workspace.categories,
         customerBalances,
         partyBalances,
-        invoiceGaps,
         budgets,
         commissions,
         assignments: workspace.assignments,
@@ -137,7 +129,7 @@ export function useFinanceHub(params: {
     };
   }, [
     workspace, ordersQuery.data, shipmentsQuery.data, shipmentItemsQuery.data, customers, parties,
-    legalQuery.data, offersQuery.data, sellersQuery.data, allRealizedEvents, backlogEvents,
+    offersQuery.data, sellersQuery.data, allRealizedEvents, backlogEvents,
     params.period, params.billingFilter, today,
   ]);
 

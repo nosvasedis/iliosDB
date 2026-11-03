@@ -3,7 +3,7 @@ import { MaterialType, OrderStatus, type Customer, type Material, type Order, ty
 import { buildCategoryTree, categoryBreadcrumb, inheritedCategoryValue, reorderSiblings, rollUpTotals, wouldCreateCycle } from '../../features/finance/categoryTree';
 import { buildPartyBalances, buildPartyStatement, computeAmounts, summarizeExpenses } from '../../features/finance/expenseLedger';
 import { addMonths, previousPeriod, resolvePeriod, splitExpected } from '../../features/finance/financeMath';
-import { agingBucket, buildCustomerBalances, buildOrderIncome, buildPipeline, findInvoiceGaps, suggestReceiptSplit } from '../../features/finance/incomeLedger';
+import { agingBucket, buildCustomerBalances, buildOrderIncome, buildPipeline, suggestReceiptSplit } from '../../features/finance/incomeLedger';
 import { occurrences, pendingRecurringExpenses } from '../../features/finance/recurring';
 import { suggestStatement } from '../../features/finance/workerStatements';
 import { buildSellerCommissions } from '../../features/finance/commissions';
@@ -96,7 +96,6 @@ describe('income ledger', () => {
         const balances = buildCustomerBalances(income, [], customers);
         expect(balances[0].total).toBe(92);
         expect(balances[0].overCreditLimit).toBe(true);
-        expect(findInvoiceGaps(income)[0].missing).toBe(62);
     });
 
     it('lets an order override the customer split and keeps undelivered value in the pipeline', () => {

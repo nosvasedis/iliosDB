@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, FileWarning, HandCoins, Percent, Search, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, HandCoins, Percent, Search, Trash2, Users } from 'lucide-react';
 import { OrderStatus, type LegalDocument } from '../../types';
 import { useUI } from '../UIProvider';
 import { useFinanceMutation } from '../../hooks/api/useFinance';
@@ -9,14 +9,13 @@ import {
   AGING_LABELS,
   type AgingBucket,
   type CustomerBalance,
-  type InvoiceGap,
   type OrderIncome,
 } from '../../features/finance/incomeLedger';
 import type { FinanceBilling, FinancePeriod, FinanceWorkspace } from '../../features/finance/types';
 import { CustomerTermsModal, OrderBillingModal, ReceiptModal } from './IncomeModals';
 import { BillingBadge, EmptyNote, ghostButton, inputClass, SectionCard, SplitBar } from './financeUi';
 
-type View = 'orders' | 'customers' | 'receipts' | 'invoices';
+type View = 'orders' | 'customers' | 'receipts';
 type OrderFilter = 'owed' | 'open' | 'settled' | 'all';
 
 const STATUS_LABELS: Partial<Record<OrderStatus, string>> = {
@@ -38,11 +37,10 @@ const AGING_TONES: Record<AgingBucket, string> = {
 const splitLabel = (income: OrderIncome) =>
   income.split.mode === 'T' ? 'Τ' : income.split.mode === 'X' ? 'Χ' : `${Math.round(income.split.tPercent)}/${Math.round(100 - income.split.tPercent)}`;
 
-export default function IncomeTab({ workspace, orderIncome, customerBalances, invoiceGaps, legalDocuments, period, billingFilter }: {
+export default function IncomeTab({ workspace, orderIncome, customerBalances, legalDocuments, period, billingFilter }: {
   workspace: FinanceWorkspace;
   orderIncome: OrderIncome[];
   customerBalances: CustomerBalance[];
-  invoiceGaps: InvoiceGap[];
   legalDocuments: LegalDocument[];
   period: FinancePeriod;
   billingFilter: FinanceBilling | 'all';
@@ -88,7 +86,6 @@ export default function IncomeTab({ workspace, orderIncome, customerBalances, in
     ['orders', 'Παραγγελίες', orderIncome.filter((income) => income.outstanding.T + income.outstanding.X > 0.01).length],
     ['customers', 'Πελάτες', customerBalances.filter((balance) => balance.total > 0.01).length],
     ['receipts', 'Εισπράξεις', receipts.length],
-    ['invoices', 'Τ & Παραστατικά', invoiceGaps.length],
   ];
 
   return (
@@ -97,7 +94,7 @@ export default function IncomeTab({ workspace, orderIncome, customerBalances, in
         <div className="inline-flex rounded-2xl bg-slate-100 p-1">
           {views.map(([key, label, count]) => (
             <button key={key} type="button" onClick={() => setView(key)} className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-black ${view === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
-              {label}{count > 0 && <span className={`rounded-md px-1.5 text-[10px] ${key === 'invoices' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>{count}</span>}
+              {label}{count > 0 && <span className="rounded-md bg-slate-200 px-1.5 text-[10px] text-slate-600">{count}</span>}
             </button>
           ))}
         </div>
@@ -213,24 +210,6 @@ export default function IncomeTab({ workspace, orderIncome, customerBalances, in
                   </div>
                 );
               })}
-            </div>
-          )}
-        </SectionCard>
-      )}
-
-      {view === 'invoices' && (
-        <SectionCard title="Τ χωρίς παραστατικό" subtitle="Παραδομένες παραγγελίες όπου το Τ μέρος ξεπερνά τα εκδοθέντα τιμολόγια" icon={FileWarning} bodyClassName="p-0">
-          {invoiceGaps.length === 0 ? <div className="p-4"><EmptyNote title="Όλα τα Τ έχουν παραστατικό" detail="Σύγκριση με τα εκδοθέντα Παραστατικά της εφαρμογής." /></div> : (
-            <div className="divide-y divide-slate-100">
-              {invoiceGaps.map(({ income, missing }) => (
-                <div key={income.order.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-black text-slate-900">{income.customerName}</div>
-                    <div className="text-xs font-semibold text-slate-500">{income.order.id} · Τ παραδομένο {formatEuro(income.due.T)} · τιμολογημένο {formatEuro(income.invoicedT)}</div>
-                  </div>
-                  <span className="text-sm font-black tabular-nums text-amber-700">{formatEuro(missing)}</span>
-                </div>
-              ))}
             </div>
           )}
         </SectionCard>
