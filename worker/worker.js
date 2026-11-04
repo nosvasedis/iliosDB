@@ -1503,7 +1503,6 @@ export default {
     }
 
     try {
-      const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
 
       if (['/inspection/snapshot', '/inspection/support', '/inspection/customer', '/legal/catalog'].includes(url.pathname)) {
@@ -1538,7 +1537,7 @@ export default {
         return operation;
       }
       if (url.pathname === FINANCE_ATTACHMENT_ROUTE || url.pathname.startsWith(`${FINANCE_ATTACHMENT_ROUTE}/`)) {
-        // Real admin JWT gate (also refuses while an inspection session is locked); never AUTH_KEY_SECRET.
+        // Real admin JWT gate (also refuses while an inspection session is locked).
         const access = await verifyAdminAccess(request, env);
         if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
         return handleFinanceAttachmentRoute(request, env, CORS_HEADERS, access.userId);
@@ -1563,9 +1562,7 @@ export default {
       const isMutation = ['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method);
       const isProtected = (isMutation && !isAdminRoute) || isSilverRoute || isAadeRoute;
 
-      // TEMPORARY: the shared key stays valid only until every client runs the session-based build.
-      const legacyKey = !!env.AUTH_KEY_SECRET && authHeader === env.AUTH_KEY_SECRET;
-      if (isProtected && !legacyKey) {
+      if (isProtected) {
         const access = await verifyApprovedUser(request, env);
         if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
       }

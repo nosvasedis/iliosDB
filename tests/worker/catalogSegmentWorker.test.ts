@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../../worker/worker.js';
 import { CATALOG_PREPARE_FAILED_STATUS, CATALOG_PREPARE_HEADER } from '../../worker/catalogSegment';
 
-const AUTH = 'secret';
+const AUTH = 'Bearer user-token';
+const SESSION = { SUPABASE_URL: 'https://db.example', SUPABASE_SERVICE_ROLE_KEY: 'service' };
+
+/** Fakes the Supabase checks behind verifyApprovedUser. */
+const stubSession = (profile: Record<string, unknown> | null, locked = false) =>
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/auth/v1/user')) return new Response(JSON.stringify({ id: 'user-1' }), { status: 200 });
+    if (url.includes('/rest/v1/profiles')) return new Response(JSON.stringify(profile ? [profile] : []), { status: 200 });
+    if (url.endsWith('/rpc/inspection_session_state')) return new Response(JSON.stringify(locked), { status: 200 });
+    throw new Error(`Unexpected fetch: ${url}`);
+  }));
 
 const memoryR2 = () => {
   const objects = new Map<string, { bytes: Uint8Array; contentType?: string }>();
@@ -52,13 +63,43 @@ const post = (env: any, body: Uint8Array, headers: Record<string, string> = {}) 
       },
       body,
     }),
-    env,
+    { ...SESSION, ...env },
   );
+
+beforeEach(() => stubSession({ role: 'user', is_approved: true }));
+afterEach(() => vi.unstubAllGlobals());
+
+describe('worker image write access', () => {
+  const r2 = () => memoryR2();
+  it('allows any approved account, not only admins', async () => {
+    stubSession({ role: 'seller', is_approved: true });
+    const bucket = r2();
+    expect((await post({ R2_BUCKET: bucket }, new Uint8Array([1]))).status).toBe(200);
+    expect(bucket.objects.has('SKU_1.jpg')).toBe(true);
+  });
+  it('refuses the old shared key even if it is still configured', async () => {
+    const bucket = r2();
+    const response = await post({ AUTH_KEY_SECRET: 'old-key', R2_BUCKET: bucket }, new Uint8Array([1]), { Authorization: 'old-key' });
+    expect(response.status).toBe(401);
+    expect(bucket.objects.size).toBe(0);
+  });
+  it('refuses accounts that are not approved', async () => {
+    stubSession({ role: 'user', is_approved: false });
+    const bucket = r2();
+    expect((await post({ R2_BUCKET: bucket }, new Uint8Array([1]))).status).toBe(403);
+    expect(bucket.objects.size).toBe(0);
+  });
+  it('refuses writes while an inspection session is locked', async () => {
+    stubSession({ role: 'admin', is_approved: true }, true);
+    const bucket = r2();
+    expect((await post({ R2_BUCKET: bucket }, new Uint8Array([1]))).status).toBe(403);
+    expect(bucket.objects.size).toBe(0);
+  });
+});
 
 describe('catalog image Worker segment proxy', () => {
   it('allows the catalog prepare header in CORS preflight', async () => {
     const response = await worker.fetch(new Request('https://worker.example/SKU_1.jpg', { method: 'OPTIONS' }), {
-      AUTH_KEY_SECRET: AUTH,
     });
     expect(response.headers.get('Access-Control-Allow-Headers') || '').toContain(CATALOG_PREPARE_HEADER);
   });
@@ -66,7 +107,7 @@ describe('catalog image Worker segment proxy', () => {
   it('stores the uploaded bytes verbatim when the prepare header is absent', async () => {
     const r2 = memoryR2();
     const original = new Uint8Array([1, 2, 3, 4]);
-    const response = await post({ AUTH_KEY_SECRET: AUTH, R2_BUCKET: r2, IMAGES: mockImages(new Response('nope', { status: 500 })) }, original);
+    const response = await post({ R2_BUCKET: r2, IMAGES: mockImages(new Response('nope', { status: 500 })) }, original);
     expect(response.status).toBe(200);
     expect(Array.from(r2.objects.get('SKU_1.jpg')!.bytes)).toEqual([1, 2, 3, 4]);
   });
@@ -75,7 +116,7 @@ describe('catalog image Worker segment proxy', () => {
     const r2 = memoryR2();
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
     const response = await post(
-      { AUTH_KEY_SECRET: AUTH, R2_BUCKET: r2, IMAGES: mockImages(new Response(png, { status: 200 })) },
+      { R2_BUCKET: r2, IMAGES: mockImages(new Response(png, { status: 200 })) },
       new Uint8Array([9, 8, 7, 6]),
       { [CATALOG_PREPARE_HEADER]: '1' },
     );
@@ -88,7 +129,7 @@ describe('catalog image Worker segment proxy', () => {
   it('fails with the prepare status and stores nothing when Images returns an error', async () => {
     const r2 = memoryR2();
     const response = await post(
-      { AUTH_KEY_SECRET: AUTH, R2_BUCKET: r2, IMAGES: mockImages(new Response('error 9422', { status: 415 })) },
+      { R2_BUCKET: r2, IMAGES: mockImages(new Response('error 9422', { status: 415 })) },
       new Uint8Array([9, 8, 7, 6]),
       { [CATALOG_PREPARE_HEADER]: '1' },
     );
@@ -100,7 +141,6 @@ describe('catalog image Worker segment proxy', () => {
     const r2 = memoryR2();
     const response = await post(
       {
-        AUTH_KEY_SECRET: AUTH,
         R2_BUCKET: r2,
         IMAGES: {
           input: () => {
