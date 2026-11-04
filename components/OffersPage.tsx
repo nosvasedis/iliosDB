@@ -15,7 +15,7 @@ import { Product, ProductVariant, Customer, Offer, OfferStatus, OrderItem, Globa
 import { DEFAULT_OFFER_VALIDITY_DAYS } from '../constants';
 import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw, Loader2, ArrowRight, Ban, FolderKanban, Coins, Percent, X, AlertTriangle, ImageIcon, ScanBarcode, Lightbulb, Calendar, Package } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { api, CLOUDFLARE_WORKER_URL, workerAuthHeaders, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProductCost, calculateSuggestedWholesalePrice, expandSkuRange, estimateVariantCost, getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
 import { normalizedIncludes } from '../utils/greekSearch';
@@ -183,7 +183,7 @@ export default function OffersPage({ products, materials, settings, collections,
         try {
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
                 method: 'GET',
-                headers: { 'Authorization': AUTH_KEY_SECRET }
+                headers: { ...(await workerAuthHeaders()) }
             });
             const data = await response.json();
 

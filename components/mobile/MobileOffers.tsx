@@ -10,7 +10,7 @@ import { formatNumber } from '../../utils/numberFormat';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { api, CLOUDFLARE_WORKER_URL, workerAuthHeaders, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Offer, Product, Customer, OrderItem, VatRegime } from '../../types';
 import { DEFAULT_OFFER_VALIDITY_DAYS } from '../../constants';
 import {
@@ -181,7 +181,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         try {
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
                 method: 'GET',
-                headers: { 'Authorization': AUTH_KEY_SECRET }
+                headers: { ...(await workerAuthHeaders()) }
             });
             const data = await response.json();
 

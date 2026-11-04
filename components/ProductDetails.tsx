@@ -8,7 +8,7 @@ import { Product, Material, Gender, GlobalSettings, Collection, Mold, Production
 import { calculateProductCost } from '../utils/pricingEngine';
 import { getPricingRules } from '../utils/pricingRules';
 import { Info, Layers, ScanBarcode, Factory, Box, Hammer, Link2 } from 'lucide-react';
-import { AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
+import { workerAuthHeaders, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { prepareUploadSource } from '../utils/imageHelpers';
 import { uploadCatalogPhotoWithChoice } from '../utils/catalogPhotoUpload';
 import { useQueryClient } from '@tanstack/react-query';
@@ -515,7 +515,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${fileName}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': AUTH_KEY_SECRET }
+                headers: { ...(await workerAuthHeaders()) }
             });
             if (!response.ok) {
                 throw new Error(`Failed to delete image: ${response.status}`);

@@ -86,7 +86,6 @@ export const CLOUDFLARE_WORKER_URL = 'https://ilios-image-handler.iliosdb.worker
 
 const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
 const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
-const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
 const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
 const getLocalStorageItem = (key: string): string | null => {
     if (typeof localStorage === 'undefined') return null;
@@ -115,7 +114,6 @@ const rememberAadeRateLimitCooldown = (environment: string, retryAfterSeconds: n
 
 const SUPABASE_URL = envUrl || getLocalStorageItem('VITE_SUPABASE_URL') || '';
 const SUPABASE_KEY = envKey || getLocalStorageItem('VITE_SUPABASE_ANON_KEY') || '';
-export const AUTH_KEY_SECRET = envWorkerKey || getLocalStorageItem('VITE_WORKER_AUTH_KEY') || '';
 export const GEMINI_API_KEY = envGeminiKey || getLocalStorageItem('VITE_GEMINI_API_KEY') || '';
 
 export const isLocalMode = getLocalStorageItem('ILIOS_LOCAL_MODE') === 'true';
@@ -127,7 +125,6 @@ export const getConnectionSummary = () => {
     return {
         localMode: isLocalMode,
         databaseHost,
-        workerKeyConfigured: !!AUTH_KEY_SECRET,
         geminiKeyFromEnv: !!envGeminiKey,
     };
 };
@@ -167,6 +164,15 @@ export const supabase = new Proxy(rawSupabase, {
         return Reflect.get(target, prop, receiver);
     },
 });
+
+/** The signed-in session authorises worker calls; no shared secret ships in the browser. */
+export async function workerAuthHeaders(): Promise<Record<string, string>> {
+    const { data, error } = await rawSupabase.auth.getSession();
+    if (error || !data.session?.access_token) {
+        throw new Error('Απαιτείται ενεργή σύνδεση χρήστη.');
+    }
+    return { 'Authorization': `Bearer ${data.session.access_token}` };
+}
 
 async function getWorkerAdminHeaders(): Promise<Record<string, string>> {
     const { data, error } = await rawSupabase.auth.getSession();
@@ -1107,10 +1113,10 @@ async function insertBatchStageHistory(entry: BatchStageHistoryEntry): Promise<v
     }, { noSelect: true });
 }
 
-export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
+export const saveConfiguration = (url: string, key: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
-    localStorage.setItem('VITE_WORKER_AUTH_KEY', workerKey);
+    localStorage.removeItem('VITE_WORKER_AUTH_KEY');
     localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
     localStorage.removeItem('ILIOS_LOCAL_MODE');
     requestAppRestart('Οι αλλαγές θα εφαρμοστούν μετά την επανεκκίνηση.');
@@ -1194,7 +1200,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`, {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+        headers: { 'Content-Type': 'image/jpeg', ...(await workerAuthHeaders()) },
         body: file,
     });
     if (!response.ok) throw new Error(`Status ${response.status}`);
@@ -1217,7 +1223,7 @@ export const segmentProductImage = async (file: Blob, sku: string): Promise<Blob
             mode: 'cors',
             headers: {
                 'Content-Type': 'image/jpeg',
-                'Authorization': AUTH_KEY_SECRET,
+                ...(await workerAuthHeaders()),
                 [CATALOG_IMAGE_PREPARE_HEADER]: '1',
             },
             body: file,
@@ -1907,10 +1913,9 @@ const apiMethods = {
 
     saveAadeCredentials: async (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => {
         assertInspectionWorkerRouteAllowed('/aade/configure-credentials');
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-credentials`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            headers: { 'Content-Type': 'application/json', ...(await workerAuthHeaders()) },
             body: JSON.stringify(payload),
         });
         const data = await parseWorkerJsonResponse(response);
@@ -2059,10 +2064,9 @@ const apiMethods = {
 
     callAadeProxy: async (route: string, payload: Record<string, unknown>): Promise<AadeProxyResult> => {
         assertInspectionWorkerRouteAllowed(route);
-        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}${route}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            headers: { 'Content-Type': 'application/json', ...(await workerAuthHeaders()) },
             body: JSON.stringify(payload),
         });
         const data = await response.json().catch(async () => {
@@ -4429,7 +4433,7 @@ const apiMethods = {
                     const resp = await fetch(uploadUrl, {
                         method: 'POST',
                         mode: 'cors',
-                        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+                        headers: { 'Content-Type': 'image/jpeg', ...(await workerAuthHeaders()) },
                         body: blob,
                     });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

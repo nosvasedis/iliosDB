@@ -15,13 +15,12 @@ export default function SetupScreen() {
     const isMobile = useIsMobile();
     const [url, setUrl] = useState('');
     const [key, setKey] = useState('');
-    const [workerKey, setWorkerKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showToast, confirm } = useUI();
 
-    const setupRestart = useRestartDraft('Ρύθμιση σύνδεσης', { url, key, workerKey, geminiKey }, { busy: isRestoring });
+    const setupRestart = useRestartDraft('Ρύθμιση σύνδεσης', { url, key, geminiKey }, { busy: isRestoring });
 
     if (isMobile) {
         return <MobileSetupScreen />;
@@ -30,7 +29,7 @@ export default function SetupScreen() {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         if (url && key) {
-            saveConfiguration(url, key, workerKey, geminiKey);
+            saveConfiguration(url, key, geminiKey);
             setupRestart.markSaved();
         }
     };
@@ -122,14 +121,6 @@ export default function SetupScreen() {
                                 <input
                                     type="password" required value={key} onChange={e => setKey(e.target.value)}
                                     placeholder="Ανώνυμο κλειδί Supabase"
-                                    className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
-                                />
-                            </div>
-                            <div className="relative">
-                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                <input
-                                    type="password" value={workerKey} onChange={e => setWorkerKey(e.target.value)}
-                                    placeholder="Cloudflare Worker Key (Optional)"
                                     className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>

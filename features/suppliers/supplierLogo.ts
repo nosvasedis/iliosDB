@@ -1,4 +1,4 @@
-import { AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL, R2_PUBLIC_URL } from '../../lib/supabase';
+import { workerAuthHeaders, CLOUDFLARE_WORKER_URL, R2_PUBLIC_URL } from '../../lib/supabase';
 
 const MAX_EDGE = 256;
 
@@ -28,7 +28,7 @@ export async function uploadSupplierLogo(file: File): Promise<string> {
   const key = `supplier-logos/${crypto.randomUUID()}.${ext}`;
   const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${key}`, {
     method: 'POST',
-    headers: { 'Content-Type': type, Authorization: AUTH_KEY_SECRET },
+    headers: { 'Content-Type': type, ...(await workerAuthHeaders()) },
     body,
   });
   if (!response.ok) throw new Error(`Το λογότυπο δεν ανέβηκε (${response.status}).`);

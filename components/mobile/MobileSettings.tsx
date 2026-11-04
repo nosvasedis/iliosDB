@@ -5,7 +5,7 @@ import PricingRulesSettings from '../PricingRulesSettings';
 
 import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase, GEMINI_API_KEY, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
+import { api, supabase, GEMINI_API_KEY, workerAuthHeaders, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
 import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, Loader2, Database, Settings } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
@@ -92,7 +92,7 @@ export default function MobileSettings() {
         try {
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
                 method: 'GET',
-                headers: { 'Authorization': AUTH_KEY_SECRET }
+                headers: { ...(await workerAuthHeaders()) }
             });
             const data = await response.json();
 

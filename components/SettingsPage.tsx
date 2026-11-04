@@ -7,7 +7,7 @@ import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { GlobalSettings, Product } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Key, Download, Database, RefreshCw, Trash2, HardDrive, Upload, Tag, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare, Coins, MonitorSmartphone, Wrench, ChevronRight, Eye, EyeOff, WifiOff, Cloud, Server, Unplug, Printer, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api, getLocalImageStoragePreference, setLocalImageStoragePreference, getConnectionSummary, clearConfiguration } from '../lib/supabase';
+import { supabase, CLOUDFLARE_WORKER_URL, workerAuthHeaders, GEMINI_API_KEY, api, getLocalImageStoragePreference, setLocalImageStoragePreference, getConnectionSummary, clearConfiguration } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import AuditLogsModal from './AuditLogsModal';
 import BackupProgressModal from './BackupProgressModal';
@@ -353,7 +353,7 @@ export default function SettingsPage() {
         try {
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
                 method: 'GET',
-                headers: { 'Authorization': AUTH_KEY_SECRET }
+                headers: { ...(await workerAuthHeaders()) }
             });
             const data = await response.json();
 
@@ -654,7 +654,7 @@ export default function SettingsPage() {
             if (!fileName) return;
             await fetch(`${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': AUTH_KEY_SECRET },
+                headers: { ...(await workerAuthHeaders()) },
             });
         } catch (error) {
             console.warn('Η εκκαθάριση της παλιάς εικόνας παραλείφθηκε:', error);
@@ -673,7 +673,7 @@ export default function SettingsPage() {
         const response = await fetch(uploadUrl, {
             method: 'POST',
             mode: 'cors',
-            headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+            headers: { 'Content-Type': 'image/jpeg', ...(await workerAuthHeaders()) },
             body: blob,
         });
 
@@ -1009,7 +1009,6 @@ export default function SettingsPage() {
                     <InfoRow label="Λειτουργία" value={connection.localMode ? 'Τοπική (χωρίς cloud)' : 'Cloud'} />
                     {!connection.localMode && <InfoRow label="Βάση δεδομένων" value={connection.databaseHost || '—'} ok={!!connection.databaseHost} />}
                     <InfoRow label="Κατάσταση δικτύου" value={isOnline ? 'Online' : 'Offline'} ok={isOnline} />
-                    <InfoRow label="Αποθήκευση εικόνων" value={connection.workerKeyConfigured ? 'Ρυθμισμένη' : 'Χωρίς κλειδί'} ok={connection.workerKeyConfigured} />
                     <InfoRow label="Εκκρεμείς αλλαγές" value={pendingSyncCount === null ? '—' : formatNumber(pendingSyncCount)} ok={pendingSyncCount === null ? undefined : pendingSyncCount === 0} />
                     <InfoRow label="Έκδοση εφαρμογής" value={<span className="font-mono">{APP_BUILD_ID}</span>} />
                 </div>

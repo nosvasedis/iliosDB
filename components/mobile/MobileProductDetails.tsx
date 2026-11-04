@@ -6,7 +6,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera, Trash2 } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, workerAuthHeaders } from '../../lib/supabase';
 import { uploadCatalogPhotoWithChoice } from '../../utils/catalogPhotoUpload';
 import { ACCEPTED_IMAGE_INPUT_TYPES, prepareUploadSource } from '../../utils/imageHelpers';
 import { productsRepository } from '../../features/products/repository';
@@ -284,7 +284,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           const fileName = urlParts[urlParts.length - 1];
           const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${fileName}`, {
               method: 'DELETE',
-              headers: { 'Authorization': AUTH_KEY_SECRET }
+              headers: { ...(await workerAuthHeaders()) }
           });
           if (!response.ok) {
               throw new Error(`Failed to delete image: ${response.status}`);

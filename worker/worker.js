@@ -136,7 +136,12 @@ export function shouldRunScheduledBackup(date, existingKeys) {
     && !existingKeys.some((key) => key.startsWith(`backups/daily/${day}`));
 }
 
-export async function verifyAdminAccess(request, env, fetchFn = fetch) {
+export const verifyAdminAccess = (request, env, fetchFn = fetch) => verifySessionAccess(request, env, true, fetchFn);
+
+/** Any approved account; used for product images and the silver price. */
+export const verifyApprovedUser = (request, env, fetchFn = fetch) => verifySessionAccess(request, env, false, fetchFn);
+
+async function verifySessionAccess(request, env, requireAdmin, fetchFn) {
   const authorization = request.headers.get('Authorization') || '';
   if (!authorization.startsWith('Bearer ')) {
     return { ok: false, status: 401, error: 'Missing user bearer token.' };
@@ -168,7 +173,10 @@ export async function verifyAdminAccess(request, env, fetchFn = fetch) {
     return { ok: false, status: 403, error: 'Unable to verify administrator profile.' };
   }
   const [profile] = await profileResponse.json();
-  if (profile?.role !== 'admin' || profile?.is_approved !== true) {
+  if (profile?.is_approved !== true) {
+    return { ok: false, status: 403, error: requireAdmin ? 'Approved administrator access is required.' : 'Approved account access is required.' };
+  }
+  if (requireAdmin && profile.role !== 'admin') {
     return { ok: false, status: 403, error: 'Approved administrator access is required.' };
   }
   const stateResponse = await fetchFn(`${env.SUPABASE_URL}/rest/v1/rpc/inspection_session_state`, { method: 'POST', headers, body: '{}' });
@@ -1555,8 +1563,11 @@ export default {
       const isMutation = ['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method);
       const isProtected = (isMutation && !isAdminRoute) || isSilverRoute || isAadeRoute;
 
-      if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
-        return new Response('Unauthorized', { status: 403, headers: CORS_HEADERS });
+      // TEMPORARY: the shared key stays valid only until every client runs the session-based build.
+      const legacyKey = !!env.AUTH_KEY_SECRET && authHeader === env.AUTH_KEY_SECRET;
+      if (isProtected && !legacyKey) {
+        const access = await verifyApprovedUser(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
       }
 
       if (url.pathname.startsWith('/aade/')) {

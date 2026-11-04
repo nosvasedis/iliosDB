@@ -22,7 +22,7 @@ export default function MobileSetupScreen() {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         if(url && key) {
-            saveConfiguration(url, key, '', '');
+            saveConfiguration(url, key, '');
             setupRestart.markSaved();
         }
     };
