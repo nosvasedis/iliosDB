@@ -435,6 +435,16 @@ export function getCustomerAssortment(index: AssortmentIndex, customerId: string
   };
 }
 
+/** Same view limited to some of an account's orders: one person inside the shared Λιανική account. */
+export function getCustomerAssortmentForOrders(index: AssortmentIndex, customerId: string, orderIds: ReadonlySet<string>, window: AssortmentWindow): CustomerAssortmentView {
+  const lines = (index.lines.get(customerId) ?? []).filter(line => orderIds.has(line.orderId));
+  return getCustomerAssortment(
+    { ...index, lines: new Map([[customerId, lines]]), windowCache: new Map(), neighborCache: new Map(), overlapCache: new Map() },
+    customerId,
+    window,
+  );
+}
+
 /** Compact «τι αγοράζει» for overview cards: kind shares over the whole history. */
 export function getCustomerKindMix(index: AssortmentIndex, customerId: string, window: AssortmentWindow = 'all'): MixRow[] {
   return getCustomerAssortment(index, customerId, window).kinds;

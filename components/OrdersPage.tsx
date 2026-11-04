@@ -1,5 +1,5 @@
 import OrderCustomerName from './orders/OrderCustomerName';
-import { getOrderCustomerName } from '../utils/orderCustomer';
+import { getOrderCustomerName, getRetailClientProfile, isRetailCustomerOrder } from '../utils/orderCustomer';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -7,7 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem, Customer } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, HelpCircle } from 'lucide-react';
 import * as ReactQuery from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { useSellers } from '../hooks/api/useSellers';
 import { withResolvedOrderSeller } from '../utils/orderSeller';
 import { useUI } from './UIProvider';
@@ -1023,6 +1023,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showTransferModal, setShowTransferModal] = useState(false);
     const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
     const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+    /** The retail order whose person is shown on the card; unnamed orders open the shared account. */
+    const [viewingRetailOrder, setViewingRetailOrder] = useState<Order | null>(null);
+    const viewingRetailClient = useMemo(
+        () => (viewingRetailOrder && orders ? getRetailClientProfile(orders, viewingRetailOrder) : null),
+        [orders, viewingRetailOrder],
+    );
+    const openOrderCustomer = (order: Order, customer: Customer) => {
+        setViewingRetailOrder(isRetailCustomerOrder(order) ? order : null);
+        setViewingCustomer(customer);
+    };
     const [skuSearchOpen, setSkuSearchOpen] = useState(false);
 
     // Group Management in Modal
@@ -1865,7 +1875,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const netValue = order.total_price / (1 + activeVat);
                                 const orderMeta = orderMetaById.get(order.id);
                                 const ready = orderMeta?.isReady || false;
-                                const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const transferIndicators = getOrderTransferIndicators(order.notes);
                                 const isSelected = multiSelectIds.has(order.id);
                                 return (
@@ -1922,11 +1931,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4">
                                             <div className="text-base font-black leading-tight text-slate-900">
                                                 {(() => {
-                                                    const cust = !isRetailOrder && order.customer_id ? customers?.find(c => c.id === order.customer_id) : undefined;
+                                                    const customerId = isRetailCustomerOrder(order) ? RETAIL_CUSTOMER_ID : order.customer_id;
+                                                    const cust = customerId ? customers?.find(c => c.id === customerId) : undefined;
                                                     return cust ? (
                                                         <button
                                                             type="button"
-                                                            onClick={(e) => { e.stopPropagation(); setViewingCustomer(cust); }}
+                                                            onClick={(e) => { e.stopPropagation(); openOrderCustomer(order, cust); }}
                                                             className="text-left font-black text-slate-900 transition-colors hover:text-blue-600 hover:underline"
                                                         >
                                                             <OrderCustomerName order={order} />
@@ -2482,8 +2492,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             {viewingCustomer && orders && (
                 <CustomerDetailsModal
                     customer={viewingCustomer}
-                    orders={orders.filter(o => o.customer_id === viewingCustomer.id)}
-                    onClose={() => setViewingCustomer(null)}
+                    orders={viewingRetailClient?.orders
+                        ?? (viewingCustomer.id === RETAIL_CUSTOMER_ID ? orders.filter(isRetailCustomerOrder) : orders.filter(o => o.customer_id === viewingCustomer.id))}
+                    retailClient={viewingRetailClient ?? undefined}
+                    onClose={() => { setViewingCustomer(null); setViewingRetailOrder(null); }}
                     onOpenCustomer={id => { const next = customers?.find(c => c.id === id); if (next) setViewingCustomer(next); }}
                     onUpdate={async (c) => {
                         await ordersRepository.updateCustomer(c.id, c);

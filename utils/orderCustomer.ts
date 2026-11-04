@@ -38,6 +38,22 @@ export function ordersHaveSameCustomer(a: OrderCustomerIdentity, b: OrderCustome
 }
 
 
+/**
+ * The person behind a named retail order: all their orders under the shared account, newest
+ * first, and the latest phone they gave. Null for an unnamed order, which identifies nobody.
+ */
+export function getRetailClientProfile<T extends OrderCustomerIdentity & { customer_phone?: string | null; created_at: string }>(
+    orders: T[],
+    order: T,
+): { name: string; phone: string; orders: T[] } | null {
+    const name = isRetailCustomerOrder(order) ? getRetailClientName(order) : '';
+    if (!name) return null;
+    const clientOrders = orders
+        .filter(candidate => ordersHaveSameCustomer(candidate, order))
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { name, phone: clientOrders.find(o => o.customer_phone)?.customer_phone || '', orders: clientOrders };
+}
+
 export function getOrderCustomerPhone(order: OrderCustomerIdentity & { customer_phone?: string | null }, customer?: { phone?: string | null }): string {
     return (isRetailCustomerOrder(order) ? order.customer_phone : customer?.phone || order.customer_phone) || '';
 }

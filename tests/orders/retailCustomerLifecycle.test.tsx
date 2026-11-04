@@ -2,12 +2,13 @@
 import React from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildOrderCustomerFields, getOrderCustomerName, getOrderCustomerPhone, ordersHaveSameCustomer } from '../../utils/orderCustomer';
+import { buildOrderCustomerFields, getOrderCustomerName, getOrderCustomerPhone, getRetailClientProfile, ordersHaveSameCustomer } from '../../utils/orderCustomer';
+import { buildAssortmentIndex, getCustomerAssortment, getCustomerAssortmentForOrders } from '../../features/customers/customerAssortment';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../../utils/retailConstants';
 import { buildTransferPlan, getCandidateTransferTargetOrders } from '../../features/orders/transferHelpers';
 import RetailClientField from '../../components/orders/RetailClientField';
-import { Order, OrderStatus, ProductionBatch, ProductionStage } from '../../types';
+import { Customer, Order, OrderStatus, ProductionBatch, ProductionStage } from '../../types';
 
 const identity = { customer_id: RETAIL_CUSTOMER_ID, customer_name: RETAIL_CUSTOMER_NAME, customer_phone: '6912345678' };
 const makeOrder = (id: string, name: string): Order => ({
@@ -77,6 +78,32 @@ describe('retail customer lifecycle', () => {
         expect(buildTransferPlan(source, makeOrder('other', 'Ελένη'), snapshot, [batch]).isValid).toBe(false);
         expect(buildTransferPlan(source, source, snapshot, [batch]).isValid).toBe(false);
         expect(buildTransferPlan(source, { ...makeOrder('closed', 'Μαρία'), status: OrderStatus.Delivered }, snapshot, [batch]).isValid).toBe(false);
+    });
+    it('builds one person\'s card from their own orders and latest phone', () => {
+        const older = { ...makeOrder('older', 'Μαρία'), customer_phone: '6900000000', created_at: '2026-01-01T10:00:00Z' };
+        const newer = { ...makeOrder('newer', ' ΜΑΡΊΑ '), customer_phone: '', created_at: '2026-06-01T10:00:00Z' };
+        const latestWithPhone = { ...makeOrder('phone', 'Μαρία'), customer_phone: '6911111111', created_at: '2026-03-01T10:00:00Z' };
+        const profile = getRetailClientProfile([older, newer, latestWithPhone, makeOrder('other', 'Ελένη')], older);
+        expect(profile?.name).toBe('Μαρία');
+        expect(profile?.phone).toBe('6911111111');
+        expect(profile?.orders.map(o => o.id)).toEqual(['newer', 'phone', 'older']);
+    });
+    it('treats an unnamed retail order or a regular order as nobody in particular', () => {
+        const unnamed = makeOrder('unnamed', '');
+        expect(getRetailClientProfile([unnamed, makeOrder('other-unnamed', '')], unnamed)).toBeNull();
+        const regular = { ...makeOrder('regular', ''), customer_id: 'wholesale', customer_name: 'Κατάστημα' };
+        expect(getRetailClientProfile([regular], regular)).toBeNull();
+    });
+    it('limits the purchase mix to one person inside the shared account', () => {
+        const maria = makeOrder('maria', 'Μαρία');
+        const eleni = { ...makeOrder('eleni', 'Ελένη'), items: [{ sku: 'RN001', quantity: 4, price_at_order: 10, line_id: 'line-2' }] };
+        const index = buildAssortmentIndex({
+            customers: [{ id: RETAIL_CUSTOMER_ID, full_name: RETAIL_CUSTOMER_NAME } as Customer],
+            orders: [maria, eleni],
+            products: [],
+        });
+        expect(getCustomerAssortmentForOrders(index, RETAIL_CUSTOMER_ID, new Set(['maria']), 'all').totals.qty).toBe(1);
+        expect(getCustomerAssortment(index, RETAIL_CUSTOMER_ID, 'all').totals.qty).toBe(5);
     });
     it('provides one labelled name input and an explicit customer change action', () => {
         const onChange = vi.fn();

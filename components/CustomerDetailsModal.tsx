@@ -69,7 +69,7 @@ import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import CustomerAssortmentPanel from './customers/CustomerAssortmentPanel';
 import { CustomerProfileEditor, CustomerProfileSummary, CustomerSocialsPane, SocialIconRow } from './customers/customerProfileUi';
 import { useAssortmentIndex, useTerritoryPrefs } from './customers/useCustomerTerritory';
-import { getCustomerAssortment, overlapsForCustomer, SEVERITY_META } from '../features/customers/customerAssortment';
+import { getCustomerAssortment, getCustomerAssortmentForOrders, overlapsForCustomer, SEVERITY_META } from '../features/customers/customerAssortment';
 import { cleanCustomerProfile, collectCustomerTags, readCustomerProfile, savedSocials } from '../features/customers/customerProfile';
 import { useCustomers } from '../hooks/api/useOrders';
 import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
@@ -114,6 +114,8 @@ export interface CustomerDetailsModalProps {
     onShowOnMap?: () => void;
     /** Opens another customer's card (neighbours in «Γκάμα & Περιοχή»). */
     onOpenCustomer?: (customerId: string) => void;
+    /** With the Λιανική account: show this one person; `orders` must be only theirs. */
+    retailClient?: { name: string; phone?: string };
 }
 
 const inputClass =
@@ -250,6 +252,7 @@ export default function CustomerDetailsModal({
     onPrintOrder,
     onShowOnMap,
     onOpenCustomer,
+    retailClient,
 }: CustomerDetailsModalProps) {
     /** Λιανική specifically (end clients from order notes). */
     const isRetailAccount = customer.id === RETAIL_CUSTOMER_ID;
@@ -257,6 +260,8 @@ export default function CustomerDetailsModal({
     const isInternalAccount = customer.id === INTERNAL_CUSTOMER_ID;
     /** Any system account: read-only, no identity, no territory. */
     const isRetailSystemCustomer = isRetailAccount || isInternalAccount;
+    /** The whole Λιανική account, as opposed to one person inside it. */
+    const isRetailOverview = isRetailAccount && !retailClient;
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Customer>(customer);
     const [isSaving, setIsSaving] = useState(false);
@@ -275,8 +280,13 @@ export default function CustomerDetailsModal({
     const tagSuggestions = useMemo(() => collectCustomerTags(allCustomers), [allCustomers]);
     /** All-time assortment: «τι αγοράζει» on the overview. */
     const assortment = useMemo(
-        () => (assortmentIndex ? getCustomerAssortment(assortmentIndex, customer.id, 'all') : null),
-        [assortmentIndex, customer.id],
+        () => {
+            if (!assortmentIndex) return null;
+            return retailClient
+                ? getCustomerAssortmentForOrders(assortmentIndex, customer.id, new Set(orders.map(o => o.id)), 'all')
+                : getCustomerAssortment(assortmentIndex, customer.id, 'all');
+        },
+        [assortmentIndex, customer.id, retailClient, orders],
     );
     const territoryOverlaps = useMemo(
         () => (assortmentIndex && !isRetailSystemCustomer
@@ -578,7 +588,7 @@ export default function CustomerDetailsModal({
         { id: 'consignments', label: 'Παρακαταθήκες', Icon: HandHeart, count: customerConsignments.length },
         { id: 'repairs', label: 'Επισκευές', Icon: Wrench, count: customerRepairs.length },
     ];
-    const tabList = isRetailAccount ? retailTabList : isInternalAccount ? retailTabList.filter(t => t.id !== 'end_clients') : normalTabList;
+    const tabList = isRetailOverview ? retailTabList : isRetailSystemCustomer ? retailTabList.filter(t => t.id !== 'end_clients') : normalTabList;
 
     /** Λιανική is a bucket for many real clients — no single identity, nameday, or "VIP" person. */
     const nextNameday =
@@ -760,7 +770,7 @@ export default function CustomerDetailsModal({
                                         <span>{formatDate(o.created_at)}</span>
                                         <span>·</span>
                                         <span>{formatNumber(o.items.length)} είδη</span>
-                                        {isRetailAccount && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
+                                        {isRetailOverview && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                 </div>
                                 <span className={`hidden shrink-0 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide sm:inline ${getOrderStatusClasses(o.status)}`}>
@@ -921,6 +931,10 @@ export default function CustomerDetailsModal({
                     Περνούν κανονικά από την παραγωγή, αλλά <b>δεν μετράνε</b> σε πωλήσεις, στατιστικά, προμήθειες πλασιέ, χάρτη πελατών και παραστατικά.
                     Οι αξίες παρακάτω είναι ενδεικτικές τιμές καταλόγου.
                 </div>
+            ) : retailClient ? (
+                <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/60 px-4 py-3 text-xs leading-relaxed text-fuchsia-950">
+                    <span className="font-bold">Πελάτης λιανικής.</span> Η καρτέλα συγκεντρώνει τις παραγγελίες λιανικής με αυτό το όνομα.
+                </div>
             ) : (
                 <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/60 px-4 py-3 text-xs leading-relaxed text-fuchsia-950">
                     <span className="font-bold">Συλλογικός λογαριασμός λιανικής.</span> Δεν αντιστοιχεί σε ένα νομικό πρόσωπο — οι τελικοί πελάτες
@@ -952,7 +966,7 @@ export default function CustomerDetailsModal({
                         type="search"
                         value={orderQuery}
                         onChange={e => setOrderQuery(e.target.value)}
-                        placeholder={isRetailAccount ? 'Κωδικός, ημερομηνία, τελικός πελάτης…' : 'Κωδικός, ημερομηνία, SKU ή κατηγορία…'}
+                        placeholder={isRetailOverview ? 'Κωδικός, ημερομηνία, τελικός πελάτης…' : 'Κωδικός, ημερομηνία, SKU ή κατηγορία…'}
                         className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-slate-800 shadow-xs outline-hidden transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
                     />
                 </div>
@@ -977,7 +991,7 @@ export default function CustomerDetailsModal({
                                         <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${getOrderStatusClasses(o.status)}`}>
                                             {getOrderStatusLabel(o.status)}
                                         </span>
-                                        {isRetailAccount && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
+                                        {isRetailOverview && <span className="text-sm font-bold text-slate-800"><OrderCustomerName order={o} /></span>}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
                                         <span className="flex items-center gap-1"><Calendar size={11} /> {formatDate(o.created_at)}</span>
@@ -1369,7 +1383,9 @@ export default function CustomerDetailsModal({
                             </button>
 
                             <div className="relative flex items-center gap-4 lg:flex-col lg:items-start">
-                                {isRetailSystemCustomer ? (
+                                {retailClient ? (
+                                    <CustomerAvatar name={retailClient.name} seed={retailClient.name} size={72} className="rounded-3xl shadow-lg ring-4" />
+                                ) : isRetailSystemCustomer ? (
                                     <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-lg ring-4 ring-white lg:h-20 lg:w-20 ${isInternalAccount ? 'from-teal-500 to-emerald-600' : 'from-fuchsia-500 to-violet-600'}`}>
                                         {isInternalAccount ? <Warehouse size={30} /> : <Store size={30} />}
                                     </div>
@@ -1378,7 +1394,7 @@ export default function CustomerDetailsModal({
                                 )}
                                 <div className="min-w-0 pr-8 lg:pr-0">
                                     <h2 id="customer-modal-title" className="text-xl font-black leading-tight tracking-tight text-[#060b00] lg:text-[22px]">
-                                        {customer.full_name}
+                                        {retailClient?.name ?? customer.full_name}
                                     </h2>
                                     {customer.profession && !isRetailSystemCustomer && (
                                         <p className="mt-0.5 line-clamp-2 text-xs font-semibold text-slate-500">{customer.profession}</p>
@@ -1387,10 +1403,12 @@ export default function CustomerDetailsModal({
                             </div>
 
                             <div className="relative mt-3 flex flex-wrap items-center gap-1.5">
-                                {customer.customer_code && (
+                                {customer.customer_code && !retailClient && (
                                     <span className="rounded-lg bg-white px-2 py-0.5 font-mono text-[10px] font-black text-slate-600 ring-1 ring-slate-200">#{customer.customer_code}</span>
                                 )}
-                                {isRetailSystemCustomer ? (
+                                {retailClient ? (
+                                    <span className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-fuchsia-800">Πελάτης λιανικής</span>
+                                ) : isRetailSystemCustomer ? (
                                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${isInternalAccount ? 'bg-teal-100 text-teal-800' : 'bg-fuchsia-100 text-fuchsia-800'}`}>Συστημικός · μόνο ανάγνωση</span>
                                 ) : (
                                     <ActivityBadge activity={stats.summary.activity} tier={stats.summary.tier} />
@@ -1412,6 +1430,15 @@ export default function CustomerDetailsModal({
                                     </span>
                                 )}
                             </div>
+
+                            {retailClient?.phone && (
+                                <a
+                                    href={`tel:${retailClient.phone}`}
+                                    className="relative mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 transition hover:text-sky-700"
+                                >
+                                    <Phone size={14} /> {retailClient.phone}
+                                </a>
+                            )}
 
                             {!isRetailSystemCustomer && savedSocials(savedProfile).length > 0 && (
                                 <div className="relative mt-3"><SocialIconRow customer={customer} size="md" /></div>
@@ -1437,7 +1464,9 @@ export default function CustomerDetailsModal({
                             <div className="hidden border-t border-slate-200/70 px-6 py-5 text-xs leading-relaxed text-slate-500 lg:block">
                                 {isInternalAccount
                                     ? 'Νέα εσωτερική παραγγελία: στη Νέα παραγγελία πατήστε «Εσωτερική παραγγελία». Δεν μετράει στις πωλήσεις.'
-                                    : 'Οι παραγγελίες λιανικής καταχωρούνται εδώ· οι τελικοί πελάτες προκύπτουν από τις σημειώσεις κάθε παραγγελίας.'}
+                                    : retailClient
+                                        ? 'Ανήκει στον συλλογικό λογαριασμό Λιανική. Όνομα και τηλέφωνο αλλάζουν μέσα από κάθε παραγγελία.'
+                                        : 'Οι παραγγελίες λιανικής καταχωρούνται εδώ· οι τελικοί πελάτες προκύπτουν από τις σημειώσεις κάθε παραγγελίας.'}
                             </div>
                         )}
                     </div>
