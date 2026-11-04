@@ -14,6 +14,7 @@ import {
   Clock,
   Copy,
   Edit3,
+  FileChartColumn,
   FileClock,
   FileText,
   Link2,
@@ -60,6 +61,7 @@ import {
   filterLegalArchiveRecords,
   getLegalArchiveStats,
 } from '../../features/legal/archive';
+import { buildLegalFinancialReport } from '../../features/legal/financialReport';
 import {
   canPrintLegalDocument,
   canPrintProforma,
@@ -70,6 +72,7 @@ import {
 } from '../../utils/legalDocuments';
 import { formatOrderId } from '../../utils/orderUtils';
 import IssuedSkuSearch from './IssuedSkuSearch';
+import LegalFinancialReportModal from './LegalFinancialReportModal';
 
 const PAGE_SIZE = 50;
 
@@ -826,6 +829,34 @@ function CreditLinkGlyph({
   );
 }
 
+function SelectionCheckbox({
+  checked,
+  indeterminate = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={inputRef}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={label}
+      title={label}
+      className="h-4 w-4 cursor-pointer accent-emerald-600"
+    />
+  );
+}
+
 function creditThreadPath(x1: number, y1: number, x2: number, y2: number) {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -846,6 +877,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   const [threadPaths, setThreadPaths] = useState<string[]>([]);
   const listFrameRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [reportKeys, setReportKeys] = useState<string[] | null>(null);
   const deferredFilters = useDeferredValue(filters);
 
   const filtered = useMemo(
@@ -876,6 +909,37 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
       ];
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRecords = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const selectedRecords = useMemo(
+    () => props.records.filter((record) => selectedKeys.has(record.key)),
+    [props.records, selectedKeys],
+  );
+  const selectionTotals = useMemo(
+    () => buildLegalFinancialReport({ records: selectedRecords, periodLabel: '' }).totals,
+    [selectedRecords],
+  );
+  const filteredSelectedCount = useMemo(
+    () => filtered.reduce((count, record) => count + (selectedKeys.has(record.key) ? 1 : 0), 0),
+    [filtered, selectedKeys],
+  );
+  const allFilteredSelected = filtered.length > 0 && filteredSelectedCount === filtered.length;
+  const toggleSelected = (key: string) => {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  const toggleAllFiltered = () => {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      filtered.forEach((record) => {
+        if (allFilteredSelected) next.delete(record.key);
+        else next.add(record.key);
+      });
+      return next;
+    });
+  };
 
   useEffect(() => setPage(1), [filters]);
   useEffect(() => setPage((current) => Math.min(current, totalPages)), [totalPages]);
@@ -1627,13 +1691,22 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={props.onCreate}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-xs transition hover:bg-emerald-700"
-            >
-              <Plus size={17} /> Νέο παραστατικό
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setReportKeys([])}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-black text-emerald-800 shadow-xs transition hover:bg-emerald-50"
+              >
+                <FileChartColumn size={17} /> Οικονομική αναφορά
+              </button>
+              <button
+                type="button"
+                onClick={props.onCreate}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-xs transition hover:bg-emerald-700"
+              >
+                <Plus size={17} /> Νέο παραστατικό
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 sm:flex sm:w-fit">
@@ -1920,6 +1993,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <tr>
+                    <th className="w-8 py-2 pl-3 pr-1">
+                      <SelectionCheckbox
+                        checked={allFilteredSelected}
+                        indeterminate={filteredSelectedCount > 0 && !allFilteredSelected}
+                        label={`Επιλογή όλων των ${formatNumber(filtered.length)} εγγραφών`}
+                        onChange={toggleAllFiltered}
+                      />
+                    </th>
                     <th className="w-9 px-2 py-2" />
                     <th className="whitespace-nowrap px-2 py-2">Παραστατικό</th>
                     <th className="px-2 py-2">Αντισυμβαλλόμενος</th>
@@ -1938,6 +2019,13 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                     return (
                       <React.Fragment key={record.key}>
                         <tr className={`border-b border-slate-100 transition-colors ${open ? presentation.openRow : presentation.row}`}>
+                          <td className="py-1.5 pl-3 pr-1">
+                            <SelectionCheckbox
+                              checked={selectedKeys.has(record.key)}
+                              label={`Επιλογή ${getLegalDocumentDisplayNumber(document)}`}
+                              onChange={() => toggleSelected(record.key)}
+                            />
+                          </td>
                           <td className="px-2 py-1.5">
                             <button
                               type="button"
@@ -1984,7 +2072,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           </td>
                           <td className="px-2 py-1.5">{renderActions(record, true)}</td>
                         </tr>
-                        {open && <tr><td colSpan={6} className="p-0">{renderDetails(record)}</td></tr>}
+                        {open && <tr><td colSpan={7} className="p-0">{renderDetails(record)}</td></tr>}
                       </React.Fragment>
                     );
                   })}
@@ -1992,6 +2080,15 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               </table>
             </div>
 
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2 text-xs font-black text-slate-600 lg:hidden">
+              <SelectionCheckbox
+                checked={allFilteredSelected}
+                indeterminate={filteredSelectedCount > 0 && !allFilteredSelected}
+                label={`Επιλογή όλων των ${formatNumber(filtered.length)} εγγραφών`}
+                onChange={toggleAllFiltered}
+              />
+              Επιλογή όλων ({formatNumber(filtered.length)})
+            </div>
             <div className="divide-y divide-slate-100 lg:hidden">
               {pageRecords.map((record) => {
                 const document = record.document;
@@ -2001,6 +2098,13 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 return (
                   <article key={record.key} className={presentation.mobile}>
                     <div className="flex items-start gap-2 px-3 py-2">
+                      <div className="mt-1.5 pl-1">
+                        <SelectionCheckbox
+                          checked={selectedKeys.has(record.key)}
+                          label={`Επιλογή ${getLegalDocumentDisplayNumber(document)}`}
+                          onChange={() => toggleSelected(record.key)}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => toggleExpanded(record.key)}
@@ -2058,6 +2162,43 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           </div>
         )}
       </section>
+
+      {selectedRecords.length > 0 && (
+        <div className="sticky bottom-20 z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl lg:bottom-4">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="text-sm font-black">
+              {formatNumber(selectedRecords.length)} {selectedRecords.length === 1 ? 'επιλεγμένο' : 'επιλεγμένα'}
+            </span>
+            <span className="text-xs font-bold text-slate-300">Καθαρό {money(selectionTotals.net)}</span>
+            <span className="text-xs font-bold text-slate-300">ΦΠΑ {money(selectionTotals.vat)}</span>
+            <span className="text-xs font-black text-emerald-300">Σύνολο {money(selectionTotals.gross)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedKeys(new Set())}
+              className="min-h-9 rounded-lg px-3 py-1.5 text-xs font-black text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              Καθαρισμός
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportKeys(selectedRecords.map((record) => record.key))}
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-emerald-400"
+            >
+              <FileChartColumn size={15} /> Αναφορά επιλεγμένων
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reportKeys && (
+        <LegalFinancialReportModal
+          records={props.records}
+          initialKeys={reportKeys}
+          onClose={() => setReportKeys(null)}
+        />
+      )}
     </div>
   );
 }
