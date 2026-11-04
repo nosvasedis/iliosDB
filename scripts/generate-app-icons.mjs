@@ -6,7 +6,7 @@ import sharp from 'sharp';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const source = path.join(root, 'assets/branding/ilios-erp-icon-master.png');
-const output = path.join(root, 'public/icons/ilios-sun-v1');
+const output = path.join(root, 'public/icons/ilios-sun-v2');
 await mkdir(output, { recursive: true });
 const { data, info } = await sharp(source).removeAlpha().raw().toBuffer({ resolveWithObject: true });
 if (info.width !== info.height) throw new Error('The approved icon master must be square.');
@@ -26,7 +26,18 @@ for (let y = 0; y < width; y++) {
 }
 // Leave a little extra room inside the standardized 40%-radius safe circle.
 const maskableScale = Math.min(1, 0.375 / radius);
-async function png(size, filename, maskable = false) {
+async function squircleMask(size) {
+  // A true quartic superellipse, supersampled for smooth transparent edges even
+  // at 16px. Only the green tile's corners are clipped; the sun stays untouched.
+  const points = Array.from({ length: 256 }, (_, index) => {
+    const angle = index / 256 * Math.PI * 2;
+    const coordinate = value => (0.5 + Math.sign(value) * Math.sqrt(Math.abs(value)) * 0.5).toFixed(7);
+    return `${index ? 'L' : 'M'}${coordinate(Math.cos(angle))} ${coordinate(Math.sin(angle))}`;
+  }).join('');
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size * 4}" height="${size * 4}" viewBox="0 0 1 1"><path fill="white" d="${points}Z"/></svg>`);
+  return sharp(svg).resize(size, size).png().toBuffer();
+}
+async function raster(size, maskable = false, squircle = false) {
   const innerSize = maskable ? Math.floor(size * maskableScale) : size;
   let image = sharp(source).resize(innerSize, innerSize, { kernel: 'lanczos3' }).removeAlpha();
   if (size <= 48) image = image.sharpen({ sigma: 0.4, m1: 0.5, m2: 1 });
@@ -35,12 +46,23 @@ async function png(size, filename, maskable = false) {
     const trailing = size - innerSize - leading;
     image = image.extend({ top: leading, left: leading, bottom: trailing, right: trailing, background });
   }
+  if (squircle) {
+    // Materialize the opaque resize first: sharp applies removeAlpha/ensureAlpha
+    // late in a pipeline, which would otherwise flatten the composited mask.
+    image = sharp(await image.png().toBuffer()).ensureAlpha()
+      .composite([{ input: await squircleMask(size), blend: 'dest-in' }]);
+  }
+  return image;
+}
+async function png(size, filename, maskable = false, squircle = false) {
+  const image = await raster(size, maskable, squircle);
   await image.png({ compressionLevel: 9, adaptiveFiltering: true }).toFile(path.join(output, filename));
 }
-for (const size of [16, 32, 48]) await png(size, `favicon-${size}x${size}.png`);
+for (const size of [16, 32, 48]) await png(size, `favicon-${size}x${size}.png`, false, true);
+// Apple and maskable assets must remain full bleed: the OS applies its own mask.
 for (const size of [152, 167, 180]) await png(size, `apple-touch-icon-${size}x${size}.png`);
 for (const size of [192, 512]) {
-  await png(size, `android-chrome-${size}x${size}.png`);
+  await png(size, `android-chrome-${size}x${size}.png`, false, true);
   await png(size, `maskable-${size}x${size}.png`, true);
 }
 await png(150, 'mstile-150x150.png');
@@ -49,14 +71,14 @@ await png(150, 'mstile-150x150.png');
 const frames = [];
 for (const size of [16, 24, 32, 48, 64, 128, 256]) {
   if (size === 256) {
-    frames.push({ size, bytes: await sharp(source).resize(size).removeAlpha().png().toBuffer() });
+    frames.push({ size, bytes: await (await raster(size, false, true)).png().toBuffer() });
     continue;
   }
-  let image = sharp(source).resize(size).ensureAlpha();
-  if (size <= 48) image = image.sharpen({ sigma: 0.4, m1: 0.5, m2: 1 });
+  const image = await raster(size, false, true);
   const rgba = await image.raw().toBuffer();
   const xorBytes = size * size * 4;
-  const andBytes = Math.ceil(size / 32) * 4 * size;
+  const andStride = Math.ceil(size / 32) * 4;
+  const andBytes = andStride * size;
   const dib = Buffer.alloc(40 + xorBytes + andBytes);
   dib.writeUInt32LE(40, 0);
   dib.writeInt32LE(size, 4);
@@ -69,7 +91,11 @@ for (const size of [16, 24, 32, 48, 64, 128, 256]) {
       const from = (y * size + x) * 4;
       const to = 40 + ((size - y - 1) * size + x) * 4;
       dib[to] = rgba[from + 2]; dib[to + 1] = rgba[from + 1];
-      dib[to + 2] = rgba[from]; dib[to + 3] = 255;
+      dib[to + 2] = rgba[from]; dib[to + 3] = rgba[from + 3];
+      // Legacy ICO readers use the 1-bit AND mask rather than the alpha channel.
+      if (rgba[from + 3] < 128) {
+        dib[40 + xorBytes + (size - y - 1) * andStride + (x >> 3)] |= 1 << (7 - (x % 8));
+      }
     }
   }
   frames.push({ size, bytes: dib });

@@ -4,25 +4,25 @@
   "name": "Ilios Kosmima ERP",
   "icons": [
     {
-      "src": "/icons/ilios-sun-v1/android-chrome-192x192.png",
+      "src": "/icons/ilios-sun-v2/android-chrome-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/icons/ilios-sun-v1/android-chrome-512x512.png",
+      "src": "/icons/ilios-sun-v2/android-chrome-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/icons/ilios-sun-v1/maskable-192x192.png",
+      "src": "/icons/ilios-sun-v2/maskable-192x192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/ilios-sun-v1/maskable-512x512.png",
+      "src": "/icons/ilios-sun-v2/maskable-512x512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"

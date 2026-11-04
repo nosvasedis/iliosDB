@@ -11,7 +11,15 @@ ICO. Android maskable exports add padding so every gold pixel fits inside a
 circle smaller than the required 40%-radius safe zone. Safari's pinned-tab
 SVG is a monochrome trace of the approved silhouette, as required by Safari.
 
-The versioned `/icons/ilios-sun-v1/` paths avoid stale copies of the old icons.
+Browser favicons, every ICO frame, and general-purpose PWA icons use a true
+squircle with transparent, antialiased corners (requested 2026-11-04). Apple
+touch icons and Android maskable icons remain opaque and full bleed so their
+native device masks can apply the appropriate shape without double rounding.
+Legacy Windows tiles retain their platform-owned background. The approved
+master artwork, sun geometry, colors, and in-app logos are preserved.
+
+The versioned `/icons/ilios-sun-v2/` paths avoid stale copies of the old icons.
+The previous v1 files remain available to older cached app builds.
 If the artwork changes, use a new directory version and update the references
 in `index.html`, `public/manifest.json`, `public/browserconfig.xml`, and the
 service worker precache list. The root ICO and Apple PNG are discovery fallbacks.

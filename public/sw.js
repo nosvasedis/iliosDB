@@ -3,9 +3,9 @@ const CACHE_NAME = 'ilios-runtime-safe-v1';
 // v1 cached opaque responses, including undetectable HTTP errors. Start fresh.
 const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v2';
 const IMAGE_CACHE_LIMIT = 200;
-const ICON_PATH = '/icons/ilios-sun-v1/';
+const ICON_PATH = '/icons/ilios-sun-v2/';
 const PRECACHE_URLS = [
-  '/manifest.json', '/manifest.json?v=ilios-sun-v1', '/favicon.ico', '/apple-touch-icon.png', '/browserconfig.xml',
+  '/manifest.json', '/manifest.json?v=ilios-sun-v2', '/favicon.ico', '/apple-touch-icon.png', '/browserconfig.xml',
   ...[
     'favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'favicon-48x48.png',
     'apple-touch-icon-152x152.png', 'apple-touch-icon-167x167.png', 'apple-touch-icon-180x180.png',
