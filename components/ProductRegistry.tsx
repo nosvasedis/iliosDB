@@ -716,7 +716,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     <div className="space-y-3">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center">
                             <div className="group relative w-full flex-1">
-                                <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" size={19} />
+                                <Search className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" size={19} />
                                 <input
                                     ref={searchInputRef}
                                     type="text"
