@@ -45,6 +45,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
     // Edit/Create State
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
     const [editingMold, setEditingMold] = useState<Mold | null>(null);
+    const [moldOriginalCode, setMoldOriginalCode] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
     useRestartDraft('Στοιχεία υλικού', editingMaterial, { enabled: !!editingMaterial, identity: editingMaterial?.id });
     useRestartDraft('Στοιχεία λάστιχου', editingMold, { enabled: !!editingMold, identity: editingMold?.code });
@@ -133,22 +134,47 @@ export default function MobileResources({ products }: { products?: Product[] }) 
         }
     };
     
+    const openNewMold = () => {
+        setEditingMold({ code: defaultMoldCode, location: '', description: '' });
+        setMoldOriginalCode(null);
+        setIsCreating(true);
+    };
+
+    const openEditMold = (mold: Mold) => {
+        setEditingMold(mold);
+        setMoldOriginalCode(mold.code);
+        setIsCreating(false);
+    };
+
     // Mold Handlers
     const handleSaveMold = async () => {
-        if (!editingMold || !editingMold.code || editingMold.code === defaultMoldCode) return;
-        if (moldTab === 'lstx' && !isLstxMold(editingMold.code)) {
+        if (!editingMold) return;
+        const code = editingMold.code.trim().toUpperCase();
+        if (!code || code === defaultMoldCode) return;
+        if (moldTab === 'lstx' && !isLstxMold(code)) {
             showToast('Τα LSTX λάστιχα πρέπει να ξεκινούν με LSTX.', 'error');
             return;
         }
-        if (moldTab === 'standard' && isLstxMold(editingMold.code)) {
+        if (moldTab === 'standard' && isLstxMold(code)) {
             showToast('Για LSTX λάστιχα χρησιμοποιήστε την καρτέλα LSTX.', 'error');
             return;
         }
+        const originalCode = moldOriginalCode;
+        const renamed = !isCreating && !!originalCode && originalCode !== code;
+        if (renamed && (molds || []).some(m => m.code.trim().toUpperCase() === code)) {
+            showToast(`Ο κωδικός ${code} υπάρχει ήδη.`, 'error');
+            return;
+        }
+        const payload = { ...editingMold, code };
         try {
-            if (isCreating) await protectOperation(async () => await supabase.from('molds').insert(editingMold));
-            else await protectOperation(async () => await supabase.from('molds').update(editingMold).eq('code', editingMold.code));
+            const { error } = await protectOperation(async () => isCreating
+                ? await supabase.from('molds').insert(payload)
+                : await supabase.from('molds').update(payload).eq('code', originalCode || code));
+            if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['molds'] });
+            if (renamed) queryClient.invalidateQueries({ queryKey: ['products'] });
             setEditingMold(null);
+            setMoldOriginalCode(null);
             showToast("Αποθηκεύτηκε.", "success");
         } catch (e) { showToast("Σφάλμα.", "error"); }
     };
@@ -157,9 +183,10 @@ export default function MobileResources({ products }: { products?: Product[] }) 
          if (!editingMold || !editingMold.code) return;
          if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
             try {
-                await protectOperation(async () => await supabase.from('molds').delete().eq('code', editingMold.code));
+                await protectOperation(async () => await supabase.from('molds').delete().eq('code', moldOriginalCode || editingMold.code));
                 queryClient.invalidateQueries({ queryKey: ['molds'] });
                 setEditingMold(null);
+                setMoldOriginalCode(null);
                 showToast("Διαγράφηκε.", "success");
             } catch (e) { showToast("Σφάλμα.", "error"); }
          }
@@ -182,7 +209,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                             <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500'}`}>Υλικά</button>
                             <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500'}`}>Λάστιχα</button>
                         </div>
-                        <button type="button" aria-label={viewMode === 'materials' ? 'Νέο Υλικό' : 'Νέο Λάστιχο'} onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: defaultMoldCode, location: '', description: '' }), setIsCreating(true))} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
+                        <button type="button" aria-label={viewMode === 'materials' ? 'Νέο Υλικό' : 'Νέο Λάστιχο'} onClick={() => viewMode === 'materials' ? handleNewMaterial() : openNewMold()} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
                             <Plus size={20} />
                         </button>
                     </div>
@@ -257,7 +284,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     </div>
                 )) : filteredMolds.map(m => (
                     <div key={m.code} className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xs">
-                    <div onClick={() => { setEditingMold(m); setIsCreating(false); }} className="p-4 active:scale-[0.98] transition-all flex justify-between items-center">
+                    <div onClick={() => openEditMold(m)} className="p-4 active:scale-[0.98] transition-all flex justify-between items-center">
                         <div className="flex items-center gap-3">
                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm border ${isLstxMold(m.code) ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                  {isLstxMold(m.code) ? 'LX' : 'L'}
@@ -378,7 +405,7 @@ export default function MobileResources({ products }: { products?: Product[] }) 
                     <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="text-lg font-black text-slate-900">{isCreating ? 'Νέο Λάστιχο' : 'Επεξεργασία'}</h3>
-                            <button onClick={() => setEditingMold(null)}><X size={20} className="text-slate-400"/></button>
+                            <button onClick={() => { setEditingMold(null); setMoldOriginalCode(null); }}><X size={20} className="text-slate-400"/></button>
                         </div>
                         <div>
                              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Κωδικός</label>

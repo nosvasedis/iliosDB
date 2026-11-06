@@ -42,7 +42,7 @@ interface EditorProps {
     onDelete?: (code: string) => void;
 }
 
-const MoldEditor: React.FC<EditorProps> = ({ initial, seed, existingCodes, locations, onClose, onSubmit, onDelete }) => {
+export const MoldEditor: React.FC<EditorProps> = ({ initial, seed, existingCodes, locations, onClose, onSubmit, onDelete }) => {
     const base = initial || seed;
     const [code, setCode] = useState(base.code);
     const [location, setLocation] = useState(base.location || '');
@@ -52,21 +52,20 @@ const MoldEditor: React.FC<EditorProps> = ({ initial, seed, existingCodes, locat
     useRestartDraft(initial ? 'Στοιχεία λάστιχου' : 'Νέο λάστιχο', { code, location, description, weight }, { busy: saving, identity: initial?.code ?? 'new' });
 
     const normalizedCode = code.trim().toUpperCase();
+    const originalCode = initial?.code.trim().toUpperCase();
     const weightNum = weight.trim() === '' ? 0 : parseNum(weight);
     const lstx = isLstxMold(normalizedCode);
 
     const errors: string[] = [];
-    if (!initial) {
-        if (!normalizedCode || normalizedCode === 'L' || normalizedCode === 'LSTX') errors.push('Συμπληρώστε κωδικό.');
-        else if (existingCodes.has(normalizedCode)) errors.push(`Ο κωδικός ${normalizedCode} υπάρχει ήδη.`);
-    }
+    if (!normalizedCode || normalizedCode === 'L' || normalizedCode === 'LSTX') errors.push('Συμπληρώστε κωδικό.');
+    else if (existingCodes.has(normalizedCode) && normalizedCode !== originalCode) errors.push(`Ο κωδικός ${normalizedCode} υπάρχει ήδη.`);
     if (!Number.isFinite(weightNum) || weightNum < 0) errors.push('Μη έγκυρο βάρος.');
 
     const submit = async () => {
         if (saving || errors.length) return;
         setSaving(true);
         try {
-            await onSubmit({ code: initial ? initial.code : normalizedCode, location: location.trim(), description: description.trim(), weight_g: weightNum }, !initial);
+            await onSubmit({ code: normalizedCode, location: location.trim(), description: description.trim(), weight_g: weightNum }, !initial);
             onClose();
         } catch { /* Parent reports the error; keep the draft. */ }
         finally { setSaving(false); }
@@ -91,26 +90,24 @@ const MoldEditor: React.FC<EditorProps> = ({ initial, seed, existingCodes, locat
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-slate-800">{initial ? 'Επεξεργασία Λάστιχου' : lstx ? 'Νέο LSTX' : 'Νέο Λάστιχο'}</h3>
-                            <p className="font-mono text-xs font-bold text-slate-400">{initial ? initial.code : 'Ο κωδικός δεν αλλάζει μετά τη δημιουργία.'}</p>
+                            <p className="font-mono text-xs font-bold text-slate-400">{initial ? (normalizedCode && normalizedCode !== initial.code ? `${initial.code} → ${normalizedCode}` : initial.code) : 'Ο κωδικός μπορεί να αλλάξει αργότερα.'}</p>
                         </div>
                     </div>
                     <button onClick={onClose} disabled={saving} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={20} /></button>
                 </div>
 
                 <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                    {!initial && (
-                        <div>
-                            <label className={labelCls}>Κωδικός</label>
-                            <input autoFocus className={`${inputCls} font-mono uppercase`} value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="π.χ. L1221 ή LSTX12" />
-                            <p className="mt-1.5 text-[11px] text-slate-400">
-                                {lstx ? 'Θα καταχωρηθεί στα LSTX.' : 'Θα καταχωρηθεί στα κανονικά λάστιχα. Κωδικοί που ξεκινούν με LSTX πάνε στα LSTX.'}
-                            </p>
-                        </div>
-                    )}
+                    <div>
+                        <label className={labelCls}>Κωδικός</label>
+                        <input autoFocus className={`${inputCls} font-mono uppercase`} value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="π.χ. L1221 ή LSTX12" />
+                        <p className="mt-1.5 text-[11px] text-slate-400">
+                            {lstx ? 'Θα καταχωρηθεί στα LSTX.' : 'Θα καταχωρηθεί στα κανονικά λάστιχα. Κωδικοί που ξεκινούν με LSTX πάνε στα LSTX.'}
+                        </p>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>Τοποθεσία</label>
-                            <input autoFocus={!!initial} className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Συρτάρι 1" list="mold-locations" />
+                            <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Συρτάρι 1" list="mold-locations" />
                             <datalist id="mold-locations">{locations.map(l => <option key={l} value={l} />)}</datalist>
                         </div>
                         <div>
@@ -378,20 +375,23 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
     const clearFilters = () => { setQuickFilters(new Set()); setLocationFilter(''); setSearchTerm(''); };
 
     const handleSubmit = async (m: Mold, isNew: boolean) => {
+        const originalCode = editor?.mold?.code;
+        const renamed = !isNew && !!originalCode && originalCode !== m.code;
         try {
             const { error } = await protectOperation(async () => isNew
                 ? await supabase.from('molds').insert(m)
-                : await supabase.from('molds').update({ location: m.location, description: m.description, weight_g: m.weight_g }).eq('code', m.code));
+                : await supabase.from('molds').update({ code: m.code, location: m.location, description: m.description, weight_g: m.weight_g }).eq('code', originalCode || m.code));
             if (error) throw error;
             await queryClient.invalidateQueries({ queryKey: ['molds'] });
-            if (isNew) {
+            if (renamed) await queryClient.invalidateQueries({ queryKey: ['products'] });
+            if (isNew || renamed) {
                 setMoldTab(isLstxMold(m.code) ? 'lstx' : 'standard');
                 scrollToMold(m.code);
             }
             showToast(isNew ? `Το λάστιχο ${m.code} προστέθηκε.` : `Το λάστιχο ${m.code} αποθηκεύτηκε.`, 'success');
         } catch (e) {
             console.error(e);
-            showToast(isNew ? 'Σφάλμα. Πιθανώς ο κωδικός υπάρχει ήδη.' : 'Σφάλμα αποθήκευσης.', 'error');
+            showToast(isNew || renamed ? 'Σφάλμα. Πιθανώς ο κωδικός υπάρχει ήδη.' : 'Σφάλμα αποθήκευσης.', 'error');
             throw e;
         }
     };
