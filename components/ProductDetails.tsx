@@ -5,7 +5,7 @@ import './ProductDetails/productDetails.css';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, Gender, GlobalSettings, Collection, Mold, ProductionType } from '../types';
-import { calculateProductCost } from '../utils/pricingEngine';
+import { calculateProductCost, getVariantComponents } from '../utils/pricingEngine';
 import { getPricingRules } from '../utils/pricingRules';
 import { Info, Layers, ScanBarcode, Factory, Box, Hammer, Link2 } from 'lucide-react';
 import { workerAuthHeaders, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
@@ -24,7 +24,7 @@ import RecipeItemSelectorModal, { type RecipeSelection } from './ProductDetails/
 import OverviewInHousePanel from './ProductDetails/OverviewInHousePanel';
 import OverviewImportedPanel from './ProductDetails/OverviewImportedPanel';
 import MoldsSection, { EMPTY_MOLD_DRAFT, type MoldDraft } from './ProductDetails/MoldsSection';
-import RecipeSection from './ProductDetails/RecipeSection';
+import RecipeSection, { type RecipePickerTarget } from './ProductDetails/RecipeSection';
 import LaborSection from './ProductDetails/LaborSection';
 import VariantsPanel from './ProductDetails/VariantsPanel';
 import LinkedProductsPanel from './ProductDetails/LinkedProductsPanel';
@@ -104,7 +104,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [tempSku, setTempSku] = useState(product.sku);
     const [isRenaming, setIsRenaming] = useState(false);
 
-    const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
+    const [recipePicker, setRecipePicker] = useState<RecipePickerTarget | null>(null);
     const [editedProduct, setEditedProduct] = useState<Product>(() => buildEditableProduct(product));
     const [moldDraft, setMoldDraft] = useState<MoldDraft>(EMPTY_MOLD_DRAFT);
     const [isCreatingMold, setIsCreatingMold] = useState(false);
@@ -298,11 +298,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [editedProduct, hasVariants, isInHouse, suppliers, weightView, showInvoiceTotal, invoiceTotalWeightResult]);
 
     const handleSelectRecipeItem = (item: RecipeSelection) => {
-        setEditedProduct(prev => ({
-            ...prev,
-            recipe: [...prev.recipe, item.type === 'raw' ? { type: 'raw', id: item.id, quantity: 1 } : { type: 'component', sku: item.sku, quantity: 1 }],
-        }));
-        setIsRecipeModalOpen(false);
+        const replacement = recipePicker?.replacement;
+        setEditedProduct(prev => {
+            if (!replacement) return { ...prev, recipe: [...prev.recipe, { ...item, quantity: 1 }] };
+
+            const { index, item: current } = replacement;
+            if (item.type !== 'raw' || prev.recipe[index] !== current || item.id === current.id) return prev;
+
+            const recipe = [...prev.recipe];
+            recipe[index] = { ...item, quantity: current.quantity };
+            return { ...prev, recipe };
+        });
+        setRecipePicker(null);
     };
 
     const handleSave = async () => {
@@ -405,7 +412,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     // Ctrl/Cmd+S saves while this card is the top-most editor.
     const saveShortcutRef = useRef(handleSave);
     saveShortcutRef.current = handleSave;
-    const shortcutBlocked = !!isRecipeModalOpen || showConvertModal;
+    const shortcutBlocked = !!recipePicker || showConvertModal;
     useEffect(() => {
         if (shortcutBlocked) return;
         const onKeyDown = (event: KeyboardEvent) => {
@@ -588,13 +595,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const mainPortal = createPortal(
         <div className="fixed inset-0 flex items-center justify-center p-3 sm:p-5 print:hidden" style={{ zIndex }}>
-            {isRecipeModalOpen && (
+            {recipePicker && (
                 <RecipeItemSelectorModal
-                    type={isRecipeModalOpen}
+                    type={recipePicker.type}
                     productCategory={editedProduct.category}
                     allMaterials={allMaterials}
                     allProducts={allProducts}
-                    onClose={() => setIsRecipeModalOpen(false)}
+                    currentMaterialId={recipePicker.replacement?.item.id}
+                    stoneCode={currentViewVariant && getVariantComponents(currentViewVariant.suffix, editedProduct.gender).stone.code}
+                    onClose={() => setRecipePicker(null)}
                     onSelect={handleSelectRecipeItem}
                 />
             )}
@@ -728,7 +737,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     settings={settings}
                                                     silverCost={currentCostCalc.breakdown.silver}
                                                     variantSuffix={currentViewVariant?.suffix}
-                                                    onOpenSelector={setIsRecipeModalOpen}
+                                                    onOpenSelector={setRecipePicker}
                                                 />
                                                 <MoldsSection
                                                     product={editedProduct}

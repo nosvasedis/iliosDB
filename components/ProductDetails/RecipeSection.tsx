@@ -1,12 +1,17 @@
 import { ComponentFamilyBadge } from '../catalog/ProductClassificationFilters';
 import React from 'react';
-import { Box, Coins, Gem, Plus, Puzzle, Trash2 } from 'lucide-react';
+import { Box, ChevronDown, Coins, Gem, Plus, Puzzle, Trash2 } from 'lucide-react';
 import { GlobalSettings, Material, Product, RecipeItem } from '../../types';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { getRecipeMaterialSubtitle } from '../../features/products';
 import { SmartQuantityInput } from './detailsInputs';
 import { DetailsButton, DetailsIconButton, DetailsSection } from './detailsUi';
 import { StoneFamilyBadge } from '../resources/StoneFamily';
+
+export type RecipePickerTarget = {
+    type: 'raw' | 'component';
+    replacement?: { index: number; item: Extract<RecipeItem, { type: 'raw' }> };
+};
 
 function getRecipeItemCost(item: RecipeItem, product: Product, allMaterials: Material[], allProducts: Product[], variantSuffix?: string | null) {
     if (item.type === 'raw') {
@@ -42,20 +47,19 @@ export default function RecipeSection({
     settings: GlobalSettings;
     silverCost: number;
     variantSuffix?: string | null;
-    onOpenSelector: (type: 'raw' | 'component') => void;
+    onOpenSelector: (target: RecipePickerTarget) => void;
 }) {
     const totalWeightForSilver = product.weight_g + (product.secondary_weight_g || 0);
     const components = allProducts.filter(p => p.is_component);
     const itemCosts = product.recipe.map(item => getRecipeItemCost(item, product, allMaterials, allProducts, variantSuffix));
     const recipeTotal = itemCosts.reduce((sum, c) => sum + c, 0);
 
-    const updateItem = (index: number, patch: Partial<{ quantity: number; id: string; sku: string }>) => {
+    const updateItem = (index: number, patch: Partial<{ quantity: number; sku: string }>) => {
         setProduct(prev => ({
             ...prev,
             recipe: prev.recipe.map((item, i) => {
                 if (i !== index) return item;
                 if (patch.quantity !== undefined) return { ...item, quantity: patch.quantity || 0 };
-                if (patch.id !== undefined && item.type === 'raw') return { ...item, id: patch.id };
                 if (patch.sku !== undefined && item.type === 'component') return { ...item, sku: patch.sku };
                 return item;
             }),
@@ -73,8 +77,8 @@ export default function RecipeSection({
             subtitle={variantSuffix ? `Τιμές υλικών για την παραλλαγή ${variantSuffix}` : 'Υλικά & εξαρτήματα ανά τεμάχιο'}
             actions={(
                 <div className="flex gap-1.5">
-                    <DetailsButton icon={Plus} onClick={() => onOpenSelector('raw')}>Υλικό</DetailsButton>
-                    <DetailsButton icon={Plus} onClick={() => onOpenSelector('component')}>Εξάρτημα</DetailsButton>
+                    <DetailsButton icon={Plus} onClick={() => onOpenSelector({ type: 'raw' })}>Υλικό</DetailsButton>
+                    <DetailsButton icon={Plus} onClick={() => onOpenSelector({ type: 'component' })}>Εξάρτημα</DetailsButton>
                 </div>
             )}
         >
@@ -122,9 +126,16 @@ export default function RecipeSection({
                                 </div>
                                 <div className="min-w-0">
                                     {item.type === 'raw' ? (
-                                        <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-hidden" value={item.id} onChange={(e) => updateItem(idx, { id: e.target.value })}>
-                                            {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                        </select>
+                                        <button
+                                            type="button"
+                                            aria-haspopup="dialog"
+                                            aria-label={`Αλλαγή υλικού: ${material?.name ?? item.id}`}
+                                            onClick={() => onOpenSelector({ type: 'raw', replacement: { index: idx, item } })}
+                                            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-sm font-bold text-slate-800 transition-colors hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-600"
+                                        >
+                                            <span className="min-w-0 truncate">{material?.name ?? 'Άγνωστο υλικό'}</span>
+                                            <ChevronDown size={15} className="shrink-0 text-slate-500" />
+                                        </button>
                                     ) : (
                                         <select className="w-full bg-transparent text-sm font-bold text-slate-800 outline-hidden" value={item.sku} onChange={(e) => updateItem(idx, { sku: e.target.value })}>
                                             {components.map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
@@ -132,7 +143,7 @@ export default function RecipeSection({
                                     )}
                                     {subtitle ? <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{subtitle}</div> : null}
                                     {material && <div className="mt-1"><StoneFamilyBadge material={material} /></div>}
-                                {component && <div className="mt-1"><ComponentFamilyBadge product={component} /></div>}
+                                    {component && <div className="mt-1"><ComponentFamilyBadge product={component} /></div>}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <SmartQuantityInput

@@ -1,13 +1,16 @@
 import { ComponentFamilyBadge, ComponentFamilyFilter } from '../catalog/ProductClassificationFilters';
 import { componentFamilyLabel, getComponentFamily } from '../../features/resources/componentFamilies';
-import React, { useMemo, useState } from 'react';
-import { Gem, Plus, Puzzle, Search, X } from 'lucide-react';
+import React, { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, Check, Gem, Package, Plus, Puzzle, Search, X } from 'lucide-react';
 import { Material, MaterialType, Product } from '../../types';
 import { formatDecimal } from '../../utils/pricingEngine';
-import { getMaterialTypeLabel } from '../../features/products';
+import { getMaterialTypeLabel, getRecipeMaterialSubtitle } from '../../features/products';
+import { getStoneFamily, stoneFamilyLabel } from '../../features/resources/stoneFamilies';
+import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import { StoneFamilyBadge } from '../resources/StoneFamily';
 
 export type RecipeSelection = { type: 'raw', id: string } | { type: 'component', sku: string };
+type PickerItem = Material | Product;
 
 const SUGGESTION_KEYWORDS: Record<string, { types: MaterialType[], names: string[] }> = {
     'Δαχτυλίδι': { types: [MaterialType.Stone], names: ['ζιργκόν'] },
@@ -18,134 +21,170 @@ const SUGGESTION_KEYWORDS: Record<string, { types: MaterialType[], names: string
 };
 
 const RecipeItemSelectorModal = React.memo(({
-    type, productCategory, allMaterials, allProducts, onClose, onSelect
+    type, productCategory, allMaterials, allProducts, currentMaterialId, stoneCode, onClose, onSelect
 }: {
     type: 'raw' | 'component',
     productCategory: string,
     allMaterials: Material[],
     allProducts: Product[],
+    currentMaterialId?: string,
+    stoneCode?: string | null,
     onClose: () => void,
     onSelect: (item: RecipeSelection) => void
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [componentFamily, setComponentFamily] = useState('all');
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const titleId = useId();
+    const isReplacing = currentMaterialId !== undefined;
+    const currentMaterial = isReplacing ? allMaterials.find(item => item.id === currentMaterialId) : undefined;
+    const title = isReplacing ? 'Αλλαγή υλικού' : type === 'raw' ? 'Επιλογή υλικού' : 'Επιλογή εξαρτήματος';
+
+    useLayoutEffect(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        dialog.showModal();
+        searchRef.current?.focus();
+        return () => dialog.close();
+    }, []);
 
     const { suggestions, others } = useMemo(() => {
         const keywords = Object.entries(SUGGESTION_KEYWORDS).find(([catKey]) => productCategory.includes(catKey))?.[1] || { types: [], names: [] };
-        const allItems: any[] = type === 'raw' ? [...allMaterials] : allProducts.filter(p => p.is_component);
+        const allItems: PickerItem[] = type === 'raw' ? allMaterials : allProducts.filter(p => p.is_component);
+        const tokens = normalizeGreekForSearch(searchTerm.trim()).split(/\s+/).filter(Boolean);
+        const suggestions: PickerItem[] = [];
+        const others: PickerItem[] = [];
+        const nameOf = (item: PickerItem) => 'sku' in item ? item.sku : item.name;
 
-        const suggestedItems: any[] = [];
-        const otherItems: any[] = [];
-        allItems.forEach(item => {
-            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
-            (isSuggested ? suggestedItems : otherItems).push(item);
-        });
+        for (const item of allItems) {
+            const name = nameOf(item);
+            const family = 'sku' in item ? getComponentFamily(item) : null;
+            if (componentFamily !== 'all' && family !== componentFamily) continue;
 
-        const filterFn = (item: any) => {
-            if (type === 'component' && componentFamily !== 'all' && getComponentFamily(item) !== componentFamily) return false;
-            const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = `${item.description || ''} ${type === 'component' ? componentFamilyLabel(getComponentFamily(item)) : ''}`.toLowerCase();
-            const search = searchTerm.toLowerCase();
-            return name.includes(search) || description.includes(search);
-        };
-        const sortFn = (a: any, b: any) => a.name?.localeCompare(b.name) || a.sku?.localeCompare(b.sku);
+            const classification = 'sku' in item
+                ? componentFamilyLabel(family)
+                : `${getMaterialTypeLabel(item.type)} ${stoneFamilyLabel(getStoneFamily(item))}`;
+            const searchText = normalizeGreekForSearch(`${name} ${item.description || ''} ${classification}`);
+            if (!tokens.every(token => searchText.includes(token))) continue;
 
-        return {
-            suggestions: suggestedItems.filter(filterFn).sort(sortFn),
-            others: otherItems.filter(filterFn).sort(sortFn)
-        };
+            const isSuggested = ('type' in item && keywords.types.includes(item.type)) || keywords.names.some(keyword => name.toLowerCase().includes(keyword));
+            (isSuggested ? suggestions : others).push(item);
+        }
+
+        const sortByName = (a: PickerItem, b: PickerItem) => nameOf(a).localeCompare(nameOf(b), 'el');
+        return { suggestions: suggestions.sort(sortByName), others: others.sort(sortByName) };
     }, [type, productCategory, allMaterials, allProducts, searchTerm, componentFamily]);
 
-    const handleSelect = (item: any) => {
-        onSelect(type === 'raw' ? { type: 'raw', id: item.id } : { type: 'component', sku: item.sku });
-    };
-
-    const renderListItem = (item: any) => {
-        const isComponent = type === 'component';
+    const renderListItem = (item: PickerItem) => {
+        const isComponent = 'sku' in item;
         const name = isComponent ? item.sku : item.name;
-        const description = item.description;
+        const description = isComponent ? item.description : getRecipeMaterialSubtitle(item);
         const imageUrl = isComponent ? item.image_url : null;
+        const isCurrent = !isComponent && item.id === currentMaterialId;
+        const materialCost = isComponent ? 0 : (stoneCode ? item.variant_prices?.[stoneCode] : undefined) ?? item.cost_per_unit;
         const cost = isComponent
             ? `${formatDecimal((item.active_price || 0), 2)}€`
-            : `${formatDecimal(item.cost_per_unit, 2)}€ / ${item.unit}`;
-        const icon = isComponent ? <Puzzle size={16} className="text-blue-500" /> : <Gem size={16} className="text-emerald-500" />;
+            : `${formatDecimal(materialCost, 2)}€ / ${item.unit}`;
+        const ItemIcon = isComponent ? Puzzle : getStoneFamily(item) ? Gem : Package;
+        const ActionIcon = isCurrent ? Check : isReplacing ? ArrowRight : Plus;
 
         return (
-            <div
-                key={item.id || item.sku}
-                onClick={() => handleSelect(item)}
-                className="group flex cursor-pointer items-center gap-4 rounded-xl border border-transparent p-3 transition-colors hover:border-emerald-100 hover:bg-emerald-50"
+            <button
+                key={isComponent ? item.sku : item.id}
+                type="button"
+                aria-current={isCurrent || undefined}
+                onClick={() => onSelect(isComponent ? { type: 'component', sku: item.sku } : { type: 'raw', id: item.id })}
+                className={`group flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-emerald-600 sm:gap-4 ${isCurrent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/60'}`}
             >
-                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                    {imageUrl ? <img src={imageUrl} alt={name} className="h-full w-full object-cover" /> : <div className="text-slate-400">{icon}</div>}
-                </div>
-                <div className="min-w-0 flex-1">
-                    <div className="flex shrink-0 items-center gap-2 self-start">
-                        <div className="truncate text-sm font-bold text-slate-800">{name}</div>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border sm:h-12 sm:w-12 ${isComponent ? 'border-blue-100 bg-blue-50 text-blue-600' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`}>
+                    {imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ItemIcon size={18} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold wrap-break-word text-slate-900">{name}</span>
+                    <span className="block text-xs wrap-break-word text-slate-600">{description || 'Χωρίς περιγραφή'}</span>
+                    <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {!isComponent && <StoneFamilyBadge material={item} />}
+                        {isComponent && <ComponentFamilyBadge product={item} />}
                         {isComponent && item.category && (
-                            <span className="max-w-[100px] truncate rounded-sm border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{item.category}</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{item.category}</span>
                         )}
                         {!isComponent && item.stones_per_strand && (
                             <span className="whitespace-nowrap rounded-sm border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">
                                 {item.stones_per_strand} πέτρες/σειρά
                             </span>
                         )}
-                    </div>
-                    {description ? (
-                        <div className="truncate text-xs font-medium text-slate-600">{description}</div>
-                    ) : (
-                        <div className="truncate text-xs italic text-slate-400">{isComponent ? 'Χωρίς περιγραφή' : getMaterialTypeLabel(item.type)}</div>
-                    )}
-                    <div className="mt-0.5 font-mono text-[10px] text-slate-400">{cost}</div>
-                    {!isComponent && <div className="mt-1"><StoneFamilyBadge material={item} /></div>}
-                    {isComponent && <div className="mt-1"><ComponentFamilyBadge product={item} /></div>}
-                </div>
-                <div className="shrink-0 rounded-full border border-slate-100 bg-white p-2 text-slate-300 shadow-xs transition-all group-hover:border-emerald-200 group-hover:text-emerald-500">
-                    <Plus size={16} />
-                </div>
-            </div>
+                    </span>
+                    <span className="mt-1 block font-mono text-xs font-semibold text-slate-600">{cost}</span>
+                </span>
+                <span className={`flex shrink-0 items-center gap-1.5 rounded-full border bg-white p-2 ${isCurrent ? 'border-emerald-200 text-emerald-700' : 'border-slate-200 text-slate-500 group-hover:border-emerald-200 group-hover:text-emerald-700'}`}>
+                    {isCurrent && <span className="text-[10px] font-bold">Τρέχον</span>}
+                    <ActionIcon size={15} />
+                </span>
+            </button>
         );
     };
 
     return (
-        <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
-            <div className="flex h-[70vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-2xl animate-in zoom-in-95">
-                <div className="flex items-center justify-between border-b border-slate-100 p-6">
-                    <h3 className="text-lg font-bold text-slate-800">Επιλογή {type === 'raw' ? 'Υλικού' : 'Εξαρτήματος'}</h3>
-                    <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"><X size={20} /></button>
+        <dialog
+            ref={dialogRef}
+            aria-labelledby={titleId}
+            className="fixed inset-0 m-auto h-[82dvh] max-h-176 w-[calc(100%-1.5rem)] max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs sm:rounded-3xl"
+            onCancel={event => { event.preventDefault(); onClose(); }}
+            onClick={event => { if (event.target === event.currentTarget) onClose(); }}
+        >
+            <div className="flex h-full min-h-0 flex-col">
+                <div className="flex shrink-0 items-start gap-3 border-b border-slate-100 p-4 sm:p-5">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+                        {type === 'raw' ? <Gem size={20} /> : <Puzzle size={20} />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <h3 id={titleId} className="text-lg font-bold text-slate-900">{title}</h3>
+                        {isReplacing && (
+                            <p className="truncate text-xs text-slate-600" title={currentMaterial?.name ?? currentMaterialId}>
+                                Τρέχον υλικό <span className="font-bold text-slate-800">{currentMaterial?.name ?? currentMaterialId}</span>
+                            </p>
+                        )}
+                    </div>
+                    <button type="button" aria-label="Κλείσιμο επιλογής" onClick={onClose} className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-600"><X size={20} /></button>
                 </div>
-                <div className="border-b border-slate-100 p-4">
+                <div className="shrink-0 border-b border-slate-100 px-4 py-3 sm:px-5">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
+                            ref={searchRef}
                             type="text"
-                            placeholder={type === 'component' ? "Αναζήτηση SKU ή Περιγραφής..." : "Αναζήτηση..."}
+                            aria-label={type === 'raw' ? 'Αναζήτηση υλικών' : 'Αναζήτηση εξαρτημάτων'}
+                            placeholder={type === 'raw' ? 'Όνομα, περιγραφή ή ομάδα υλικού…' : 'SKU, περιγραφή ή ομάδα…'}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            autoFocus
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 pl-10 outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-base text-slate-900 outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 sm:text-sm"
                         />
                     </div>
                     {type === 'component' && <div className="mt-3"><ComponentFamilyFilter value={componentFamily} onChange={setComponentFamily} /></div>}
                 </div>
-                <div className="custom-scrollbar flex-1 overflow-y-auto p-4">
+                <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/70 p-4 sm:px-5">
                     {suggestions.length > 0 && (
-                        <div className="mb-6">
-                            <h4 className="mb-2 ml-2 text-xs font-bold uppercase tracking-wide text-amber-600">Προτεινόμενα</h4>
-                            <div className="space-y-1">{suggestions.map(renderListItem)}</div>
+                        <div>
+                            <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700">Προτεινόμενα</h4>
+                            <div className="space-y-2">{suggestions.map(renderListItem)}</div>
                         </div>
                     )}
-                    {(suggestions.length > 0 || searchTerm) && (
-                        <h4 className="mb-2 ml-2 text-xs font-bold uppercase tracking-wide text-slate-400">Όλα</h4>
+                    {others.length > 0 && (
+                        <div className={suggestions.length > 0 ? 'mt-4' : undefined}>
+                            <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">{type === 'raw' ? 'Υλικά' : 'Εξαρτήματα'}</h4>
+                            <div className="space-y-2">{others.map(renderListItem)}</div>
+                        </div>
                     )}
-                    <div className="space-y-1">{others.map(renderListItem)}</div>
                     {suggestions.length === 0 && others.length === 0 && (
-                        <div className="py-10 text-center text-slate-400"><p>Δεν βρέθηκαν αποτελέσματα.</p></div>
+                        <p role="status" className="py-10 text-center text-sm text-slate-600">Δεν βρέθηκαν αποτελέσματα.</p>
                     )}
                 </div>
+                <div className="flex shrink-0 justify-end border-t border-slate-100 px-4 py-3 sm:px-5">
+                    <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-emerald-600">Ακύρωση</button>
+                </div>
             </div>
-        </div>
+        </dialog>
     );
 });
 
