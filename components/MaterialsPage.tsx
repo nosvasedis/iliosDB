@@ -3,7 +3,8 @@ import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { formatNumber } from '../utils/numberFormat';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Material, MaterialType, GlobalSettings, Product } from '../types';
+import { Collection, Material, MaterialType, GlobalSettings, Mold, Product } from '../types';
+import type { PrintLabelItem } from '../features/printing';
 import {
     Trash2, Plus, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package,
     Check, LayoutGrid, List as ListIcon, Weight, Pencil, Copy, Tag, AlertTriangle, ArrowUpDown,
@@ -20,6 +21,7 @@ import { ResourceUsageProvider, ResourceUsageStrip } from './resources/ResourceU
 import EmptyState from './ui/EmptyState';
 import { getStoneFamily, stoneFamilyLabel, materialResourceTab, isStoneResource, type StoneFamily } from '../features/resources/stoneFamilies';
 import { StoneFamilyBadge, StoneFamilyFilters, StoneFamilyHint } from './resources/StoneFamily';
+import ProductDetails from './ProductDetails';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -43,6 +45,11 @@ const LOW_STOCK_THRESHOLD = 5;
 interface Props {
     settings: GlobalSettings;
     products?: Product[];
+    skuDetails?: {
+        collections: Collection[];
+        molds: Mold[];
+        setPrintItems: (items: PrintLabelItem[]) => void;
+    };
     resourceTab?: 'materials' | 'molds';
     onResourceTabChange?: (tab: 'materials' | 'molds') => void;
 }
@@ -487,7 +494,7 @@ const KpiTile: React.FC<{ icon: React.ElementType; label: string; value: React.R
 
 // -- PAGE --
 
-export default function MaterialsPage({ settings, products, resourceTab = 'materials', onResourceTabChange }: Props) {
+export default function MaterialsPage({ settings, products, skuDetails, resourceTab = 'materials', onResourceTabChange }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 
@@ -512,6 +519,11 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
     // Editor
     const [editor, setEditor] = useState<{ material: Material | null } | null>(null);
     const [duplicateSeed, setDuplicateSeed] = useState<Material | null>(null);
+    const [selectedSku, setSelectedSku] = useState<{ sku: string; variantSuffix?: string } | null>(null);
+    const selectedProduct = selectedSku && products?.find(product => product.sku === selectedSku.sku);
+    const openProduct = (product: Product, variantSuffix?: string) => {
+        setSelectedSku({ sku: product.sku, variantSuffix });
+    };
 
     // Variant modal
     const [activeMaterialForVariants, setActiveMaterialForVariants] = useState<Material | null>(null);
@@ -538,13 +550,13 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
         const onKey = (e: KeyboardEvent) => {
             const t = e.target as HTMLElement;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-            if (editor || activeMaterialForVariants || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (editor || activeMaterialForVariants || selectedProduct || e.ctrlKey || e.metaKey || e.altKey) return;
             if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
             if (e.key === 'n' || e.key === 'N') { e.preventDefault(); setEditor({ material: null }); }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [editor, activeMaterialForVariants]);
+    }, [editor, activeMaterialForVariants, selectedProduct]);
 
     const tabCounts = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -747,7 +759,7 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
         `flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition ${active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`;
 
     return (
-        <ResourceUsageProvider products={products} scopeKey={`${activeTab}:${stoneSubFilter}:${searchTerm}:${viewMode}:${!!activeMaterialForVariants}:${!!editor}`}>
+        <ResourceUsageProvider products={products} scopeKey={`${activeTab}:${stoneSubFilter}:${searchTerm}:${viewMode}:${!!activeMaterialForVariants}:${!!editor}`} onOpenProduct={skuDetails ? openProduct : undefined}>
             <div className="flex h-full flex-col space-y-5">
                 <DesktopPageHeader
                     ref={headerRef}
@@ -999,6 +1011,23 @@ export default function MaterialsPage({ settings, products, resourceTab = 'mater
                         onClose={() => { setEditor(null); setDuplicateSeed(null); }}
                         onSubmit={handleSubmit}
                         onDelete={handleDelete}
+                    />
+                )}
+
+                {selectedProduct && products && materials && skuDetails && (
+                    <ProductDetails
+                        key={selectedProduct.sku}
+                        product={selectedProduct}
+                        initialVariantSuffix={selectedSku?.variantSuffix}
+                        allProducts={products}
+                        allMaterials={materials}
+                        allMolds={skuDetails.molds}
+                        collections={skuDetails.collections}
+                        settings={settings}
+                        setPrintItems={skuDetails.setPrintItems}
+                        onClose={() => setSelectedSku(null)}
+                        onOpenProduct={openProduct}
+                        zIndex={170}
                     />
                 )}
 

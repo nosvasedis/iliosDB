@@ -30,7 +30,10 @@ const TABS = [
     { id: MaterialType.Enamel, label: 'Σμάλτα', icon: Palette, color: 'text-rose-500', bg: 'bg-rose-50' },
 ];
 
-export default function MobileResources({ products }: { products?: Product[] }) {
+export default function MobileResources({ products, onOpenProduct }: {
+    products?: Product[];
+    onOpenProduct?: (product: Product, variantSuffix?: string) => void;
+}) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const [viewMode, setViewMode] = useState<'materials' | 'molds'>('materials');
@@ -193,7 +196,8 @@ export default function MobileResources({ products }: { products?: Product[] }) 
     };
 
     return (
-        <ResourceUsageProvider products={products} scopeKey={`${viewMode}:${activeTab}:${stoneSubFilter}:${moldTab}:${search}:${Boolean(editingMaterial)}:${Boolean(editingMold)}`}>
+        <ResourceUsageProvider products={products} scopeKey={`${viewMode}:${activeTab}:${stoneSubFilter}:${moldTab}:${search}:${Boolean(editingMaterial)}:${Boolean(editingMold)}`}
+            onOpenProduct={viewMode === 'materials' ? onOpenProduct : undefined}>
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
             <div className={`z-10 shrink-0 ${MOBILE_HEADER_SURFACE}`}>
                 <div className="space-y-3 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">

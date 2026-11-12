@@ -418,7 +418,10 @@ function ErpAppContent() {
     settings: <SettingsPage />,
     resources: (
       <div className="space-y-6">
-        {resourceTab === 'materials' && <MaterialsPage settings={settings} products={products} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
+        {resourceTab === 'materials' && (
+          <MaterialsPage settings={settings} products={products} skuDetails={{ collections, molds, setPrintItems }}
+            resourceTab={resourceTab} onResourceTabChange={setResourceTab} />
+        )}
         {resourceTab === 'molds' && <MoldsPage products={products} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
       </div>
     ),
