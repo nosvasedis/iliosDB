@@ -73,9 +73,10 @@ function UsageImage({ product, size = 36 }: { product: Product; size?: number })
   );
 }
 
-export function ResourceUsageProvider({ products, scopeKey, children }: {
+export function ResourceUsageProvider({ products, scopeKey, onOpenProduct, children }: {
   products?: Product[];
   scopeKey: string;
+  onOpenProduct?: (product: Product, variantSuffix?: string) => void;
   children: React.ReactNode;
 }) {
   const [active, setActive] = useState<OpenUsage | null>(null);
@@ -107,7 +108,7 @@ export function ResourceUsageProvider({ products, scopeKey, children }: {
     <UsageContext.Provider value={context}>
       {children}
       {visibleActive && products ? (
-        <UsagePopover key={resourceKey(visibleActive.resource)} active={visibleActive} products={products} dialogId={dialogId} onClose={close} />
+        <UsagePopover key={resourceKey(visibleActive.resource)} active={visibleActive} products={products} dialogId={dialogId} onClose={close} onOpenProduct={onOpenProduct} />
       ) : null}
     </UsageContext.Provider>
   );
@@ -162,11 +163,12 @@ export const ResourceUsageStrip = React.memo(function ResourceUsageStrip({ kind,
   );
 });
 
-function UsagePopover({ active, products, dialogId, onClose }: {
+function UsagePopover({ active, products, dialogId, onClose, onOpenProduct }: {
   active: OpenUsage;
   products: Product[];
   dialogId: string;
   onClose: () => void;
+  onOpenProduct?: (product: Product, variantSuffix?: string) => void;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -239,10 +241,14 @@ function UsagePopover({ active, products, dialogId, onClose }: {
       popupRef.current?.querySelector<HTMLElement>(`[data-usage-row="${index}"]`)?.focus({ preventScroll: true });
     });
   };
+  const openProduct = (product: Product, variantSuffix?: string) => {
+    onClose();
+    onOpenProduct?.(product, variantSuffix);
+  };
   if (!placement || typeof document === 'undefined') return null;
   return createPortal(
     <div ref={popupRef} id={dialogId} role="dialog" aria-labelledby={titleId}
-      style={{ position: 'fixed', ...placement, zIndex: 140 }}
+      style={{ position: 'fixed', ...placement, zIndex: onOpenProduct ? 160 : 140 }}
       onClick={event => event.stopPropagation()}
       onKeyDown={event => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
@@ -279,12 +285,34 @@ function UsagePopover({ active, products, dialogId, onClose }: {
               const { product, direct, viaSku } = row.entry;
               const expanded = expandedSku === product.sku;
               const variants = product.variants || [];
+              const toggleVariants = () => setExpandedSku(current => current === product.sku ? null : product.sku);
               const rowStyle: React.CSSProperties = { position: 'absolute', top: 0, left: 0, width: '100%', height: item.size, transform: `translateY(${item.start}px)` };
+              if (onOpenProduct && row.kind === 'product') {
+                return (
+                  <div key={row.key} style={rowStyle} className="flex min-w-0 items-stretch border-b border-slate-50">
+                    <button type="button" data-usage-row={item.index} onClick={() => openProduct(product)}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 px-3 text-left hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
+                      <UsageImage product={product} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs"><SkuColorizedText sku={product.sku} suffix="" gender={product.gender} /></span>
+                        <span className="block truncate text-[10px] text-slate-400">{direct ? 'Άμεση χρήση' : `μέσω ${viaSku}`}</span>
+                      </span>
+                    </button>
+                    {variants.length > 0 && (
+                      <button type="button" data-usage-row={item.index} aria-expanded={expanded} aria-controls={variantsId} aria-label={`Παραλλαγές ${product.sku}`} onClick={toggleVariants}
+                        className="flex shrink-0 items-center gap-1.5 px-3 text-[10px] text-slate-500 hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
+                        {formatNumber(variants.length)} παραλλ.
+                        <ChevronDown size={13} className={expanded ? 'rotate-180' : undefined} />
+                      </button>
+                    )}
+                  </div>
+                );
+              }
               return row.kind === 'product' ? (
                 <button key={row.key} type="button" data-usage-row={item.index} style={rowStyle}
                   aria-expanded={variants.length ? expanded : undefined} aria-controls={variants.length && expanded ? variantsId : undefined}
                   aria-label={`${product.sku}${!direct ? `, μέσω ${viaSku}` : ''}, ${formatNumber(variants.length)} παραλλαγές`}
-                  onClick={() => setExpandedSku(current => current === product.sku ? null : product.sku)}
+                  onClick={toggleVariants}
                   className="flex min-w-0 items-center gap-2.5 border-b border-slate-50 px-3 text-left hover:bg-slate-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
                   <UsageImage product={product} />
                   <span className="min-w-0 flex-1">
@@ -292,6 +320,12 @@ function UsagePopover({ active, products, dialogId, onClose }: {
                     <span className="block truncate text-[10px] text-slate-400">{direct ? 'Άμεση χρήση' : `μέσω ${viaSku}`}</span>
                   </span>
                   {variants.length ? <><span className="shrink-0 text-[10px] text-slate-500">{formatNumber(variants.length)} παραλλ.</span><ChevronDown size={13} className={`shrink-0 text-slate-400 ${expanded ? 'rotate-180' : ''}`} /></> : null}
+                </button>
+              ) : onOpenProduct ? (
+                <button key={row.key} type="button" data-usage-row={item.index} style={rowStyle}
+                  onClick={() => openProduct(product, row.variant.suffix)}
+                  className="flex items-center bg-slate-50/80 pl-14 pr-3 text-left hover:bg-slate-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400">
+                  <span className="truncate text-xs"><SkuColorizedText sku={product.sku} suffix={row.variant.suffix} gender={product.gender} /></span>
                 </button>
               ) : (
                 <div key={row.key}
@@ -304,7 +338,7 @@ function UsagePopover({ active, products, dialogId, onClose }: {
           </div>
         ) : <p className="px-3 py-8 text-center text-xs text-slate-400">{entries.length ? 'Δεν βρέθηκαν SKU.' : 'Δεν χρησιμοποιείται'}</p>}
       </div>
-      <div role="status" aria-live="polite" className="shrink-0 border-t border-slate-100 px-3 py-1.5 text-[10px] text-slate-400">{formatNumber(filtered.length)} βασικά SKU{search ? ` από ${formatNumber(entries.length)}` : ''} · Παραλλαγές με πάτημα</div>
+      <div role="status" aria-live="polite" className="shrink-0 border-t border-slate-100 px-3 py-1.5 text-[10px] text-slate-400">{formatNumber(filtered.length)} βασικά SKU{search ? ` από ${formatNumber(entries.length)}` : ''}{onOpenProduct ? '' : ' · Παραλλαγές με πάτημα'}</div>
     </div>, document.body,
   );
 }
