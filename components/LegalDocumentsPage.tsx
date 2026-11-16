@@ -2888,6 +2888,7 @@ export default function LegalDocumentsPage({
                           <div className="min-w-0 flex-1">
                             <SkuProductPicker
                               sku={line.sku}
+                              itemCode={line.item_code}
                               variantSuffix={line.variant_suffix}
                               products={legalCatalogProducts}
                               legalDocument
@@ -3568,6 +3569,7 @@ export default function LegalDocumentsPage({
                     <td className="px-1.5 py-2">
                       <SkuProductPicker
                         sku={line.sku}
+                        itemCode={line.item_code}
                         variantSuffix={line.variant_suffix}
                         products={legalCatalogProducts}
                               legalDocument

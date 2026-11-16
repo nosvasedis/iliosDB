@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { CornerDownLeft, ImageIcon } from 'lucide-react';
 import { Product } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
+import SystemItemThumbnail from './SystemItemThumbnail';
 import {
   allowsBareMasterSkuResolution,
   formatSkuDisplayValue,
@@ -20,13 +21,14 @@ import {
 } from '../../utils/skuProductPicker';
 import { findProductByScannedCode, formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
-import { getLegalDocumentItemKind, LEGAL_DOCUMENT_ITEM_KINDS, type LegalDocumentItemKind } from '../../utils/legalItemCodes';
+import { getLegalDocumentItemKind, isLegalReservedItemCode, LEGAL_DOCUMENT_ITEM_KINDS, type LegalDocumentItemKind } from '../../utils/legalItemCodes';
 
 export type { SkuProductSelection } from '../../utils/skuProductPicker';
 export { searchSkuProductOptions } from '../../utils/skuProductPicker';
 
 interface SkuProductPickerProps {
   sku: string;
+  itemCode?: string | null;
   variantSuffix?: string | null;
   products: Product[];
   onSelect: (selection: SkuProductSelection) => void;
@@ -51,6 +53,7 @@ interface SkuProductPickerProps {
 
 export default function SkuProductPicker({
   sku,
+  itemCode,
   variantSuffix = null,
   products,
   onSelect,
@@ -326,13 +329,15 @@ export default function SkuProductPicker({
           title="Κλικ, Enter ή δεξί κλικ για συμπλήρωση γραμμής"
         >
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-            {option.product?.image_url ? (
-              <img src={option.product.image_url} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-slate-300">
-                <ImageIcon size={14} />
-              </div>
-            )}
+            <SystemItemThumbnail code={option.sku}>
+              {option.product?.image_url ? (
+                <img src={option.product.image_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-slate-300">
+                  <ImageIcon size={14} />
+                </div>
+              )}
+            </SystemItemThumbnail>
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-black leading-tight">
@@ -361,13 +366,20 @@ export default function SkuProductPicker({
   ) : null;
 
   const showLiveOverlay = inputValue.trim().length > 0;
-  const inlineThumb = compact && previewProduct?.image_url ? (
+  const thumbnailCode = isLegalReservedItemCode(inputValue)
+    ? inputValue
+    : inputValue === displayValue ? itemCode : undefined;
+  const inlineThumb = compact ? (
     <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-      <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
-    </div>
-  ) : compact ? (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-300">
-      <ImageIcon size={12} />
+      <SystemItemThumbnail code={thumbnailCode}>
+        {previewProduct?.image_url ? (
+          <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-300">
+            <ImageIcon size={12} />
+          </div>
+        )}
+      </SystemItemThumbnail>
     </div>
   ) : null;
 

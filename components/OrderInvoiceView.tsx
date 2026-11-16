@@ -1,6 +1,7 @@
 import { getOrderCustomerName, isRetailCustomerOrder } from '../utils/orderCustomer';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
+import SystemItemThumbnail from './legal/SystemItemThumbnail';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Order, Product, Customer } from '../types';
@@ -108,11 +109,13 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{formatNumber(globalIndex + 1)}</div>
                 <div className="w-14 text-center shrink-0">
                     <div className="w-12 h-12 bg-slate-50 rounded-sm overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
-                        {imageUrl ? (
-                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                        ) : (
-                            <ImageIcon size={16} className="text-slate-300" />
-                        )}
+                        <SystemItemThumbnail code={item.sku}>
+                            {imageUrl ? (
+                                <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                            ) : (
+                                <ImageIcon size={16} className="text-slate-300" />
+                            )}
+                        </SystemItemThumbnail>
                     </div>
                 </div>
                 <div className="flex-1 px-1 min-w-0">
