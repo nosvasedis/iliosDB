@@ -1,7 +1,7 @@
 import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { INTERNAL_CUSTOMER_ID } from '../utils/retailConstants';
 import { formatNumber } from '../utils/numberFormat';
-import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
+import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES } from '../features/legal/sbz';
 import SbzSettings, { useSbzStatus } from './legal/SbzSettings';
 import CreditDocumentModal from './legal/CreditDocumentModal';
 import { api } from '../lib/supabase';
@@ -20,7 +20,6 @@ import {
   ChevronRight,
   Hash,
   ChevronDown,
-  ClipboardCheck,
   Copy,
   Edit3,
   FileCheck2,
@@ -60,6 +59,32 @@ import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
 import ProformaConvertModal from './legal/ProformaConvertModal';
 import IncomeClassificationTypeSelect from './legal/IncomeClassificationTypeSelect';
 import LegalArchiveWorkspace from './legal/LegalArchiveWorkspace';
+import {
+  ActionButton,
+  Chip,
+  chipToneClass,
+  cellInputClass,
+  EditorSection,
+  FieldGroup,
+  FieldMessage,
+  type FieldProblem,
+  fieldLabelClass,
+  focusLegalField,
+  iconTextToneClass,
+  iconToneClass,
+  inputBaseClass,
+  InfoTip,
+  Notice,
+  problemClass,
+  SelectInput,
+  TextInput,
+  type Tone,
+} from './legal/issue/ui';
+import DeliveryPanel, { withDispatchMethod } from './legal/issue/DeliveryPanel';
+import OrderPicker from './legal/issue/OrderPicker';
+import CarrierForm, { type CarrierDraft, carrierToDraft, draftToCarrier, EMPTY_CARRIER_DRAFT, linkedSupplier } from './legal/issue/CarrierForm';
+import { IssueOutcomePanel, IssueReviewCard, IssuingOverlay } from './legal/issue/IssueFlow';
+import { collectDraftIssues, countIssuesBySection, firstIssueMessage, issuesForField, type DraftIssue } from './legal/issue/draftIssues';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
@@ -104,11 +129,12 @@ import {
   useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
 import { useSellers } from '../hooks/api/useSellers';
+import { useSuppliers } from '../hooks/api/useSuppliers';
+import { SupplierAvatar } from './suppliers/SupplierCard';
 import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import EvidenceSourcesEditor from './inspection/EvidenceSourcesEditor';
 import type { InspectionSnapshot } from '../features/inspection/types';
-import { customerBranches } from '../features/customers/customerLocation';
 import { useLegalCatalog } from '../hooks/api/useInspection';
 import { legalCatalogProducts as mapLegalCatalogProducts } from '../features/inspection/catalog';
 import {
@@ -161,13 +187,14 @@ import {
   normalizeProformaDocumentAddresses,
   normalizeVatNumber,
   parseLegalPartyAddress,
-  resolveCustomerDeliveryAddress,
   PAYMENT_METHOD_CODES,
   PAYMENT_METHOD_LABELS,
   recalculateLegalDocument,
   recalculateProforma,
   resolveSbzDispatchMethod,
   resolveLegalCarrierLabel,
+  DEFAULT_SBZ_DISPATCH_METHOD,
+  SBZ_COURIER_DISPATCH_METHOD,
   SBZ_DISPATCH_METHODS,
   SBZ_OWN_MEANS_DISPATCH_METHOD,
   toAthensIsoDate,
@@ -187,18 +214,6 @@ import { describeCustomerVatLookup, lookupCustomerVat } from '../features/custom
 export type LegalTab = 'new' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
 type CreationDocumentType = LegalDocumentKind | 'proforma' | 'service_invoice';
-
-/** Which delivery point the current address corresponds to: a shop id, 'fiscal', or 'custom'. */
-function deliveryBranchValue(customer: Customer, address?: LegalPartyAddress | null): string {
-  const norm = (v: unknown) => String(v ?? '').trim().toLocaleLowerCase('el-GR');
-  const same = (a?: LegalPartyAddress | null, b?: LegalPartyAddress | null) => Boolean(a && b)
-    && (['street', 'number', 'postal_code', 'city'] as const).every((key) => norm(a?.[key]) === norm(b?.[key]));
-  for (const branch of customerBranches(customer)) {
-    if (same(address, resolveCustomerDeliveryAddress(customer, branch.id))) return branch.id;
-  }
-  if (!address || same(address, customer.address ? parseLegalPartyAddress(customer.address) : null)) return 'fiscal';
-  return 'custom';
-}
 
 function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind {
   if (type === 'service_invoice' || type === 'proforma') return 'invoice';
@@ -231,7 +246,7 @@ const creationTypeItems: Array<{ id: CreationDocumentType; label: string; short:
   {
     id: 'invoice',
     label: 'Τιμολόγιο',
-    short: 'Πώληση αγαθών B2B',
+    short: 'Πώληση αγαθών · με δελτίο αποστολής',
     code: '1.1',
     icon: ReceiptText,
     help: 'Τιμολόγιο 1.1 με δελτίο αποστολής (προεπιλογή), ώστε η διακίνηση να διαβιβάζεται στη myDATA πριν φύγει το εμπόρευμα. Αν δεν διακινούνται αγαθά, αποεπιλέξτε το «Με δελτίο διακίνησης» στην καρτέλα Διακίνηση.',
@@ -367,85 +382,6 @@ const today = () => toAthensIsoDate();
 /** `YYYY-MM-DD` → `DD/MM/YYYY` without going through Date (no timezone shift). */
 const formatIsoDate = (value?: string | null) => value ? value.slice(0, 10).split('-').reverse().join('/') : '—';
 
-const InfoTip = ({ text }: { text: string }) => (
-  <span
-    title={text}
-    className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
-  >
-    <Info size={11} />
-  </span>
-);
-
-const fieldLabelClass = 'mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500';
-const inputBaseClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-hidden transition placeholder:font-medium placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
-/** Dense inputs used inside the line tables. */
-const cellInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 outline-hidden transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50';
-
-const TextInput = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  help,
-  disabled,
-  min,
-  max,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-  help?: string;
-  disabled?: boolean;
-  min?: string | number;
-  max?: string | number;
-}) => (
-  <label className="block min-w-0">
-    <span className={fieldLabelClass}>
-      {label} {help && <InfoTip text={help} />}
-    </span>
-    <input
-      type={type}
-      value={value ?? ''}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-      min={min}
-      max={max}
-      className={inputBaseClass}
-    />
-  </label>
-);
-
-const SelectInput = ({
-  label,
-  value,
-  onChange,
-  children,
-  help,
-}: {
-  label: string;
-  value: string | number;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-  help?: string;
-}) => (
-  <label className="block min-w-0">
-    <span className={fieldLabelClass}>
-      {label} {help && <InfoTip text={help} />}
-    </span>
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className={`${inputBaseClass} pr-8`}
-    >
-      {children}
-    </select>
-  </label>
-);
-
 /** ΑΦΜ input with the official registry lookup attached on the right. */
 const VatLookupField = ({
   value,
@@ -453,24 +389,30 @@ const VatLookupField = ({
   onLookup,
   loading,
   lookupDisabled,
+  problem,
 }: {
   value: string;
   onChange: (value: string) => void;
   onLookup: () => void;
   loading: boolean;
   lookupDisabled: boolean;
+  problem?: FieldProblem | null;
 }) => {
   const id = useId();
   return (
-    <div className="min-w-0">
-      <label htmlFor={id} className={fieldLabelClass}>ΑΦΜ Πελάτη</label>
+    <div className="min-w-0" data-legal-field="counterpart.vat_number">
+      <label htmlFor={id} className={fieldLabelClass}>ΑΦΜ Πελάτη<span className="text-red-500" aria-hidden>*</span></label>
       <div className="flex gap-2">
         <input
           id={id}
           value={value}
           inputMode="numeric"
+          maxLength={12}
+          placeholder="9 ψηφία"
           onChange={(event) => onChange(event.target.value)}
-          className={`${inputBaseClass} font-mono tracking-wide`}
+          onKeyDown={(event) => { if (event.key === 'Enter' && !lookupDisabled) { event.preventDefault(); onLookup(); } }}
+          aria-invalid={problem?.severity === 'error' || undefined}
+          className={`${inputBaseClass} ${problemClass(problem)} font-mono tracking-wide`}
         />
         <button
           type="button"
@@ -483,6 +425,7 @@ const VatLookupField = ({
           <span>Έλεγχος ΑΦΜ</span>
         </button>
       </div>
+      <FieldMessage problem={problem} />
     </div>
   );
 };
@@ -498,10 +441,12 @@ const VatExemptionCategorySelect = ({
   label = 'Αιτία απαλλαγής ΦΠΑ',
   value,
   onChange,
+  problem,
 }: {
   label?: string;
   value: number | null | undefined;
   onChange: (value: number | null) => void;
+  problem?: FieldProblem | null;
 }) => {
   const hasInvalidStoredValue = value !== null
     && value !== undefined
@@ -514,6 +459,8 @@ const VatExemptionCategorySelect = ({
         label={label}
         value={value ?? ''}
         onChange={(nextValue) => onChange(nextValue ? Number(nextValue) : null)}
+        field="vat_exemption_category"
+        problem={problem}
         help="Επίσημοι κωδικοί myDATA v2.0.1, Παράρτημα 8.3. Η επιλογή πρέπει να ανταποκρίνεται στην πραγματική φορολογική μεταχείριση της συναλλαγής."
       >
         <option value="">Επιλέξτε την πραγματική περίπτωση...</option>
@@ -540,154 +487,6 @@ const VatExemptionCategorySelect = ({
   );
 };
 
-const ActionButton = ({
-  children,
-  onClick,
-  disabled,
-  variant = 'primary',
-  type = 'button',
-  title,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger' | 'quiet';
-  type?: 'button' | 'submit';
-  title?: string;
-}) => {
-  const classes = {
-    primary: 'bg-emerald-600 text-white shadow-xs shadow-emerald-900/10 hover:bg-emerald-700 disabled:bg-slate-300 disabled:shadow-none',
-    secondary: 'bg-white text-slate-800 border border-slate-200 shadow-xs shadow-slate-900/3 hover:border-slate-300 hover:bg-slate-50 disabled:text-slate-400 disabled:shadow-none',
-    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-300',
-    quiet: 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:text-slate-400',
-  };
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed ${classes[variant]}`}
-    >
-      {children}
-    </button>
-  );
-};
-
-type Tone = 'slate' | 'emerald' | 'sky' | 'amber' | 'red' | 'violet' | 'indigo';
-
-const noticeToneClass: Record<Tone, string> = {
-  slate: 'border-slate-200 bg-slate-50 text-slate-700',
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-  sky: 'border-sky-200 bg-sky-50 text-sky-900',
-  amber: 'border-amber-200 bg-amber-50 text-amber-950',
-  red: 'border-red-200 bg-red-50 text-red-800',
-  violet: 'border-violet-200 bg-violet-50 text-violet-950',
-  indigo: 'border-indigo-200 bg-indigo-50 text-indigo-950',
-};
-
-const chipToneClass: Record<Tone, string> = {
-  slate: 'border-slate-200 bg-slate-50 text-slate-600',
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  sky: 'border-sky-200 bg-sky-50 text-sky-700',
-  amber: 'border-amber-200 bg-amber-50 text-amber-800',
-  red: 'border-red-200 bg-red-50 text-red-700',
-  violet: 'border-violet-200 bg-violet-50 text-violet-700',
-  indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-};
-
-const iconToneClass: Record<Tone, string> = {
-  slate: 'bg-slate-100 text-slate-600',
-  emerald: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
-  sky: 'bg-sky-50 text-sky-700 ring-1 ring-sky-100',
-  amber: 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
-  red: 'bg-red-50 text-red-700 ring-1 ring-red-100',
-  violet: 'bg-violet-50 text-violet-700 ring-1 ring-violet-100',
-  indigo: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100',
-};
-
-const iconTextToneClass: Record<Tone, string> = {
-  slate: 'text-slate-400',
-  emerald: 'text-emerald-600',
-  sky: 'text-sky-600',
-  amber: 'text-amber-600',
-  red: 'text-red-600',
-  violet: 'text-violet-600',
-  indigo: 'text-indigo-600',
-};
-
-const Chip = ({ tone = 'slate', className = '', children }: { tone?: Tone | null; className?: string; children: React.ReactNode }) => (
-  <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-black ${tone ? chipToneClass[tone] : ''} ${className}`}>
-    {children}
-  </span>
-);
-
-const Notice = ({
-  tone = 'slate',
-  icon: Icon = Info,
-  title,
-  children,
-  action,
-  role,
-  className = '',
-}: {
-  tone?: Tone;
-  icon?: LucideIcon;
-  title?: React.ReactNode;
-  children?: React.ReactNode;
-  action?: React.ReactNode;
-  role?: string;
-  className?: string;
-}) => (
-  <div role={role} className={`flex flex-col gap-2 rounded-xl border px-3.5 py-3 text-sm sm:flex-row sm:items-start ${noticeToneClass[tone]} ${className}`}>
-    <div className="flex min-w-0 flex-1 items-start gap-2.5">
-      <Icon size={17} className="mt-0.5 shrink-0 opacity-80" />
-      <div className="min-w-0 flex-1 leading-relaxed">
-        {title ? <div className="font-black">{title}</div> : null}
-        {children ? <div className={title ? 'mt-0.5 text-[13px] font-medium opacity-90' : 'font-medium'}>{children}</div> : null}
-      </div>
-    </div>
-    {action ? <div className="shrink-0 pl-7 sm:self-center sm:pl-0">{action}</div> : null}
-  </div>
-);
-
-/** Card used for every block of the creation workspace. Keeps no overflow clipping so pickers can float. */
-const EditorSection = ({
-  icon: Icon,
-  tone = 'slate',
-  title,
-  subtitle,
-  action,
-  children,
-  className = '',
-  bodyClassName = 'p-4 sm:p-5',
-  id,
-}: {
-  icon: LucideIcon;
-  tone?: Tone;
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  action?: React.ReactNode;
-  children?: React.ReactNode;
-  className?: string;
-  bodyClassName?: string;
-  id?: string;
-}) => (
-  <section id={id} className={`min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-xs ${className}`}>
-    <header className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 ${children ? 'border-b border-slate-100' : ''}`}>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${iconToneClass[tone]}`}><Icon size={16} /></span>
-        <div className="min-w-0">
-          <h3 className="text-sm font-black tracking-tight text-slate-900">{title}</h3>
-          {subtitle ? <p className="text-xs font-medium leading-snug text-slate-500">{subtitle}</p> : null}
-        </div>
-      </div>
-      {action ? <div className="min-w-0">{action}</div> : null}
-    </header>
-    {children ? <div className={bodyClassName}>{children}</div> : null}
-  </section>
-);
-
 type DocumentHeaderTab = 'customer' | 'document' | 'delivery';
 
 /** Tabbed card holding the draft's header fields, so they sit side by side instead of stacking. */
@@ -697,7 +496,7 @@ const TabbedCard = ({
   onChange,
   children,
 }: {
-  tabs: Array<{ id: DocumentHeaderTab; label: string; icon: LucideIcon; hint?: React.ReactNode; attention?: boolean }>;
+  tabs: Array<{ id: DocumentHeaderTab; label: string; icon: LucideIcon; hint?: React.ReactNode; attention?: boolean; errors?: number; warnings?: number }>;
   active: DocumentHeaderTab;
   onChange: (tab: DocumentHeaderTab) => void;
   children: React.ReactNode;
@@ -721,7 +520,13 @@ const TabbedCard = ({
               <span className="block text-sm font-black leading-tight">{tab.label}</span>
               {tab.hint ? <span className="block max-w-56 truncate text-[11px] font-medium leading-tight text-slate-400">{tab.hint}</span> : null}
             </span>
-            {tab.attention ? <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-100" aria-label="Χρειάζεται συμπλήρωση" /> : null}
+            {tab.errors ? (
+              <span className="min-w-5 shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white" title={`${tab.errors} ${tab.errors === 1 ? 'σφάλμα' : 'σφάλματα'}`}>{tab.errors}</span>
+            ) : tab.warnings ? (
+              <span className="min-w-5 shrink-0 rounded-full bg-amber-400 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-amber-950" title={`${tab.warnings} ${tab.warnings === 1 ? 'προειδοποίηση' : 'προειδοποιήσεις'}`}>{tab.warnings}</span>
+            ) : tab.attention ? (
+              <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-100" aria-label="Χρειάζεται συμπλήρωση" />
+            ) : null}
           </button>
         );
       })}
@@ -733,7 +538,7 @@ const TabbedCard = ({
 type StepState = 'done' | 'active' | 'todo';
 
 const StepIndicator = ({ steps }: { steps: Array<{ label: string; detail: string; state: StepState }> }) => (
-  <ol className="grid grid-cols-3 gap-2">
+  <ol className="grid gap-2" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
     {steps.map((step, index) => (
       <li key={step.label} className="flex min-w-0 items-center gap-2">
         <span
@@ -1198,7 +1003,8 @@ export default function LegalDocumentsPage({
   });
   const [settingsDraft, setSettingsDraft] = useState<LegalSettings>({ ...DEFAULT_LEGAL_SETTINGS });
   const [sequenceDrafts, setSequenceDrafts] = useState<Record<string, LegalNumberingSequence>>({});
-  const [newCarrier, setNewCarrier] = useState({ name: '', vat_number: '', vehicle_number: '', phone: '' });
+  const [newCarrier, setNewCarrier] = useState<CarrierDraft>(EMPTY_CARRIER_DRAFT);
+  const [editingCarrier, setEditingCarrier] = useState<{ id: string; draft: CarrierDraft } | null>(null);
   const [credentialEnvironment, setCredentialEnvironment] = useState<LegalEnvironment>('dev');
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
   const [registryCredentialDraft, setRegistryCredentialDraft] = useState({ username: '', password: '' });
@@ -1208,6 +1014,12 @@ export default function LegalDocumentsPage({
   });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
   const [headerTab, setHeaderTab] = useState<DocumentHeaderTab>('customer');
+  /** Result of the last «Έκδοση»: shown instead of the editor so the same draft cannot be sent twice. */
+  const [issueOutcome, setIssueOutcome] = useState<{ documentId: string; document: LegalDocument } | null>(null);
+  const [issuingDocument, setIssuingDocument] = useState<LegalDocument | null>(null);
+  const [reconcilingOutcome, setReconcilingOutcome] = useState(false);
+  /** Synchronous single-flight lock: a second click never reaches the provider while one send runs. */
+  const issuingRef = useRef(false);
   const [showInspectionPinSection, setShowInspectionPinSection] = useState(false);
   const [inspectionPinDraft, setInspectionPinDraft] = useState('');
   const [inspectionPinConfirm, setInspectionPinConfirm] = useState('');
@@ -1231,6 +1043,8 @@ export default function LegalDocumentsPage({
   /** We never issue documents to ourselves: the internal-orders account is not a counterpart. */
   const invoiceableCustomers = useMemo(() => customers.filter(customer => customer.id !== INTERNAL_CUSTOMER_ID), [customers]);
   const { data: sellers = [], isLoading: loadingSellers } = useSellers();
+  /** Partners («Προμηθευτές & Συνεργάτες»): carriers link to them for logo and details. */
+  const { data: suppliers = [] } = useSuppliers();
   const { data: shipments = [] } = useAllShipments();
   const { data: shipmentItems = [] } = useAllShipmentItems();
   const { data: legalSettings } = useLegalSettings();
@@ -1308,7 +1122,7 @@ export default function LegalDocumentsPage({
   const proformaRestart = useRestartDraft('Προτιμολόγιο', proformaBundle, { enabled: !!proformaBundle, identity: proformaBundle?.document.id, initiallyDirty: !!proformaBundle && !proformas.some(row => row.id === proformaBundle.document.id) });
   const legalSettingsRestart = useRestartDraft('Ρυθμίσεις παραστατικών', settingsDraft);
   const sequencesRestart = useRestartDraft('Αρίθμηση παραστατικών', sequenceDrafts);
-  useRestartDraft('Στοιχεία σύνδεσης παραστατικών', { credentialDraft, registryCredentialDraft, cloudflareBootstrapDraft, inspectionPinDraft, inspectionPinConfirm, newCarrier });
+  useRestartDraft('Στοιχεία σύνδεσης παραστατικών', { credentialDraft, registryCredentialDraft, cloudflareBootstrapDraft, inspectionPinDraft, inspectionPinConfirm, newCarrier, editingCarrier });
 
   useEffect(() => {
     if (legalSettings && !legalSettingsRestart.dirty) {
@@ -1383,6 +1197,17 @@ export default function LegalDocumentsPage({
     [orders]
   );
 
+  /** Issued or in-flight (non-credit) documents per order, to warn before invoicing an order twice. */
+  const documentsByOrder = useMemo(() => {
+    const map = new Map<string, LegalDocument[]>();
+    for (const document of visibleLegalDocuments) {
+      if (!document.order_id || document.document_kind === 'credit') continue;
+      if (document.status !== 'issued' && document.status !== 'submitted') continue;
+      map.set(document.order_id, [...(map.get(document.order_id) || []), document]);
+    }
+    return map;
+  }, [visibleLegalDocuments]);
+
   const selectedPickerRow = useMemo(
     () => legalOrderPickerRows.find((row) => row.order.id === selectedOrderId) || null,
     [legalOrderPickerRows, selectedOrderId]
@@ -1439,11 +1264,29 @@ export default function LegalDocumentsPage({
       .slice(0, 5);
   }, [visibleLegalDocuments, proformas, isInspectionPresentation]);
 
-  const validationIssues = useMemo(() => {
-    if (!draftBundle) return [];
-    return [...validateLegalDocument(draftBundle.document, draftBundle.lines).filter(issue => issue.severity === 'warning'), ...validateSbzDocument(draftBundle.document, draftBundle.lines).map(message => ({ field: message, severity: 'error' as const, message }))];
-  }, [draftBundle]);
-  const validationErrors = validationIssues.filter((issue) => issue.severity === 'error');
+  /** Field-level issuing checks: errors are the provider checks, warnings the advisory legal checks. */
+  const draftIssues = useMemo<DraftIssue[]>(
+    () => (draftBundle ? collectDraftIssues(draftBundle.document, draftBundle.lines) : []),
+    [draftBundle],
+  );
+  const validationErrors = draftIssues.filter((issue) => issue.severity === 'error');
+  /** Customer of the open draft: the linked ERP customer, else the selected order's customer. */
+  const draftCustomer = useMemo(() => {
+    const linkedId = draftBundle?.document.counterpart_customer_id;
+    return (linkedId ? customers.find((customer) => customer.id === linkedId) : null) || selectedCustomer;
+  }, [draftBundle?.document.counterpart_customer_id, customers, selectedCustomer]);
+  /** Plates used recently with «Ίδια μέσα», newest first, for one-click reuse. */
+  const recentVehicles = useMemo(() => {
+    const plates: string[] = [];
+    const sorted = [...legalDocuments].sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+    for (const document of sorted) {
+      if (resolveSbzDispatchMethod(document.delivery) !== SBZ_OWN_MEANS_DISPATCH_METHOD) continue;
+      const plate = String(document.delivery?.vehicle_number || '').trim();
+      if (plate && !plates.includes(plate)) plates.push(plate);
+      if (plates.length >= 4) break;
+    }
+    return plates;
+  }, [legalDocuments]);
   const activeCredentialStatus = credentialStatus?.[settingsDraft.environment];
   const missingSecretManager = credentialStatus?.missingWorkerSecretManager || [];
   const missingAadeCredentials = credentialStatus?.missingAadeCredentials || [];
@@ -1593,6 +1436,57 @@ export default function LegalDocumentsPage({
 
   const updateProformaBundle = (updater: (document: ProformaDocument, lines: ProformaDocumentLine[]) => { document: ProformaDocument; lines: ProformaDocumentLine[] }) => {
     setProformaBundle((current) => current ? updater(current.document, current.lines) : current);
+  };
+
+  /**
+   * New delivery notes ship with ACS by default: courier + the default carrier (ACS).
+   * Only replaces the untouched default, never a method or carrier already set.
+   */
+  const withPreferredDispatch = (document: LegalDocument): LegalDocument => {
+    if (!documentIncludesDeliveryNote(document) || !document.delivery || document.delivery.carrier_id) return document;
+    if (resolveSbzDispatchMethod(document.delivery) !== DEFAULT_SBZ_DISPATCH_METHOD) return document;
+    return { ...document, delivery: withDispatchMethod(document.delivery, SBZ_COURIER_DISPATCH_METHOD, carriers, suppliers) };
+  };
+
+  const openNewLegalDraft = (document: LegalDocument) => {
+    setIssueOutcome(null);
+    setProformaBundle(null);
+    setDraftBundle({ document: withPreferredDispatch(document), lines: document.lines || [] });
+  };
+
+  /** Saves a new or edited carrier; an edit also refreshes the carrier snapshot of the open draft. */
+  const persistCarrier = async (draft: CarrierDraft, existing: LegalCarrier | null): Promise<LegalCarrier | null> => {
+    if (!draft.name.trim()) return null;
+    const carrier = draftToCarrier(draft, existing, carriers.length === 0);
+    try {
+      await saveCarrier.mutateAsync(carrier);
+      if (existing) {
+        setDraftBundle((current) => current && current.document.delivery?.carrier_id === carrier.id && isLegalDocumentEditable(current.document)
+          ? {
+            ...current,
+            document: {
+              ...current.document,
+              delivery: {
+                ...current.document.delivery,
+                carrier_name: carrier.name,
+                carrier_vat_number: carrier.vat_number || null,
+                carrier_vehicle_number: carrier.vehicle_number || null,
+              },
+            },
+          }
+          : current);
+      }
+      return carrier;
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε ο μεταφορέας.', 'error');
+      return null;
+    }
+  };
+
+  const handleCreateCarrierInline = async (draft: CarrierDraft) => {
+    const carrier = await persistCarrier(draft, null);
+    if (carrier) showToast(`Ο μεταφορέας «${carrier.name}» αποθηκεύτηκε και επιλέχθηκε.`, 'success');
+    return carrier;
   };
 
   const applyCustomerToDraft = (customerId: string, target: 'legal' | 'proforma') => {
@@ -1799,8 +1693,7 @@ export default function LegalDocumentsPage({
         customer: selectedCustomer,
         aadeDocumentType,
       });
-      setProformaBundle(null);
-      setDraftBundle({ document, lines: document.lines || [] });
+      openNewLegalDraft(document);
       return;
     }
 
@@ -1829,8 +1722,7 @@ export default function LegalDocumentsPage({
         userName,
         aadeDocumentType,
       });
-      setProformaBundle(null);
-      setDraftBundle({ document, lines: document.lines || [] });
+      openNewLegalDraft(document);
       return;
     }
 
@@ -1848,8 +1740,7 @@ export default function LegalDocumentsPage({
         userName,
         aadeDocumentType,
       });
-      setProformaBundle(null);
-      setDraftBundle({ document, lines: document.lines || [] });
+      openNewLegalDraft(document);
       return;
     }
 
@@ -1863,8 +1754,7 @@ export default function LegalDocumentsPage({
       userName,
       aadeDocumentType,
     });
-    setProformaBundle(null);
-    setDraftBundle({ document, lines: document.lines || [] });
+    openNewLegalDraft(document);
   };
 
   const handleGenerateProforma = (source: DocumentCreationSource = creationSource) => {
@@ -2044,17 +1934,19 @@ export default function LegalDocumentsPage({
     if (!proforma) return;
     setConvertModal((current) => ({ ...current, step: 'converting', error: null }));
     try {
-      const draft = convertProformaToLegalDraft({
+      const converted = convertProformaToLegalDraft({
         proforma,
         lines,
         settings: settingsDraft,
         kind: 'invoice_delivery',
         userName,
       });
+      const draft = { ...converted, document: withPreferredDispatch(converted.document) };
       await saveDraft.mutateAsync(draft);
       if (proformas.some((item) => item.id === proforma.id)) {
         await markProformaConverted.mutateAsync({ proformaId: proforma.id, legalDocumentId: draft.document.id });
       }
+      setIssueOutcome(null);
       setDraftBundle(draft);
       setCreationDocumentType('invoice');
       if (proformaBundle?.document.id === proforma.id) setProformaBundle(null);
@@ -2164,8 +2056,19 @@ export default function LegalDocumentsPage({
     return false;
   };
 
+  /** Server copy of a document after a failed send, to tell «rejected» from «still being checked». */
+  const fetchServerDocument = async (documentId: string): Promise<LegalDocument | null> => {
+    try {
+      const documents = await legalRepository.getDocuments();
+      queryClient.setQueryData(legalKeys.documents(), documents);
+      return documents.find((document) => document.id === documentId) || null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmitDraft = async () => {
-    if (!draftBundle || validationErrors.length > 0) return;
+    if (!draftBundle || validationErrors.length > 0 || issuingRef.current) return;
     if (!isLegalDocumentEditable(draftBundle.document)) {
       showToast('Το παραστατικό έχει ήδη εκδοθεί. Βρίσκεται στο Αρχείο.', 'info');
       setArchiveSearch('');
@@ -2174,22 +2077,73 @@ export default function LegalDocumentsPage({
       return;
     }
     if (!(await ensureAadeCredentialsReady())) return;
+    const bundle = draftBundle;
+    const document = applyIssuerSettingsToDocument(bundle.document, settingsDraft);
+    const deliveryLine = documentIncludesDeliveryNote(document)
+      ? `Διακίνηση: ${[resolveSbzDispatchMethod(document.delivery), resolveLegalCarrierLabel(document.delivery)].filter((value, index, all) => value && all.indexOf(value) === index).join(' · ')}`
+      : 'Χωρίς δελτίο διακίνησης';
+    const confirmed = await confirm({
+      title: 'Οριστική έκδοση',
+      message: [
+        `${getLegalDocumentKindLabel(document.document_kind, document.aade_document_type)} (ΑΑΔΕ ${document.aade_document_type})`,
+        `Πελάτης: ${document.counterpart.name || '—'} · ΑΦΜ ${document.counterpart.vat_number || '—'}`,
+        `Σύνολο: ${money(document.totals.gross)}`,
+        deliveryLine,
+        settingsDraft.environment === 'dev' ? 'Περιβάλλον: Δοκιμές' : 'Περιβάλλον: Παραγωγή',
+        '',
+        'Μετά την έκδοση το παραστατικό δεν αλλάζει. Διόρθωση γίνεται μόνο με πιστωτικό.',
+      ].join('\n'),
+      confirmText: 'Έκδοση',
+      cancelText: 'Πίσω',
+    });
+    if (!confirmed || issuingRef.current) return;
+    issuingRef.current = true;
+    setIssuingDocument(document);
     try {
-      const document = applyIssuerSettingsToDocument(draftBundle.document, settingsDraft);
-      await saveDraft.mutateAsync({ ...draftBundle, document });
-      await submitDocument.mutateAsync({ documentId: document.id, userName });
-      setArchiveSearch('');
+      await saveDraft.mutateAsync({ ...bundle, document });
+      legalDraftRestart.markSaved();
+      const issued = await submitDocument.mutateAsync({ documentId: document.id, userName });
       setDraftBundle(null);
-      setActiveTab('archive');
-      showToast(`Το παραστατικό εκδόθηκε μέσω SBZ και βρίσκεται στο Αρχείο.`, 'success');
+      setIssueOutcome({ documentId: document.id, document: { ...document, ...(issued || {}) } });
+      showToast(`Αποδοχή myDATA με MARK ${issued?.aade_mark || '—'}.`, 'success');
     } catch (error: any) {
-      showToast(error?.message || 'Ο πάροχος δεν δέχθηκε το παραστατικό.', 'error');
+      const message = error?.message || 'Ο πάροχος δεν δέχθηκε το παραστατικό.';
+      const server = await fetchServerDocument(document.id);
+      if (server && !isLegalDocumentEditable(server)) {
+        // Sent but not confirmed (or already accepted): never offer a second send from the editor.
+        setDraftBundle(null);
+        setIssueOutcome({ documentId: server.id, document: server });
+      } else if (server?.status === 'failed') {
+        setDraftBundle((current) => current && current.document.id === server.id
+          ? { ...current, document: { ...current.document, status: 'failed', last_error: server.last_error || message } }
+          : current);
+        setHeaderTab('customer');
+      }
+      showToast(message, 'error');
+    } finally {
+      issuingRef.current = false;
+      setIssuingDocument(null);
+    }
+  };
+
+  const outcomeDocument = issueOutcome
+    ? legalDocuments.find((document) => document.id === issueOutcome.documentId) || issueOutcome.document
+    : null;
+
+  const handleReconcileOutcome = async () => {
+    if (!outcomeDocument) return;
+    setReconcilingOutcome(true);
+    try {
+      await reconcileSbz(outcomeDocument);
+    } finally {
+      setReconcilingOutcome(false);
     }
   };
 
   const startNewDocumentWorkspace = () => {
     setDraftBundle(null);
     setProformaBundle(null);
+    setIssueOutcome(null);
     setActiveTab('new');
   };
 
@@ -2210,7 +2164,10 @@ export default function LegalDocumentsPage({
   };
 
   const handleSubmitLegalDocument = async (document: LegalDocument) => {
+    if (issuingRef.current) return;
     if (!(await ensureAadeCredentialsReady())) return;
+    if (issuingRef.current) return;
+    issuingRef.current = true;
     try {
       const prepared = applyIssuerSettingsToDocument(document, settingsDraft);
       const lines = await legalRepository.getDocumentLines(prepared.id);
@@ -2233,6 +2190,8 @@ export default function LegalDocumentsPage({
     } catch (error: any) {
       const fallback = document.status === 'failed' ? 'Η επανάληψη απέτυχε.' : 'Η υποβολή απέτυχε.';
       showToast(error?.message || fallback, 'error');
+    } finally {
+      issuingRef.current = false;
     }
   };
 
@@ -2367,21 +2326,44 @@ export default function LegalDocumentsPage({
   };
 
   const handleAddCarrier = async () => {
-    if (!newCarrier.name.trim()) return;
-    const carrier: LegalCarrier = {
-      id: crypto.randomUUID(),
-      name: newCarrier.name.trim(),
-      vat_number: normalizeVatNumber(newCarrier.vat_number) || null,
-      vehicle_number: newCarrier.vehicle_number.trim() || null,
-      phone: newCarrier.phone.trim() || null,
-      is_default: carriers.length === 0,
-    };
+    const carrier = await persistCarrier(newCarrier, null);
+    if (!carrier) return;
+    setNewCarrier(EMPTY_CARRIER_DRAFT);
+    showToast('Ο μεταφορέας αποθηκεύτηκε.', 'success');
+  };
+
+  const handleUpdateCarrier = async () => {
+    if (!editingCarrier) return;
+    const existing = carriers.find((carrier) => carrier.id === editingCarrier.id) || null;
+    if (!existing) return;
+    const carrier = await persistCarrier(editingCarrier.draft, existing);
+    if (!carrier) return;
+    setEditingCarrier(null);
+    showToast(`Ο μεταφορέας «${carrier.name}» ενημερώθηκε.`, 'success');
+  };
+
+  /** ACS shortcut: links the ACS partner when it exists in «Προμηθευτές & Συνεργάτες». */
+  const prefillAcsCarrier = () => {
+    const partner = suppliers.find((supplier) => /\bacs\b/i.test(supplier.name));
+    setNewCarrier(partner ? {
+      ...EMPTY_CARRIER_DRAFT,
+      supplier_id: partner.id,
+      name: partner.name,
+      vat_number: normalizeVatNumber(partner.vat_number),
+      phone: partner.phone || '',
+    } : { ...EMPTY_CARRIER_DRAFT, name: 'ACS Courier' });
+  };
+
+  /** The default carrier is pre-selected in new delivery notes (courier / third-party transport). */
+  const handleMakeDefaultCarrier = async (carrier: LegalCarrier) => {
     try {
-      await saveCarrier.mutateAsync(carrier);
-      setNewCarrier({ name: '', vat_number: '', vehicle_number: '', phone: '' });
-      showToast('Ο μεταφορέας αποθηκεύτηκε.', 'success');
+      for (const item of carriers) {
+        const shouldBeDefault = item.id === carrier.id;
+        if (Boolean(item.is_default) !== shouldBeDefault) await saveCarrier.mutateAsync({ ...item, is_default: shouldBeDefault });
+      }
+      showToast(`Ο «${carrier.name}» είναι πλέον ο προεπιλεγμένος μεταφορέας.`, 'success');
     } catch (error: any) {
-      showToast(error?.message || 'Δεν αποθηκεύτηκε ο μεταφορέας.', 'error');
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η προεπιλογή.', 'error');
     }
   };
 
@@ -2472,26 +2454,43 @@ export default function LegalDocumentsPage({
 
   const renderLegalActions = (document: LegalDocument, lines: LegalDocumentLine[]) => {
     const issueBlocked = validationErrors.length > 0;
+    const busy = submitDocument.isPending || saveDraft.isPending || !!issuingDocument;
     return (
       <>
-        <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
-          {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
+        <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || busy}>
+          {saveDraft.isPending && !issuingDocument ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
         </ActionButton>
         {canPrintLegalDocument(document, lines) && (
-          <ActionButton variant="secondary" onClick={() => void handlePrint(document)}>
+          <ActionButton variant="secondary" onClick={() => void handlePrint(document)} disabled={busy}>
             <Printer size={16} />
             {isOfficialLegalDocumentPrint(document, lines) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
           </ActionButton>
         )}
         <ActionButton
-          onClick={handleSubmitDraft}
-          disabled={!draftBundle || issueBlocked || submitDocument.isPending || saveDraft.isPending}
-          title={issueBlocked ? 'Διορθώστε πρώτα τις εκκρεμότητες του τελικού ελέγχου.' : undefined}
+          onClick={() => void handleSubmitDraft()}
+          disabled={!draftBundle || issueBlocked || busy}
+          title={issueBlocked ? `Διορθώστε πρώτα ${validationErrors.length === 1 ? 'το σφάλμα' : `τα ${formatNumber(validationErrors.length)} σφάλματα`} του ελέγχου.` : undefined}
         >
-          {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Έκδοση μέσω SBZ
+          {submitDocument.isPending || issuingDocument ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          {document.status === 'failed' ? 'Νέα αποστολή · Έκδοση μέσω SBZ' : 'Έκδοση μέσω SBZ'}
         </ActionButton>
       </>
     );
+  };
+
+  /** Opens the tab holding an issue's field and focuses it. */
+  const jumpToIssue = (issue: DraftIssue) => {
+    if (issue.section === 'issuer') {
+      setActiveTab('settings');
+      return;
+    }
+    if (issue.section === 'customer' || issue.section === 'document' || issue.section === 'delivery') setHeaderTab(issue.section);
+    const field = issue.lineNumber !== undefined ? `line.${issue.lineNumber}` : issue.field;
+    window.setTimeout(() => {
+      if (focusLegalField(field)) return;
+      const fallback = issue.section === 'lines' ? 'legal-lines' : 'legal-header';
+      window.document.getElementById(fallback)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   const renderDraftEditor = () => {
@@ -2515,9 +2514,16 @@ export default function LegalDocumentsPage({
     const needsVatExemption = document.vat_rate === 0
       || lines.some((line) => line.vat_category === 7)
       || (document.vat_exemption_category !== null && document.vat_exemption_category !== undefined);
-    const issueCount = validationIssues.length;
+    const issues = editable ? draftIssues : [];
+    const issueCount = issues.length;
+    const sectionCounts = countIssuesBySection(issues);
+    const problem = (field: string): FieldProblem | null => firstIssueMessage(issues, field);
+    const issuerIssues = issues.filter((issue) => issue.section === 'issuer');
     const hasDeliveryTab = isStandaloneDeliveryNote || canToggleDelivery;
     const activeHeaderTab: DocumentHeaderTab = headerTab === 'delivery' && !hasDeliveryTab ? 'customer' : headerTab;
+    const linkedCustomerId = invoiceableCustomers.some((customer) => customer.id === document.counterpart_customer_id)
+      ? document.counterpart_customer_id || ''
+      : '';
     const updateCounterpart = (updates: Partial<LegalDocument['counterpart']>) => updateDraftDocument((current) => ({
       ...current,
       counterpart: { ...current.counterpart, ...updates },
@@ -2526,6 +2532,37 @@ export default function LegalDocumentsPage({
       ...current,
       counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), ...updates } },
     }));
+    const addressProblem = problem('counterpart.address');
+    const flagMissing = (value?: string | null): FieldProblem | null => (addressProblem && !String(value ?? '').trim() ? { severity: addressProblem.severity, message: '' } : null);
+    const deliverySummary = includesDelivery
+      ? [resolveSbzDispatchMethod(document.delivery) === SBZ_COURIER_DISPATCH_METHOD ? 'Courier' : resolveSbzDispatchMethod(document.delivery), resolveLegalCarrierLabel(document.delivery)]
+        .filter((value, index, all) => value && all.indexOf(value) === index).join(' · ')
+      : 'Χωρίς δελτίο διακίνησης';
+    const dispatchExtras = (
+      <>
+        <SelectInput
+          label="Τρόπος αποστολής"
+          value={resolveSbzDispatchMethod(document.delivery)}
+          help="Εμφανίζεται στο PDF του παρόχου."
+          onChange={(value) => updateDraftDocument((current) => ({
+            ...current,
+            delivery: withDispatchMethod(current.delivery || buildDefaultDeliveryDetails(settingsDraft), value, carriers, suppliers),
+          }))}
+        >
+          {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
+        </SelectInput>
+        <SelectInput
+          label="Σκοπός διακίνησης"
+          value={document.delivery?.move_purpose || resolveLegalMovePurpose(null, settingsDraft, document.aade_document_type)}
+          onChange={(value) => updateDraftDocument((current) => ({
+            ...current,
+            delivery: { ...(current.delivery || {}), move_purpose: Number(value) || 1 },
+          }))}
+        >
+          {Object.entries(SBZ_MOVE_PURPOSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </SelectInput>
+      </>
+    );
 
     const toolbar = (
       <WorkspaceToolbar
@@ -2536,13 +2573,17 @@ export default function LegalDocumentsPage({
           <>
             <Chip tone={null} className={statusClass[document.status]}>{statusLabel[document.status]}</Chip>
             {environmentChip}
-            {editable && issueCount > 0 && (
+            {editable && (
               <button
                 type="button"
                 onClick={scrollToFinalCheck}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-black transition hover:brightness-95 ${validationErrors.length ? chipToneClass.red : chipToneClass.amber}`}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-black transition hover:brightness-95 ${validationErrors.length ? chipToneClass.red : issueCount ? chipToneClass.amber : chipToneClass.emerald}`}
               >
-                <AlertTriangle size={11} /> {formatNumber(issueCount)} {issueCount === 1 ? 'εκκρεμότητα' : 'εκκρεμότητες'}
+                {validationErrors.length
+                  ? <><XCircle size={11} /> {formatNumber(validationErrors.length)} {validationErrors.length === 1 ? 'σφάλμα' : 'σφάλματα'}</>
+                  : issueCount
+                    ? <><AlertTriangle size={11} /> {formatNumber(issueCount)} {issueCount === 1 ? 'προειδοποίηση' : 'προειδοποιήσεις'}</>
+                    : <><BadgeCheck size={11} /> Έτοιμο για έκδοση</>}
               </button>
             )}
           </>
@@ -2557,10 +2598,31 @@ export default function LegalDocumentsPage({
       />
     );
 
+    const statusNotices = (
+      <>
+        {document.status === 'failed' && editable ? (
+          <Notice tone="red" icon={XCircle} role="alert" title="Ο πάροχος απέρριψε την προηγούμενη αποστολή">
+            {document.last_error || 'Διορθώστε τα στοιχεία και στείλτε ξανά.'} Δεν αποδόθηκε MARK, οπότε η νέα αποστολή δεν δημιουργεί διπλό παραστατικό.
+          </Notice>
+        ) : null}
+        {issuerIssues.length > 0 ? (
+          <Notice
+            tone="red"
+            icon={Building2}
+            title="Λείπουν στοιχεία της επιχείρησης"
+            action={<ActionButton variant="secondary" onClick={() => setActiveTab('settings')}><Settings size={15} /> Ρυθμίσεις</ActionButton>}
+          >
+            {[...new Set(issuerIssues.map((issue) => issue.message))].join(' ')}
+          </Notice>
+        ) : null}
+      </>
+    );
+
     if (isCreditReview) {
       return (
         <div className="min-w-0 space-y-4">
           {toolbar}
+          {statusNotices}
           <EditorSection
             icon={Undo2}
             tone="emerald"
@@ -2601,11 +2663,6 @@ export default function LegalDocumentsPage({
                 total={money(document.totals.gross)}
               />
             </div>
-            {validationErrors.length > 0 && (
-              <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{validationErrors[0].message}</p>
-              </div>
-            )}
           </EditorSection>
           {renderValidation()}
         </div>
@@ -2615,6 +2672,7 @@ export default function LegalDocumentsPage({
     return (
       <div className="min-w-0 space-y-4">
         {toolbar}
+        {statusNotices}
 
         {!editable && (
           <Notice tone="emerald" icon={Lock} title="Το παραστατικό δεν είναι πλέον πρόχειρο.">
@@ -2632,235 +2690,175 @@ export default function LegalDocumentsPage({
           </Notice>
         )}
 
-        <TabbedCard
-          active={activeHeaderTab}
-          onChange={setHeaderTab}
-          tabs={[
-            {
-              id: 'customer',
-              label: 'Πελάτης',
-              icon: UserRound,
-              hint: document.counterpart.name || 'Χωρίς στοιχεία',
-              attention: editable && (!document.counterpart.name || !document.counterpart.vat_number),
-            },
-            {
-              id: 'document',
-              label: 'Παραστατικό & ΦΠΑ',
-              icon: FileText,
-              hint: `${formatIsoDate(document.issue_date)} · ${PAYMENT_METHOD_LABELS[document.payment_method_code] || 'Πληρωμή'}`,
-              attention: editable && needsVatExemption && !document.vat_exemption_category,
-            },
-            ...(hasDeliveryTab ? [{
-              id: 'delivery' as const,
-              label: 'Διακίνηση',
-              icon: Truck,
-              hint: includesDelivery ? (resolveLegalCarrierLabel(document.delivery) || resolveSbzDispatchMethod(document.delivery)) : 'Χωρίς δελτίο διακίνησης',
-              attention: editable && includesDelivery && !resolveLegalCarrierLabel(document.delivery),
-            }] : []),
-          ]}
-        >
-          {activeHeaderTab === 'customer' && (
-            <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12 ${!editable ? 'opacity-60' : ''}`}>
-              <div className="sm:col-span-6 lg:col-span-5">
-                <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
-                  <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
-                  {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
-                </SelectInput>
-              </div>
-              <div className="sm:col-span-4 lg:col-span-4">
-                <VatLookupField
-                  value={document.counterpart.vat_number || ''}
-                  onChange={(value) => updateCounterpart({ vat_number: normalizeVatNumber(value) })}
-                  onLookup={() => void handleDraftVatLookup('legal')}
-                  loading={draftVatLookupTarget === 'legal'}
-                  lookupDisabled={draftVatLookupTarget !== null}
-                />
-              </div>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateCounterpart({ customer_code: value })} />
-              </div>
-              <div className="sm:col-span-6 lg:col-span-5">
-                <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateCounterpart({ name: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-3">
-                <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateCounterpart({ profession: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-2">
-                <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateCounterpart({ tax_office: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-2">
-                <TextInput label="Τηλέφωνο" value={document.counterpart.phone || ''} onChange={(value) => updateCounterpart({ phone: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-4">
-                <TextInput label="Οδός" value={document.counterpart.address?.street || ''} onChange={(value) => updateCounterpartAddress({ street: value })} />
-              </div>
-              <div className="sm:col-span-1 lg:col-span-1">
-                <TextInput label="Αρ." value={document.counterpart.address?.number || ''} onChange={(value) => updateCounterpartAddress({ number: value })} />
-              </div>
-              <div className="sm:col-span-2 lg:col-span-2">
-                <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateCounterpartAddress({ postal_code: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-3">
-                <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateCounterpartAddress({ city: value })} />
-              </div>
-              <div className="sm:col-span-3 lg:col-span-2">
-                <SelectInput label="Χώρα" value={normalizeLegalCountryCode(document.counterpart.country)} onChange={(value) => updateCounterpart({ country: value })}>
-                  {listLegalCountryOptions(document.counterpart.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </SelectInput>
-              </div>
-            </fieldset>
-          )}
-
-          {activeHeaderTab === 'document' && (
-            <fieldset disabled={!editable} className={`min-w-0 space-y-4 ${!editable ? 'opacity-60' : ''}`}>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
-                <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
-                  {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
-                </SelectInput>
-                <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value, ...(value === SBZ_OWN_MEANS_DISPATCH_METHOD ? { carrier_id: null, carrier_name: null, carrier_vat_number: null, carrier_vehicle_number: null } : {}) } }))}>
-                  {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
-                </SelectInput>
-                {(document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery' || document.document_kind === 'delivery_note') && (
-                  <SelectInput
-                    label="Σκοπός διακίνησης"
-                    value={document.delivery?.move_purpose || resolveLegalMovePurpose(null, settingsDraft, document.aade_document_type)}
-                    onChange={(value) => updateDraftDocument((current) => ({
-                      ...current,
-                      delivery: {
-                        ...(current.delivery || {}),
-                        move_purpose: Number(value) || 1,
-                      },
-                    }))}
-                  >
-                    {Object.entries(SBZ_MOVE_PURPOSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </SelectInput>
-                )}
-                <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
-                  {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
-                </SelectInput>
-              </div>
-              {needsVatExemption && (
-                <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
-                  <VatExemptionCategorySelect
-                    value={document.vat_exemption_category}
-                    onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
-                  />
-                  {document.vat_rate === 0 && (
-                    <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_legal_note: value || null }))} />
-                  )}
-                </div>
-              )}
-            </fieldset>
-          )}
-
-          {activeHeaderTab === 'delivery' && (
-            <div className="min-w-0 space-y-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs font-medium leading-relaxed text-slate-500">
-                  {isStandaloneDeliveryNote
-                    ? 'Υποχρεωτικά για δελτίο αποστολής 9.3.'
-                    : includesDelivery
-                      ? 'Τιμολόγιο – Δελτίο Αποστολής: διαβιβάζεται στη myDATA πριν την έναρξη της διακίνησης και τυπώνει το QR διακίνησης της ΑΑΔΕ.'
-                      : 'Χωρίς δελτίο διακίνησης. Επιλέξτε το μόνο αν δεν διακινούνται αγαθά με αυτό το τιμολόγιο.'}
-                </p>
-                {canToggleDelivery ? (
-                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-checked:border-emerald-300 has-checked:bg-emerald-50 has-checked:text-emerald-800 sm:self-auto">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-emerald-600"
-                      checked={includesDelivery}
-                      disabled={!editable}
-                      onChange={(event) => updateDraftDocument((current) => applyLegalDocumentDeliveryToggle(
-                        current,
-                        event.target.checked,
-                        settingsDraft,
-                        selectedCustomer,
-                      ))}
+        <div id="legal-header" className="scroll-mt-32">
+          <TabbedCard
+            active={activeHeaderTab}
+            onChange={setHeaderTab}
+            tabs={[
+              {
+                id: 'customer',
+                label: 'Πελάτης',
+                icon: UserRound,
+                hint: document.counterpart.name
+                  ? `${document.counterpart.name}${document.counterpart.vat_number ? ` · ${document.counterpart.vat_number}` : ''}`
+                  : 'Χωρίς στοιχεία',
+                errors: sectionCounts.customer.errors,
+                warnings: sectionCounts.customer.warnings,
+              },
+              {
+                id: 'document',
+                label: 'Παραστατικό & ΦΠΑ',
+                icon: FileText,
+                hint: `${formatIsoDate(document.issue_date)} · ${PAYMENT_METHOD_LABELS[document.payment_method_code] || 'Πληρωμή'}`,
+                errors: sectionCounts.document.errors,
+                warnings: sectionCounts.document.warnings,
+              },
+              ...(hasDeliveryTab ? [{
+                id: 'delivery' as const,
+                label: 'Διακίνηση',
+                icon: Truck,
+                hint: deliverySummary,
+                errors: sectionCounts.delivery.errors,
+                warnings: sectionCounts.delivery.warnings,
+              }] : []),
+            ]}
+          >
+            {activeHeaderTab === 'customer' && (
+              <fieldset disabled={!editable} className={`min-w-0 space-y-5 ${!editable ? 'opacity-60' : ''}`}>
+                <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12">
+                  <div className="sm:col-span-6 lg:col-span-7">
+                    <SelectInput label="Πελάτης από το πελατολόγιο" value={linkedCustomerId} onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
+                      <option value="">Χειροκίνητα / χωρίς σύνδεση</option>
+                      {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+                    </SelectInput>
+                  </div>
+                  <div className="sm:col-span-6 lg:col-span-5">
+                    <VatLookupField
+                      value={document.counterpart.vat_number || ''}
+                      onChange={(value) => updateCounterpart({ vat_number: normalizeVatNumber(value) })}
+                      onLookup={() => void handleDraftVatLookup('legal')}
+                      loading={draftVatLookupTarget === 'legal'}
+                      lookupDisabled={draftVatLookupTarget !== null}
+                      problem={problem('counterpart.vat_number')}
                     />
-                    Με δελτίο διακίνησης
-                  </label>
-                ) : null}
-              </div>
-              {includesDelivery ? (
-                <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4 ${!editable ? 'opacity-60' : ''}`}>
-                  <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
-                  <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
-                  <SelectInput
-                    label="Τρόπος αποστολής"
-                    value={resolveSbzDispatchMethod(document.delivery)}
-                    onChange={(value) => updateDraftDocument((current) => {
-                      const base = current.delivery || buildDefaultDeliveryDetails(settingsDraft);
-                      const ownMeans = value === SBZ_OWN_MEANS_DISPATCH_METHOD;
-                      return {
-                        ...current,
-                        delivery: {
-                          ...base,
-                          dispatch_method: value,
-                          ...(ownMeans ? { carrier_id: null, carrier_name: null, carrier_vat_number: null, carrier_vehicle_number: null } : {}),
-                        },
-                      };
-                    })}
-                  >
-                    {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
-                  </SelectInput>
-                  {resolveSbzDispatchMethod(document.delivery) === SBZ_OWN_MEANS_DISPATCH_METHOD ? (
-                    <TextInput label="Μεταφορέας" value={SBZ_OWN_MEANS_DISPATCH_METHOD} onChange={() => undefined} disabled />
-                  ) : (
-                    <SelectInput
-                      label="Μεταφορέας"
-                      value={document.delivery?.carrier_id || ''}
-                      help={carriers.length === 0 ? 'Προσθέστε τους μεταφορείς σας (π.χ. το courier με τον ΑΦΜ του) στις Ρυθμίσεις → Μεταφορείς.' : undefined}
-                      onChange={(value) => {
-                        const carrier = carriers.find((item) => item.id === value);
-                        updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
-                      }}
-                    >
-                      <option value="">— Επιλέξτε μεταφορέα —</option>
-                      {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}{carrier.vat_number ? ` · ΑΦΜ ${carrier.vat_number}` : ''}</option>)}
-                    </SelectInput>
-                  )}
-                  <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
-                  <div className="sm:col-span-2">
-                    <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
                   </div>
-                  {selectedCustomer && customerBranches(selectedCustomer).length > 0 ? (
-                    <SelectInput
-                      label="Τόπος παράδοσης"
-                      value={deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address)}
-                      onChange={(value) => updateDraftDocument((current) => ({
-                        ...current,
-                        delivery: {
-                          ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)),
-                          delivery_address: resolveCustomerDeliveryAddress(selectedCustomer, value === 'fiscal' ? null : value)
-                            ?? (value === 'fiscal' && selectedCustomer.address ? parseLegalPartyAddress(selectedCustomer.address) : null),
-                        },
-                      }))}
-                    >
-                      {deliveryBranchValue(selectedCustomer, document.delivery?.delivery_address) === 'custom' && <option value="custom">Χειροκίνητη διεύθυνση</option>}
-                      {customerBranches(selectedCustomer).map((branch) => (
-                        <option key={branch.id} value={branch.id}>Κατάστημα: {branch.label}{branch.city ? ` (${branch.city})` : ''}</option>
-                      ))}
-                      <option value="fiscal">Φορολογική έδρα</option>
-                    </SelectInput>
-                  ) : null}
-                  <div className={selectedCustomer && customerBranches(selectedCustomer).length > 0 ? '' : 'sm:col-span-2'}>
-                    <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
-                  </div>
-                </fieldset>
-              ) : (
-                <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm font-medium text-slate-500">
-                  <Truck size={18} className="shrink-0 text-slate-400" />
-                  Ενεργοποιήστε «Με δελτίο διακίνησης» για να συμπληρώσετε έναρξη, μεταφορέα και τόπους φόρτωσης/παράδοσης.
                 </div>
-              )}
-            </div>
-          )}
-        </TabbedCard>
+
+                <FieldGroup title="Φορολογικά στοιχεία" hint="Ο «Έλεγχος ΑΦΜ» συμπληρώνει επωνυμία, επάγγελμα, ΔΟΥ και έδρα">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12">
+                    <div className="sm:col-span-6 lg:col-span-6">
+                      <TextInput label="Επωνυμία" required field="counterpart.name" problem={problem('counterpart.name')} value={document.counterpart.name || ''} onChange={(value) => updateCounterpart({ name: value })} />
+                    </div>
+                    <div className="sm:col-span-3 lg:col-span-3">
+                      <TextInput label="Επάγγελμα" required field="counterpart.profession" problem={problem('counterpart.profession')} value={document.counterpart.profession || ''} onChange={(value) => updateCounterpart({ profession: value })} />
+                    </div>
+                    <div className="sm:col-span-3 lg:col-span-3">
+                      <TextInput label="ΔΟΥ" required field="counterpart.tax_office" problem={problem('counterpart.tax_office')} value={document.counterpart.tax_office || ''} onChange={(value) => updateCounterpart({ tax_office: value })} />
+                    </div>
+                  </div>
+                </FieldGroup>
+
+                <FieldGroup title="Έδρα">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12" data-legal-field="counterpart.address">
+                    <div className="sm:col-span-4 lg:col-span-4">
+                      <TextInput label="Οδός" required problem={flagMissing(document.counterpart.address?.street)} value={document.counterpart.address?.street || ''} onChange={(value) => updateCounterpartAddress({ street: value })} />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-1">
+                      <TextInput label="Αρ." value={document.counterpart.address?.number || ''} onChange={(value) => updateCounterpartAddress({ number: value })} />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-2">
+                      <TextInput label="Τ.Κ." required inputMode="numeric" problem={flagMissing(document.counterpart.address?.postal_code)} value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateCounterpartAddress({ postal_code: value })} />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-3">
+                      <TextInput label="Πόλη" required problem={flagMissing(document.counterpart.address?.city)} value={document.counterpart.address?.city || ''} onChange={(value) => updateCounterpartAddress({ city: value })} />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-2">
+                      <SelectInput label="Χώρα" value={normalizeLegalCountryCode(document.counterpart.country)} onChange={(value) => updateCounterpart({ country: value })}>
+                        {listLegalCountryOptions(document.counterpart.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </SelectInput>
+                    </div>
+                  </div>
+                  <FieldMessage problem={addressProblem} />
+                </FieldGroup>
+
+                <FieldGroup title="Επικοινωνία & ERP">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+                    <TextInput label="Κωδικός πελάτη (ERP)" required field="counterpart.customer_code" problem={problem('counterpart.customer_code')} value={document.counterpart.customer_code || ''} onChange={(value) => updateCounterpart({ customer_code: value })} help="Ο πάροχος τον απαιτεί. Συμπληρώνεται αυτόματα όταν επιλέξετε πελάτη από το πελατολόγιο." />
+                    <TextInput label="Τηλέφωνο" value={document.counterpart.phone || ''} onChange={(value) => updateCounterpart({ phone: value })} />
+                    <TextInput label="Email" type="email" value={document.counterpart.email || ''} onChange={(value) => updateCounterpart({ email: value })} />
+                  </div>
+                </FieldGroup>
+              </fieldset>
+            )}
+
+            {activeHeaderTab === 'document' && (
+              <fieldset disabled={!editable} className={`min-w-0 space-y-4 ${!editable ? 'opacity-60' : ''}`}>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <TextInput label="Ημερομηνία έκδοσης" type="date" required field="issue_date" problem={problem('issue_date')} value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
+                  <SelectInput label="Τρόπος πληρωμής" field="payment_method_code" problem={problem('payment_method_code')} value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
+                    {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+                  </SelectInput>
+                  <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
+                    {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                  </SelectInput>
+                </div>
+                {needsVatExemption && (
+                  <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
+                    <VatExemptionCategorySelect
+                      value={document.vat_exemption_category}
+                      problem={problem('vat_exemption_category')}
+                      onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
+                    />
+                    {document.vat_rate === 0 && (
+                      <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_legal_note: value || null }))} />
+                    )}
+                  </div>
+                )}
+                {problem('document') ? <FieldMessage problem={problem('document')} /> : null}
+                {hasDeliveryTab ? (
+                  <p className="flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-medium text-slate-500">
+                    <Truck size={13} className="shrink-0" /> Τρόπος αποστολής, μεταφορέας και σκοπός διακίνησης ρυθμίζονται στην καρτέλα
+                    <button type="button" onClick={() => setHeaderTab('delivery')} className="font-black text-emerald-700 hover:underline">Διακίνηση</button>.
+                  </p>
+                ) : (
+                  <details className="group rounded-xl border border-slate-200 bg-slate-50/60">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-2.5 text-xs font-black text-slate-600 [&::-webkit-details-marker]:hidden">
+                      Στοιχεία αποστολής στο PDF του παρόχου
+                      <ChevronDown size={15} className="text-slate-400 transition group-open:rotate-180" />
+                    </summary>
+                    <div className="grid gap-3 border-t border-slate-200 p-3.5 sm:grid-cols-2">{dispatchExtras}</div>
+                  </details>
+                )}
+              </fieldset>
+            )}
+
+            {activeHeaderTab === 'delivery' && (
+              <DeliveryPanel
+                document={document}
+                editable={editable}
+                settings={settingsDraft}
+                carriers={carriers}
+                suppliers={suppliers}
+                customer={draftCustomer}
+                issues={issues}
+                canToggleDelivery={canToggleDelivery}
+                recentVehicles={recentVehicles}
+                savingCarrier={saveCarrier.isPending}
+                onUpdate={updateDraftDocument}
+                onToggleDelivery={(include) => updateDraftDocument((current) => {
+                  const toggled = applyLegalDocumentDeliveryToggle(current, include, settingsDraft, draftCustomer);
+                  return include ? withPreferredDispatch(toggled) : toggled;
+                })}
+                onCreateCarrier={handleCreateCarrierInline}
+              />
+            )}
+          </TabbedCard>
+        </div>
 
         <EditorSection
+          id="legal-lines"
           icon={Package}
-          tone="sky"
+          tone={sectionCounts.lines.errors ? 'red' : 'sky'}
           title="Γραμμές"
           subtitle={`${formatNumber(lines.length)} ${lines.length === 1 ? 'γραμμή' : 'γραμμές'} · ${formatNumber(document.totals.quantity)} τεμ. · Enter στο SKU για την επόμενη γραμμή`}
           bodyClassName=""
@@ -2891,6 +2889,11 @@ export default function LegalDocumentsPage({
           )}
         >
           <fieldset disabled={!editable} className={`min-w-0 ${!editable ? 'opacity-60' : ''}`}>
+            {(problem('lines') || problem('totals')) ? (
+              <div className="border-b border-slate-100 px-4 py-2.5 sm:px-5" data-legal-field="lines">
+                <FieldMessage problem={problem('lines') || problem('totals')} />
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] table-fixed text-xs">
                 <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -2913,73 +2916,92 @@ export default function LegalDocumentsPage({
                         Δεν υπάρχουν γραμμές ακόμη. Προσθέστε την πρώτη γραμμή για να ξεκινήσετε.
                       </td>
                     </tr>
-                  ) : lines.map((line, index) => (
-                    <tr key={line.id} className="align-top transition hover:bg-slate-50/70">
-                      <td className="whitespace-nowrap px-2 py-3 text-center font-black text-slate-400">{formatNumber(line.line_number)}</td>
-                      <td className="px-1.5 py-2">
-                        <div className="flex min-w-0 items-center gap-0.5">
-                          <div className="min-w-0 flex-1">
-                            <SkuProductPicker
-                              sku={line.sku}
-                              itemCode={line.item_code}
-                              variantSuffix={line.variant_suffix}
-                              products={legalCatalogProducts}
-                              legalDocument
-                              onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
-                              onEnterCommit={() => appendLegalLineAfter(line.id)}
-                              autoFocus={legalSkuFocusLineId === line.id}
-                              onInputFocus={() => setLegalSkuFocusLineId(line.id)}
-                              inputClassName="px-1.5 py-1"
-                              compact
-                              catalogOnly
-                            />
-                          </div>
-                          <LineIncomeClassificationGear
-                            documentType={document.aade_document_type}
-                            category={line.income_classification.classification_category}
-                            type={line.income_classification.classification_type || ''}
-                            disabled={!editable}
-                            onCategoryChange={(value) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, value, current.aade_document_type) : item), settingsDraft))}
-                            onTypeChange={(classificationType) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeType(item, classificationType) : item), settingsDraft))}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-1.5 py-2">
-                        <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className={cellInputClass} aria-label={`Περιγραφή γραμμής ${formatNumber(line.line_number)}`} />
-                        <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 h-6 w-full rounded-sm border border-slate-100 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-500 outline-hidden transition focus:border-emerald-400 focus:bg-white" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
-                      </td>
-                      <td className="px-1 py-2 text-right">
-                        <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Ποσότητα γραμμής ${formatNumber(line.line_number)}`} />
-                      </td>
-                      <td className="px-1 py-2 text-right">
-                        <input type="number" min="0" step="0.01" value={line.source_metadata?.original_unit_price ?? line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(event.target.value) || 0, Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
-                      </td>
-                      <td className="px-1 py-2 text-right">
-                        <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Έκπτωση γραμμής ${formatNumber(line.line_number)}`} />
-                      </td>
-                      <td className="px-1 py-2 text-right">
-                        <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className={`${cellInputClass} px-1 text-right text-[10px]`} title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
-                          {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-2 py-2 text-right leading-tight">
-                        <div className="text-[13px] font-black tabular-nums text-slate-900">{money(line.gross_value)}</div>
-                        <div className="mt-0.5 text-[10px] font-medium tabular-nums text-slate-500">{money(line.net_value)}</div>
-                        <div className="text-[10px] font-medium tabular-nums text-slate-400">+ {money(line.vat_amount)} ΦΠΑ</div>
-                      </td>
-                      <td className="px-1 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.filter((_, itemIndex) => itemIndex !== index), settingsDraft))}
-                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-600"
-                          title="Διαγραφή γραμμής"
-                          aria-label={`Διαγραφή γραμμής ${formatNumber(line.line_number)}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : lines.map((line, index) => {
+                    const lineIssues = issuesForField(issues, `line.${line.line_number}`);
+                    const lineHasError = lineIssues.some((issue) => issue.severity === 'error');
+                    const rowTone = lineHasError ? 'bg-red-50/50' : lineIssues.length ? 'bg-amber-50/40' : '';
+                    return (
+                      <React.Fragment key={line.id}>
+                        <tr data-legal-field={`line.${line.line_number}`} className={`align-top transition hover:bg-slate-50/70 ${rowTone}`}>
+                          <td className={`whitespace-nowrap px-2 py-3 text-center font-black ${lineHasError ? 'text-red-600' : 'text-slate-400'}`}>{formatNumber(line.line_number)}</td>
+                          <td className="px-1.5 py-2">
+                            <div className="flex min-w-0 items-center gap-0.5">
+                              <div className="min-w-0 flex-1">
+                                <SkuProductPicker
+                                  sku={line.sku}
+                                  itemCode={line.item_code}
+                                  variantSuffix={line.variant_suffix}
+                                  products={legalCatalogProducts}
+                                  legalDocument
+                                  onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
+                                  onEnterCommit={() => appendLegalLineAfter(line.id)}
+                                  autoFocus={legalSkuFocusLineId === line.id}
+                                  onInputFocus={() => setLegalSkuFocusLineId(line.id)}
+                                  inputClassName="px-1.5 py-1"
+                                  compact
+                                  catalogOnly
+                                />
+                              </div>
+                              <LineIncomeClassificationGear
+                                documentType={document.aade_document_type}
+                                category={line.income_classification.classification_category}
+                                type={line.income_classification.classification_type || ''}
+                                disabled={!editable}
+                                onCategoryChange={(value) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, value, current.aade_document_type) : item), settingsDraft))}
+                                onTypeChange={(classificationType) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeType(item, classificationType) : item), settingsDraft))}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-1.5 py-2">
+                            <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className={`${cellInputClass} ${!line.description?.trim() ? problemClass(lineIssues[0]) : ''}`} aria-label={`Περιγραφή γραμμής ${formatNumber(line.line_number)}`} />
+                            <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 h-6 w-full rounded-sm border border-slate-100 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-500 outline-hidden transition focus:border-emerald-400 focus:bg-white" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
+                          </td>
+                          <td className="px-1 py-2 text-right">
+                            <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums ${line.quantity <= 0 ? problemClass(lineIssues[0]) : ''}`} aria-label={`Ποσότητα γραμμής ${formatNumber(line.line_number)}`} />
+                          </td>
+                          <td className="px-1 py-2 text-right">
+                            <input type="number" min="0" step="0.01" value={line.source_metadata?.original_unit_price ?? line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(event.target.value) || 0, Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums ${line.quantity > 0 && line.net_value === 0 && document.aade_document_type !== '9.3' ? problemClass(lineIssues[0]) : ''}`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
+                          </td>
+                          <td className="px-1 py-2 text-right">
+                            <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Έκπτωση γραμμής ${formatNumber(line.line_number)}`} />
+                          </td>
+                          <td className="px-1 py-2 text-right">
+                            <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className={`${cellInputClass} px-1 text-right text-[10px]`} title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
+                              {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 text-right leading-tight">
+                            <div className="text-[13px] font-black tabular-nums text-slate-900">{money(line.gross_value)}</div>
+                            <div className="mt-0.5 text-[10px] font-medium tabular-nums text-slate-500">{money(line.net_value)}</div>
+                            <div className="text-[10px] font-medium tabular-nums text-slate-400">+ {money(line.vat_amount)} ΦΠΑ</div>
+                          </td>
+                          <td className="px-1 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.filter((_, itemIndex) => itemIndex !== index), settingsDraft))}
+                              className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-600"
+                              title="Διαγραφή γραμμής"
+                              aria-label={`Διαγραφή γραμμής ${formatNumber(line.line_number)}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                        {lineIssues.length > 0 ? (
+                          <tr className={rowTone}>
+                            <td />
+                            <td colSpan={8} className="px-1.5 pb-2.5 pt-0">
+                              <ul className="space-y-0.5">
+                                {lineIssues.map((issue) => (
+                                  <li key={issue.id}><FieldMessage problem={issue} /></li>
+                                ))}
+                              </ul>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -3014,72 +3036,15 @@ export default function LegalDocumentsPage({
   const renderValidation = () => {
     if (!draftBundle) return null;
     const editable = isLegalDocumentEditable(draftBundle.document);
-    const errorCount = validationErrors.length;
-    const warningCount = validationIssues.length - errorCount;
-
     return (
-      <section id="legal-final-check" className="scroll-mt-32 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2.5">
-            <span className={`grid h-8 w-8 place-items-center rounded-lg ${iconToneClass[errorCount ? 'red' : warningCount ? 'amber' : 'emerald']}`}>
-              <ClipboardCheck size={16} />
-            </span>
-            <div>
-              <h3 className="text-sm font-black text-slate-900">Τελικός έλεγχος</h3>
-              <p className="text-xs font-medium text-slate-500">Ελέγξτε τις εκκρεμότητες πριν από την έκδοση.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {editable && errorCount > 0 && <Chip tone="red"><XCircle size={11} /> {formatNumber(errorCount)} {errorCount === 1 ? 'σφάλμα' : 'σφάλματα'}</Chip>}
-            {editable && warningCount > 0 && <Chip tone="amber"><AlertTriangle size={11} /> {formatNumber(warningCount)} {warningCount === 1 ? 'προειδοποίηση' : 'προειδοποιήσεις'}</Chip>}
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">Βήμα 3 από 3</span>
-          </div>
-        </header>
-        <div className="space-y-4 p-4 sm:p-5">
-          {!editable ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
-                <CheckCircle2 size={16} />
-                {draftBundle.document.status === 'issued' ? 'Εκδόθηκε — δεν μπορεί να ξανασταλεί' : 'Κλειδωμένο παραστατικό'}
-              </div>
-              <ActionButton variant="secondary" onClick={() => openDraftInArchive(draftBundle.document)}>
-                <Archive size={16} /> Άνοιγμα στο Αρχείο
-              </ActionButton>
-            </div>
-          ) : validationIssues.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
-              <BadgeCheck size={20} className="shrink-0" />
-              <div>
-                <div className="text-sm font-black">Έτοιμο για έκδοση μέσω SBZ</div>
-                <div className="text-xs font-medium text-emerald-700">Όλοι οι έλεγχοι πέρασαν. Η έκδοση αποστέλλει το παραστατικό στον πάροχο και του αποδίδει MARK.</div>
-              </div>
-            </div>
-          ) : (
-            <ul className="grid gap-2 lg:grid-cols-2">
-              {validationIssues.map((issue) => (
-                <li key={`${issue.field}-${issue.message}`} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm font-bold ${issue.severity === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                  {issue.severity === 'error' ? <XCircle size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
-                  <span>{issue.message}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {editable && (
-            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-start gap-2.5 text-xs font-medium leading-relaxed text-slate-500">
-                <Archive size={16} className="mt-0.5 shrink-0 text-sky-600" />
-                <div>
-                  <span className="font-black text-slate-700">Θέλετε να συνεχίσετε αργότερα;</span>{' '}
-                  Πατήστε «Αποθήκευση πρόχειρου». Θα το βρείτε στο <span className="font-black text-slate-700">Αρχείο → Πρόχειρα</span> και δεν θα σταλεί στον πάροχο.
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 xl:justify-end">
-                {renderLegalActions(draftBundle.document, draftBundle.lines)}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
+      <IssueReviewCard
+        issues={editable ? draftIssues : []}
+        editable={editable}
+        locked={draftBundle.document.status === 'issued' ? 'Εκδόθηκε — δεν μπορεί να ξανασταλεί' : 'Κλειδωμένο παραστατικό'}
+        onJump={jumpToIssue}
+        onOpenArchive={() => openDraftInArchive(draftBundle.document)}
+        actions={renderLegalActions(draftBundle.document, draftBundle.lines)}
+      />
     );
   };
 
@@ -3164,28 +3129,17 @@ export default function LegalDocumentsPage({
             {creationSource === 'order' ? (
               <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
                 <div className="space-y-2">
-                  <SelectInput
-                    label="Παραγγελία"
-                    value={selectedOrderId}
-                    onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
-                    help="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη."
-                  >
-                    <option value="">Επιλογή παραγγελίας</option>
-                    {legalOrderPickerRows.some((row) => row.selectable) && (
-                      <optgroup label="Διαθέσιμες για τιμολόγηση">
-                        {legalOrderPickerRows.filter((row) => row.selectable).map((row) => (
-                          <option key={row.order.id} value={row.order.id}>{row.label}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {legalOrderPickerRows.some((row) => !row.selectable) && (
-                      <optgroup label="Μεταφέρθηκαν σε νεότερη παραγγελία">
-                        {legalOrderPickerRows.filter((row) => !row.selectable).map((row) => (
-                          <option key={row.order.id} value={row.order.id} disabled>{row.label}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </SelectInput>
+                  <div className={fieldLabelClass}>
+                    Παραγγελία
+                    <InfoTip text="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη." />
+                  </div>
+                  <OrderPicker
+                    rows={legalOrderPickerRows}
+                    selectedId={selectedOrderId}
+                    loading={loadingOrders}
+                    documentsByOrder={documentsByOrder}
+                    onSelect={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
+                  />
                   {selectedPickerRow?.hint ? (
                     <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${selectedPickerRow.selectable ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                       <div>{selectedPickerRow.hint}</div>
@@ -3237,6 +3191,12 @@ export default function LegalDocumentsPage({
                   ) : null}
                 </div>
 
+                {selectedOrder && (documentsByOrder.get(selectedOrder.id) || []).length > 0 ? (
+                  <Notice tone="amber" icon={AlertTriangle} className="lg:col-span-2" title="Η παραγγελία έχει ήδη παραστατικό">
+                    {(documentsByOrder.get(selectedOrder.id) || []).map((document) => `${getLegalDocumentDisplayNumber(document)} (${statusLabel[document.status]})`).join(', ')}.
+                    {' '}Συνεχίστε μόνο αν εκδίδετε για διαφορετικά είδη (π.χ. μερική αποστολή ή υπόλοιπα).
+                  </Notice>
+                ) : null}
                 {selectedOrder ? (
                   <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
                     <div className="flex min-w-0 items-center gap-3">
@@ -3352,16 +3312,25 @@ export default function LegalDocumentsPage({
   };
 
   const renderNewTab = () => {
-    const workspaceStarted = Boolean(draftBundle || proformaBundle);
+    const showingOutcome = Boolean(outcomeDocument && !draftBundle && !proformaBundle);
+    const workspaceStarted = Boolean(draftBundle || proformaBundle) || showingOutcome;
     const legalEditable = draftBundle ? isLegalDocumentEditable(draftBundle.document) : false;
     const legalLocked = Boolean(draftBundle) && !legalEditable;
     const legalReady = Boolean(draftBundle) && legalEditable && validationErrors.length === 0;
-    const steps: Array<{ label: string; detail: string; state: StepState }> = [
+    const accepted = showingOutcome && outcomeDocument?.status === 'issued';
+    const steps: Array<{ label: string; detail: string; state: StepState }> = proformaBundle ? [
+      { label: 'Ρύθμιση', detail: 'Τύπος & προέλευση', state: 'done' },
+      { label: 'Στοιχεία', detail: 'Πελάτης & γραμμές', state: 'active' },
+      { label: 'Ολοκλήρωση', detail: 'Αποθήκευση & εκτύπωση', state: 'todo' },
+    ] : [
       { label: 'Ρύθμιση', detail: 'Τύπος & προέλευση', state: workspaceStarted ? 'done' : 'active' },
-      { label: 'Στοιχεία', detail: 'Πελάτης & γραμμές', state: !workspaceStarted ? 'todo' : legalReady || legalLocked ? 'done' : 'active' },
-      { label: 'Ολοκλήρωση', detail: proformaBundle ? 'Αποθήκευση & εκτύπωση' : 'Έλεγχος & έκδοση', state: legalLocked ? 'done' : legalReady ? 'active' : 'todo' },
+      { label: 'Στοιχεία', detail: 'Πελάτης, διακίνηση, γραμμές', state: !workspaceStarted ? 'todo' : legalReady || legalLocked || showingOutcome ? 'done' : 'active' },
+      { label: 'Έκδοση', detail: 'Έλεγχος & MARK', state: accepted || legalLocked ? 'done' : legalReady || showingOutcome ? 'active' : 'todo' },
+      { label: 'Εκτύπωση', detail: 'Συνοδεύει το εμπόρευμα', state: accepted ? (outcomeDocument?.printed_at ? 'done' : 'active') : 'todo' },
     ];
-    const workspaceOrigin = draftBundle?.document.credited_document_id
+    const workspaceOrigin = showingOutcome
+      ? getLegalDocumentDisplayNumber(outcomeDocument!)
+      : draftBundle?.document.credited_document_id
       ? 'Πιστωτικό από τιμολόγιο'
       : (draftBundle?.document.order_id || proformaBundle?.document.order_id)
         ? `Από παραγγελία #${formatOrderId((draftBundle?.document.order_id || proformaBundle?.document.order_id)!)}`
@@ -3393,9 +3362,28 @@ export default function LegalDocumentsPage({
             )}
           </div>
         </section>
-        {!workspaceStarted
+        {showingOutcome && outcomeDocument ? (
+          <IssueOutcomePanel
+            document={outcomeDocument}
+            reconciling={reconcilingOutcome}
+            onPrint={() => void handlePrint(outcomeDocument)}
+            onReconcile={() => void handleReconcileOutcome()}
+            onReopen={() => { setIssueOutcome(null); void handleOpenLegalDocument(outcomeDocument); }}
+            onOpenArchive={() => {
+              setArchiveSearch(getLegalDocumentDisplayNumber(outcomeDocument));
+              setIssueOutcome(null);
+              setActiveTab('archive');
+            }}
+            onNew={() => {
+              setSelectedOrderId('');
+              setSelectedShipmentId('');
+              startNewDocumentWorkspace();
+            }}
+          />
+        ) : !workspaceStarted
           ? renderCreationSetup()
           : proformaBundle ? renderProformaEditor() : renderDraftEditor()}
+        {issuingDocument ? <IssuingOverlay document={issuingDocument} /> : null}
       </div>
     );
   };
@@ -4876,39 +4864,84 @@ export default function LegalDocumentsPage({
             subtitle="Για δελτία διακίνησης: καταχωρήστε κάθε μεταφορική ή courier με τον ΑΦΜ της. Για «Ίδια μέσα» δεν χρειάζεται εγγραφή."
             action={<SettingsStatusBadge tone="slate">{formatNumber(carriers.length)}</SettingsStatusBadge>}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextInput label="Όνομα" value={newCarrier.name} onChange={(value) => setNewCarrier((current) => ({ ...current, name: value }))} />
-              <TextInput label="ΑΦΜ" value={newCarrier.vat_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vat_number: value }))} />
-              <TextInput label="Όχημα" value={newCarrier.vehicle_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vehicle_number: value }))} />
-              <TextInput label="Τηλέφωνο" value={newCarrier.phone} onChange={(value) => setNewCarrier((current) => ({ ...current, phone: value }))} />
-            </div>
-            <div className="mt-4">
-              <ActionButton variant="secondary" onClick={handleAddCarrier} disabled={saveCarrier.isPending || !newCarrier.name.trim()}>
-                <Plus size={16} /> Προσθήκη μεταφορέα
-              </ActionButton>
-            </div>
+            {carriers.length === 0 && !newCarrier.name ? (
+              <button
+                type="button"
+                onClick={prefillAcsCarrier}
+                className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 transition hover:bg-emerald-100"
+              >
+                <Plus size={13} /> Συμπλήρωση για ACS Courier
+              </button>
+            ) : null}
+            <CarrierForm
+              value={newCarrier}
+              onChange={setNewCarrier}
+              suppliers={suppliers}
+              busy={saveCarrier.isPending}
+              submitLabel="Προσθήκη μεταφορέα"
+              onSubmit={() => void handleAddCarrier()}
+              onCancel={newCarrier.name || newCarrier.supplier_id ? () => setNewCarrier(EMPTY_CARRIER_DRAFT) : undefined}
+            />
             <div className="mt-5 space-y-2">
               {carriers.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-medium text-slate-500">
                   Δεν έχουν καταχωρηθεί μεταφορείς.
                 </div>
-              ) : carriers.map((carrier) => (
-                <div key={carrier.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
-                    <Truck size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-black text-slate-900">{carrier.name}</div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">ΑΦΜ {carrier.vat_number || '—'}</span>
-                      <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">Όχημα {carrier.vehicle_number || '—'}</span>
-                      {carrier.phone && (
-                        <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">{carrier.phone}</span>
-                      )}
+              ) : carriers.map((carrier) => {
+                const partner = linkedSupplier(suppliers, carrier);
+                if (editingCarrier?.id === carrier.id) {
+                  return (
+                    <div key={carrier.id} className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                      <CarrierForm
+                        value={editingCarrier.draft}
+                        onChange={(draft) => setEditingCarrier({ id: carrier.id, draft })}
+                        suppliers={suppliers}
+                        busy={saveCarrier.isPending}
+                        submitLabel="Αποθήκευση αλλαγών"
+                        onSubmit={() => void handleUpdateCarrier()}
+                        onCancel={() => setEditingCarrier(null)}
+                      />
                     </div>
+                  );
+                }
+                return (
+                  <div key={carrier.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3">
+                    <SupplierAvatar name={partner?.name || carrier.name} logoUrl={partner?.logo_url} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-black text-slate-900">{carrier.name}</span>
+                        {carrier.is_default ? (
+                          <Chip tone="emerald">Προεπιλογή</Chip>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleMakeDefaultCarrier(carrier)}
+                            disabled={saveCarrier.isPending}
+                            className="rounded-md px-1.5 py-0.5 text-[11px] font-black text-slate-400 transition hover:bg-white hover:text-emerald-700 disabled:opacity-50"
+                          >
+                            Ορισμός ως προεπιλογή
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">ΑΦΜ {carrier.vat_number || '—'}</span>
+                        <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">Όχημα {carrier.vehicle_number || '—'}</span>
+                        {carrier.phone && (
+                          <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">{carrier.phone}</span>
+                        )}
+                        {partner ? (
+                          <span className="rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[11px] font-bold text-indigo-700">Συνεργάτης: {partner.name}</span>
+                        ) : carrier.supplier_id ? (
+                          <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">Ο συνδεδεμένος συνεργάτης δεν βρέθηκε</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <ActionButton variant="quiet" onClick={() => setEditingCarrier({ id: carrier.id, draft: carrierToDraft(carrier) })} disabled={saveCarrier.isPending || !!editingCarrier}>
+                      <Edit3 size={15} /> Επεξεργασία
+                    </ActionButton>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </SettingsCard>
         </div>

@@ -21,6 +21,7 @@ vi.mock('../../hooks/api/useOrders', () => ({
   useAllShipments: () => mocks.emptyQuery, useAllShipmentItems: () => mocks.emptyQuery,
 }));
 vi.mock('../../hooks/api/useSellers', () => ({ useSellers: () => mocks.emptyQuery }));
+vi.mock('../../hooks/api/useSuppliers', () => ({ useSuppliers: () => mocks.emptyQuery }));
 vi.mock('../../hooks/api/useLegalDocuments', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
   const result = { ...mocks.emptyQuery, mutateAsync: mocks.mutateAsync };
@@ -104,6 +105,26 @@ describe('legal document page catalog loading', () => {
     expect(mocks.pickerProps.mock.calls.at(-1)![0].products.find((product: Product) => product.sku === item.sku)).toMatchObject({
       selling_price: 100, resolved_invoice_weight: { value: 9 }, variants: [{ suffix: 'H', selling_price: 120 }],
     });
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('shows field-level checks and keeps issuing locked until they pass', async () => {
+    client.setQueryData(['legal_catalog', 'owner'], catalog());
+    mocks.loadLegalCatalog.mockResolvedValue(catalog());
+    await mount();
+    await click('Χειροκίνητα');
+    await click('Έναρξη καταχώρισης');
+    // Inline under the ΑΦΜ input, not only in the final list.
+    const vatField = view!.container.querySelector('[data-legal-field="counterpart.vat_number"]');
+    expect(vatField?.textContent).toContain('Ο πελάτης χρειάζεται έγκυρο ΑΦΜ');
+    const issueButtons = Array.from(view!.container.querySelectorAll('button')).filter((node) => (node.textContent ?? '').includes('Έκδοση μέσω SBZ'));
+    expect(issueButtons.length).toBeGreaterThan(0);
+    expect(issueButtons.every((node) => (node as HTMLButtonElement).disabled)).toBe(true);
+    expect(text()).toContain('Έλεγχος & έκδοση');
+    // Goods invoices start as invoice + delivery note, courier first.
+    await settle(() => { fireEvent.click(view!.getByRole('tab', { name: /Διακίνηση/ })); });
+    expect(view!.getByRole('radio', { name: /Courier/ }).getAttribute('aria-checked')).toBe('true');
+    expect(text()).toContain('Προσθήκη ACS');
     expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
 

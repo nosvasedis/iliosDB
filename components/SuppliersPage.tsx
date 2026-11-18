@@ -22,6 +22,7 @@ import PageErrorState from './ui/PageErrorState';
 import EmptyState from './ui/EmptyState';
 import { useAuth } from './AuthContext';
 import { useFinanceWorkspace } from '../hooks/api/useFinance';
+import { useLegalCarriers } from '../hooks/api/useLegalDocuments';
 import { buildPartyBalances } from '../features/finance/expenseLedger';
 import { formatEuro, toIsoDate } from '../features/finance/financeMath';
 import type { FinancePartyKind } from '../features/finance/types';
@@ -108,6 +109,9 @@ export default function SuppliersPage() {
         return new Map(balances.map((balance) => [balance.partyId, balance.balance]));
     }, [financeQuery.data, supplierList]);
     const totalPayables = [...balanceBySupplier.values()].reduce((sum, value) => sum + Math.max(0, value), 0);
+    // Contacts that are also delivery-note carriers (ACS etc.); legal data is admin-only, others simply see none.
+    const { data: carriers = [] } = useLegalCarriers();
+    const carrierSupplierIds = useMemo(() => new Set(carriers.map((carrier) => carrier.supplier_id).filter((id): id is string => Boolean(id))), [carriers]);
 
     const filteredSuppliers = useMemo(() => {
         const q = searchTerm.trim().toLowerCase();
@@ -365,6 +369,7 @@ export default function SuppliersPage() {
                                 stats={getSupplierStats(stats, supplier.id)}
                                 onOpen={() => openSupplier(supplier)}
                                 onNewOrder={() => setBuilder({ supplier, order: null })}
+                                isCarrier={carrierSupplierIds.has(supplier.id)}
                             />
                         ))}
                     </div>

@@ -76,7 +76,7 @@ export default function ProformaConvertModal({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="text-[10px] font-black uppercase tracking-wide text-emerald-700">Θα δημιουργηθεί</div>
                   <div className="mt-1 flex items-center gap-2 text-lg font-black text-emerald-800">
-                    <FileCheck2 size={18} /> Πρόχειρο τιμολόγιο 1.1
+                    <FileCheck2 size={18} /> Πρόχειρο Τιμολόγιο – Δελτίο Αποστολής 1.1
                   </div>
                   <div className="mt-2 text-sm font-medium text-emerald-700">Δεν αποστέλλεται αυτόματα στη myDATA</div>
                   <div className="text-xs text-emerald-600">Θα ανοίξει στην καρτέλα «Δημιουργία» για έλεγχο και υποβολή</div>
@@ -146,7 +146,7 @@ export default function ProformaConvertModal({
                 </div>
               </div>
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-                Το πρόχειρο τιμολόγιο είναι έτοιμο. Ελέγξτε τα στοιχεία και υποβάλετε στη myDATA όταν είστε έτοιμοι.
+                Το πρόχειρο τιμολόγιο είναι έτοιμο, με δελτίο αποστολής. Ελέγξτε πελάτη και Διακίνηση (ή αποεπιλέξτε τη διακίνηση αν δεν φεύγουν αγαθά) και εκδώστε όταν είστε έτοιμοι.
               </div>
             </div>
           )}

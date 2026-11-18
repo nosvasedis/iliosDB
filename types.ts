@@ -1309,6 +1309,8 @@ export interface LegalCarrier {
   notes?: string | null;
   is_default?: boolean;
   created_at?: string;
+  /** Same entity in «Προμηθευτές & Συνεργάτες» (logo, address, invoices). */
+  supplier_id?: string | null;
 }
 
 export interface LegalDocumentLine {

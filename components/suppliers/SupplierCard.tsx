@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Clock, Gem, Globe, Mail, MapPin, Phone, Plus, ShoppingCart, UserRound } from 'lucide-react';
+import { Box, Clock, Gem, Globe, Mail, MapPin, Phone, Plus, ShoppingCart, Truck, UserRound } from 'lucide-react';
 import type { Supplier } from '../../types';
 import { formatNumber } from '../../utils/numberFormat';
 import { formatRelativeDay, supplierAvatarTone, supplierInitials, type SupplierStats } from './supplierUi';
@@ -49,9 +49,15 @@ interface Props {
     stats: SupplierStats;
     onOpen: () => void;
     onNewOrder: () => void;
+    /** Linked to a carrier used on delivery notes (legal_carriers.supplier_id). */
+    isCarrier?: boolean;
 }
 
-export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Props) {
+export function SupplierCarrierBadge() {
+    return <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-black text-sky-700 ring-1 ring-sky-200" title="Χρησιμοποιείται ως μεταφορέας στα δελτία αποστολής"><Truck size={11} />Μεταφορέας</span>;
+}
+
+export default function SupplierCard({ supplier, stats, onOpen, onNewOrder, isCarrier }: Props) {
     const stop = (event: React.SyntheticEvent) => event.stopPropagation();
 
     return (
@@ -68,7 +74,7 @@ export default function SupplierCard({ supplier, stats, onOpen, onNewOrder }: Pr
                 <SupplierAvatar name={supplier.name} logoUrl={supplier.logo_url} />
                 <div className="min-w-0 flex-1 pt-0.5">
                     <h3 className="truncate text-base font-black leading-tight text-slate-900" title={supplier.name}>{supplier.name}</h3>
-                    <div className="mt-1.5"><SupplierKindBadge kind={supplier.kind} /></div>
+                    <div className="mt-1.5 flex flex-wrap gap-1"><SupplierKindBadge kind={supplier.kind} />{isCarrier && <SupplierCarrierBadge />}</div>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-slate-500">
                         <UserRound size={12} className="shrink-0 text-slate-400" />
                         {supplier.contact_person || <span className="italic text-slate-400">Χωρίς υπεύθυνο</span>}
