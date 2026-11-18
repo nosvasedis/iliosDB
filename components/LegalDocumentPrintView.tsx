@@ -249,6 +249,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
                         <LegalPrintAadePanel
                           qrUrl={document.qr_url}
+                          movementQrUrl={documentIncludesDeliveryNote(document) ? document.provider_mydata_url : null}
                           mark={document.aade_mark}
                           uid={document.aade_uid}
                           authenticationCode={document.authentication_code}

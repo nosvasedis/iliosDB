@@ -247,7 +247,16 @@ export const PAYMENT_METHOD_LABELS: Record<number, string> = {
 
 export const PAYMENT_METHOD_CODES = [5, 1, 2, 3, 4, 6, 7, 8];
 
-export const SBZ_DISPATCH_METHODS = ['Μεταφορική', 'Ίδια μέσα', 'Courier / ταχυμεταφορά'] as const;
+export const SBZ_OWN_MEANS_DISPATCH_METHOD = 'Ίδια μέσα';
+export const SBZ_COURIER_DISPATCH_METHOD = 'Courier / ταχυμεταφορά';
+export const SBZ_DISPATCH_METHODS = ['Μεταφορική', SBZ_OWN_MEANS_DISPATCH_METHOD, SBZ_COURIER_DISPATCH_METHOD] as const;
+
+/** Carrier label for print/UI: a named carrier, else «Ίδια μέσα» only when that is the dispatch method. */
+export function resolveLegalCarrierLabel(delivery?: Pick<LegalDeliveryDetails, 'dispatch_method' | 'carrier_name'> | null): string | null {
+  const name = String(delivery?.carrier_name ?? '').trim();
+  if (name) return name;
+  return resolveSbzDispatchMethod(delivery) === SBZ_OWN_MEANS_DISPATCH_METHOD ? SBZ_OWN_MEANS_DISPATCH_METHOD : null;
+}
 export const DEFAULT_SBZ_DISPATCH_METHOD = 'Μεταφορική';
 export const SBZ_DISPATCH_PLACE_FROM = 'Έδρα μας';
 
@@ -654,6 +663,21 @@ export function toIsoDate(value: string | Date): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
 }
 
+const ATHENS_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens', year: 'numeric', month: '2-digit', day: '2-digit' });
+const ATHENS_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Athens', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+
+/** Calendar date (YYYY-MM-DD) in Greece for an instant. Legal dates must not follow UTC. */
+export function toAthensIsoDate(value: string | Date = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? toIsoDate(value) : ATHENS_DATE_FORMAT.format(date);
+}
+
+/** Wall-clock time (HH:mm:ss) in Greece for an instant. */
+export function toAthensTime(value: string | Date = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '10:00:00' : ATHENS_TIME_FORMAT.format(date);
+}
+
 /** AADE query endpoints (RequestDocs / RequestTransmittedDocs) expect dd/MM/yyyy. */
 export function toAadeQueryDate(value?: string | null): string | undefined {
   if (!value) return undefined;
@@ -667,13 +691,13 @@ export function toAadeQueryDate(value?: string | null): string | undefined {
 }
 
 function toXmlDateTimeDate(value?: string | null): string {
-  if (!value) return toIsoDate(new Date());
-  return value.includes('T') ? value.slice(0, 10) : value;
+  if (!value) return toAthensIsoDate();
+  return value.includes('T') ? toAthensIsoDate(value) : value;
 }
 
 function toXmlTime(value?: string | null): string {
   if (!value) return '10:00:00';
-  if (value.includes('T')) return value.slice(11, 19);
+  if (value.includes('T')) return toAthensTime(value);
   return value.length === 5 ? `${value}:00` : value;
 }
 
@@ -1444,7 +1468,7 @@ export function buildManualLegalDocument(params: {
     document_kind: params.kind,
     aade_document_type: aadeDocumentType,
     status: 'draft',
-    issue_date: toIsoDate(now),
+    issue_date: toAthensIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpartFromCustomer(params.customer),
     delivery: isDelivery
@@ -1715,7 +1739,7 @@ export function convertProformaToLegalDraft(params: {
     status: 'draft',
     series: null,
     aa: null,
-    issue_date: toIsoDate(now),
+    issue_date: toAthensIsoDate(now),
     issuer: params.proforma.issuer,
     counterpart: params.proforma.counterpart,
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
@@ -1786,7 +1810,7 @@ export function buildLegalDocumentFromOrder(params: {
     document_kind: params.kind,
     aade_document_type: aadeDocumentType,
     status: 'draft',
-    issue_date: toIsoDate(now),
+    issue_date: toAthensIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpart(params.order, params.customer),
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
@@ -1845,7 +1869,7 @@ export function buildLegalDocumentFromShipment(params: {
     document_kind: params.kind,
     aade_document_type: aadeDocumentType,
     status: 'draft',
-    issue_date: toIsoDate(now),
+    issue_date: toAthensIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpart(params.order, params.customer),
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
@@ -1873,10 +1897,13 @@ export function buildDefaultDeliveryDetails(
   shipment?: OrderShipment,
   aadeDocumentType?: string | null,
 ): LegalDeliveryDetails {
-  const dispatchAt = shipment?.shipped_at || new Date().toISOString();
+  // Dispatch cannot start in the past (SBZ 280): an older shipment timestamp falls back to now.
+  const now = new Date();
+  const shippedAt = shipment?.shipped_at ? new Date(shipment.shipped_at) : null;
+  const dispatchAt = shippedAt && !Number.isNaN(shippedAt.getTime()) && toAthensIsoDate(shippedAt) >= toAthensIsoDate(now) ? shippedAt : now;
   return {
-    dispatch_date: toXmlDateTimeDate(dispatchAt),
-    dispatch_time: toXmlTime(dispatchAt),
+    dispatch_date: toAthensIsoDate(dispatchAt),
+    dispatch_time: toAthensTime(dispatchAt),
     move_purpose: resolveLegalMovePurpose(undefined, settings, aadeDocumentType),
     dispatch_method: DEFAULT_SBZ_DISPATCH_METHOD,
     vehicle_number: '',
@@ -2014,9 +2041,22 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     }
     if (!delivery?.loading_address?.street || !delivery?.delivery_address?.street) {
       issues.push({ field: 'delivery.addresses', severity: 'error', message: 'Συμπληρώστε διεύθυνση φόρτωσης και παράδοσης.' });
+    } else if (
+      !delivery.loading_address.city?.trim() || !delivery.loading_address.postal_code?.trim()
+      || !delivery.delivery_address.city?.trim() || !delivery.delivery_address.postal_code?.trim()
+    ) {
+      issues.push({ field: 'delivery.addresses', severity: 'error', message: 'Η ΑΑΔΕ απαιτεί πόλη και Τ.Κ. στη διεύθυνση φόρτωσης και παράδοσης.' });
     }
-    if (!delivery?.vehicle_number && !delivery?.carrier_vehicle_number) {
+    const pending = document.status === 'draft' || document.status === 'failed';
+    if (pending && delivery?.dispatch_date && delivery.dispatch_date < toAthensIsoDate()) {
+      issues.push({ field: 'delivery.dispatch', severity: 'error', message: 'Η έναρξη διακίνησης δεν μπορεί να είναι σε παρελθούσα ημερομηνία. Ενημερώστε ημερομηνία και ώρα.' });
+    }
+    const dispatchMethod = resolveSbzDispatchMethod(delivery);
+    if (dispatchMethod !== SBZ_COURIER_DISPATCH_METHOD && !delivery?.vehicle_number && !delivery?.carrier_vehicle_number) {
       issues.push({ field: 'delivery.vehicle', severity: 'warning', message: 'Δεν έχει δηλωθεί όχημα. Συμπληρώστε το πριν τη διακίνηση αν απαιτείται.' });
+    }
+    if (dispatchMethod !== SBZ_OWN_MEANS_DISPATCH_METHOD && !delivery?.carrier_name) {
+      issues.push({ field: 'delivery.carrier', severity: 'warning', message: 'Επιλέξτε μεταφορέα (π.χ. το courier) ή ορίστε τρόπο αποστολής «Ίδια μέσα».' });
     }
   }
 

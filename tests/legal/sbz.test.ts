@@ -1,5 +1,5 @@
-import { describe,it,expect } from 'vitest';
-import { buildManualLegalDocument, createManualLegalDocumentLine, DEFAULT_LEGAL_SETTINGS, recalculateLegalDocument } from '../../utils/legalDocuments';
+import { describe,it,expect,vi,afterEach } from 'vitest';
+import { buildManualLegalDocument, createManualLegalDocumentLine, DEFAULT_LEGAL_SETTINGS, recalculateLegalDocument, resolveLegalCarrierLabel, toAthensIsoDate, toAthensTime } from '../../utils/legalDocuments';
 import { buildSbzInvoiceXml, parseSbzResponse, buildCreditDraft, canIssueCreditForInvoice, validateSbzDocument } from '../../features/legal/sbz';
 import type { LegalDocument, LegalDocumentLine } from '../../types';
 
@@ -21,11 +21,30 @@ describe('SBZ wholesale contract',()=>{
     expect(xml).not.toContain('<isDeliveryNote>');
     expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('<IssuerPhone>2101234567</IssuerPhone>');expect(xml).toContain('<CounterpartPhone>2101234567</CounterpartPhone>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
   });
+  afterEach(()=>{ vi.useRealTimers(); });
   it.each(['invoice_delivery', 'delivery_note'] as const)('serializes %s with dispatch details', kind => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-11T06:00:00Z'));
     const {document,lines}=sbzFixture();
     const d={...document,document_kind:kind,aade_document_type:kind==='delivery_note'?'9.3' as const:'1.1' as const,delivery:{dispatch_date:'2026-09-11',dispatch_time:'11:00',move_purpose:1,loading_address:document.issuer.address,delivery_address:document.counterpart.address,vehicle_number:'ABC123'}};
     const selected=kind==='delivery_note'?lines.map(l=>({...l,income_classification:{classification_category:'category3',classification_type:'',amount:l.net_value}})):lines;
     expect(buildSbzInvoiceXml(d,selected,d.created_at)).toContain('<movePurpose>1</movePurpose>');
+  });
+  it('rejects a delivery draft whose dispatch starts on a past Greek calendar day',()=>{
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T06:00:00Z'));
+    const {document,lines}=sbzFixture();
+    const d={...document,document_kind:'invoice_delivery' as const,delivery:{dispatch_date:'2026-09-11',dispatch_time:'11:00',move_purpose:1,dispatch_method:'Ίδια μέσα',loading_address:document.issuer.address,delivery_address:document.counterpart.address,vehicle_number:'ABC123'}};
+    expect(validateSbzDocument(d,lines).join(" | ")).toContain('παρελθούσα ημερομηνία');
+    expect(validateSbzDocument({...d,status:'issued'},lines).join(" | ")).not.toContain('παρελθούσα ημερομηνία');
+  });
+  it('uses Greek wall-clock date and time, not UTC',()=>{
+    expect(toAthensIsoDate('2026-11-18T22:30:00Z')).toBe('2026-11-19');
+    expect(toAthensTime('2026-11-18T09:15:00Z')).toBe('11:15:00');
+    expect(toAthensTime('2026-07-01T09:15:00Z')).toBe('12:15:00');
+  });
+  it('labels own means only when it is the dispatch method',()=>{
+    expect(resolveLegalCarrierLabel({dispatch_method:'Courier / ταχυμεταφορά',carrier_name:null})).toBeNull();
+    expect(resolveLegalCarrierLabel({dispatch_method:'Ίδια μέσα',carrier_name:null})).toBe('Ίδια μέσα');
+    expect(resolveLegalCarrierLabel({dispatch_method:'Courier / ταχυμεταφορά',carrier_name:'ACS'})).toBe('ACS');
   });
   it('serializes an exempt invoice and rejects forged totals or missing classification amounts',()=>{
     const {document,lines}=sbzFixture();const exempt=lines.map(l=>({...l,vat_category:7,vat_amount:0,gross_value:l.net_value}));

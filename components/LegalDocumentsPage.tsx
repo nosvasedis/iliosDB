@@ -167,7 +167,10 @@ import {
   recalculateLegalDocument,
   recalculateProforma,
   resolveSbzDispatchMethod,
+  resolveLegalCarrierLabel,
   SBZ_DISPATCH_METHODS,
+  SBZ_OWN_MEANS_DISPATCH_METHOD,
+  toAthensIsoDate,
   validateLegalDocument,
   vatRateToAadeCategory,
 } from '../utils/legalDocuments';
@@ -199,6 +202,8 @@ function deliveryBranchValue(customer: Customer, address?: LegalPartyAddress | n
 
 function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind {
   if (type === 'service_invoice' || type === 'proforma') return 'invoice';
+  // Goods invoices default to Τιμολόγιο – Δελτίο Αποστολής (1.1 + isDeliveryNote); untick in «Διακίνηση» when nothing moves.
+  if (type === 'invoice') return 'invoice_delivery';
   return type;
 }
 
@@ -229,7 +234,7 @@ const creationTypeItems: Array<{ id: CreationDocumentType; label: string; short:
     short: 'Πώληση αγαθών B2B',
     code: '1.1',
     icon: ReceiptText,
-    help: 'Τιμολόγιο 1.1 χωρίς δελτίο διακίνησης — το συνηθισμένο για B2B πωλήσεις.',
+    help: 'Τιμολόγιο 1.1 με δελτίο αποστολής (προεπιλογή), ώστε η διακίνηση να διαβιβάζεται στη myDATA πριν φύγει το εμπόρευμα. Αν δεν διακινούνται αγαθά, αποεπιλέξτε το «Με δελτίο διακίνησης» στην καρτέλα Διακίνηση.',
   },
   {
     id: 'service_invoice',
@@ -357,7 +362,7 @@ const statusClass: Record<LegalDocument['status'], string> = {
 const money = (value: number | null | undefined) =>
   Number(value || 0).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' });
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => toAthensIsoDate();
 
 /** `YYYY-MM-DD` → `DD/MM/YYYY` without going through Date (no timezone shift). */
 const formatIsoDate = (value?: string | null) => value ? value.slice(0, 10).split('-').reverse().join('/') : '—';
@@ -2043,7 +2048,7 @@ export default function LegalDocumentsPage({
         proforma,
         lines,
         settings: settingsDraft,
-        kind: 'invoice',
+        kind: 'invoice_delivery',
         userName,
       });
       await saveDraft.mutateAsync(draft);
@@ -2649,7 +2654,8 @@ export default function LegalDocumentsPage({
               id: 'delivery' as const,
               label: 'Διακίνηση',
               icon: Truck,
-              hint: includesDelivery ? (document.delivery?.carrier_name || 'Ίδια μέσα') : 'Χωρίς δελτίο διακίνησης',
+              hint: includesDelivery ? (resolveLegalCarrierLabel(document.delivery) || resolveSbzDispatchMethod(document.delivery)) : 'Χωρίς δελτίο διακίνησης',
+              attention: editable && includesDelivery && !resolveLegalCarrierLabel(document.delivery),
             }] : []),
           ]}
         >
@@ -2712,7 +2718,7 @@ export default function LegalDocumentsPage({
                 <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
                   {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
                 </SelectInput>
-                <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value } }))}>
+                <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value, ...(value === SBZ_OWN_MEANS_DISPATCH_METHOD ? { carrier_id: null, carrier_name: null, carrier_vat_number: null, carrier_vehicle_number: null } : {}) } }))}>
                   {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
                 </SelectInput>
                 {(document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery' || document.document_kind === 'delivery_note') && (
@@ -2755,8 +2761,8 @@ export default function LegalDocumentsPage({
                   {isStandaloneDeliveryNote
                     ? 'Υποχρεωτικά για δελτίο αποστολής 9.3.'
                     : includesDelivery
-                      ? 'Προαιρετικό συνδυασμένο τιμολόγιο–διακίνηση (Α 1170/2023).'
-                      : 'Το απλό τιμολόγιο 1.1 δεν απαιτεί στοιχεία διακίνησης.'}
+                      ? 'Τιμολόγιο – Δελτίο Αποστολής: διαβιβάζεται στη myDATA πριν την έναρξη της διακίνησης και τυπώνει το QR διακίνησης της ΑΑΔΕ.'
+                      : 'Χωρίς δελτίο διακίνησης. Επιλέξτε το μόνο αν δεν διακινούνται αγαθά με αυτό το τιμολόγιο.'}
                 </p>
                 {canToggleDelivery ? (
                   <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 has-checked:border-emerald-300 has-checked:bg-emerald-50 has-checked:text-emerald-800 sm:self-auto">
@@ -2780,13 +2786,40 @@ export default function LegalDocumentsPage({
                 <fieldset disabled={!editable} className={`grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4 ${!editable ? 'opacity-60' : ''}`}>
                   <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
                   <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
-                  <SelectInput label="Μεταφορέας" value={document.delivery?.carrier_id || ''} onChange={(value) => {
-                    const carrier = carriers.find((item) => item.id === value);
-                    updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
-                  }}>
-                    <option value="">Ίδια μέσα</option>
-                    {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
+                  <SelectInput
+                    label="Τρόπος αποστολής"
+                    value={resolveSbzDispatchMethod(document.delivery)}
+                    onChange={(value) => updateDraftDocument((current) => {
+                      const base = current.delivery || buildDefaultDeliveryDetails(settingsDraft);
+                      const ownMeans = value === SBZ_OWN_MEANS_DISPATCH_METHOD;
+                      return {
+                        ...current,
+                        delivery: {
+                          ...base,
+                          dispatch_method: value,
+                          ...(ownMeans ? { carrier_id: null, carrier_name: null, carrier_vat_number: null, carrier_vehicle_number: null } : {}),
+                        },
+                      };
+                    })}
+                  >
+                    {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
                   </SelectInput>
+                  {resolveSbzDispatchMethod(document.delivery) === SBZ_OWN_MEANS_DISPATCH_METHOD ? (
+                    <TextInput label="Μεταφορέας" value={SBZ_OWN_MEANS_DISPATCH_METHOD} onChange={() => undefined} disabled />
+                  ) : (
+                    <SelectInput
+                      label="Μεταφορέας"
+                      value={document.delivery?.carrier_id || ''}
+                      help={carriers.length === 0 ? 'Προσθέστε τους μεταφορείς σας (π.χ. το courier με τον ΑΦΜ του) στις Ρυθμίσεις → Μεταφορείς.' : undefined}
+                      onChange={(value) => {
+                        const carrier = carriers.find((item) => item.id === value);
+                        updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
+                      }}
+                    >
+                      <option value="">— Επιλέξτε μεταφορέα —</option>
+                      {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}{carrier.vat_number ? ` · ΑΦΜ ${carrier.vat_number}` : ''}</option>)}
+                    </SelectInput>
+                  )}
                   <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
                   <div className="sm:col-span-2">
                     <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
@@ -4571,7 +4604,7 @@ export default function LegalDocumentsPage({
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 pl-12 text-xs font-bold text-slate-600 md:pl-0">
               <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 ring-1 ring-slate-200"><CalendarDays size={12} /> {document.delivery?.dispatch_date || '-'} {document.delivery?.dispatch_time || ''}</span>
-              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 ring-1 ring-slate-200"><Truck size={12} /> {document.delivery?.carrier_name || 'Ίδια μέσα'}</span>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 ring-1 ring-slate-200"><Truck size={12} /> {resolveLegalCarrierLabel(document.delivery) || resolveSbzDispatchMethod(document.delivery)}</span>
             </div>
           </li>
         ))}
@@ -4840,7 +4873,7 @@ export default function LegalDocumentsPage({
             icon={Truck}
             tone="slate"
             title="Μεταφορείς"
-            subtitle="Για δελτία διακίνησης. Αν χρησιμοποιείτε ίδια μέσα, δεν χρειάζεται εγγραφή."
+            subtitle="Για δελτία διακίνησης: καταχωρήστε κάθε μεταφορική ή courier με τον ΑΦΜ της. Για «Ίδια μέσα» δεν χρειάζεται εγγραφή."
             action={<SettingsStatusBadge tone="slate">{formatNumber(carriers.length)}</SettingsStatusBadge>}
           >
             <div className="grid gap-3 sm:grid-cols-2">

@@ -2,7 +2,7 @@ import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { APP_LOGO } from '../../constants';
-import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
+import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveLegalCarrierLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
 
 export const LEGAL_PRINT_CSS = `
@@ -542,7 +542,12 @@ export function LegalPrintTransactionPanel(props: {
       <InfoRow label="Τόπος προορισμού" value={destination} />
       <InfoRow label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(props.delivery)} />
       {includesDeliveryNote && <InfoRow label="Ημερ. διακίνησης" value={dispatchAt} />}
-      {includesDeliveryNote && <InfoRow label="Μεταφορέας" value={props.delivery?.carrier_name || 'Ίδια μέσα'} />}
+      {includesDeliveryNote && resolveLegalCarrierLabel(props.delivery) && (
+        <InfoRow
+          label="Μεταφορέας"
+          value={`${resolveLegalCarrierLabel(props.delivery)}${props.delivery?.carrier_vat_number ? ` · ΑΦΜ ${props.delivery.carrier_vat_number}` : ''}`}
+        />
+      )}
       {props.validUntil && <InfoRow label="Ισχύει έως" value={formatPrintDate(props.validUntil)} />}
     </section>
   );
@@ -596,8 +601,46 @@ export function LegalPrintPartyGrid(props: {
   return <LegalPrintCustomerBar counterpart={props.counterpart} counterpartTitle={props.counterpartTitle} />;
 }
 
+function useQrDataUrl(url?: string | null) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!url) {
+      setDataUrl(null);
+      return () => { active = false; };
+    }
+    QRCode.toDataURL(url, {
+      margin: 0,
+      width: 112,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    }).then((value) => {
+      if (active) setDataUrl(value);
+    }).catch(() => {
+      if (active) setDataUrl(null);
+    });
+    return () => { active = false; };
+  }, [url]);
+  return dataUrl;
+}
+
+/** Captioned QR at the same 25mm footprint as the single QR, so pagination does not shift. */
+function CaptionedQr({ dataUrl, caption, alt }: { dataUrl: string | null; caption: string; alt: string }) {
+  return (
+    <div className="flex h-[25mm] w-[25mm] flex-col items-center border border-slate-300 bg-white p-0.5">
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+        {dataUrl
+          ? <img src={dataUrl} alt={alt} className="h-full w-full object-contain" />
+          : <span className="px-1 text-center text-[7.5px] font-semibold leading-tight text-slate-400">—</span>}
+      </div>
+      <span className="mt-px w-full truncate text-center text-[6.5px] font-black uppercase leading-none tracking-wide text-slate-600">{caption}</span>
+    </div>
+  );
+}
+
 export function LegalPrintAadePanel(props: {
   qrUrl?: string | null;
+  /** AADE myDATA QR (SBZ `myDATAUrl`) — the code scanned for digital delivery-note movement. */
+  movementQrUrl?: string | null;
   mark?: string | null;
   uid?: string | null;
   authenticationCode?: string | null;
@@ -605,29 +648,19 @@ export function LegalPrintAadePanel(props: {
   documentTypeCode?: string | null;
   revenueClassificationText?: string;
 }) {
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    if (!props.qrUrl) {
-      setQrDataUrl(null);
-      return () => { active = false; };
-    }
-    QRCode.toDataURL(props.qrUrl, {
-      margin: 0,
-      width: 112,
-      color: { dark: '#0f172a', light: '#ffffff' },
-    }).then((value) => {
-      if (active) setQrDataUrl(value);
-    }).catch(() => {
-      if (active) setQrDataUrl(null);
-    });
-    return () => { active = false; };
-  }, [props.qrUrl]);
+  const qrDataUrl = useQrDataUrl(props.qrUrl);
+  const movementQrUrl = props.movementQrUrl && props.movementQrUrl !== props.qrUrl ? props.movementQrUrl : null;
+  const movementQrDataUrl = useQrDataUrl(movementQrUrl);
 
   return (
     <section className="legal-print-break-inside mt-0.5 shrink-0 border-t border-slate-300 pt-1">
-      <div className="grid grid-cols-[27mm_1fr_52mm] gap-3">
+      <div className={`grid ${movementQrUrl ? 'grid-cols-[27mm_27mm_1fr_52mm]' : 'grid-cols-[27mm_1fr_52mm]'} gap-3`}>
+        {movementQrUrl ? (
+          <>
+            <CaptionedQr dataUrl={movementQrDataUrl} caption="myDATA · Διακίνηση" alt="QR ΑΑΔΕ διακίνησης" />
+            <CaptionedQr dataUrl={qrDataUrl} caption="Προβολή παραστατικού" alt="QR παρόχου" />
+          </>
+        ) : (
         <div className="flex h-[25mm] w-[25mm] items-center justify-center border border-slate-300 bg-white p-1">
           {qrDataUrl ? (
             <img src={qrDataUrl} alt="AADE QR" className="h-full w-full object-contain" />
@@ -635,6 +668,7 @@ export function LegalPrintAadePanel(props: {
             <span className="px-1 text-center text-[8.5px] font-semibold leading-tight text-slate-400">QR μετά την αποδοχή από την ΑΑΔΕ</span>
           )}
         </div>
+        )}
         <div className="grid content-center gap-1 text-[9.5px] leading-tight">
           <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-[#946b2d]">Στοιχεία επαλήθευσης</p>
           <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Μ.Αρ.Κ.:</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
