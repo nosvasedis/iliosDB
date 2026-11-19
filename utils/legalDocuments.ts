@@ -2272,13 +2272,14 @@ function buildIncomeClassificationXml(item: LegalIncomeClassification): string {
 
 function buildHeaderXml(document: LegalDocument): string {
   const isDelivery = documentIncludesDeliveryNote(document);
+  const isStandaloneDelivery = document.aade_document_type === '9.3';
   const delivery = document.delivery;
   const header = [
     xmlTag('series', document.series?.trim() || '0'),
     xmlTag('aa', document.aa || ''),
     xmlTag('issueDate', document.issue_date),
     xmlTag('invoiceType', document.aade_document_type),
-    xmlTag('currency', document.currency || 'EUR'),
+    isStandaloneDelivery ? '' : xmlTag('currency', document.currency || 'EUR'),
     document.aade_document_type === '5.1' ? xmlTag('correlatedInvoices', document.correlated_mark) : '',
     isDelivery ? xmlTag('dispatchDate', toXmlDateTimeDate(delivery?.dispatch_date)) : '',
     isDelivery ? xmlTag('dispatchTime', toXmlTime(delivery?.dispatch_time)) : '',
@@ -2288,7 +2289,7 @@ function buildHeaderXml(document: LegalDocument): string {
       buildAddressXml('loadingAddress', delivery?.loading_address),
       buildAddressXml('deliveryAddress', delivery?.delivery_address),
     ].join('')}</otherDeliveryNoteHeader>` : '',
-    isDelivery ? xmlTag('isDeliveryNote', 'true') : '',
+    document.document_kind === 'invoice_delivery' && !isStandaloneDelivery ? xmlTag('isDeliveryNote', 'true') : '',
     isDelivery && delivery?.move_purpose === 19 ? xmlTag('otherMovePurposeTitle', delivery?.move_purpose_title || 'Λοιπή διακίνηση') : '',
   ].join('');
   return `<invoiceHeader>${header}</invoiceHeader>`;

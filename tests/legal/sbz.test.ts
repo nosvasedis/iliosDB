@@ -18,7 +18,9 @@ describe('SBZ wholesale contract',()=>{
     expect(xml).toContain('<DispatchMethod>Μεταφορική</DispatchMethod>');
     expect(xml).toContain('<movePurpose>1</movePurpose>');
     expect(xml).toContain('<movePurposeLabel>Πώληση</movePurposeLabel>');
+    expect(xml).toContain('<currency>EUR</currency>');
     expect(xml).not.toContain('<isDeliveryNote>');
+    expect(xml).not.toContain('<otherDeliveryNoteHeader>');
     expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('<IssuerPhone>2101234567</IssuerPhone>');expect(xml).toContain('<CounterpartPhone>2101234567</CounterpartPhone>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
   });
   afterEach(()=>{ vi.useRealTimers(); });
@@ -26,18 +28,28 @@ describe('SBZ wholesale contract',()=>{
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-11T06:00:00Z'));
     const {document,lines}=sbzFixture();
     const d={...document,document_kind:kind,aade_document_type:kind==='delivery_note'?'9.3' as const:'1.1' as const,delivery:{dispatch_date:'2026-09-11',dispatch_time:'11:00',move_purpose:1,loading_address:document.issuer.address,delivery_address:document.counterpart.address,vehicle_number:'ABC123'}};
-    if (kind==='delivery_note') {
-      // 9.3 lines carry no VAT (category 8), as on the 9.3 notes myDATA already accepted.
-      const r=recalculateLegalDocument(d,lines,DEFAULT_LEGAL_SETTINGS);
-      const xml=buildSbzInvoiceXml({...r.document,issuer:d.issuer,counterpart:d.counterpart},r.lines,d.created_at);
-      expect(xml).toContain('<movePurpose>1</movePurpose>');
+    const isStandalone = kind === 'delivery_note';
+    const prepared = isStandalone ? recalculateLegalDocument(d, lines, DEFAULT_LEGAL_SETTINGS) : { document: d, lines };
+    const xml = buildSbzInvoiceXml({ ...prepared.document, issuer: d.issuer, counterpart: d.counterpart }, prepared.lines, d.created_at);
+    expect(xml).toContain(`<invoiceType>${d.aade_document_type}</invoiceType>`);
+    expect(xml).toContain('<dispatchDate>2026-09-11</dispatchDate>');
+    expect(xml).toContain('<dispatchTime>11:00:00</dispatchTime>');
+    expect(xml).toContain('<vehicleNumber>ABC123</vehicleNumber>');
+    expect(xml).toContain('<movePurpose>1</movePurpose>');
+    expect(xml).toMatch(/<otherDeliveryNoteHeader><loadingAddress>.+<\/loadingAddress><deliveryAddress>.+<\/deliveryAddress><\/otherDeliveryNoteHeader>/);
+    if (isStandalone) {
+      expect(xml).not.toContain('<isDeliveryNote>');
+      expect(xml).not.toContain('<currency>');
+      expect(xml).not.toContain('<paymentMethods>');
       expect(xml).toContain('<vatCategory>8</vatCategory>');
       expect(xml).toContain('<vatAmount>0.00</vatAmount>');
       expect(xml).toContain('<paymentMethodInvoiceLabel></paymentMethodInvoiceLabel>');
       expect(xml).toContain('<DispatchPlaceFrom>Ερμού 1, 10563 Αθήνα, Ελλάδα</DispatchPlaceFrom>');
-      return;
+    } else {
+      expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
+      expect(xml).toContain('<currency>EUR</currency>');
+      expect(xml).toContain('<paymentMethods>');
     }
-    expect(buildSbzInvoiceXml(d,lines,d.created_at)).toContain('<movePurpose>1</movePurpose>');
   });
   it('rejects a delivery draft whose dispatch starts on a past Greek calendar day',()=>{
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T06:00:00Z'));
