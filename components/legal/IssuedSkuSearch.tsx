@@ -1,4 +1,5 @@
 import { formatNumber } from '../../utils/numberFormat';
+import { formatLegalQuantity, getLegalLineDisplayQuantity, getLegalLineUnit, getLegalLineUnitMeta } from '../../utils/legalUnits';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, PackageSearch, Search } from 'lucide-react';
 import { LegalArchiveRecord } from '../../types';
@@ -67,7 +68,7 @@ export default function IssuedSkuSearch({ records, loading, renderDetails }: {
             <div className="flex flex-wrap justify-between gap-2 text-sm"><div className="font-bold text-slate-900">{row.customer}<span className="ml-2 font-normal text-slate-500">ΑΦΜ {document.counterpart.vat_number || '—'}</span></div><div className="text-slate-600">{getLegalDocumentDisplayNumber(document)} · {document.issue_date.slice(0, 10).split('-').reverse().join('/')}</div></div>
             <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-3 xl:grid-cols-6">
               {[
-                ['Ποσότητα', `${line.quantity} ${line.measurement_unit === 1 ? 'τεμ.' : line.measurement_unit === 2 ? 'kg' : `μον. (${formatNumber(line.measurement_unit)})`}`],
+                ['Ποσότητα', `${formatLegalQuantity(getLegalLineDisplayQuantity(line))} ${getLegalLineUnitMeta(getLegalLineUnit(line)).short}`],
                 ['Αρχική τιμή / μον.', row.hasPrice && pricing.original !== null ? money(pricing.original) : '—'],
                 ['Έκπτωση', !row.hasPrice ? '—' : pricing.discount === null ? 'Δεν καταγράφηκε' : `${pricing.discount}%${pricing.discountAmount !== null && pricing.discountAmount > 0 ? ` · ${money(pricing.discountAmount)}` : ''}`],
                 ['Τιμή έκδοσης / μον.', row.hasPrice ? money(line.unit_price) : '—'],

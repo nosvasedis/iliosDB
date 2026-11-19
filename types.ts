@@ -1240,7 +1240,20 @@ export interface LegalSettings {
   default_move_purpose: number;
   loading_address?: LegalPartyAddress | null;
   require_aade_credentials: boolean;
+  /** User-defined system item codes (beside the built-in 000/001). */
+  system_items?: LegalSystemItem[];
   updated_at?: string;
+}
+
+/** A free system code for document lines (e.g. ΑΦΟΣ = Ασήμι 999° σε γραμμάρια). */
+export interface LegalSystemItem {
+  code: string;
+  description: string;
+  /** Unit the line opens in; «g» is stored/transmitted as Κιλά (2). */
+  unit: import('./utils/legalUnits').LegalLineUnit;
+  /** Default price per displayed unit (e.g. per gram); null = enter on the line. */
+  default_price?: number | null;
+  is_active: boolean;
 }
 
 export interface LegalNumberingSequence {
@@ -1344,6 +1357,8 @@ export interface LegalDocumentLine {
     invoice_total_weight_g?: number | null;
     invoice_total_weight_source?: 'automatic' | 'manual' | 'missing';
     invoice_total_weight_missing_items?: string[];
+    /** Shown/typed in grams; stored and transmitted as Κιλά (measurement_unit 2). */
+    display_unit?: 'g' | null;
   } | null;
   created_at?: string;
 }

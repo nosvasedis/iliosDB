@@ -17,6 +17,7 @@ import {
   LegalParty,
   LegalPartyAddress,
   LegalSettings,
+  LegalSystemItem,
   LegalSyncParams,
   LegalTotals,
   LegalValidationIssue,
@@ -46,6 +47,8 @@ import {
   LEGAL_SHIPPING_ITEM_CODE,
   LEGAL_SHIPPING_ITEM_DESCRIPTION,
 } from './legalItemCodes';
+import { findLegalSystemItem, legalSystemItemProducts, normalizeLegalSystemCode } from './legalSystemItems';
+import { getLegalLineUnit, getLegalLineUnitMeta } from './legalUnits';
 
 export {
   isLegalRepairItemCode,
@@ -171,14 +174,46 @@ export const LEGAL_VIRTUAL_REPAIR_PRODUCT: Product = {
   collections: [],
 };
 
-export function getLegalDocumentCatalogProducts(products: Product[]): Product[] {
+export function getLegalDocumentCatalogProducts(products: Product[], systemItems: LegalSystemItem[] = []): Product[] {
+  const custom = legalSystemItemProducts(systemItems);
+  const customCodes = new Set(custom.map((product) => normalizeLegalSystemCode(product.sku)));
   return [
     LEGAL_VIRTUAL_SHIPPING_PRODUCT,
     LEGAL_VIRTUAL_REPAIR_PRODUCT,
+    ...custom,
     ...products.filter((product) =>
       !isLegalReservedItemCode(product.sku) && !isLegalReservedItemCode(product.prefix)
+      && !customCodes.has(normalizeLegalSystemCode(product.sku))
     ),
   ];
+}
+
+/**
+ * After a catalogue pick: a user system code opens in its own unit (quantity 1 of
+ * that unit, e.g. 1 gr = 0.001 kg); any other product goes back to pieces.
+ */
+export function applyLegalSystemItemToLine<T extends LegalDocumentLine>(line: T, systemItems: LegalSystemItem[] | null | undefined): T {
+  const item = findLegalSystemItem(systemItems, line.sku || line.item_code);
+  const { display_unit: _previousUnit, ...metadata } = line.source_metadata || {};
+  if (!item) {
+    if (getLegalLineUnit(line) === 'pcs') return line;
+    return { ...line, measurement_unit: 1, quantity: 1, source_metadata: metadata };
+  }
+  const meta = getLegalLineUnitMeta(item.unit);
+  const hasOriginalPrice = metadata.original_unit_price !== undefined && metadata.original_unit_price !== null;
+  return {
+    ...line,
+    sku: item.code,
+    item_code: item.code,
+    description: item.description,
+    measurement_unit: meta.aadeCode,
+    quantity: meta.factor,
+    source_metadata: {
+      ...metadata,
+      ...(item.unit === 'g' ? { display_unit: 'g' as const } : {}),
+      ...(hasOriginalPrice ? { original_unit_price: line.unit_price } : {}),
+    },
+  };
 }
 
 export function isLegalDocumentEditable(document: Pick<LegalDocument, 'status'>): boolean {

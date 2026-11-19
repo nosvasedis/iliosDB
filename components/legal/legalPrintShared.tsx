@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { APP_LOGO } from '../../constants';
 import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveLegalCarrierLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
+import { formatLegalQuantity, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, summarizeLegalQuantities } from '../../utils/legalUnits';
 
 export const LEGAL_PRINT_CSS = `
   @page { size: A4; margin: 0; }
@@ -736,7 +737,9 @@ export function LegalPrintLinesTable({
         </thead>
         <tbody>
           {lines.map((line, index) => {
-            const originalUnitPrice = line.source_metadata?.original_unit_price ?? line.unit_price;
+            const lineUnit = getLegalLineUnit(line);
+            // Gram lines are stored in kg (myDATA has no grams); print them as the user entered them.
+            const originalUnitPrice = lineUnit === 'pcs' ? (line.source_metadata?.original_unit_price ?? line.unit_price) : getLegalLineDisplayUnitPrice(line);
             const discountPercent = line.source_metadata?.discount_percent ?? 0;
             const globalIndex = startIndex + index;
             return (
@@ -750,8 +753,8 @@ export function LegalPrintLinesTable({
                   <div className="font-semibold text-slate-800">{line.description}</div>
                   {line.source_metadata?.line_comments && <div className="mt-0.5 text-[8.5px] italic text-slate-500">{line.source_metadata.line_comments}</div>}
                 </td>
-                <td className="px-1 py-[3px] text-right font-bold tabular-nums text-slate-800">{line.quantity.toLocaleString('el-GR')}</td>
-                <td className="px-1 py-[3px] text-center text-[8.5px] font-semibold text-slate-600">{getMeasurementUnitLabel(line.measurement_unit)}</td>
+                <td className="px-1 py-[3px] text-right font-bold tabular-nums text-slate-800">{lineUnit === 'pcs' ? line.quantity.toLocaleString('el-GR') : formatLegalQuantity(getLegalLineDisplayQuantity(line))}</td>
+                <td className="px-1 py-[3px] text-center text-[8.5px] font-semibold text-slate-600">{lineUnit === 'g' ? 'Γραμμάρια' : getMeasurementUnitLabel(line.measurement_unit)}</td>
                 <td className="px-1 py-[3px] text-right font-mono tabular-nums">{formatPrintMoney(originalUnitPrice, currency)}</td>
                 <td className="px-1 py-[3px] text-right font-mono tabular-nums">{Number(discountPercent).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%</td>
                 <td className="px-1 py-[3px] text-right font-mono font-bold tabular-nums text-slate-900">{formatPrintMoney(line.net_value, currency)}</td>
@@ -778,7 +781,7 @@ export function LegalPrintTotalsSection(props: {
   delivery?: LegalDeliveryDetails | null;
   footerText?: React.ReactNode;
 }) {
-  const totalQuantity = props.lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+  const totalQuantity = summarizeLegalQuantities(props.lines);
   const originalNet = props.lines.reduce((sum, line) => {
     const originalUnitPrice = line.source_metadata?.original_unit_price ?? line.unit_price;
     return sum + (Number(originalUnitPrice || 0) * Number(line.quantity || 0));
@@ -811,7 +814,7 @@ export function LegalPrintTotalsSection(props: {
       <div className="overflow-hidden rounded-md border border-slate-400 text-[10px]">
         <div className="bg-slate-100 px-2 py-1.5 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη παραστατικού</div>
         <div className="grid grid-cols-2">
-          <SummaryMetric className="border-r border-slate-200" label="Συνολική ποσότητα" value={totalQuantity.toLocaleString('el-GR')} />
+          <SummaryMetric className="border-r border-slate-200" label="Συνολική ποσότητα" value={totalQuantity || '0'} />
           <SummaryMetric label="Συντελεστής ΦΠΑ" value={vatRateSummary || '-'} />
 
           {hasDiscount && (

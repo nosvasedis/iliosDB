@@ -4,7 +4,7 @@ import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, isReservedCustomerName, i
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalSystemItem, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { CATALOG_IMAGE_PREPARE_HEADER, CatalogPrepareFailedError, compressImage } from '../utils/imageHelpers';
@@ -72,6 +72,7 @@ import {
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
 import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, formatGreekRetryDuration, getAadeProxyErrorMessage, getAadeRateLimitRetrySeconds, getHighestAadeMark, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalReservedItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { sanitizeLegalSystemItems } from '../utils/legalSystemItems';
 import {
     buildArchivedDocumentEnrichment,
     buildLegalCounterpartKnowledge,
@@ -1382,6 +1383,7 @@ const apiMethods = {
                 ...safeRow,
                 issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(safeRow.issuer || {}) },
                 loading_address: safeRow.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
+                system_items: sanitizeLegalSystemItems(safeRow.system_items),
             } as LegalSettings;
         };
 
@@ -1416,6 +1418,13 @@ const apiMethods = {
             id: settings.id || LEGAL_SETTINGS_ID,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'id', noSelect: true });
+    },
+
+    /** Writes only the system codes, so unsaved edits elsewhere in the settings form are not persisted. */
+    saveLegalSystemItems: async (items: LegalSystemItem[]): Promise<LegalSystemItem[]> => {
+        const system_items = sanitizeLegalSystemItems(items);
+        await safeMutate('legal_settings', 'UPDATE', { system_items, updated_at: new Date().toISOString() }, { match: { id: LEGAL_SETTINGS_ID }, noSelect: true });
+        return system_items;
     },
 
     getLegalNumberingSequences: async (): Promise<LegalNumberingSequence[]> => {

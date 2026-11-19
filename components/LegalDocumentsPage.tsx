@@ -55,6 +55,8 @@ import {
 import { AadeVatRegistryResult, Customer, Material, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalPartyAddress, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
+import SystemItemsSettings from './legal/SystemItemsSettings';
+import { applyLegalLineUnit, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, getLegalLineUnitMeta, LEGAL_LINE_UNITS, toStoredLegalQuantity, toStoredLegalUnitPrice, type LegalLineUnit } from '../utils/legalUnits';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
 import ProformaConvertModal from './legal/ProformaConvertModal';
 import IncomeClassificationTypeSelect from './legal/IncomeClassificationTypeSelect';
@@ -110,6 +112,7 @@ import {
   useSaveLegalDraft,
   useSaveLegalSequence,
   useSaveLegalSettings,
+  useSaveLegalSystemItems,
   useSubmitLegalDocument,
   useSyncTransmittedLegalDocuments,
   useClearLegalSyncRuns,
@@ -165,6 +168,7 @@ import {
   documentIncludesDeliveryNote,
   getLegalCatalogLineDetails,
   getLegalDocumentCatalogProducts,
+  applyLegalSystemItemToLine,
   getAllowedIncomeTypeOptions,
   isOfficialLegalDocumentPrint,
   isWholesaleAadeDocumentType,
@@ -546,7 +550,7 @@ const StepIndicator = ({ steps }: { steps: Array<{ label: string; detail: string
             step.state === 'done'
               ? 'bg-emerald-600 text-white'
               : step.state === 'active'
-                ? 'bg-[#060b00] text-white ring-4 ring-emerald-100'
+                ? 'bg-white text-emerald-700 ring-2 ring-emerald-500 shadow-xs shadow-emerald-900/10'
                 : 'bg-slate-100 text-slate-400'
           }`}
         >
@@ -1034,8 +1038,8 @@ export default function LegalDocumentsPage({
   const { profile } = useAuth();
   const userName = profile?.full_name || profile?.email || null;
   const legalCatalogProducts = useMemo(
-    () => getLegalDocumentCatalogProducts(products),
-    [products],
+    () => getLegalDocumentCatalogProducts(products, settingsDraft.system_items),
+    [products, settingsDraft.system_items],
   );
 
   const { data: orders = [], isLoading: loadingOrders } = useOrdersWithItems();
@@ -1102,6 +1106,8 @@ export default function LegalDocumentsPage({
   const linkLegalArchiveDeliveryNote = useLinkLegalArchiveDeliveryNote();
   const saveSequence = useSaveLegalSequence();
   const saveCarrier = useSaveLegalCarrier();
+  const saveSystemItems = useSaveLegalSystemItems();
+  const productSkuList = useMemo(() => products.map((product) => product.sku), [products]);
   const saveDraft = useSaveLegalDraft();
   const saveProforma = useSaveProformaDraft();
   const voidProforma = useVoidProformaDocument();
@@ -1559,7 +1565,7 @@ export default function LegalDocumentsPage({
         }, selection.displaySku, settingsDraft, current.aade_document_type);
       }
       const catalogDetails = getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, current.aade_document_type, products, materials);
-      return {
+      return applyLegalSystemItemToLine({
         ...line,
         ...catalogDetails,
         source_metadata: {
@@ -1567,7 +1573,7 @@ export default function LegalDocumentsPage({
           ...(catalogDetails.source_metadata || {}),
           income_classification_source: 'automatic',
         },
-      };
+      }, settingsDraft.system_items);
     }), settingsDraft));
   };
 
@@ -2957,10 +2963,19 @@ export default function LegalDocumentsPage({
                             <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 h-6 w-full rounded-sm border border-slate-100 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-500 outline-hidden transition focus:border-emerald-400 focus:bg-white" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
                           </td>
                           <td className="px-1 py-2 text-right">
-                            <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums ${line.quantity <= 0 ? problemClass(lineIssues[0]) : ''}`} aria-label={`Ποσότητα γραμμής ${formatNumber(line.line_number)}`} />
+                            <input type="number" min="0.001" step={getLegalLineUnit(line) === 'g' ? '0.01' : '0.001'} value={getLegalLineDisplayQuantity(line)} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: toStoredLegalQuantity(item, Number(event.target.value) || 0) } : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums ${line.quantity <= 0 ? problemClass(lineIssues[0]) : ''}`} aria-label={`Ποσότητα γραμμής ${formatNumber(line.line_number)}`} />
+                            <select
+                              value={getLegalLineUnit(line)}
+                              onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineUnit(item, event.target.value as LegalLineUnit) : item), settingsDraft))}
+                              className={`mt-1 h-6 w-full rounded-md border px-1 text-right text-[10px] font-bold outline-hidden transition focus:border-emerald-400 ${getLegalLineUnit(line) === 'pcs' ? 'border-slate-100 bg-slate-50 text-slate-500' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
+                              title={getLegalLineUnit(line) === 'g' ? 'Γραμμάρια: διαβιβάζονται στη myDATA ως Κιλά (κωδ. 2), π.χ. 125 gr = 0,125 kg.' : 'Μονάδα μέτρησης γραμμής'}
+                              aria-label={`Μονάδα μέτρησης γραμμής ${formatNumber(line.line_number)}`}
+                            >
+                              {LEGAL_LINE_UNITS.map((unit) => <option key={unit.id} value={unit.id}>{unit.short}</option>)}
+                            </select>
                           </td>
                           <td className="px-1 py-2 text-right">
-                            <input type="number" min="0" step="0.01" value={line.source_metadata?.original_unit_price ?? line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(event.target.value) || 0, Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums ${line.quantity > 0 && line.net_value === 0 && document.aade_document_type !== '9.3' ? problemClass(lineIssues[0]) : ''}`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
+                            <input type="number" min="0" step={getLegalLineUnit(line) === 'g' ? '0.0001' : '0.01'} value={getLegalLineDisplayUnitPrice(line)} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, toStoredLegalUnitPrice(item, Number(event.target.value) || 0), Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} title={getLegalLineUnit(line) === 'pcs' ? undefined : `Τιμή ανά ${getLegalLineUnitMeta(getLegalLineUnit(line)).short}`} className={`${cellInputClass} text-right tabular-nums ${line.quantity > 0 && line.net_value === 0 && document.aade_document_type !== '9.3' ? problemClass(lineIssues[0]) : ''}`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
                           </td>
                           <td className="px-1 py-2 text-right">
                             <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Έκπτωση γραμμής ${formatNumber(line.line_number)}`} />
@@ -3231,11 +3246,20 @@ export default function LegalDocumentsPage({
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-4">
           <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            <div className="relative overflow-hidden bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] px-5 py-4 text-white">
-              <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl" aria-hidden />
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Σύνοψη · Βήμα 1</div>
-              <div className="mt-1 text-lg font-black leading-tight">{selectedCreationType.label}</div>
-              <div className="mt-0.5 text-xs font-medium text-white/60">{sourceTitle}</div>
+            <div className="relative overflow-hidden border-b border-emerald-100/80 bg-linear-to-br from-emerald-50 via-white to-amber-50/50 px-5 py-4">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-emerald-200/40 blur-2xl" aria-hidden />
+              <div className="relative flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-100">
+                  <selectedCreationType.icon size={20} />
+                </span>
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden /> Σύνοψη · Βήμα 1
+                  </div>
+                  <div className="mt-1.5 text-lg font-black leading-tight text-slate-900">{selectedCreationType.label}</div>
+                  <div className="mt-0.5 text-xs font-medium text-slate-500">{sourceTitle}</div>
+                </div>
+              </div>
             </div>
             <dl className="divide-y divide-slate-100 px-5 text-sm">
               {summaryRows.map(([label, value]) => (
@@ -4855,6 +4879,26 @@ export default function LegalDocumentsPage({
                 })}
               </div>
             )}
+          </SettingsCard>
+
+          <SettingsCard
+            icon={Hash}
+            tone="amber"
+            title="Συστημικοί κωδικοί"
+            subtitle="Δικοί σας κωδικοί ειδών για παραστατικά (π.χ. ΑΦΟΣ, ΜΠΟΚ για το χυτήριο), με δική τους μονάδα μέτρησης. Εμφανίζονται στην επιλογή ειδών κάθε γραμμής."
+            action={<SettingsStatusBadge tone="slate">{formatNumber((settingsDraft.system_items || []).length)}</SettingsStatusBadge>}
+          >
+            <SystemItemsSettings
+              items={settingsDraft.system_items || []}
+              productSkus={productSkuList}
+              saving={saveSystemItems.isPending}
+              readOnly={isInspectionPresentation}
+              onSave={async (next) => {
+                const saved = await saveSystemItems.mutateAsync(next);
+                setSettingsDraft((current) => ({ ...current, system_items: saved }));
+                showToast('Οι συστημικοί κωδικοί αποθηκεύτηκαν.', 'success');
+              }}
+            />
           </SettingsCard>
 
           <SettingsCard
