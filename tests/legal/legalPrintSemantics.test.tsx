@@ -248,7 +248,7 @@ describe('legal print semantics', () => {
       <LegalPrintCustomerBar counterpart={{ ...counterpart, branch: 2 }} />,
     );
 
-    expect(html).toContain('Υποκατάστημα:');
+    expect(html).toContain('ΥΠΟΚΑΤΑΣΤΗΜΑ:');
     expect(html).toContain('>2<');
   });
 
@@ -300,19 +300,19 @@ describe('legal print semantics', () => {
     expect(html).toContain('ΠΕΛΑΤΗΣ Α.Ε.');
     expect(html).toContain('Λεωφόρος Πελάτη');
     expect(html).toContain('Αθήνα, Ελλάδα');
-    expect(html).not.toContain('Χώρα:');
-    expect(html).not.toContain('Υποκατάστημα: 0');
+    expect(html).not.toContain('ΧΩΡΑ:');
+    expect(html).not.toContain('ΥΠΟΚΑΤΑΣΤΗΜΑ: 0');
     expect(html).toContain('ΤΙΜ');
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');
-    expect(html).toContain('Τύπος myDATA:');
-    expect(html.indexOf('Όροι παράδοσης')).toBeLessThan(html.indexOf('Τύπος myDATA:'));
-    expect(html.indexOf('Τύπος myDATA:')).toBeLessThan(html.indexOf('Χαρακτηρισμοί:'));
+    expect(html).toContain('ΤΥΠΟΣ MYDATA:');
+    expect(html.indexOf('ΟΡΟΙ ΠΑΡΑΔΟΣΗΣ')).toBeLessThan(html.indexOf('ΤΥΠΟΣ MYDATA:'));
+    expect(html.indexOf('ΤΥΠΟΣ MYDATA:')).toBeLessThan(html.indexOf('ΧΑΡΑΚΤΗΡΙΣΜΟΙ:'));
     expect(html).toContain('40000000000042');
     expect(html).toContain('UID-DOCUMENT-42');
     expect(html).toContain('SIGNATURE-DOCUMENT-42');
-    expect(html).toContain('Στοιχεία επαλήθευσης');
-    expect(html).not.toContain('Στοιχεία επαλήθευσης myDATA / ΑΑΔΕ');
+    expect(html).toContain('ΣΤΟΙΧΕΙΑ ΕΠΑΛΗΘΕΥΣΗΣ');
+    expect(html).not.toContain('ΣΤΟΙΧΕΙΑ ΕΠΑΛΗΘΕΥΣΗΣ MYDATA / ΑΑΔΕ');
     expect(html).not.toContain('Πάροχος ηλεκτρονικής τιμολόγησης:');
     expect(html).not.toContain('SBZ Systems');
     expect(html).toContain('Μ.Αρ.Κ.:');
@@ -331,13 +331,13 @@ describe('legal print semantics', () => {
     expect(html).toContain('088/003361-85');
     expect(html).toContain('IBAN:');
     expect(html).toContain('GR1401100880000008800336185');
-    expect(html).toContain('Όροι παράδοσης');
+    expect(html).toContain('ΟΡΟΙ ΠΑΡΑΔΟΣΗΣ');
     expect(html.match(/legal-print-full-width-details/g)).toHaveLength(2);
     expect(html).not.toContain('ml-[30mm]');
     expect(html).toContain('Τα εμπορεύματα ταξιδεύουν για λογαριασμό και με κίνδυνο του αγοραστή.');
     expect(html).toContain('Για κάθε διαφορά αρμόδια είναι τα δικαστήρια του Πειραιά.');
     expect(html).toContain('Η εξόφληση του τιμολογίου πρέπει να γίνεται με την παράδοση.');
-    expect(html.match(/Σύνοψη παραστατικού/g)).toHaveLength(1);
+    expect(html.match(/ΣΥΝΟΨΗ ΠΑΡΑΣΤΑΤΙΚΟΥ/g)).toHaveLength(1);
     expect(html).toContain('Συνολική ποσότητα');
     expect(html).not.toContain('Συν. ποσότητα');
     expect(html.indexOf('Συνολική ποσότητα')).toBeLessThan(html.indexOf('Συντελεστής ΦΠΑ'));
@@ -352,9 +352,9 @@ describe('legal print semantics', () => {
     expect(html).toContain('>20%</span>');
     expect(html).toContain('50,00 €');
     expect(html).toContain('legal-print-final-section');
-    expect(html.indexOf('legal-print-final-section')).toBeLessThan(html.indexOf('Σύνοψη παραστατικού'));
-    expect(html.indexOf('Σύνοψη παραστατικού')).toBeLessThan(html.indexOf('Στοιχεία επαλήθευσης'));
-    expect(html).not.toContain('Σχόλιο:');
+    expect(html.indexOf('legal-print-final-section')).toBeLessThan(html.indexOf('ΣΥΝΟΨΗ ΠΑΡΑΣΤΑΤΙΚΟΥ'));
+    expect(html.indexOf('ΣΥΝΟΨΗ ΠΑΡΑΣΤΑΤΙΚΟΥ')).toBeLessThan(html.indexOf('ΣΤΟΙΧΕΙΑ ΕΠΑΛΗΘΕΥΣΗΣ'));
+    expect(html).not.toContain('ΣΧΟΛΙΟ:');
     expect(html).not.toContain('Αντίγραφο παραστατικού');
     expect(html).not.toContain('Το παρόν εκτυπώνεται από το αποθηκευμένο παραστατικό του IliosERP.');
     expect(html).toContain('RNG001');
@@ -362,8 +362,8 @@ describe('legal print semantics', () => {
     expect(html).toContain('Ειδική συσκευασία');
     expect(html).toContain('Μ.Μ.');
     expect(html).toContain('Τεμάχια');
-    expect(html).toContain('Τιμή μον.');
-    expect(html).toContain('Έκπτ.%');
+    expect(html).toContain('ΤΙΜΗ ΜΟΝ.');
+    expect(html).toContain('ΕΚΠΤ.%');
     expect(html).toContain('data-legal-print-line-index="0"');
     expect(html).toContain('bg-white');
     expect(html).toContain('py-[3px]');
@@ -371,17 +371,19 @@ describe('legal print semantics', () => {
     expect(html).toContain('20%');
     expect(html).toContain('24%');
     expect(html).not.toContain('απαιτεί αιτία');
-    expect(html).toContain('Στοιχεία συναλλαγής &amp; διακίνησης');
-    expect(html).toContain('Σκοπός διακίνησης');
+    expect(html).toContain('ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ');
+    expect(html).not.toContain('ΣΤΟΙΧΕΊΑ ΠΕΛΆΤΗ');
+    expect(html).toContain('ΣΤΟΙΧΕΙΑ ΣΥΝΑΛΛΑΓΗΣ &amp; ΔΙΑΚΙΝΗΣΗΣ');
+    expect(html).toContain('ΣΚΟΠΟΣ ΔΙΑΚΙΝΗΣΗΣ');
     expect(html).toContain('Πώληση');
-    expect(html).toContain('Τρόπος πληρωμής');
-    expect(html).toContain('Τόπος φόρτωσης');
+    expect(html).toContain('ΤΡΟΠΟΣ ΠΛΗΡΩΜΗΣ');
+    expect(html).toContain('ΤΟΠΟΣ ΦΟΡΤΩΣΗΣ');
     expect(html).toContain('Έδρα μας');
-    expect(html).toContain('Τόπος προορισμού');
-    expect(html).toContain('Τρόπος αποστολής');
+    expect(html).toContain('ΤΟΠΟΣ ΠΡΟΟΡΙΣΜΟΥ');
+    expect(html).toContain('ΤΡΟΠΟΣ ΑΠΟΣΤΟΛΗΣ');
     expect(html).toContain('Μεταφορική');
     expect(html).not.toContain('Ανάλυση υπολογισμού ΦΠΑ');
-    expect(html).not.toContain('Όχημα');
+    expect(html).not.toContain('ΟΧΗΜΑ:');
   });
 
   it('uses the actual delivery-note purpose and locations without duplicating generic defaults', () => {
@@ -409,11 +411,11 @@ describe('legal print semantics', () => {
     expect(html).toContain('Σημείο Παράδοσης 4, 11527 Αθήνα, Ελλάδα');
     expect(html).toContain('29/07/2026 · 12:30');
     expect(html).toContain('Μεταφορική Δοκιμής');
-    expect(html).toContain('Σχόλιο:');
+    expect(html).toContain('ΣΧΟΛΙΟ:');
     expect(html).toContain('Παράδοση στην πίσω είσοδο');
-    expect(html.match(/Σχόλιο:/g)).toHaveLength(1);
+    expect(html.match(/ΣΧΟΛΙΟ:/g)).toHaveLength(1);
     expect(html).not.toContain('Έδρα μας');
-    expect(html).not.toContain('Παράδοση:');
+    expect(html).not.toContain('ΠΑΡΑΔΟΣΗ:');
   });
 
   it('places a correlated credit MARK inside the document-type cell and never above the logo', () => {

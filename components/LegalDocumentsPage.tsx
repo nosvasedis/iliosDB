@@ -1040,7 +1040,7 @@ export default function LegalDocumentsPage({
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
   const [headerTab, setHeaderTab] = useState<DocumentHeaderTab>('customer');
   /** Result of the last «Έκδοση»: shown instead of the editor so the same draft cannot be sent twice. */
-  const [issueOutcome, setIssueOutcome] = useState<{ documentId: string; document: LegalDocument } | null>(null);
+  const [issueOutcome, setIssueOutcome] = useState<LegalDocument | null>(null);
   const [issuingDocument, setIssuingDocument] = useState<LegalDocument | null>(null);
   const [reconcilingOutcome, setReconcilingOutcome] = useState(false);
   /** Synchronous single-flight lock: a second click never reaches the provider while one send runs. */
@@ -1093,9 +1093,16 @@ export default function LegalDocumentsPage({
     } catch (e) { showToast((e as Error).message, 'error'); }
   };
   const reconcileSbz = async (document: LegalDocument) => {
-    try { const result = await api.reconcileLegalDocument(document.id); showToast(result.provider_state === 'unknown' ? 'Ο έλεγχος παραμένει εκκρεμής. Δεν έγινε νέα αποστολή.' : 'Ο έλεγχος ολοκληρώθηκε.', 'info'); }
-    catch (e) { showToast((e as Error).message, 'error'); }
-    finally { await queryClient.invalidateQueries({queryKey: legalKeys.documents()}); }
+    try {
+      const result = await api.reconcileLegalDocument(document.id);
+      showToast(result.provider_state === 'unknown' ? 'Ο έλεγχος παραμένει εκκρεμής. Δεν έγινε νέα αποστολή.' : 'Ο έλεγχος ολοκληρώθηκε.', 'info');
+      return result;
+    } catch (e) {
+      showToast((e as Error).message, 'error');
+      return null;
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+    }
   };
   const attachSbz = async (document: LegalDocument, file: File) => {
     try { const form = new FormData(); form.set('documentId', document.id); form.set('file', file); await api.callSbz('/sbz/attach', form); showToast('Το αρχείο επισυνάφθηκε στον πάροχο.', 'success'); }
@@ -2211,15 +2218,19 @@ export default function LegalDocumentsPage({
       legalDraftRestart.markSaved();
       const issued = await submitDocument.mutateAsync({ documentId: document.id, userName });
       setDraftBundle(null);
-      setIssueOutcome({ documentId: document.id, document: { ...document, ...(issued || {}) } });
-      showToast(`Αποδοχή myDATA με MARK ${issued?.aade_mark || '—'}.`, 'success');
+      setIssueOutcome(issued);
+      showToast(`Αποδοχή myDATA με MARK ${issued.aade_mark || '—'}.`, 'success');
     } catch (error: any) {
       const message = error?.message || 'Ο πάροχος δεν δέχθηκε το παραστατικό.';
       const server = await fetchServerDocument(document.id);
       if (server && !isLegalDocumentEditable(server)) {
         // Sent but not confirmed (or already accepted): never offer a second send from the editor.
         setDraftBundle(null);
-        setIssueOutcome({ documentId: server.id, document: server });
+        setIssueOutcome(server);
+        if (server.status === 'issued' && server.aade_mark) {
+          showToast(`Αποδοχή myDATA με MARK ${server.aade_mark}.`, 'success');
+          return;
+        }
       } else if (server?.status === 'failed') {
         setDraftBundle((current) => current && current.document.id === server.id
           ? { ...current, document: { ...current.document, status: 'failed', last_error: server.last_error || message } }
@@ -2233,15 +2244,19 @@ export default function LegalDocumentsPage({
     }
   };
 
-  const outcomeDocument = issueOutcome
-    ? legalDocuments.find((document) => document.id === issueOutcome.documentId) || issueOutcome.document
-    : null;
+  const archivedOutcome = issueOutcome && legalDocuments.find((document) => document.id === issueOutcome.id);
+  // The archive refresh can still contain the rejected row from before the retry.
+  const outcomeDocument = issueOutcome && archivedOutcome
+    && Date.parse(archivedOutcome.updated_at) > Date.parse(issueOutcome.updated_at)
+    && (!issueOutcome.aade_mark || archivedOutcome.aade_mark === issueOutcome.aade_mark)
+    ? archivedOutcome : issueOutcome;
 
   const handleReconcileOutcome = async () => {
     if (!outcomeDocument) return;
     setReconcilingOutcome(true);
     try {
-      await reconcileSbz(outcomeDocument);
+      const reconciled = await reconcileSbz(outcomeDocument);
+      if (reconciled) setIssueOutcome((current) => current?.id === reconciled.id ? reconciled : current);
     } finally {
       setReconcilingOutcome(false);
     }
@@ -2730,7 +2745,7 @@ export default function LegalDocumentsPage({
 
     const statusNotices = (
       <>
-        {document.status === 'failed' && editable ? (
+        {document.status === 'failed' && editable && !issuingDocument ? (
           <Notice tone="red" icon={XCircle} role="alert" title="Ο πάροχος απέρριψε την προηγούμενη αποστολή">
             {document.last_error || 'Διορθώστε τα στοιχεία και στείλτε ξανά.'} Δεν αποδόθηκε MARK, οπότε η νέα αποστολή δεν δημιουργεί διπλό παραστατικό.
           </Notice>

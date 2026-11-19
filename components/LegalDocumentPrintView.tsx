@@ -185,7 +185,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
               <div className="legal-print-first-page-content" data-legal-print-first-content>
                 {document.environment === 'dev' && <div className="mb-3 border-2 border-amber-500 p-3 text-center font-black text-amber-900">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ · ΧΩΡΙΣ ΦΟΡΟΛΟΓΙΚΗ ΙΣΧΥ</div>}
                 <LegalPrintHeader
-                  title={kindLabel.toLocaleUpperCase('el-GR')}
+                  title={kindLabel}
                   documentNumber={getLegalDocumentDisplayNumber(document)}
                   issuer={document.issuer}
                   series={document.series}
@@ -202,8 +202,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                       ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}
                     </span>
                   ) : !isOfficialPrint ? (
-                    <span className="inline-flex rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-                      Πρόχειρο — όχι νόμιμο παραστατικό
+                    <span className="inline-flex rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold tracking-wide text-amber-950">
+                      ΠΡΟΧΕΙΡΟ — ΟΧΙ ΝΟΜΙΜΟ ΠΑΡΑΣΤΑΤΙΚΟ
                     </span>
                   ) : undefined}
                 />

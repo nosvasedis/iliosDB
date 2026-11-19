@@ -3,16 +3,19 @@ import React from 'react';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Gender, PlatingType, ProductionType, type Product } from '../../types';
+import { Gender, PlatingType, ProductionType, type LegalDocument, type Product } from '../../types';
 import type { LegalCatalogItem } from '../../features/inspection/types';
+import { DEFAULT_LEGAL_SETTINGS, toAthensIsoDate } from '../../utils/legalDocuments';
+import { sbzFixture } from './sbzFixture';
 
 const mocks = vi.hoisted(() => ({
   loadLegalCatalog: vi.fn(), mutateAsync: vi.fn(), showToast: vi.fn(), confirm: vi.fn(),
+  getDocumentLines: vi.fn(), legalDocuments: vi.fn(), legalSettings: vi.fn(), sbzStatus: vi.fn(), submitDocument: vi.fn(),
   profile: { id: 'owner', role: 'admin', full_name: 'Owner', is_approved: true },
   emptyQuery: { data: [], isLoading: false, isError: false, isPending: false, refetch: vi.fn() },
   pickerProps: vi.fn(),
 }));
-vi.mock('../../lib/supabase', () => ({ api: {}, supabase: {}, isLocalMode: false }));
+vi.mock('../../lib/supabase', () => ({ api: { getLegalDocumentLines: mocks.getDocumentLines }, supabase: {}, isLocalMode: false }));
 vi.mock('../../components/AuthContext', () => ({ useAuth: () => ({ profile: mocks.profile }) }));
 vi.mock('../../components/UIProvider', () => ({ useUI: () => ({ showToast: mocks.showToast, confirm: mocks.confirm }) }));
 vi.mock('../../features/inspection/repository', () => ({ loadLegalCatalog: mocks.loadLegalCatalog, loadInspectionSnapshot: vi.fn() }));
@@ -27,11 +30,13 @@ vi.mock('../../hooks/api/useLegalDocuments', async (importOriginal) => {
   const result = { ...mocks.emptyQuery, mutateAsync: mocks.mutateAsync };
   return {
     ...Object.fromEntries(Object.keys(original).map((name) => [name, () => result])),
-    useLegalSettings: () => ({ data: undefined }),
+    useLegalDocuments: () => ({ ...mocks.emptyQuery, data: mocks.legalDocuments() }),
+    useLegalSettings: () => ({ data: mocks.legalSettings() }),
+    useSubmitLegalDocument: () => ({ ...mocks.emptyQuery, mutateAsync: mocks.submitDocument }),
     useAadeCredentialStatus: () => ({ data: undefined }),
   };
 });
-vi.mock('../../components/legal/SbzSettings', () => ({ default: () => null, useSbzStatus: () => ({ data: undefined }) }));
+vi.mock('../../components/legal/SbzSettings', () => ({ default: () => null, useSbzStatus: () => ({ data: mocks.sbzStatus() }) }));
 vi.mock('../../components/legal/SkuProductPicker', () => ({ default: (props: any) => { mocks.pickerProps(props); return <div data-testid="sku-picker" />; } }));
 import LegalDocumentsPage from '../../components/LegalDocumentsPage';
 import { legalCatalogProducts } from '../../features/inspection/catalog';
@@ -77,6 +82,12 @@ describe('legal document page catalog loading', () => {
     vi.clearAllMocks();
     mocks.loadLegalCatalog.mockReset();
     mocks.mutateAsync.mockRejectedValue(new Error('This render test must not issue or save a document'));
+    mocks.confirm.mockReset();
+    mocks.getDocumentLines.mockReset();
+    mocks.legalDocuments.mockReset().mockReturnValue(mocks.emptyQuery.data);
+    mocks.legalSettings.mockReset();
+    mocks.sbzStatus.mockReset();
+    mocks.submitDocument.mockReset();
     client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     localStorage.clear();
     sessionStorage.clear();
@@ -134,6 +145,43 @@ describe('legal document page catalog loading', () => {
     await mount();
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
     expect(text()).not.toContain('Ανανέωση καταλόγου');
+  });
+
+  it('shows the accepted SBZ result as soon as a retry succeeds, with the old rejection still in the archive', async () => {
+    const { document, lines } = sbzFixture();
+    const issueDate = toAthensIsoDate(new Date());
+    const rejected: LegalDocument = {
+      ...document, document_kind: 'delivery_note', aade_document_type: '9.3', status: 'failed', provider_state: 'rejected',
+      last_error: 'Παλιά απόρριψη', issue_date: issueDate,
+      delivery: { dispatch_date: issueDate, dispatch_time: '12:00', move_purpose: 1, dispatch_method: 'Ίδια μέσα',
+        loading_address: document.issuer.address, delivery_address: document.counterpart.address, vehicle_number: 'ABC123' },
+    };
+    const response = deferred<LegalDocument>();
+    mocks.loadLegalCatalog.mockResolvedValue(catalog());
+    mocks.legalDocuments.mockReturnValue([rejected]);
+    mocks.legalSettings.mockReturnValue({ ...DEFAULT_LEGAL_SETTINGS, issuer: document.issuer });
+    mocks.getDocumentLines.mockResolvedValue(lines);
+    mocks.sbzStatus.mockReturnValue({ dev: { ready: true } });
+    mocks.confirm.mockResolvedValue(true);
+    mocks.mutateAsync.mockResolvedValue(rejected);
+    mocks.submitDocument.mockReturnValue(response.promise);
+
+    await mount();
+    await click(document.counterpart.name!);
+    await click('Νέα αποστολή μέσω SBZ');
+    expect(text()).toContain('Αποστολή στον πάροχο');
+    expect(text()).not.toContain('Παλιά απόρριψη');
+    expect(mocks.submitDocument).toHaveBeenCalledTimes(1);
+
+    await settle(() => response.resolve({
+      ...rejected, status: 'issued', provider_state: 'accepted', last_error: null,
+      aade_mark: '4000000000123', updated_at: '2026-11-19T09:00:00Z',
+    }));
+
+    expect(text()).toContain('Αποδεκτό από τη myDATA');
+    expect(text()).toContain('4000000000123');
+    expect(text()).not.toContain('Ο πάροχος δεν δέχθηκε το παραστατικό');
+    expect(text()).not.toContain('Παλιά απόρριψη');
   });
 
   it('allows a failed catalog request to be retried without enabling creation prematurely', async () => {
