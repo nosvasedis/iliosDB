@@ -33,8 +33,7 @@ import {
   sidebarMainClass,
 } from './layout/SidebarChrome';
 import { prefersCollapsedDesktopSidebar } from '../features/layout/sidebarChrome';
-import { useInspectionSnapshot, useLegalCatalog } from '../hooks/api/useInspection';
-import { legalCatalogProducts } from '../features/inspection/catalog';
+import { useInspectionSnapshot } from '../hooks/api/useInspection';
 import { useOfflineSync } from '../hooks/useOfflineSync';
 import InspectionWorkspace, { InspectionStatusPanel, type InspectionExtraTab } from './inspection/InspectionWorkspace';
 import type { InspectionFilters } from '../features/inspection/types';
@@ -78,12 +77,6 @@ const InspectionModeShell: React.FC = () => {
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine
   );
-  // Keep inspection mode inside its legal-data allowlist. Product recipes are
-  // already stripped by the inspection catalogue loader, so loading the full
-  // materials table here would expose unrelated ERP cost and stock data.
-  const catalogQuery = useLegalCatalog();
-  const products = React.useMemo(() => legalCatalogProducts(catalogQuery.data?.items || []), [catalogQuery.data]);
-  const { isLoading: loadingProducts, isError: productsError, refetch: refreshProducts } = catalogQuery;
   const { data: queriedLegalSettings } = useLegalSettings();
   const legalSettings = queriedLegalSettings || snapshotQuery.data?.tables.legal_settings?.[0]?.settings;
   const { setLegalDocumentToPrint, setProformaToPrint } = usePrint();
@@ -107,26 +100,6 @@ const InspectionModeShell: React.FC = () => {
   const issuerName = legalSettings?.issuer?.business_name || legalSettings?.issuer?.name;
   const isProduction = ['new','sync','settings'].includes(activeTab) ? legalSettings?.environment === 'prod' : filters.environment === 'prod';
   const environment = isProduction ? 'ΠΑΡΑΓΩΓΗ' : 'ΔΟΚΙΜΕΣ';
-
-  if (loadingProducts && !snapshotQuery.data) {
-    return <IliosLoader variant="screen" detail="Προετοιμασία παραστατικών" />;
-  }
-
-  if (productsError && !snapshotQuery.data) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-600 p-6 text-center">
-        <p className="text-lg font-bold text-slate-900 mb-2">Δεν ήταν δυνατή η φόρτωση του συστήματος</p>
-        <p className="text-sm text-slate-500 max-w-md">Ελέγξτε τη σύνδεσή σας και ανανεώστε τη σελίδα.</p>
-        <button
-          type="button"
-          onClick={() => void snapshotQuery.refetch()}
-          className="mt-6 rounded-xl bg-[#060b00] px-5 py-2.5 text-sm font-bold text-white hover:bg-black transition-colors"
-        >
-          Ανανέωση
-        </button>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -202,8 +175,6 @@ const InspectionModeShell: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {productsError && <p role="alert" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ο κατάλογος έκδοσης δεν ανακτήθηκε. Τα στοιχεία του στιγμιοτύπου παραμένουν διαθέσιμα.<button type="button" className="ml-2 font-bold underline" onClick={() => void refreshProducts()}>Ανανέωση καταλόγου</button></p>}
-              {catalogQuery.data?.saved && <p role="alert" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ο κατάλογος είναι αποθηκευμένο αντίγραφο της {new Date(catalogQuery.data.fetchedAt).toLocaleString('el-GR')}. Η νέα δημιουργία απαιτεί επιτυχή ενημέρωση.<button type="button" className="ml-2 font-bold underline" onClick={() => void refreshProducts()}>Ανανέωση καταλόγου</button></p>}
               <InspectionStatusPanel snapshot={snapshotQuery.data} loading={snapshotQuery.isFetching} error={snapshotQuery.error} pendingCount={pendingCount}
                 filters={filters} onFilters={setFilters} onRefresh={() => void snapshotQuery.refetch()} />
               {['registry', 'readiness', 'inventory', 'third_parties'].includes(activeTab) ? (
@@ -212,12 +183,11 @@ const InspectionModeShell: React.FC = () => {
               ) : (
               <Suspense fallback={<IliosLoader variant="section" detail={tabTitles[activeTab]} />}>
                 <LegalDocumentsPage
-                  products={products}
+                  products={[]}
                   presentation="inspection"
                   activeTab={activeTab as LegalTab}
                   inspectionSnapshot={snapshotQuery.data}
                   inspectionSnapshotPending={snapshotQuery.isFetching}
-                  inspectionCatalogReady={!!catalogQuery.data && !catalogQuery.data.saved && isOnline}
                   initialDocumentId={documentToOpen}
                   onActiveTabChange={setActiveTab}
                   onPrintLegalDocument={setLegalDocumentToPrint}
