@@ -105,7 +105,8 @@ describe('legal document page catalog loading', () => {
     const response = deferred<ReturnType<typeof catalog>>();
     mocks.loadLegalCatalog.mockReturnValue(response.promise);
     await mount();
-    expect(text()).toContain('Ανάκτηση καταλόγου έκδοσης από τον server');
+    expect(text()).toContain('Ενημερώνεται ο κατάλογος έκδοσης');
+    expect(view!.getByRole<HTMLButtonElement>('button', { name: 'Ενημέρωση…' }).disabled).toBe(true);
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
     await settle(() => { response.resolve(catalog()); });
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
@@ -184,31 +185,47 @@ describe('legal document page catalog loading', () => {
     expect(text()).not.toContain('Παλιά απόρριψη');
   });
 
-  it('allows a failed catalog request to be retried without enabling creation prematurely', async () => {
-    mocks.loadLegalCatalog.mockRejectedValueOnce(new Error('server unavailable')).mockResolvedValue(catalog());
+  it('allows one manual retry and shows progress until the server answers', async () => {
+    const retry = deferred<ReturnType<typeof catalog>>();
+    mocks.loadLegalCatalog.mockRejectedValueOnce(new Error('server unavailable')).mockReturnValue(retry.promise);
     await mount();
     expect(text()).toContain('Δεν ανακτήθηκε ο κατάλογος έκδοσης');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
     await click('Ανανέωση καταλόγου');
+    expect(view!.getByRole<HTMLButtonElement>('button', { name: 'Ενημέρωση…' }).disabled).toBe(true);
+    await settle(() => vi.advanceTimersByTimeAsync(8_000).then(() => undefined));
+    expect(mocks.loadLegalCatalog).toHaveBeenCalledTimes(2);
+    await settle(() => { retry.resolve(catalog()); });
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
   });
 
-  it('requires a fresh server catalog before creating from a saved copy', async () => {
+  it.each(['default', 'inspection'] as const)('automatically refreshes a saved catalog before allowing creation in %s mode', async (presentation) => {
     mocks.loadLegalCatalog.mockResolvedValueOnce(catalog(true)).mockResolvedValue(catalog());
-    await mount();
+    await mount({ presentation, products: legalCatalogProducts([item]) });
     expect(text()).toContain('Χρησιμοποιείται αποθηκευμένος κατάλογος');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
-    await click('Ανανέωση καταλόγου');
+    await settle(() => vi.advanceTimersByTimeAsync(8_000).then(() => undefined));
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
+    expect(mocks.loadLegalCatalog).toHaveBeenCalledTimes(2);
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('keeps inspection creation gated and renders the supplied catalog once ready', async () => {
-    await mount({ presentation: 'inspection', products: legalCatalogProducts([item]), inspectionCatalogReady: false });
-    expect(text()).toContain('Για νέα δημιουργία απαιτούνται σύνδεση');
+  it('keeps Inspector creation gated offline and refreshes when the connection returns', async () => {
+    mocks.loadLegalCatalog.mockResolvedValueOnce(catalog(true)).mockResolvedValue(catalog());
+    const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    await mount({ presentation: 'inspection' });
+    await settle(() => { window.dispatchEvent(new Event('offline')); });
+    expect(text()).toContain('μόλις επανέλθει η σύνδεση');
     expect(text()).not.toContain('Δημιουργία βήμα προς βήμα');
-    await settle(() => { view!.rerender(page({ presentation: 'inspection', products: legalCatalogProducts([item]), inspectionCatalogReady: true })); });
+    await settle(() => vi.advanceTimersByTimeAsync(8_000).then(() => undefined));
+    expect(mocks.loadLegalCatalog).toHaveBeenCalledTimes(1);
+
+    await settle(() => {
+      online.mockReturnValue(true);
+      window.dispatchEvent(new Event('online'));
+    });
     expect(text()).toContain('Δημιουργία βήμα προς βήμα');
-    expect(mocks.loadLegalCatalog).not.toHaveBeenCalled();
+    expect(mocks.loadLegalCatalog).toHaveBeenCalledTimes(2);
     expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
 });

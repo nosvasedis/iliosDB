@@ -38,14 +38,19 @@ export async function loadInspectionSnapshot(filters: InspectionFilters, signal?
 
 export async function loadLegalCatalog(signal?: AbortSignal): Promise<{ items: LegalCatalogItem[]; fetchedAt: string; saved: boolean }> {
   const key = `inspection:v1:${await owner()}:legal-catalog`;
+  const timeout = AbortSignal.timeout(20_000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   try {
-    const result = await api.callSbz('/legal/catalog', undefined, signal);
+    const result = await api.callSbz('/legal/catalog', undefined, requestSignal);
+    signal?.throwIfAborted();
     if (result?.version !== 1 || !Array.isArray(result.items) || !result.fetchedAt) throw new Error('Μη έγκυρη απάντηση καταλόγου.');
-    await offlineDb.saveValue(key, result);
+    // The live catalog is usable even if the browser cannot store the offline copy.
+    void offlineDb.saveValue(key, result).catch(() => console.warn('Could not save the offline legal catalog.'));
     return { ...result, saved: false };
   } catch (error) {
     if (signal?.aborted) throw error;
     const saved = await offlineDb.getValue<{ version: number; items: LegalCatalogItem[]; fetchedAt: string }>(key);
+    signal?.throwIfAborted();
     if (!saved || saved.version !== 1 || !Array.isArray(saved.items)) throw error;
     return { ...saved, saved: true };
   }

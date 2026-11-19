@@ -1,5 +1,5 @@
 import { Gender, PlatingType, ProductionType, type Product } from '../../types';
-import { resolveInvoiceTotalWeight } from '../../utils/invoiceTotalWeight';
+import { createInvoiceTotalWeightResolver } from '../../utils/invoiceTotalWeight';
 import { mapProductsWithRelations } from '../products/mappers';
 import { isVisibleProductCatalogRow } from '../products/catalogVisibility';
 import type { LegalCatalogItem } from './types';
@@ -9,6 +9,7 @@ export function buildLegalCatalog(context: { products: any[]; variants: any[]; r
   const products = mapProductsWithRelations(context.products, { variants: context.variants, recipes: context.recipes }, {
     publicImageBaseUrl: 'https://ilios-image-handler.iliosdb.workers.dev', centralWarehouseId: '', showroomWarehouseId: '',
   });
+  const resolveWeight = createInvoiceTotalWeightResolver(products, context.materials);
   return products.filter((product) => isVisibleProductCatalogRow(product)).map((product) => ({
     sku: product.sku, prefix: product.prefix, category: product.category, description: product.description || '', image_url: product.image_url,
     gender: product.gender, plating_type: product.plating_type, production_type: product.production_type,
@@ -16,7 +17,7 @@ export function buildLegalCatalog(context: { products: any[]; variants: any[]; r
     weight_g: product.weight_g, secondary_weight_g: product.secondary_weight_g ?? null,
     active_price: product.active_price, selling_price: product.selling_price,
     selling_price_manual_override: !!product.selling_price_manual_override,
-    resolved_invoice_weight: resolveInvoiceTotalWeight(product, products, context.materials),
+    resolved_invoice_weight: resolveWeight(product),
     variants: (product.variants || []).map((variant) => ({
       suffix: variant.suffix, description: variant.description,
       active_price: variant.active_price ?? null, selling_price: variant.selling_price ?? null,

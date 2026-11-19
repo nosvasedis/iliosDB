@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../hooks/api/useInspection', () => ({
   useInspectionSnapshot: vi.fn(() => ({ data: undefined, isFetching: false, error: null, refetch: vi.fn() })),
-  useLegalCatalog: vi.fn(() => ({ data: { items: [], saved: false }, isLoading: false, isError: false, refetch: vi.fn() })),
 }));
 vi.mock('../hooks/useOfflineSync', () => ({ useOfflineSync: vi.fn(() => ({ pendingCount: 3 })) }));
 

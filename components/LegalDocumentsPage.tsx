@@ -239,7 +239,6 @@ function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind 
 interface LegalDocumentsPageProps {
   inspectionSnapshot?: InspectionSnapshot;
   inspectionSnapshotPending?: boolean;
-  inspectionCatalogReady?: boolean;
   initialDocumentId?: string | null;
   products: Product[];
   materials?: Material[];
@@ -974,11 +973,8 @@ export default function LegalDocumentsPage({
   onActiveTabChange,
   inspectionSnapshot,
   inspectionSnapshotPending = false,
-  inspectionCatalogReady = false,
   initialDocumentId,
 }: LegalDocumentsPageProps) {
-  const catalogQuery = useLegalCatalog(presentation !== 'inspection');
-  const products = useMemo<Product[]>(() => catalogQuery.data ? mapLegalCatalogProducts(catalogQuery.data.items) : suppliedProducts, [catalogQuery.data, suppliedProducts]);
   const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('new');
   const isControlledTab = activeTabProp !== undefined;
   const activeTab = isControlledTab ? activeTabProp : internalActiveTab;
@@ -987,6 +983,12 @@ export default function LegalDocumentsPage({
     onActiveTabChange?.(tab);
   };
   const isInspectionPresentation = presentation === 'inspection';
+  const { query: catalogQuery, canRefresh: canRefreshCatalog, ready: catalogReady } = useLegalCatalog(activeTab === 'new');
+  const catalogItems = catalogQuery.data?.items;
+  const products = useMemo<Product[]>(() => {
+    if (catalogItems) return mapLegalCatalogProducts(catalogItems);
+    return isInspectionPresentation ? [] : suppliedProducts;
+  }, [catalogItems, isInspectionPresentation, suppliedProducts]);
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [creationDocumentType, setCreationDocumentType] = useState<CreationDocumentType>('invoice');
@@ -5365,14 +5367,24 @@ export default function LegalDocumentsPage({
           )}
         />
       )}
-      {activeTab === 'new' && !isInspectionPresentation && (!catalogQuery.data || catalogQuery.data.saved) && (
+      {activeTab === 'new' && !catalogReady && !issuingDocument && !outcomeDocument && (
         <Notice
-          role="alert"
-          tone="amber"
-          icon={catalogQuery.isFetching ? RefreshCw : AlertTriangle}
-          action={<button type="button" className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:bg-amber-100" onClick={() => void catalogQuery.refetch()}>Ανανέωση καταλόγου</button>}
+          role="status"
+          tone={catalogQuery.isFetching && canRefreshCatalog ? 'slate' : 'amber'}
+          icon={catalogQuery.isFetching && canRefreshCatalog ? RefreshCw : AlertTriangle}
+          action={canRefreshCatalog ? (
+            <ActionButton variant="secondary" disabled={catalogQuery.isFetching} onClick={() => void catalogQuery.refetch({ cancelRefetch: false })}>
+              {catalogQuery.isFetching ? <><Loader2 size={16} className="animate-spin" /> Ενημέρωση…</> : 'Ανανέωση καταλόγου'}
+            </ActionButton>
+          ) : undefined}
         >
-          {catalogQuery.isFetching ? 'Ανάκτηση καταλόγου έκδοσης από τον server…' : catalogQuery.data?.saved ? 'Χρησιμοποιείται αποθηκευμένος κατάλογος. Ανανεώστε τον πριν από νέα έκδοση.' : 'Δεν ανακτήθηκε ο κατάλογος έκδοσης.'}
+          {!canRefreshCatalog
+            ? 'Η δημιουργία παραστατικού θα είναι διαθέσιμη μόλις επανέλθει η σύνδεση και ενημερωθεί ο κατάλογος.'
+            : catalogQuery.isFetching
+              ? 'Ενημερώνεται ο κατάλογος έκδοσης…'
+              : catalogQuery.data?.saved
+                ? 'Χρησιμοποιείται αποθηκευμένος κατάλογος. Η ενημέρωση θα επαναληφθεί αυτόματα.'
+                : 'Δεν ανακτήθηκε ο κατάλογος έκδοσης. Θα γίνει αυτόματα νέα προσπάθεια.'}
         </Notice>
       )}
       {persistedEnvironment === 'dev' && !isInspectionPresentation && (
@@ -5387,8 +5399,7 @@ export default function LegalDocumentsPage({
       )}
 
       <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        {activeTab === 'new' && (isInspectionPresentation ? inspectionCatalogReady : catalogQuery.data && !catalogQuery.data.saved) && renderNewTab()}
-        {activeTab === 'new' && isInspectionPresentation && !inspectionCatalogReady && <Notice role="alert" tone="amber" icon={AlertTriangle}>Για νέα δημιουργία απαιτούνται σύνδεση και ενημερωμένος κατάλογος έκδοσης από τον server.</Notice>}
+        {activeTab === 'new' && (catalogReady || issuingDocument || outcomeDocument) && renderNewTab()}
         {activeTab === 'archive' && (isInspectionPresentation && !inspectionSnapshot
           ? <p className="rounded-xl border bg-white p-5">{inspectionSnapshotPending ? 'Ανάκτηση στιγμιότυπου αρχείου…' : 'Δεν ανακτήθηκε το αρχείο. Χρησιμοποιήστε την Ανανέωση στοιχείων.'}</p>
           : renderArchiveTab())}

@@ -87,10 +87,14 @@ export function resolveInvoiceTotalWeight(
   products: readonly Product[] = [],
   materials: readonly Material[] = [],
 ): InvoiceTotalWeightResult {
-  const productsBySku = new Map(products.map((item) => [item.sku, item]));
-  productsBySku.set(product.sku, product);
-  return resolveProductWeight(product, {
-    productsBySku,
+  return createInvoiceTotalWeightResolver([...products, product], materials)(product);
+}
+
+/** Build the lookup once when resolving a group of products from the same catalog. */
+export function createInvoiceTotalWeightResolver(products: readonly Product[], materials: readonly Material[]) {
+  const context: WeightContext = {
+    productsBySku: new Map(products.map((item) => [item.sku, item])),
     materialsById: new Map(materials.map((item) => [item.id, item])),
-  }, new Set());
+  };
+  return (product: Product): InvoiceTotalWeightResult => resolveProductWeight(product, context, new Set());
 }
