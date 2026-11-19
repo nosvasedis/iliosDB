@@ -213,6 +213,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
                 <LegalPrintInfoGrid
                   counterpart={document.counterpart}
+                  counterpartTitle={document.counterpart.supplier_id ? 'Στοιχεία αντισυμβαλλομένου' : undefined}
                   delivery={document.delivery}
                   includesDeliveryNote={documentIncludesDeliveryNote(document)}
                   paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}

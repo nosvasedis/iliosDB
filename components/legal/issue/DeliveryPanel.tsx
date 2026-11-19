@@ -10,6 +10,7 @@ import {
   normalizeVatNumber,
   parseLegalPartyAddress,
   resolveCustomerDeliveryAddress,
+  resolveLegalLoadingAddress,
   resolveLegalMovePurpose,
   resolveSbzDispatchMethod,
   SBZ_COURIER_DISPATCH_METHOD,
@@ -281,7 +282,7 @@ export default function DeliveryPanel({
 
   const branches = customer ? customerBranches(customer) : [];
   const counterpartAddress = document.counterpart.address || null;
-  const settingsLoadingAddress = settings.loading_address || settings.issuer.address || null;
+  const settingsLoadingAddress = resolveLegalLoadingAddress(settings);
   const dispatchProblem = problem('delivery.dispatch');
 
   return (
@@ -507,7 +508,7 @@ export default function DeliveryPanel({
                       onClick={() => updateDelivery({ delivery_address: { ...counterpartAddress } })}
                       className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black text-slate-500 transition hover:bg-white hover:text-slate-800"
                     >
-                      <Building2 size={12} /> Έδρα πελάτη
+                      <Building2 size={12} /> {document.counterpart.supplier_id ? 'Έδρα συνεργάτη' : 'Έδρα πελάτη'}
                     </button>
                   ) : null}
                 </div>

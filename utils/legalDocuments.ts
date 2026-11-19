@@ -18,6 +18,8 @@ import {
   LegalPartyAddress,
   LegalSettings,
   LegalSystemItem,
+  Supplier,
+  SupplierLegalProfile,
   LegalSyncParams,
   LegalTotals,
   LegalValidationIssue,
@@ -201,6 +203,10 @@ export function applyLegalSystemItemToLine<T extends LegalDocumentLine>(line: T,
   }
   const meta = getLegalLineUnitMeta(item.unit);
   const hasOriginalPrice = metadata.original_unit_price !== undefined && metadata.original_unit_price !== null;
+  // System codes are not catalogue products: no «Συνολικό Βάρος» applies (a gram line is its own weight).
+  delete metadata.invoice_total_weight_g;
+  delete metadata.invoice_total_weight_source;
+  delete metadata.invoice_total_weight_missing_items;
   return {
     ...line,
     sku: item.code,
@@ -338,6 +344,31 @@ export function formatSbzDispatchPlace(address?: LegalPartyAddress | null, count
   const street = [address.street, address.number].filter((part) => String(part ?? '').trim()).join(' ').trim();
   const city = [address.postal_code, address.city].filter((part) => String(part ?? '').trim()).join(' ').trim();
   return [street, city, formatCountryDisplayName(country)].filter(Boolean).join(', ');
+}
+
+const hasAddress = (address?: LegalPartyAddress | null) => Boolean(address?.street?.trim() || address?.city?.trim());
+
+/** «Από»: the dedicated loading address when filled in settings, otherwise the issuer's seat (έδρα). */
+export function resolveLegalLoadingAddress(settings: Pick<LegalSettings, 'loading_address' | 'issuer'>): LegalPartyAddress | null {
+  if (hasAddress(settings.loading_address)) return { ...settings.loading_address! };
+  return hasAddress(settings.issuer?.address) ? { ...settings.issuer.address! } : null;
+}
+
+/**
+ * «Προς» after the counterpart changes: a customer's preferred delivery point (or seat),
+ * a partner's seat. Loading falls back to the issuer seat when still empty.
+ */
+export function withCounterpartDeliveryDefaults(document: LegalDocument, settings: LegalSettings, customer?: Customer | null): LegalDocument {
+  if (!document.delivery) return document;
+  const destination = (customer ? resolveCustomerDeliveryAddress(customer) : null) || document.counterpart.address || null;
+  return {
+    ...document,
+    delivery: {
+      ...document.delivery,
+      delivery_address: destination ? { ...destination } : document.delivery.delivery_address || null,
+      loading_address: hasAddress(document.delivery.loading_address) ? document.delivery.loading_address : resolveLegalLoadingAddress(settings),
+    },
+  };
 }
 
 export const SERVICE_INVOICE_DEFAULT_MOVE_PURPOSE = 7;
@@ -665,7 +696,7 @@ export function applyLegalDocumentDeliveryToggle(
       ...document.delivery,
       dispatch_date: document.delivery?.dispatch_date || defaults.dispatch_date,
       dispatch_time: document.delivery?.dispatch_time || defaults.dispatch_time,
-      loading_address: document.delivery?.loading_address || defaults.loading_address,
+      loading_address: hasAddress(document.delivery?.loading_address) ? document.delivery!.loading_address : defaults.loading_address,
       delivery_address: document.delivery?.delivery_address || defaults.delivery_address,
       dispatch_method: resolveSbzDispatchMethod(document.delivery),
     },
@@ -936,6 +967,60 @@ export function buildCounterpartFromCustomer(customer?: Customer | null): LegalP
     profession: customer.profession || null,
     tax_office: customer.tax_office || null,
   };
+}
+
+/** Stable SBZ CounterpartCode for a partner without its own code (customers use their ERP code). */
+export function supplierCounterpartCode(supplier: Pick<Supplier, 'id' | 'legal_profile'>): string {
+  const own = String(supplier.legal_profile?.code || '').trim();
+  return own || `ΣΥΝ-${supplier.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+}
+
+/** A partner («Προμηθευτές & Συνεργάτες») as document counterpart, e.g. the foundry on a delivery note. */
+export function buildCounterpartFromSupplier(supplier: Supplier): LegalParty {
+  const profile = supplier.legal_profile || {};
+  return {
+    customer_code: supplierCounterpartCode(supplier),
+    vat_number: normalizeCounterpartVatNumber(supplier.vat_number, profile.country),
+    country: normalizeLegalCountryCode(profile.country),
+    branch: 0,
+    name: supplier.name,
+    address: profile.address?.street || profile.address?.city ? profile.address : parseLegalPartyAddress(supplier.address || null),
+    phone: supplier.phone || null,
+    email: supplier.email || null,
+    profession: profile.profession || null,
+    tax_office: profile.tax_office || null,
+    supplier_id: supplier.id,
+  };
+}
+
+/** Tax details of a counterpart to keep on the partner, so the next document needs no lookup. */
+export function supplierLegalProfileFromCounterpart(counterpart: LegalParty, previous?: SupplierLegalProfile | null, verified = false): SupplierLegalProfile {
+  return {
+    ...(previous || {}),
+    profession: counterpart.profession || previous?.profession || null,
+    tax_office: counterpart.tax_office || previous?.tax_office || null,
+    country: counterpart.country || previous?.country || 'GR',
+    address: counterpart.address?.street || counterpart.address?.city ? counterpart.address : previous?.address || null,
+    ...(verified ? { verified_at: new Date().toISOString() } : {}),
+  };
+}
+
+/** Switches a draft to a partner counterpart. Customer VAT exemptions do not carry over. */
+export function applySupplierToLegalDocument(
+  document: LegalDocument,
+  lines: LegalDocumentLine[],
+  supplier: Supplier,
+  settings: LegalSettings,
+): { document: LegalDocument; lines: LegalDocumentLine[] } {
+  const counterpart = buildCounterpartFromSupplier(supplier);
+  const vatRate = document.vat_rate ?? 0.24;
+  return recalculateLegalDocument(withCounterpartDeliveryDefaults({
+    ...document,
+    counterpart_customer_id: null,
+    counterpart,
+    vat_exemption_category: vatRate === 0 ? document.vat_exemption_category : null,
+    vat_exemption_legal_note: vatRate === 0 ? document.vat_exemption_legal_note : null,
+  }, settings), lines, settings);
 }
 
 function buildCounterpart(order: Order, customer?: Customer | null): LegalParty {
@@ -1431,14 +1516,14 @@ export function applyCustomerVatProfileToLegalDocument(
 ): { document: LegalDocument; lines: LegalDocumentLine[] } {
   const vatRate = customer.vat_rate ?? document.vat_rate ?? 0.24;
   const vatCategory = vatRateToAadeCategory(vatRate);
-  return recalculateLegalDocument({
+  return recalculateLegalDocument(withCounterpartDeliveryDefaults({
     ...document,
     counterpart_customer_id: customer.id,
     counterpart: buildCounterpartFromCustomer(customer),
     vat_rate: vatRate,
     vat_exemption_category: customerVatExemptionCategory(customer, vatRate),
     vat_exemption_legal_note: customerVatExemptionLegalNote(customer, vatRate),
-  }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settings);
+  }, settings, customer), lines.map((line) => ({ ...line, vat_category: vatCategory })), settings);
 }
 
 export function applyCustomerVatProfileToProforma(
@@ -1942,7 +2027,7 @@ export function buildDefaultDeliveryDetails(
     move_purpose: resolveLegalMovePurpose(undefined, settings, aadeDocumentType),
     dispatch_method: DEFAULT_SBZ_DISPATCH_METHOD,
     vehicle_number: '',
-    loading_address: settings.loading_address || settings.issuer.address || null,
+    loading_address: resolveLegalLoadingAddress(settings),
     delivery_address: resolveCustomerDeliveryAddress(customer),
     carrier_id: null,
     carrier_name: null,

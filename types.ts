@@ -53,6 +53,18 @@ export interface Supplier {
   website?: string | null;
   /** Public logo image (R2); falls back to coloured initials. */
   logo_url?: string | null;
+  /** Tax details for issuing documents to this partner (e.g. delivery notes to the foundry). */
+  legal_profile?: SupplierLegalProfile | null;
+}
+
+export interface SupplierLegalProfile {
+  /** Counterpart code sent to SBZ (CounterpartCode); defaults to a stable code from the id. */
+  code?: string | null;
+  profession?: string | null;
+  tax_office?: string | null;
+  country?: string | null;
+  address?: LegalPartyAddress | null;
+  verified_at?: string | null;
 }
 
 export interface Material {
@@ -1183,6 +1195,8 @@ export interface LegalParty {
   email?: string | null;
   profession?: string | null;
   tax_office?: string | null;
+  /** Set when the counterpart is a partner from «Προμηθευτές & Συνεργάτες» instead of a customer. */
+  supplier_id?: string | null;
 }
 
 export interface LegalIssuerSettings extends LegalParty {

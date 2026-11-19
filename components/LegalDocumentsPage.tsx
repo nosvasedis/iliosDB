@@ -150,6 +150,9 @@ import {
 import {
   applyAutomaticLegalItemClassification,
   applyCustomerVatProfileToLegalDocument,
+  applySupplierToLegalDocument,
+  supplierCounterpartCode,
+  supplierLegalProfileFromCounterpart,
   applyCustomerVatProfileToProforma,
   applyLegalLineDiscount,
   applyLegalDocumentDeliveryToggle,
@@ -1049,6 +1052,7 @@ export default function LegalDocumentsPage({
   const { data: sellers = [], isLoading: loadingSellers } = useSellers();
   /** Partners («Προμηθευτές & Συνεργάτες»): carriers link to them for logo and details. */
   const { data: suppliers = [] } = useSuppliers();
+  const activeSuppliers = useMemo(() => suppliers.filter((supplier) => supplier.is_active !== false), [suppliers]);
   const { data: shipments = [] } = useAllShipments();
   const { data: shipmentItems = [] } = useAllShipmentItems();
   const { data: legalSettings } = useLegalSettings();
@@ -1505,6 +1509,39 @@ export default function LegalDocumentsPage({
     }
   };
 
+  /** Counterpart picker value: `c:<customer id>` or `s:<partner id>`. */
+  const applyCounterpartToDraft = (value: string) => {
+    if (value.startsWith('c:')) { applyCustomerToDraft(value.slice(2), 'legal'); return; }
+    if (!value.startsWith('s:')) return;
+    const supplier = suppliers.find((item) => item.id === value.slice(2));
+    if (!supplier) return;
+    updateDraftBundle((document, lines) => applySupplierToLegalDocument(document, lines, supplier, settingsDraft));
+    if (!supplier.legal_profile?.tax_office || !supplier.legal_profile?.profession || !supplier.vat_number) {
+      showToast('Ο συνεργάτης δεν έχει ακόμα πλήρη φορολογικά στοιχεία. Πατήστε «Έλεγχος ΑΦΜ» για να συμπληρωθούν και να αποθηκευτούν.', 'info');
+    }
+  };
+
+  const [savingSupplierProfile, setSavingSupplierProfile] = useState(false);
+  /** Keeps ΔΟΥ, επάγγελμα, έδρα and ΑΦΜ on the partner so the next document is ready without a lookup. */
+  const persistSupplierProfile = async (counterpart: LegalDocument['counterpart'], verified: boolean, silent = false) => {
+    const supplier = suppliers.find((item) => item.id === counterpart.supplier_id);
+    if (!supplier) return;
+    setSavingSupplierProfile(true);
+    try {
+      await api.saveSupplier({
+        id: supplier.id,
+        vat_number: normalizeVatNumber(counterpart.vat_number) || supplier.vat_number || null,
+        legal_profile: supplierLegalProfileFromCounterpart(counterpart, supplier.legal_profile, verified),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      if (!silent) showToast(`Τα φορολογικά στοιχεία αποθηκεύτηκαν στον συνεργάτη ${supplier.name}.`, 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκαν τα στοιχεία στον συνεργάτη.', 'error');
+    } finally {
+      setSavingSupplierProfile(false);
+    }
+  };
+
   const handleDraftVatLookup = async (target: 'legal' | 'proforma') => {
     const current = target === 'legal' ? draftBundle?.document : proformaBundle?.document;
     const vatNumber = normalizeVatNumber(current?.counterpart.vat_number);
@@ -1515,7 +1552,9 @@ export default function LegalDocumentsPage({
     setDraftVatLookupTarget(target);
     try {
       const result = await lookupCustomerVat(vatNumber);
-      const matchedCustomer = customers.find(customer => normalizeVatNumber(customer.vat_number) === vatNumber);
+      // A partner counterpart stays a partner even if a customer shares the ΑΦΜ.
+      const linkedSupplierId = target === 'legal' ? current?.counterpart.supplier_id || null : null;
+      const matchedCustomer = linkedSupplierId ? undefined : customers.find(customer => normalizeVatNumber(customer.vat_number) === vatNumber);
       const applyResult = <T extends LegalDocument | ProformaDocument>(document: T): T => ({
         ...document,
         counterpart_customer_id: matchedCustomer?.id || document.counterpart_customer_id,
@@ -1535,8 +1574,19 @@ export default function LegalDocumentsPage({
           const profiled = matchedCustomer
             ? applyCustomerVatProfileToLegalDocument(document, lines, matchedCustomer, settingsDraft)
             : recalculateLegalDocument(document, lines, settingsDraft);
-          return { ...profiled, document: applyResult(profiled.document) };
+          const updated = applyResult(profiled.document);
+          // The delivery follows the counterpart's (updated) seat unless another address was chosen.
+          const previousAddress = JSON.stringify(profiled.document.counterpart.address || null);
+          const keepsDefaultDestination = updated.delivery
+            && (!updated.delivery.delivery_address || JSON.stringify(updated.delivery.delivery_address) === previousAddress);
+          return {
+            ...profiled,
+            document: keepsDefaultDestination ? { ...updated, delivery: { ...updated.delivery, delivery_address: updated.counterpart.address || null } } : updated,
+          };
         });
+        if (linkedSupplierId && current && result.active !== false) {
+          void persistSupplierProfile(applyResult(current as LegalDocument).counterpart, true);
+        }
       } else {
         updateProformaBundle((document, lines) => {
           const profiled = matchedCustomer
@@ -2527,7 +2577,8 @@ export default function LegalDocumentsPage({
     const issuerIssues = issues.filter((issue) => issue.section === 'issuer');
     const hasDeliveryTab = isStandaloneDeliveryNote || canToggleDelivery;
     const activeHeaderTab: DocumentHeaderTab = headerTab === 'delivery' && !hasDeliveryTab ? 'customer' : headerTab;
-    const linkedCustomerId = invoiceableCustomers.some((customer) => customer.id === document.counterpart_customer_id)
+    const linkedSupplier = document.counterpart.supplier_id ? suppliers.find((supplier) => supplier.id === document.counterpart.supplier_id) || null : null;
+    const linkedCustomerId = !linkedSupplier && invoiceableCustomers.some((customer) => customer.id === document.counterpart_customer_id)
       ? document.counterpart_customer_id || ''
       : '';
     const updateCounterpart = (updates: Partial<LegalDocument['counterpart']>) => updateDraftDocument((current) => ({
@@ -2703,7 +2754,7 @@ export default function LegalDocumentsPage({
             tabs={[
               {
                 id: 'customer',
-                label: 'Πελάτης',
+                label: document.counterpart.supplier_id ? 'Συνεργάτης' : 'Πελάτης',
                 icon: UserRound,
                 hint: document.counterpart.name
                   ? `${document.counterpart.name}${document.counterpart.vat_number ? ` · ${document.counterpart.vat_number}` : ''}`
@@ -2733,9 +2784,21 @@ export default function LegalDocumentsPage({
               <fieldset disabled={!editable} className={`min-w-0 space-y-5 ${!editable ? 'opacity-60' : ''}`}>
                 <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12">
                   <div className="sm:col-span-6 lg:col-span-7">
-                    <SelectInput label="Πελάτης από το πελατολόγιο" value={linkedCustomerId} onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
+                    <SelectInput
+                      label="Αντισυμβαλλόμενος"
+                      value={linkedSupplier ? `s:${linkedSupplier.id}` : linkedCustomerId ? `c:${linkedCustomerId}` : ''}
+                      onChange={applyCounterpartToDraft}
+                      help="Πελάτης από το πελατολόγιο ή συνεργάτης/προμηθευτής (π.χ. χυτήριο για δελτίο αποστολής). Γεμίζει ΑΦΜ, επωνυμία, ΔΟΥ, επάγγελμα και έδρα."
+                    >
                       <option value="">Χειροκίνητα / χωρίς σύνδεση</option>
-                      {invoiceableCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+                      <optgroup label="Πελάτες">
+                        {invoiceableCustomers.map((customer) => <option key={customer.id} value={`c:${customer.id}`}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
+                      </optgroup>
+                      {activeSuppliers.length > 0 && (
+                        <optgroup label="Συνεργάτες & Προμηθευτές">
+                          {activeSuppliers.map((supplier) => <option key={supplier.id} value={`s:${supplier.id}`}>{supplier.name}{supplier.vat_number ? ` | ΑΦΜ ${supplier.vat_number}` : ''}</option>)}
+                        </optgroup>
+                      )}
                     </SelectInput>
                   </div>
                   <div className="sm:col-span-6 lg:col-span-5">
@@ -2749,6 +2812,24 @@ export default function LegalDocumentsPage({
                     />
                   </div>
                 </div>
+
+                {linkedSupplier && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5">
+                    <SupplierAvatar name={linkedSupplier.name} logoUrl={linkedSupplier.logo_url} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-slate-900">Συνεργάτης · {linkedSupplier.name}</div>
+                      <div className="text-[11px] font-semibold text-slate-500">
+                        Κωδικός αντισυμβαλλομένου {document.counterpart.customer_code || supplierCounterpartCode(linkedSupplier)}
+                        {linkedSupplier.legal_profile?.verified_at ? ' · στοιχεία επιβεβαιωμένα από Μητρώο ΑΦΜ' : ' · τα φορολογικά στοιχεία αποθηκεύονται στον συνεργάτη'}
+                      </div>
+                    </div>
+                    {editable && (
+                      <ActionButton variant="secondary" onClick={() => void persistSupplierProfile(document.counterpart, false)} disabled={savingSupplierProfile || !document.counterpart.tax_office || !document.counterpart.profession}>
+                        {savingSupplierProfile ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Αποθήκευση στον συνεργάτη
+                      </ActionButton>
+                    )}
+                  </div>
+                )}
 
                 <FieldGroup title="Φορολογικά στοιχεία" hint="Ο «Έλεγχος ΑΦΜ» συμπληρώνει επωνυμία, επάγγελμα, ΔΟΥ και έδρα">
                   <div className="grid min-w-0 gap-3 sm:grid-cols-6 lg:grid-cols-12">
