@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalExternalItemAlias, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalSettings, LegalSyncParams, LegalSystemItem, ProformaDocument, ProformaDocumentLine } from '../../types';
+import { AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalExternalItemAlias, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalEnvironment, LegalSettings, LegalSyncParams, LegalSystemItem, ProformaDocument, ProformaDocumentLine } from '../../types';
 import { legalKeys, legalRepository } from '../../features/legal';
 
 export const useLegalSettings = () =>
@@ -204,6 +204,18 @@ export const useSaveLegalSettings = () => {
   return useMutation({
     mutationFn: (settings: LegalSettings) => legalRepository.saveSettings(settings),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.settings() }),
+  });
+};
+
+/** Saves only `legal_settings.environment` (after the user confirms) and refreshes settings/status. */
+export const useSaveLegalEnvironment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (environment: LegalEnvironment) => legalRepository.saveEnvironment(environment),
+    onSuccess: (_result, environment) => {
+      queryClient.setQueryData<LegalSettings | undefined>(legalKeys.settings(), (current) => current ? { ...current, environment } : current);
+      return queryClient.invalidateQueries({ queryKey: legalKeys.settings() });
+    },
   });
 };
 

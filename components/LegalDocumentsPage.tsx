@@ -46,6 +46,7 @@ import {
   Sparkles,
   Trash2,
   Truck,
+  FlaskConical,
   Undo2,
   UserRound,
   Zap,
@@ -56,6 +57,7 @@ import { AadeVatRegistryResult, Customer, Material, Product, LegalArchiveLineMat
 import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import SystemItemsSettings from './legal/SystemItemsSettings';
+import EnvironmentSwitch from './legal/EnvironmentSwitch';
 import { applyLegalLineUnit, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, getLegalLineUnitMeta, LEGAL_LINE_UNITS, toStoredLegalQuantity, toStoredLegalUnitPrice, type LegalLineUnit } from '../utils/legalUnits';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
 import ProformaConvertModal from './legal/ProformaConvertModal';
@@ -113,6 +115,7 @@ import {
   useSaveLegalSequence,
   useSaveLegalSettings,
   useSaveLegalSystemItems,
+  useSaveLegalEnvironment,
   useSubmitLegalDocument,
   useSyncTransmittedLegalDocuments,
   useClearLegalSyncRuns,
@@ -1057,6 +1060,11 @@ export default function LegalDocumentsPage({
   const { data: shipmentItems = [] } = useAllShipmentItems();
   const { data: legalSettings } = useLegalSettings();
   const { data: sbzStatus, refetch: refreshSbzStatus } = useSbzStatus();
+  const saveEnvironment = useSaveLegalEnvironment();
+  /** The environment saved on the server — the one new documents are issued in. */
+  const persistedEnvironment: LegalEnvironment = legalSettings?.environment === 'prod' || legalSettings?.environment === 'dev'
+    ? legalSettings.environment
+    : settingsDraft.environment;
   const [creditSource, setCreditSource] = useState<{document: LegalDocument; lines: LegalDocumentLine[]; reservedLines: LegalDocumentLine[]; available: Record<string, number>} | null>(null);
   const openCredit = async (document: LegalDocument) => {
     try {
@@ -1461,7 +1469,8 @@ export default function LegalDocumentsPage({
   const openNewLegalDraft = (document: LegalDocument) => {
     setIssueOutcome(null);
     setProformaBundle(null);
-    setDraftBundle({ document: withPreferredDispatch(document), lines: document.lines || [] });
+    // A draft belongs to the environment it was created in, even if the setting changes later.
+    setDraftBundle({ document: withPreferredDispatch({ ...document, environment: document.environment || persistedEnvironment }), lines: document.lines || [] });
   };
 
   /** Saves a new or edited carrier; an edit also refreshes the carrier snapshot of the open draft. */
@@ -2323,7 +2332,8 @@ export default function LegalDocumentsPage({
 
   const handleSaveSettings = async () => {
     try {
-      await saveSettings.mutateAsync(settingsDraft);
+      // The environment changes only through «Περιβάλλον έκδοσης»; keep the server value here.
+      await saveSettings.mutateAsync({ ...settingsDraft, environment: persistedEnvironment });
       legalSettingsRestart.markSaved();
       setDraftBundle((current) => {
         if (!current || !isLegalDocumentEditable(current.document)) return current;
@@ -2335,8 +2345,27 @@ export default function LegalDocumentsPage({
     }
   };
 
-  const handleEnvironmentChange = (value: string) => {
-    setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));
+  /** Confirmed, immediately saved switch of the issuing environment (never only on screen). */
+  const switchEnvironment = async (next: LegalEnvironment) => {
+    if (next === persistedEnvironment) return;
+    const toProduction = next === 'prod';
+    const confirmed = await confirm({
+      title: toProduction ? 'Μετάβαση σε ΠΑΡΑΓΩΓΗ' : 'Μετάβαση σε ΔΟΚΙΜΕΣ',
+      message: toProduction
+        ? 'Τα νέα παραστατικά θα διαβιβάζονται στην πραγματική myDATA μέσω SBZ και θα έχουν φορολογική ισχύ. Τα πρόχειρα που ήδη δημιουργήθηκαν στις Δοκιμές παραμένουν στις Δοκιμές.'
+        : 'Τα νέα παραστατικά θα εκδίδονται στο δοκιμαστικό περιβάλλον της SBZ, με ξεχωριστή αρίθμηση και χωρίς φορολογική ισχύ. Θυμηθείτε να επιστρέψετε στην Παραγωγή μετά τις δοκιμές.',
+      confirmText: toProduction ? 'Ναι, Παραγωγή' : 'Ναι, Δοκιμές',
+      cancelText: 'Ακύρωση',
+      isDestructive: toProduction,
+    });
+    if (!confirmed) return;
+    try {
+      await saveEnvironment.mutateAsync(next);
+      setSettingsDraft((current) => ({ ...current, environment: next }));
+      showToast(toProduction ? 'Περιβάλλον: Παραγωγή. Τα νέα παραστατικά είναι πραγματικά.' : 'Περιβάλλον: Δοκιμές. Τα νέα παραστατικά είναι δοκιμαστικά.', toProduction ? 'success' : 'warning');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν άλλαξε το περιβάλλον.', 'error');
+    }
   };
 
   const handleSaveAadeRegistryCredentials = async () => {
@@ -2502,11 +2531,12 @@ export default function LegalDocumentsPage({
     window.document.getElementById('legal-final-check')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const environmentChip = (
-    <Chip tone={settingsDraft.environment === 'dev' ? 'amber' : 'emerald'}>
-      <ShieldCheck size={11} /> {settingsDraft.environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}
+  const renderEnvironmentChip = (environment: LegalEnvironment) => (
+    <Chip tone={environment === 'dev' ? 'amber' : 'emerald'}>
+      <ShieldCheck size={11} /> {environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}
     </Chip>
   );
+  const environmentChip = renderEnvironmentChip(persistedEnvironment);
 
   const renderLegalActions = (document: LegalDocument, lines: LegalDocumentLine[]) => {
     const issueBlocked = validationErrors.length > 0;
@@ -2629,7 +2659,7 @@ export default function LegalDocumentsPage({
         badges={(
           <>
             <Chip tone={null} className={statusClass[document.status]}>{statusLabel[document.status]}</Chip>
-            {environmentChip}
+            {renderEnvironmentChip(document.environment === 'prod' || document.environment === 'dev' ? document.environment : persistedEnvironment)}
             {editable && (
               <button
                 type="button"
@@ -4577,10 +4607,10 @@ export default function LegalDocumentsPage({
             </div>
           </details>
 
-          <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Δοκιμές για ελέγχους, Παραγωγή για πραγματικά παραστατικά.">
-            <option value="dev">SBZ Δοκιμών</option>
-            <option value="prod">SBZ Παραγωγής</option>
-          </SelectInput>
+          <div className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 ${persistedEnvironment === 'dev' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+            <span className="text-xs font-black">Περιβάλλον: {persistedEnvironment === 'dev' ? 'SBZ Δοκιμών' : 'SBZ Παραγωγής'}</span>
+            <button type="button" onClick={() => setActiveTab('settings')} className="rounded-lg bg-white px-2 py-1 text-[11px] font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Αλλαγή στις Ρυθμίσεις</button>
+          </div>
         </div>
         <div className="border-t border-slate-100 bg-slate-50/60 p-4">
           <button
@@ -4735,7 +4765,14 @@ export default function LegalDocumentsPage({
       <div className="space-y-5">
         {!isInspectionPresentation && <EvidenceSourcesEditor value={settingsDraft.inspection_evidence_sources || []}
           onChange={(inspection_evidence_sources) => setSettingsDraft((current) => ({ ...current, inspection_evidence_sources }))} />}
-        <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
+        <EnvironmentSwitch
+          current={persistedEnvironment}
+          status={sbzStatus as any}
+          busy={saveEnvironment.isPending}
+          readOnly={isInspectionPresentation}
+          onSwitch={(next) => void switchEnvironment(next)}
+        />
+        <SbzSettings currentEnvironment={persistedEnvironment} />
 
         <SettingsCard
           icon={Search}
@@ -5220,9 +5257,14 @@ export default function LegalDocumentsPage({
           {catalogQuery.isFetching ? 'Ανάκτηση καταλόγου έκδοσης από τον server…' : catalogQuery.data?.saved ? 'Χρησιμοποιείται αποθηκευμένος κατάλογος. Ανανεώστε τον πριν από νέα έκδοση.' : 'Δεν ανακτήθηκε ο κατάλογος έκδοσης.'}
         </Notice>
       )}
-      {settingsDraft.environment === 'dev' && activeTab !== 'archive' && (
-        <Notice tone="amber" icon={ShieldCheck} title="Δοκιμαστικό περιβάλλον">
-          Οι εκδόσεις εδώ είναι δοκιμαστικές και έχουν ξεχωριστή αρίθμηση.
+      {persistedEnvironment === 'dev' && !isInspectionPresentation && (
+        <Notice
+          tone="amber"
+          icon={FlaskConical}
+          title="Δοκιμαστικό περιβάλλον"
+          action={activeTab !== 'settings' ? <button type="button" className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-amber-900 ring-1 ring-amber-200 transition hover:bg-amber-100" onClick={() => setActiveTab('settings')}>Αλλαγή περιβάλλοντος</button> : undefined}
+        >
+          Τα νέα παραστατικά εκδίδονται στις Δοκιμές της SBZ, με ξεχωριστή αρίθμηση και χωρίς φορολογική ισχύ. Επιστρέψτε στην Παραγωγή μετά τις δοκιμές.
         </Notice>
       )}
 

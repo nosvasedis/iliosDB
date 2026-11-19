@@ -4,7 +4,7 @@ import { INTERNAL_CUSTOMER_ID, INTERNAL_CUSTOMER_NAME, isReservedCustomerName, i
 import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalSystemItem, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalSystemItem, LegalEnvironment, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { CATALOG_IMAGE_PREPARE_HEADER, CatalogPrepareFailedError, compressImage } from '../utils/imageHelpers';
@@ -1431,6 +1431,14 @@ const apiMethods = {
             id: settings.id || LEGAL_SETTINGS_ID,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'id', noSelect: true });
+    },
+
+    /** Switches the issuing environment on its own, so it never depends on saving the whole settings form. */
+    saveLegalEnvironment: async (environment: LegalEnvironment): Promise<void> => {
+        if (environment !== 'dev' && environment !== 'prod') throw new Error('Μη έγκυρο περιβάλλον.');
+        if (isLocalMode || !navigator.onLine) throw new Error('Η αλλαγή περιβάλλοντος απαιτεί σύνδεση.');
+        const { error } = await supabase.from('legal_settings').update({ environment, updated_at: new Date().toISOString() }).eq('id', LEGAL_SETTINGS_ID);
+        if (error) throw new Error(error.message || 'Δεν άλλαξε το περιβάλλον.');
     },
 
     /** Writes only the system codes, so unsaved edits elsewhere in the settings form are not persisted. */

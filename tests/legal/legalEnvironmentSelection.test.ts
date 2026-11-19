@@ -20,10 +20,17 @@ describe('AADE environment selection contract', () => {
   it('allows environment selection while SBZ activation is checked separately', () => {
     expect(pageSource).not.toContain('hasDevValidation');
     expect(pageSource).not.toContain('Η παραγωγή ανοίγει μετά από επιτυχή έκδοση στο dev περιβάλλον.');
-    expect(pageSource).toContain(
-      "setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));",
-    );
-    expect(pageSource).toContain('<SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />');
+    // The environment is switched only through a confirmed, immediately saved control.
+    expect(pageSource).toContain('await saveEnvironment.mutateAsync(next);');
+    expect(pageSource).toContain('const confirmed = await confirm({');
+    expect(pageSource).not.toContain('handleEnvironmentChange');
+    // The SBZ key selector no longer changes the issuing environment.
+    expect(pageSource).toContain('<SbzSettings currentEnvironment={persistedEnvironment} />');
+    expect(sbzSettingsSource).not.toContain('onEnvironmentChange');
+    // Saving the general settings form never changes the environment, and drafts keep their own.
+    expect(pageSource).toContain('await saveSettings.mutateAsync({ ...settingsDraft, environment: persistedEnvironment });');
+    expect(pageSource).toContain('environment: document.environment || persistedEnvironment');
+    expect(hookSource).toContain('export const useSaveLegalEnvironment');
   });
 
   it('keeps the selected environment credential check before AADE submission', () => {

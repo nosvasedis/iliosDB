@@ -23,10 +23,15 @@ const emptyActivationChecks = (): Record<ActivationCheckKey, boolean> => ({
   delivery_confirmed: false,
 });
 
-export default function SbzSettings({ environment, onEnvironmentChange }: {
-  environment: LegalEnvironment;
-  onEnvironmentChange: (environment: LegalEnvironment) => void;
+/**
+ * Provider keys per environment. The selector here only chooses which key to configure or check;
+ * the issuing environment itself is switched (and saved) in «Περιβάλλον έκδοσης».
+ */
+export default function SbzSettings({ currentEnvironment }: {
+  currentEnvironment: LegalEnvironment;
 }) {
+  const [environment, setEnvironment] = useState<LegalEnvironment>(currentEnvironment);
+  useEffect(() => { setEnvironment(currentEnvironment); }, [currentEnvironment]);
   const { data: status, error } = useSbzStatus();
   const cache = useQueryClient();
   const [key, setKey] = useState('');
@@ -86,11 +91,11 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
 
         <div className="grid gap-4 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] md:items-end">
           <label className="block min-w-0">
-            <span className="mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500">Περιβάλλον σύνδεσης</span>
+            <span className="mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500">Κλειδί για το περιβάλλον</span>
             <select
               disabled={busy}
               value={environment}
-              onChange={(e) => onEnvironmentChange(e.target.value as LegalEnvironment)}
+              onChange={(e) => setEnvironment(e.target.value as LegalEnvironment)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-hidden transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
             >
               <option value="dev">Δοκιμές</option>

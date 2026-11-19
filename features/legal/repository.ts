@@ -3,6 +3,7 @@ import { api } from '../../lib/supabase';
 import {
   LegalCarrier,
   LegalSystemItem,
+  LegalEnvironment,
   LegalDeliveryEvent,
   LegalDocument,
   LegalDocumentLine,
@@ -30,6 +31,7 @@ export const legalRepository = withProtectedWrites({
   getSettings: (): Promise<LegalSettings> => api.getLegalSettings(),
   saveSettings: (settings: LegalSettings): Promise<void> => api.saveLegalSettings(settings),
   saveSystemItems: (items: LegalSystemItem[]): Promise<LegalSystemItem[]> => api.saveLegalSystemItems(items),
+  saveEnvironment: (environment: LegalEnvironment): Promise<void> => api.saveLegalEnvironment(environment),
   getCredentialStatus: (): Promise<AadeCredentialStatus> => api.getAadeCredentialStatus(),
   saveCredentials: (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => api.saveAadeCredentials(payload),
   saveRegistryCredentials: (payload: AadeRegistryCredentialSavePayload): Promise<AadeCredentialStatus> =>
