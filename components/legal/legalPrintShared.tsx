@@ -658,8 +658,8 @@ export function LegalPrintAadePanel(props: {
       <div className={`grid ${movementQrUrl ? 'grid-cols-[27mm_27mm_1fr_52mm]' : 'grid-cols-[27mm_1fr_52mm]'} gap-3`}>
         {movementQrUrl ? (
           <>
-            <CaptionedQr dataUrl={movementQrDataUrl} caption="myDATA · Διακίνηση" alt="QR ΑΑΔΕ διακίνησης" />
-            <CaptionedQr dataUrl={qrDataUrl} caption="Προβολή παραστατικού" alt="QR παρόχου" />
+            <CaptionedQr dataUrl={movementQrDataUrl} caption="Διακίνηση" alt="QR ΑΑΔΕ διακίνησης" />
+            <CaptionedQr dataUrl={qrDataUrl} caption="Παραστατικό" alt="QR παρόχου" />
           </>
         ) : (
         <div className="flex h-[25mm] w-[25mm] items-center justify-center border border-slate-300 bg-white p-1">
