@@ -538,7 +538,7 @@ export function LegalPrintTransactionPanel(props: {
   return (
     <section className="min-w-0">
       <InfoRow label="Σκοπός διακίνησης" value={movePurpose} />
-      <InfoRow label="Τρόπος πληρωμής" value={props.paymentMethodLabel || '-'} />
+      {props.paymentMethodLabel !== undefined && <InfoRow label="Τρόπος πληρωμής" value={props.paymentMethodLabel || '-'} />}
       <InfoRow label="Τόπος φόρτωσης" value={loadingLocation} />
       <InfoRow label="Τόπος προορισμού" value={destination} />
       <InfoRow label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(props.delivery)} />

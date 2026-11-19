@@ -319,6 +319,18 @@ const sanitizeOrderData = (data: any, options?: { preserveLightweightItems?: boo
     return sanitized;
 };
 
+/**
+ * Production activation (sbz_*) is set only by the worker after the provider checks, and the PIN
+ * hash only by its RPC; DB triggers reject any client write of them (an upsert fires the INSERT
+ * guard even when the row exists). Strip them from every settings write — including queued ones,
+ * which are re-sanitized on replay — so saving issuer details never gets stuck in the sync queue.
+ */
+export function stripServerManagedLegalSettings(row: any) {
+    if (!row || typeof row !== 'object') return row;
+    const { sbz_production_enabled: _enabled, sbz_activation_checks: _checks, inspection_exit_pin_hash: _pin, ...rest } = row;
+    return rest;
+}
+
 const sanitizeMutationData = (tableName: string, rawData: any, options?: { preserveLightweightItems?: boolean }) => {
     if (!rawData) return rawData;
     const sanitizeOne = (row: any) => {
@@ -329,6 +341,7 @@ const sanitizeMutationData = (tableName: string, rawData: any, options?: { prese
         if (tableName === 'order_delivery_plans') return sanitizeDeliveryPlanData(row);
         if (tableName === 'order_delivery_reminders') return sanitizeDeliveryReminderData(row);
         if (tableName === 'legal_documents') return serializeLegalDocumentForDb(row as LegalDocument);
+        if (tableName === 'legal_settings') return stripServerManagedLegalSettings(row);
         if (tableName === 'legal_document_lines') {
             const documentId = row?.document_id;
             if (!documentId) return row;

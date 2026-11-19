@@ -2882,14 +2882,22 @@ export default function LegalDocumentsPage({
               <fieldset disabled={!editable} className={`min-w-0 space-y-4 ${!editable ? 'opacity-60' : ''}`}>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <TextInput label="Ημερομηνία έκδοσης" type="date" required field="issue_date" problem={problem('issue_date')} value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
+                  {isStandaloneDeliveryNote ? (
+                    <div className="sm:col-span-1 lg:col-span-2 flex items-center rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-xs font-semibold leading-5 text-sky-900">
+                      Δελτίο αποστολής 9.3: δεν έχει τρόπο πληρωμής ούτε ΦΠΑ. Στη myDATA οι γραμμές διαβιβάζονται «Χωρίς ΦΠΑ» (κατηγορία 8) με χαρακτηρισμό Διακίνησης (category3).
+                    </div>
+                  ) : (
+                    <>
                   <SelectInput label="Τρόπος πληρωμής" field="payment_method_code" problem={problem('payment_method_code')} value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
                     {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
                   </SelectInput>
                   <SelectInput label="Καθεστώς ΦΠΑ" value={lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
                     {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                   </SelectInput>
+                    </>
+                  )}
                 </div>
-                {needsVatExemption && (
+                {needsVatExemption && !isStandaloneDeliveryNote && (
                   <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
                     <VatExemptionCategorySelect
                       value={document.vat_exemption_category}
@@ -3062,9 +3070,13 @@ export default function LegalDocumentsPage({
                             <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Έκπτωση γραμμής ${formatNumber(line.line_number)}`} />
                           </td>
                           <td className="px-1 py-2 text-right">
+                            {document.aade_document_type === '9.3' ? (
+                              <span className="inline-flex h-8 w-full items-center justify-end rounded-md bg-slate-50 px-1.5 text-[10px] font-bold text-slate-500" title="Το δελτίο αποστολής δεν έχει ΦΠΑ (myDATA vatCategory 8).">Χωρίς ΦΠΑ</span>
+                            ) : (
                             <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className={`${cellInputClass} px-1 text-right text-[10px]`} title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
                               {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                             </select>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-right leading-tight">
                             <div className="text-[13px] font-black tabular-nums text-slate-900">{money(line.gross_value)}</div>

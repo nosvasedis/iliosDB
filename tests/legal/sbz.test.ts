@@ -26,8 +26,18 @@ describe('SBZ wholesale contract',()=>{
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-11T06:00:00Z'));
     const {document,lines}=sbzFixture();
     const d={...document,document_kind:kind,aade_document_type:kind==='delivery_note'?'9.3' as const:'1.1' as const,delivery:{dispatch_date:'2026-09-11',dispatch_time:'11:00',move_purpose:1,loading_address:document.issuer.address,delivery_address:document.counterpart.address,vehicle_number:'ABC123'}};
-    const selected=kind==='delivery_note'?lines.map(l=>({...l,income_classification:{classification_category:'category3',classification_type:'',amount:l.net_value}})):lines;
-    expect(buildSbzInvoiceXml(d,selected,d.created_at)).toContain('<movePurpose>1</movePurpose>');
+    if (kind==='delivery_note') {
+      // 9.3 lines carry no VAT (category 8), as on the 9.3 notes myDATA already accepted.
+      const r=recalculateLegalDocument(d,lines,DEFAULT_LEGAL_SETTINGS);
+      const xml=buildSbzInvoiceXml({...r.document,issuer:d.issuer,counterpart:d.counterpart},r.lines,d.created_at);
+      expect(xml).toContain('<movePurpose>1</movePurpose>');
+      expect(xml).toContain('<vatCategory>8</vatCategory>');
+      expect(xml).toContain('<vatAmount>0.00</vatAmount>');
+      expect(xml).toContain('<paymentMethodInvoiceLabel></paymentMethodInvoiceLabel>');
+      expect(xml).toContain('<DispatchPlaceFrom>Ερμού 1, 10563 Αθήνα, Ελλάδα</DispatchPlaceFrom>');
+      return;
+    }
+    expect(buildSbzInvoiceXml(d,lines,d.created_at)).toContain('<movePurpose>1</movePurpose>');
   });
   it('rejects a delivery draft whose dispatch starts on a past Greek calendar day',()=>{
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T06:00:00Z'));

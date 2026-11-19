@@ -1259,14 +1259,16 @@ function buildLinesFromOrderItems(params: {
   discountPercent?: number;
   aadeDocumentType?: AadeDocumentType;
 }): LegalDocumentLine[] {
-  const vatCategory = vatRateToAadeCategory(params.vatRate);
+  // Δελτίο αποστολής 9.3 carries no VAT (category 8), like every other 9.3 line.
+  const deliveryNoteOnly = params.aadeDocumentType === '9.3';
+  const vatCategory = deliveryNoteOnly ? 8 : vatRateToAadeCategory(params.vatRate);
   const discountFactor = 1 - ((params.discountPercent || 0) / 100);
 
   return params.items.map((item, index) => {
     const product = params.products.find((p) => p.sku === item.sku);
     const unitPrice = Number((item as OrderItem).price_at_order ?? (item as OrderShipmentItem).price_at_order ?? 0);
     const netValue = roundMoney(unitPrice * item.quantity * discountFactor);
-    const vatAmount = roundMoney(netValue * params.vatRate);
+    const vatAmount = deliveryNoteOnly ? 0 : roundMoney(netValue * params.vatRate);
     const incomeClassification = resolveLegalIncomeClassification({
       product,
       settings: params.settings,
@@ -1339,9 +1341,11 @@ export function recalculateLegalLine(
   vatRate?: number | null,
   aadeDocumentType?: AadeDocumentType,
 ): LegalDocumentLine {
-  const preserveManualCategory = vatRate === undefined || vatRate === null;
-  const manualCategory = Number(line.vat_category) || 1;
-  const rate = preserveManualCategory ? vatCategoryToRate(manualCategory, 0.24) : vatRate;
+  // Δελτίο αποστολής 9.3: no VAT, category 8, whatever the document's VAT profile.
+  const deliveryNoteOnly = aadeDocumentType === '9.3';
+  const preserveManualCategory = deliveryNoteOnly || vatRate === undefined || vatRate === null;
+  const manualCategory = deliveryNoteOnly ? 8 : Number(line.vat_category) || 1;
+  const rate = deliveryNoteOnly ? 0 : preserveManualCategory ? vatCategoryToRate(manualCategory, 0.24) : vatRate;
   const quantity = Number(line.quantity) || 0;
   const hasDiscountPricing = line.source_metadata?.discount_percent !== undefined
     && line.source_metadata?.discount_percent !== null;
@@ -2101,8 +2105,12 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     if (line.vat_category === 7 && !document.vat_exemption_category) {
       issues.push({ field: `line.${line.line_number}.vat_exemption`, severity: 'error', message: 'Τα παραστατικά χωρίς ΦΠΑ χρειάζονται αιτία εξαίρεσης ΦΠΑ.' });
     }
-    if (line.vat_category === 8) {
-      issues.push({ field: `line.${line.line_number}.vat_category`, severity: 'error', message: 'Η κατηγορία ΦΠΑ 8 αφορά λογιστικές εγγραφές χωρίς ΦΠΑ και όχι τα παραστατικά τιμολόγησης/διακίνησης που εκδίδει αυτή η οθόνη.' });
+    // 9.3 carries no VAT: its lines use category 8 (as on the 9.3 notes already accepted by myDATA).
+    if (line.vat_category === 8 && document.aade_document_type !== '9.3') {
+      issues.push({ field: `line.${line.line_number}.vat_category`, severity: 'error', message: 'Η κατηγορία ΦΠΑ 8 αφορά λογιστικές εγγραφές και δελτία αποστολής χωρίς αξία ΦΠΑ, όχι τιμολόγια.' });
+    }
+    if (document.aade_document_type === '9.3' && line.vat_category !== 8) {
+      issues.push({ field: `line.${line.line_number}.vat_category`, severity: 'error', message: `Η γραμμή ${line.line_number} του δελτίου αποστολής πρέπει να είναι «Χωρίς ΦΠΑ» (κατηγορία 8).` });
     }
     if (line.measurement_unit === 7) {
       issues.push({ field: `line.${line.line_number}.measurement_unit`, severity: 'error', message: 'Η μονάδα μέτρησης 7 απαιτεί ειδικό πλήθος και τίτλο μονάδας. Επιλέξτε άλλη μονάδα ή συμπληρώστε τα στοιχεία μέσω τεχνικής επέκτασης.' });

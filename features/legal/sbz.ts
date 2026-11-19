@@ -91,8 +91,9 @@ export function buildSbzInvoiceXml(document: LegalDocument, lines: LegalDocument
   const extra = '<API_InvoiceDetails><API_Issuer>' + party('Issuer', document.issuer, document.issuer.business_name || document.issuer.name || '')
     + '</API_Issuer><API_Counterpart>' + party('Counterpart', document.counterpart, document.counterpart.name || '')
     + '</API_Counterpart><API_Additionals>' + tag('DocumentLabel', getLegalDocumentKindLabel(document.document_kind, document.aade_document_type))
-    + tag('paymentMethodInvoiceLabel', PAYMENT_METHOD_LABELS[document.payment_method_code] || '')
-    + tag('DispatchPlaceFrom', SBZ_DISPATCH_PLACE_FROM)
+    // A delivery note has no payment (no <paymentMethods> to myDATA either): leave the SBZ label empty.
+    + tag('paymentMethodInvoiceLabel', document.document_kind === 'delivery_note' ? '' : PAYMENT_METHOD_LABELS[document.payment_method_code] || '')
+    + tag('DispatchPlaceFrom', formatSbzDispatchPlace(document.delivery?.loading_address || null, document.issuer.country) || SBZ_DISPATCH_PLACE_FROM)
     + tag('DispatchPlaceTo', destination)
     + tag('DispatchMethod', resolveSbzDispatchMethod(document.delivery))
     + tag('docTime', time) + '</API_Additionals></API_InvoiceDetails>';

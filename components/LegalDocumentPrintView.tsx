@@ -216,7 +216,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                   counterpartTitle={document.counterpart.supplier_id ? 'Στοιχεία αντισυμβαλλομένου' : undefined}
                   delivery={document.delivery}
                   includesDeliveryNote={documentIncludesDeliveryNote(document)}
-                  paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
+                  paymentMethodLabel={document.document_kind === 'delivery_note' ? undefined : PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
                 />
               </div>
             )}
@@ -241,7 +241,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                           vat={document.totals.vat}
                           gross={document.totals.gross}
                           currency={document.currency}
-                          paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
+                          paymentMethodLabel={document.document_kind === 'delivery_note' ? undefined : PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
                           vatExemptionCategory={document.vat_exemption_category}
                           vatExemptionLegalNote={document.vat_exemption_legal_note}
                           delivery={document.delivery}
