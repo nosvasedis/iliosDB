@@ -145,7 +145,10 @@ describe('SBZ wholesale contract',()=>{
     },lines,document.created_at);
     expect(xml).toContain('<CounterpartCode>0000</CounterpartCode>');
     expect(xml).not.toContain('<CounterpartCode>0</CounterpartCode>');
-    expect(xml).toContain('<DispatchMethod>Courier / ταχυμεταφορά</DispatchMethod>');
+    // The retired «Courier» choice is sent as «Μεταφορική» (courier = third-party carrier).
+    expect(xml).toContain('<DispatchMethod>Μεταφορική</DispatchMethod>');
     expect(xml).not.toContain('<isDeliveryNote>');
+    const own=buildSbzInvoiceXml({...document,counterpart:{...document.counterpart,customer_code:'0000'},delivery:{dispatch_method:'Ίδια μέσα',delivery_address:document.counterpart.address}},lines,document.created_at);
+    expect(own).toContain('<DispatchMethod>Ίδια μέσα</DispatchMethod>');
   });
 });

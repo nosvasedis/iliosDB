@@ -13,7 +13,7 @@ import {
   resolveLegalLoadingAddress,
   resolveLegalMovePurpose,
   resolveSbzDispatchMethod,
-  SBZ_COURIER_DISPATCH_METHOD,
+  SBZ_CARRIER_DISPATCH_METHOD,
   SBZ_DISPATCH_METHODS,
   SBZ_OWN_MEANS_DISPATCH_METHOD,
   toAthensIsoDate,
@@ -23,13 +23,10 @@ import { customerBranches } from '../../../features/customers/customerLocation';
 import { ActionButton, FieldGroup, FieldMessage, type FieldProblem, Notice, SelectInput, TextInput } from './ui';
 import { firstIssueMessage, type DraftIssue } from './draftIssues';
 
-const THIRD_PARTY_DISPATCH_METHOD = SBZ_DISPATCH_METHODS.find((method) => method !== SBZ_OWN_MEANS_DISPATCH_METHOD && method !== SBZ_COURIER_DISPATCH_METHOD) || 'Μεταφορική';
-
-/** Order and copy of the dispatch choices: courier first, since most parcels leave with a courier. */
+/** Two ways goods leave: a carrier (courier or transport company) or our own vehicle. */
 const DISPATCH_CHOICES: Array<{ value: string; title: string; detail: string; icon: typeof Truck }> = [
-  { value: SBZ_COURIER_DISPATCH_METHOD, title: 'Courier', detail: 'π.χ. ACS · χωρίς όχημα', icon: Package },
-  { value: SBZ_OWN_MEANS_DISPATCH_METHOD, title: 'Ίδια μέσα', detail: 'Δικό μας όχημα · αρ. κυκλοφορίας', icon: Car },
-  { value: THIRD_PARTY_DISPATCH_METHOD, title: 'Μεταφορική', detail: 'Τρίτος μεταφορέας με ΑΦΜ', icon: Truck },
+  { value: SBZ_CARRIER_DISPATCH_METHOD, title: 'Μεταφορική / Courier', detail: 'ACS, Speedex κ.λπ. · το όχημα το δηλώνει ο μεταφορέας', icon: Truck },
+  { value: SBZ_OWN_MEANS_DISPATCH_METHOD, title: 'Ίδια μέσα', detail: 'Δικό μας όχημα · αρ. κυκλοφορίας στο δελτίο', icon: Car },
 ];
 
 const CLEARED_CARRIER: Partial<LegalDeliveryDetails> = {
@@ -75,8 +72,8 @@ export function withDispatchMethod(
   return {
     ...delivery,
     dispatch_method: method,
-    // A courier brings its own vehicle; a plate typed for our own vehicle must not travel with it.
-    ...(method === SBZ_COURIER_DISPATCH_METHOD ? { vehicle_number: '' } : {}),
+    // A carrier brings its own vehicle; a plate typed for our own vehicle must not travel with it.
+    vehicle_number: '',
     ...(keepCarrier ? {} : carrierFields(carrier)),
   };
 }
@@ -184,7 +181,7 @@ export default function DeliveryPanel({
   const delivery = document.delivery || null;
   const method = resolveSbzDispatchMethod(delivery);
   const ownMeans = method === SBZ_OWN_MEANS_DISPATCH_METHOD;
-  const courier = method === SBZ_COURIER_DISPATCH_METHOD;
+  const courier = !ownMeans;
   const problem = (field: string): FieldProblem | null => firstIssueMessage(issues, field);
   const [carrierDraft, setCarrierDraft] = useState<CarrierDraft | null>(null);
 
@@ -323,10 +320,10 @@ export default function DeliveryPanel({
               <div className="min-w-0 space-y-2">
                 <div data-legal-field="delivery.carrier" className="min-w-0">
                   <div className="mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
-                    {courier ? 'Εταιρεία courier' : 'Μεταφορέας'}<span className="text-red-500" aria-hidden>*</span>
+                    Μεταφορέας<span className="text-red-500" aria-hidden>*</span>
                   </div>
                   {carriers.length > 0 ? (
-                    <div role="radiogroup" aria-label={courier ? 'Εταιρεία courier' : 'Μεταφορέας'} className="grid gap-1.5">
+                    <div role="radiogroup" aria-label="Μεταφορέας" className="grid gap-1.5">
                       {carriers.map((carrier) => {
                         const partner = linkedSupplier(suppliers, carrier);
                         const active = delivery?.carrier_id === carrier.id;
@@ -381,7 +378,7 @@ export default function DeliveryPanel({
                     onClick={openCarrierDraft}
                     className="inline-flex items-center gap-1 rounded-lg px-1 py-0.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-50"
                   >
-                    <Plus size={13} /> {carriers.length === 0 && courier ? 'Προσθήκη ACS (ή άλλου courier)' : 'Νέος μεταφορέας'}
+                    <Plus size={13} /> {carriers.length === 0 ? 'Προσθήκη ACS (ή άλλου μεταφορέα)' : 'Νέος μεταφορέας'}
                   </button>
                 )}
               </div>
@@ -390,7 +387,7 @@ export default function DeliveryPanel({
             {!courier ? (
               <div className="min-w-0 space-y-2">
                 <TextInput
-                  label={ownMeans ? 'Αρ. κυκλοφορίας οχήματος' : 'Όχημα μεταφορέα'}
+                  label="Αρ. κυκλοφορίας οχήματος"
                   field="delivery.vehicle"
                   value={delivery?.vehicle_number || ''}
                   placeholder={delivery?.carrier_vehicle_number || 'π.χ. ΙΚΑ 1234'}

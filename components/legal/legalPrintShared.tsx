@@ -2,7 +2,7 @@ import { formatNumber } from '../../utils/numberFormat';
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { APP_LOGO } from '../../constants';
-import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveLegalCarrierLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
+import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveLegalCarrierLabel, resolveLegalVehicleLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
 import { formatLegalQuantity, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, summarizeLegalQuantities } from '../../utils/legalUnits';
 
@@ -543,7 +543,8 @@ export function LegalPrintTransactionPanel(props: {
       <InfoRow label="Τόπος προορισμού" value={destination} />
       <InfoRow label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(props.delivery)} />
       {includesDeliveryNote && <InfoRow label="Ημερ. διακίνησης" value={dispatchAt} />}
-      {includesDeliveryNote && resolveLegalCarrierLabel(props.delivery) && (
+      {includesDeliveryNote && <InfoRow label="Όχημα" value={resolveLegalVehicleLabel(props.delivery) || '—'} />}
+      {includesDeliveryNote && resolveLegalCarrierLabel(props.delivery) && resolveLegalCarrierLabel(props.delivery) !== resolveSbzDispatchMethod(props.delivery) && (
         <InfoRow
           label="Μεταφορέας"
           value={`${resolveLegalCarrierLabel(props.delivery)}${props.delivery?.carrier_vat_number ? ` · ΑΦΜ ${props.delivery.carrier_vat_number}` : ''}`}
@@ -648,6 +649,8 @@ export function LegalPrintAadePanel(props: {
   provider?: string | null;
   documentTypeCode?: string | null;
   revenueClassificationText?: string;
+  /** Δελτίο αποστολής: two signature boxes, no bank details or sale terms. */
+  deliveryNoteOnly?: boolean;
 }) {
   const qrDataUrl = useQrDataUrl(props.qrUrl);
   const movementQrUrl = props.movementQrUrl && props.movementQrUrl !== props.qrUrl ? props.movementQrUrl : null;
@@ -682,6 +685,16 @@ export function LegalPrintAadePanel(props: {
             </>
           )}
         </div>
+        {props.deliveryNoteOnly ? (
+          <div className="grid grid-cols-2 gap-1.5 text-[8.5px] text-slate-600">
+            {['Ο Εκδότης', 'Ο Παραλαβών'].map((label) => (
+              <div key={label} className="flex flex-col rounded-md border border-slate-300 bg-white px-1.5 py-1">
+                <span className="font-black uppercase tracking-[0.06em] text-slate-500">{label}</span>
+                <span className="mt-auto border-t border-dashed border-slate-300 pt-0.5 text-center text-[7.5px] text-slate-400">Υπογραφή / Σφραγίδα</span>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="flex flex-col rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-[9.5px] leading-[1.35] text-slate-600">
           <div className="flex h-[4.5mm] shrink-0 items-center">
             <img
@@ -694,13 +707,16 @@ export function LegalPrintAadePanel(props: {
           <p className="mt-0.5 whitespace-nowrap"><span className="font-bold">IBAN:</span> <span className="font-mono text-slate-800">GR1401100880000008800336185</span></p>
           <div className="mt-auto border-t border-slate-300 pt-1 text-center text-[8.5px]">Υπογραφή / Σφραγίδα</div>
         </div>
+        )}
       </div>
+      {!props.deliveryNoteOnly && (
       <div className="legal-print-full-width-details mt-0.5 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-tight text-slate-700">
         <p className="font-black uppercase tracking-[0.08em] text-slate-700">Όροι παράδοσης</p>
         <ol className="mt-0.5 space-y-0.5">
           {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{formatNumber(index + 1)}.</span>{term}</li>)}
         </ol>
       </div>
+      )}
       {(props.documentTypeCode || props.revenueClassificationText) && (
         <div className="legal-print-full-width-details mt-1 w-full space-y-0.5 text-[8.5px] leading-tight text-slate-500">
           {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
@@ -715,10 +731,13 @@ export function LegalPrintLinesTable({
   lines,
   currency,
   startIndex = 0,
+  quantitiesOnly = false,
 }: {
   lines: LegalDocumentLine[];
   currency?: string;
   startIndex?: number;
+  /** Δελτίο αποστολής without values: code, description, quantity and unit only. */
+  quantitiesOnly?: boolean;
 }) {
   return (
     <section className="legal-print-lines-table shrink-0 overflow-hidden rounded-md border border-slate-300">
@@ -728,11 +747,15 @@ export function LegalPrintLinesTable({
             <th className="w-[18mm] px-1.5 py-1.5">Κωδικός</th>
             <th className="px-1.5 py-1.5">Περιγραφή</th>
             <th className="w-[13mm] px-1 py-1.5 text-right">Ποσ.</th>
-            <th className="w-[16mm] px-1 py-1.5 text-center">Μ.Μ.</th>
-            <th className="w-[20mm] px-1 py-1.5 text-right">Τιμή μον.</th>
-            <th className="w-[14mm] px-1 py-1.5 text-right">Έκπτ.%</th>
-            <th className="w-[20mm] px-1 py-1.5 text-right">Αξία</th>
-            <th className="w-[13mm] px-1 py-1.5 text-right">ΦΠΑ%</th>
+            <th className={`${quantitiesOnly ? 'w-[24mm]' : 'w-[16mm]'} px-1 py-1.5 text-center`}>Μ.Μ.</th>
+            {!quantitiesOnly && (
+              <>
+                <th className="w-[20mm] px-1 py-1.5 text-right">Τιμή μον.</th>
+                <th className="w-[14mm] px-1 py-1.5 text-right">Έκπτ.%</th>
+                <th className="w-[20mm] px-1 py-1.5 text-right">Αξία</th>
+                <th className="w-[13mm] px-1 py-1.5 text-right">ΦΠΑ%</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -755,10 +778,14 @@ export function LegalPrintLinesTable({
                 </td>
                 <td className="px-1 py-[3px] text-right font-bold tabular-nums text-slate-800">{lineUnit === 'pcs' ? line.quantity.toLocaleString('el-GR') : formatLegalQuantity(getLegalLineDisplayQuantity(line))}</td>
                 <td className="px-1 py-[3px] text-center text-[8.5px] font-semibold text-slate-600">{lineUnit === 'g' ? 'Γραμμάρια' : getMeasurementUnitLabel(line.measurement_unit)}</td>
-                <td className="px-1 py-[3px] text-right font-mono tabular-nums">{formatPrintMoney(originalUnitPrice, currency)}</td>
-                <td className="px-1 py-[3px] text-right font-mono tabular-nums">{Number(discountPercent).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%</td>
-                <td className="px-1 py-[3px] text-right font-mono font-bold tabular-nums text-slate-900">{formatPrintMoney(line.net_value, currency)}</td>
-                <td className="whitespace-nowrap px-1 py-[3px] text-right font-bold tabular-nums text-slate-700">{getVatCategoryPrintRate(line.vat_category)}</td>
+                {!quantitiesOnly && (
+                  <>
+                    <td className="px-1 py-[3px] text-right font-mono tabular-nums">{formatPrintMoney(originalUnitPrice, currency)}</td>
+                    <td className="px-1 py-[3px] text-right font-mono tabular-nums">{Number(discountPercent).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%</td>
+                    <td className="px-1 py-[3px] text-right font-mono font-bold tabular-nums text-slate-900">{formatPrintMoney(line.net_value, currency)}</td>
+                    <td className="whitespace-nowrap px-1 py-[3px] text-right font-bold tabular-nums text-slate-700">{getVatCategoryPrintRate(line.vat_category)}</td>
+                  </>
+                )}
               </tr>
             );
           })}
@@ -780,6 +807,8 @@ export function LegalPrintTotalsSection(props: {
   notes?: React.ReactNode;
   delivery?: LegalDeliveryDetails | null;
   footerText?: React.ReactNode;
+  /** Δελτίο αποστολής without values: only the total quantity, no money rows. */
+  quantitiesOnly?: boolean;
 }) {
   const totalQuantity = summarizeLegalQuantities(props.lines);
   const originalNet = props.lines.reduce((sum, line) => {
@@ -812,7 +841,12 @@ export function LegalPrintTotalsSection(props: {
   return (
     <section className="legal-print-break-inside shrink-0">
       <div className="overflow-hidden rounded-md border border-slate-400 text-[10px]">
-        <div className="bg-slate-100 px-2 py-1.5 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη παραστατικού</div>
+        <div className="bg-slate-100 px-2 py-1.5 font-black uppercase tracking-[0.08em] text-slate-700">{props.quantitiesOnly ? 'Σύνοψη διακίνησης' : 'Σύνοψη παραστατικού'}</div>
+        {props.quantitiesOnly ? (
+          <div className="grid grid-cols-1">
+            <SummaryMetric className="border-b-0" emphasis label="Συνολική ποσότητα" value={totalQuantity || '0'} />
+          </div>
+        ) : (
         <div className="grid grid-cols-2">
           <SummaryMetric className="border-r border-slate-200" label="Συνολική ποσότητα" value={totalQuantity || '0'} />
           <SummaryMetric label="Συντελεστής ΦΠΑ" value={vatRateSummary || '-'} />
@@ -835,6 +869,7 @@ export function LegalPrintTotalsSection(props: {
             value={formatPrintMoney(props.gross, props.currency)}
           />
         </div>
+        )}
         {comment && (
           <div className="border-t border-slate-300 bg-slate-50 px-2.5 py-1 text-[9px] leading-snug text-slate-600">
             <span className="font-bold uppercase text-slate-500">Σχόλιο: </span>{comment}

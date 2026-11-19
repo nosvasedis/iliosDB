@@ -49,6 +49,7 @@ import {
   FlaskConical,
   Undo2,
   UserRound,
+  X,
   Zap,
   XCircle,
   type LucideIcon,
@@ -58,6 +59,7 @@ import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import SystemItemsSettings from './legal/SystemItemsSettings';
 import EnvironmentSwitch from './legal/EnvironmentSwitch';
+import { CounterpartPickerModal, PickerModal, type CounterpartChoice } from './legal/issue/PickerModal';
 import { applyLegalLineUnit, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, getLegalLineUnitMeta, LEGAL_LINE_UNITS, toStoredLegalQuantity, toStoredLegalUnitPrice, type LegalLineUnit } from '../utils/legalUnits';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
 import ProformaConvertModal from './legal/ProformaConvertModal';
@@ -204,7 +206,7 @@ import {
   resolveSbzDispatchMethod,
   resolveLegalCarrierLabel,
   DEFAULT_SBZ_DISPATCH_METHOD,
-  SBZ_COURIER_DISPATCH_METHOD,
+  SBZ_CARRIER_DISPATCH_METHOD,
   SBZ_DISPATCH_METHODS,
   SBZ_OWN_MEANS_DISPATCH_METHOD,
   toAthensIsoDate,
@@ -981,6 +983,11 @@ export default function LegalDocumentsPage({
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [creationDocumentType, setCreationDocumentType] = useState<CreationDocumentType>('invoice');
   const [creationSource, setCreationSource] = useState<DocumentCreationSource>('order');
+  /** Manual documents: to a customer or to a partner, optionally chosen before the editor opens. */
+  const [manualCounterpartKind, setManualCounterpartKind] = useState<CounterpartChoice['kind']>('customer');
+  const [manualCounterpart, setManualCounterpart] = useState<CounterpartChoice | null>(null);
+  const [pickerModal, setPickerModal] = useState<'order' | CounterpartChoice['kind'] | null>(null);
+  const creationSourceChoice = creationSource === 'order' ? 'order' : manualCounterpartKind;
   const [draftBundle, setDraftBundle] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
   const [legalSkuFocusLineId, setLegalSkuFocusLineId] = useState<string | null>(null);
@@ -1199,6 +1206,28 @@ export default function LegalDocumentsPage({
       || customers.find((customer) => customer.full_name === selectedOrder.customer_name)
       || null;
   }, [customers, selectedOrder]);
+
+  // Proformas go to customers only: leave the partner option if the type changes to proforma.
+  useEffect(() => {
+    if (creationDocumentType === 'proforma' && manualCounterpartKind === 'supplier') {
+      setManualCounterpartKind('customer');
+      setManualCounterpart(null);
+    }
+  }, [creationDocumentType, manualCounterpartKind]);
+
+  const manualCustomer = useMemo(
+    () => (creationSource === 'manual' && manualCounterpart?.kind === 'customer' ? customers.find((customer) => customer.id === manualCounterpart.id) || null : null),
+    [creationSource, manualCounterpart, customers],
+  );
+  const manualSupplier = useMemo(
+    () => (creationSource === 'manual' && manualCounterpart?.kind === 'supplier' && creationDocumentType !== 'proforma' ? suppliers.find((supplier) => supplier.id === manualCounterpart.id) || null : null),
+    [creationSource, manualCounterpart, suppliers, creationDocumentType],
+  );
+  const manualCounterpartLabel = manualCustomer
+    ? { name: manualCustomer.full_name, detail: [manualCustomer.vat_number ? `ΑΦΜ ${manualCustomer.vat_number}` : 'Χωρίς ΑΦΜ', manualCustomer.customer_code ? `κωδ. ${manualCustomer.customer_code}` : '', manualCustomer.address || ''].filter(Boolean).join(' · ') }
+    : manualSupplier
+      ? { name: manualSupplier.name, detail: [manualSupplier.vat_number ? `ΑΦΜ ${manualSupplier.vat_number}` : 'Χωρίς ΑΦΜ', manualSupplier.legal_profile?.tax_office ? `ΔΟΥ ${manualSupplier.legal_profile.tax_office}` : 'Χωρίς ΔΟΥ · «Έλεγχος ΑΦΜ» στο παραστατικό', manualSupplier.address || ''].filter(Boolean).join(' · ') }
+      : null;
 
   const orderShipments = useMemo(
     () => shipments.filter((shipment) => shipment.order_id === selectedOrderId),
@@ -1457,13 +1486,13 @@ export default function LegalDocumentsPage({
   };
 
   /**
-   * New delivery notes ship with ACS by default: courier + the default carrier (ACS).
+   * New delivery notes ship with ACS by default: «Μεταφορική» + the default carrier (ACS).
    * Only replaces the untouched default, never a method or carrier already set.
    */
   const withPreferredDispatch = (document: LegalDocument): LegalDocument => {
     if (!documentIncludesDeliveryNote(document) || !document.delivery || document.delivery.carrier_id) return document;
     if (resolveSbzDispatchMethod(document.delivery) !== DEFAULT_SBZ_DISPATCH_METHOD) return document;
-    return { ...document, delivery: withDispatchMethod(document.delivery, SBZ_COURIER_DISPATCH_METHOD, carriers, suppliers) };
+    return { ...document, delivery: withDispatchMethod(document.delivery, SBZ_CARRIER_DISPATCH_METHOD, carriers, suppliers) };
   };
 
   const openNewLegalDraft = (document: LegalDocument) => {
@@ -1755,9 +1784,14 @@ export default function LegalDocumentsPage({
         settings,
         kind: documentKind,
         userName,
-        customer: selectedCustomer,
+        customer: manualCustomer,
         aadeDocumentType,
       });
+      if (manualSupplier) {
+        const withPartner = applySupplierToLegalDocument(document, document.lines || [], manualSupplier, settings);
+        openNewLegalDraft({ ...withPartner.document, lines: withPartner.lines });
+        return;
+      }
       openNewLegalDraft(document);
       return;
     }
@@ -1830,7 +1864,7 @@ export default function LegalDocumentsPage({
       const proforma = buildManualProforma({
         settings,
         userName,
-        customer: selectedCustomer,
+        customer: manualCustomer,
       });
       setProformaBundle({ document: proforma, lines: proforma.lines || [] });
       return;
@@ -2622,7 +2656,7 @@ export default function LegalDocumentsPage({
     const addressProblem = problem('counterpart.address');
     const flagMissing = (value?: string | null): FieldProblem | null => (addressProblem && !String(value ?? '').trim() ? { severity: addressProblem.severity, message: '' } : null);
     const deliverySummary = includesDelivery
-      ? [resolveSbzDispatchMethod(document.delivery) === SBZ_COURIER_DISPATCH_METHOD ? 'Courier' : resolveSbzDispatchMethod(document.delivery), resolveLegalCarrierLabel(document.delivery)]
+      ? [resolveSbzDispatchMethod(document.delivery), resolveLegalCarrierLabel(document.delivery)]
         .filter((value, index, all) => value && all.indexOf(value) === index).join(' · ')
       : 'Χωρίς δελτίο διακίνησης';
     const dispatchExtras = (
@@ -3188,7 +3222,7 @@ export default function LegalDocumentsPage({
 
   const renderCreationSetup = () => {
     const selectedCreationType = creationTypeItems.find((item) => item.id === creationDocumentType) || creationTypeItems[0];
-    const sourceTitle = creationSource === 'order' ? 'Από παραγγελία' : 'Χειροκίνητη καταχώριση';
+    const sourceTitle = creationSource === 'order' ? 'Από παραγγελία' : manualCounterpartKind === 'supplier' ? 'Χειροκίνητα · συνεργάτης' : 'Χειροκίνητα · πελάτης';
     const primaryActionLabel = creationSource === 'order' ? 'Σύνθεση' : 'Έναρξη καταχώρισης';
     const generateDisabled = (creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders;
     const orderItemCount = selectedOrder ? (selectedOrder.items?.length ?? selectedOrder.item_count ?? 0) : 0;
@@ -3202,6 +3236,9 @@ export default function LegalDocumentsPage({
         summaryRows.push(['Πελάτης', selectedOrder.customer_name || '—']);
         summaryRows.push(['Είδη', selectedLineSource?.label || 'Όλη η παραγγελία']);
       }
+    }
+    if (creationSource === 'manual') {
+      summaryRows.push([manualCounterpartKind === 'supplier' ? 'Συνεργάτης' : 'Πελάτης', manualCounterpartLabel?.name || <span className="text-slate-400">Ορίζεται στο παραστατικό</span>]);
     }
     summaryRows.push(['Περιβάλλον', environmentChip]);
 
@@ -3236,50 +3273,83 @@ export default function LegalDocumentsPage({
             ) : null}
           </EditorSection>
 
-          <EditorSection icon={LayoutList} tone="indigo" title="2 · Από πού θα προέλθουν τα στοιχεία;" subtitle="Από υπάρχουσα παραγγελία ή με ελεύθερη καταχώριση.">
-            <div className="grid gap-2 sm:grid-cols-2">
+          <EditorSection icon={LayoutList} tone="indigo" title="2 · Από πού θα προέλθουν τα στοιχεία;" subtitle="Από παραγγελία, ή χειροκίνητα προς πελάτη ή συνεργάτη. Οι λίστες ανοίγουν σε παράθυρο αναζήτησης.">
+            <div className="grid gap-2 sm:grid-cols-3">
               {([
-                ['order', FileCheck2, 'Από παραγγελία', 'Με έτοιμο πελάτη, είδη και αξίες'],
-                ['manual', Edit3, 'Χειροκίνητα', 'Κενό παραστατικό για ελεύθερη καταχώριση'],
-              ] as const).map(([id, Icon, title, description]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={creationSource === id}
-                  onClick={() => {
-                    setCreationSource(id);
-                    if (id === 'manual') setSelectedShipmentId('');
-                    setDraftBundle(null);
-                    setProformaBundle(null);
-                  }}
-                  className={`group flex items-center gap-3 rounded-xl border p-3 text-left transition ${creationSource === id ? 'border-emerald-500 bg-emerald-50 shadow-xs ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
-                >
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${creationSource === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}`}><Icon size={18} /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className={`block text-sm font-black ${creationSource === id ? 'text-emerald-950' : 'text-slate-800'}`}>{title}</span>
-                    <span className="mt-0.5 block text-xs font-medium leading-snug text-slate-500">{description}</span>
-                  </span>
-                  {creationSource === id && <CheckCircle2 size={17} className="shrink-0 text-emerald-600" />}
-                </button>
-              ))}
+                ['order', FileCheck2, 'Από παραγγελία', 'Πελάτης, είδη και αξίες από την παραγγελία'],
+                ['customer', UserRound, 'Χειροκίνητα · πελάτης', 'Ελεύθερη καταχώριση προς πελάτη'],
+                ['supplier', Building2, 'Χειροκίνητα · συνεργάτης', 'Π.χ. δελτίο αποστολής στο χυτήριο'],
+              ] as const).filter(([id]) => !(id === 'supplier' && creationDocumentType === 'proforma')).map(([id, Icon, title, description]) => {
+                const active = creationSourceChoice === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setCreationSource(id === 'order' ? 'order' : 'manual');
+                      if (id !== 'order') {
+                        setSelectedShipmentId('');
+                        setManualCounterpartKind(id);
+                        if (manualCounterpart?.kind !== id) setManualCounterpart(null);
+                      }
+                      setDraftBundle(null);
+                      setProformaBundle(null);
+                    }}
+                    className={`group flex items-start gap-3 rounded-xl border p-3 text-left transition ${active ? 'border-emerald-500 bg-emerald-50 shadow-xs ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}`}><Icon size={17} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block text-sm font-black leading-tight ${active ? 'text-emerald-950' : 'text-slate-800'}`}>{title}</span>
+                      <span className="mt-0.5 block text-[11px] font-medium leading-snug text-slate-500">{description}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {creationSource === 'order' ? (
-              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
-                <div className="space-y-2">
+              <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <div className="min-w-0">
                   <div className={fieldLabelClass}>
                     Παραγγελία
                     <InfoTip text="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη." />
                   </div>
-                  <OrderPicker
-                    rows={legalOrderPickerRows}
-                    selectedId={selectedOrderId}
-                    loading={loadingOrders}
-                    documentsByOrder={documentsByOrder}
-                    onSelect={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
-                  />
+                  {selectedOrder ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 ring-1 ring-emerald-100"><UserRound size={18} /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black text-slate-900">{selectedOrder.customer_name || 'Χωρίς πελάτη'}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-500">
+                          <span className="font-mono font-bold">#{formatOrderId(selectedOrder.id)}</span>
+                          <span className="inline-flex items-center gap-1"><CalendarDays size={11} /> {new Date(selectedOrder.created_at).toLocaleDateString('el-GR')}</span>
+                          <span className="inline-flex items-center gap-1"><Package size={11} /> {formatNumber(orderItemCount)} είδη</span>
+                          {selectedCustomer?.vat_number
+                            ? <span className="font-bold text-emerald-700">ΑΦΜ {selectedCustomer.vat_number}</span>
+                            : <span className="font-bold text-amber-700">Χωρίς ΑΦΜ στην καρτέλα</span>}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {selectedPickerRow ? <span className="text-sm font-black tabular-nums text-slate-900">{money(selectedPickerRow.billableTotal)}</span> : null}
+                        <button type="button" onClick={() => setPickerModal('order')} className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Αλλαγή</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPickerModal('order')}
+                      disabled={loadingOrders}
+                      className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-white p-3 text-left transition hover:border-emerald-400 hover:bg-emerald-50/40 disabled:opacity-60"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500"><Search size={17} /></span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-black text-slate-800">{loadingOrders ? 'Φόρτωση παραγγελιών…' : 'Επιλογή παραγγελίας'}</span>
+                        <span className="block text-[11px] font-medium text-slate-500">Αναζήτηση με πελάτη ή αριθμό παραγγελίας</span>
+                      </span>
+                    </button>
+                  )}
                   {selectedPickerRow?.hint ? (
-                    <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${selectedPickerRow.selectable ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${selectedPickerRow.selectable ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                       <div>{selectedPickerRow.hint}</div>
                       {!selectedPickerRow.selectable && selectedPickerRow.redirectOrderId ? (
                         <button
@@ -3298,10 +3368,11 @@ export default function LegalDocumentsPage({
                     </div>
                   ) : null}
                 </div>
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <SelectInput
                     label="Ποια είδη θα συμπεριληφθούν;"
                     value={selectedShipmentId}
+                    disabled={!selectedOrder}
                     onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); setProformaBundle(null); }}
                     help="Επιλέξτε ολόκληρη την παραγγελία, μόνο τα υπόλοιπα είδη ή μια συγκεκριμένη μερική αποστολή (ΔΑ)."
                   >
@@ -3335,36 +3406,59 @@ export default function LegalDocumentsPage({
                     {' '}Συνεχίστε μόνο αν εκδίδετε για διαφορετικά είδη (π.χ. μερική αποστολή ή υπόλοιπα).
                   </Notice>
                 ) : null}
-                {selectedOrder ? (
-                  <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-slate-600 ring-1 ring-slate-200"><UserRound size={18} /></span>
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-slate-900">{selectedOrder.customer_name || 'Χωρίς πελάτη'}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-500">
-                          <span className="font-mono">#{formatOrderId(selectedOrder.id)}</span>
-                          <span className="inline-flex items-center gap-1"><CalendarDays size={12} /> {new Date(selectedOrder.created_at).toLocaleDateString('el-GR')}</span>
-                          <span className="inline-flex items-center gap-1"><Package size={12} /> {formatNumber(orderItemCount)} είδη</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {selectedCustomer?.vat_number
-                        ? <Chip tone="emerald"><CheckCircle2 size={11} /> ΑΦΜ {selectedCustomer.vat_number}</Chip>
-                        : <Chip tone="amber"><AlertTriangle size={11} /> Χωρίς ΑΦΜ στην καρτέλα πελάτη</Chip>}
-                      {selectedPickerRow ? <span className="text-base font-black tabular-nums text-slate-900">{money(selectedPickerRow.billableTotal)}</span> : null}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : (
-              <Notice tone="violet" icon={Edit3} className="mt-4">
-                {creationDocumentType === 'proforma'
-                  ? 'Ξεκινάτε κενό προτιμολόγιο. Συμπληρώστε πελάτη, γραμμές και σημειώσεις χειροκίνητα στον επεξεργαστή.'
-                  : 'Ξεκινάτε κενό παραστατικό. Συμπληρώστε πελάτη, γραμμές και στοιχεία χειροκίνητα στον επεξεργαστή.'}
-              </Notice>
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className={fieldLabelClass}>{manualCounterpartKind === 'supplier' ? 'Συνεργάτης / προμηθευτής' : 'Πελάτης'}</div>
+                {manualCounterpartLabel ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                    {manualCounterpart?.kind === 'supplier' && manualSupplier
+                      ? <SupplierAvatar name={manualSupplier.name} logoUrl={manualSupplier.logo_url} size="sm" />
+                      : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 ring-1 ring-emerald-100"><UserRound size={16} /></span>}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-slate-900">{manualCounterpartLabel.name}</div>
+                      <div className="truncate text-[11px] font-medium text-slate-500">{manualCounterpartLabel.detail}</div>
+                    </div>
+                    <button type="button" onClick={() => setPickerModal(manualCounterpartKind)} className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">Αλλαγή</button>
+                    <button type="button" onClick={() => setManualCounterpart(null)} className="rounded-lg p-1 text-slate-400 transition hover:bg-white hover:text-slate-700" aria-label="Χωρίς αντισυμβαλλόμενο"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPickerModal(manualCounterpartKind)}
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-white p-3 text-left transition hover:border-emerald-400 hover:bg-emerald-50/40"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500"><Search size={17} /></span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black text-slate-800">{manualCounterpartKind === 'supplier' ? 'Επιλογή συνεργάτη' : 'Επιλογή πελάτη'}</span>
+                      <span className="block text-[11px] font-medium text-slate-500">Προαιρετικό · μπορείτε να τον ορίσετε και μέσα στο παραστατικό</span>
+                    </span>
+                  </button>
+                )}
+              </div>
             )}
           </EditorSection>
+          {pickerModal === 'order' && (
+            <PickerModal title="Επιλογή παραγγελίας" subtitle="Αναζητήστε με πελάτη ή αριθμό. Φαίνεται και αν η παραγγελία έχει ήδη παραστατικό." onClose={() => setPickerModal(null)}>
+              <OrderPicker
+                rows={legalOrderPickerRows}
+                selectedId={selectedOrderId}
+                loading={loadingOrders}
+                documentsByOrder={documentsByOrder}
+                onSelect={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); setPickerModal(null); }}
+              />
+            </PickerModal>
+          )}
+          {(pickerModal === 'customer' || pickerModal === 'supplier') && (
+            <CounterpartPickerModal
+              kind={pickerModal}
+              customers={invoiceableCustomers}
+              suppliers={suppliers}
+              selected={manualCounterpart}
+              onSelect={(choice) => { setManualCounterpart(choice); setDraftBundle(null); setProformaBundle(null); setPickerModal(null); }}
+              onClose={() => setPickerModal(null)}
+            />
+          )}
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-4">

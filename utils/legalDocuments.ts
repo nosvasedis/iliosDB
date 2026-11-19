@@ -290,8 +290,11 @@ export const PAYMENT_METHOD_LABELS: Record<number, string> = {
 export const PAYMENT_METHOD_CODES = [5, 1, 2, 3, 4, 6, 7, 8];
 
 export const SBZ_OWN_MEANS_DISPATCH_METHOD = 'Ίδια μέσα';
-export const SBZ_COURIER_DISPATCH_METHOD = 'Courier / ταχυμεταφορά';
-export const SBZ_DISPATCH_METHODS = ['Μεταφορική', SBZ_OWN_MEANS_DISPATCH_METHOD, SBZ_COURIER_DISPATCH_METHOD] as const;
+/** Third-party carrier — a transport company or a courier (ACS, Speedex…). Brings its own vehicle. */
+export const SBZ_CARRIER_DISPATCH_METHOD = 'Μεταφορική';
+/** Retired separate «Courier» choice; stored documents with it read as «Μεταφορική». */
+export const LEGACY_COURIER_DISPATCH_METHOD = 'Courier / ταχυμεταφορά';
+export const SBZ_DISPATCH_METHODS = [SBZ_CARRIER_DISPATCH_METHOD, SBZ_OWN_MEANS_DISPATCH_METHOD] as const;
 
 /** Carrier label for print/UI: a named carrier, else «Ίδια μέσα» only when that is the dispatch method. */
 export function resolveLegalCarrierLabel(delivery?: Pick<LegalDeliveryDetails, 'dispatch_method' | 'carrier_name'> | null): string | null {
@@ -304,7 +307,19 @@ export const SBZ_DISPATCH_PLACE_FROM = 'Έδρα μας';
 
 export function resolveSbzDispatchMethod(delivery?: Pick<LegalDeliveryDetails, 'dispatch_method'> | null): string {
   const value = String(delivery?.dispatch_method ?? '').trim();
+  if (value === LEGACY_COURIER_DISPATCH_METHOD) return SBZ_CARRIER_DISPATCH_METHOD;
   return value || DEFAULT_SBZ_DISPATCH_METHOD;
+}
+
+/**
+ * «Όχημα» for print/UI. Own means: our plate (null = missing). A third-party carrier
+ * declares its vehicle when it scans the QR (RegisterTransfer), so unless a plate is
+ * known the document says so instead of showing an empty field.
+ */
+export function resolveLegalVehicleLabel(delivery?: Pick<LegalDeliveryDetails, 'dispatch_method' | 'vehicle_number' | 'carrier_vehicle_number'> | null): string | null {
+  const plate = String(delivery?.vehicle_number || delivery?.carrier_vehicle_number || '').trim();
+  if (plate) return plate;
+  return resolveSbzDispatchMethod(delivery) === SBZ_OWN_MEANS_DISPATCH_METHOD ? null : 'Δηλώνεται από τον μεταφορέα';
 }
 
 const LEGAL_COUNTRY_CODES = [
@@ -2181,11 +2196,12 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
       issues.push({ field: 'delivery.dispatch', severity: 'error', message: 'Η έναρξη διακίνησης δεν μπορεί να είναι σε παρελθούσα ημερομηνία. Ενημερώστε ημερομηνία και ώρα.' });
     }
     const dispatchMethod = resolveSbzDispatchMethod(delivery);
-    if (dispatchMethod !== SBZ_COURIER_DISPATCH_METHOD && !delivery?.vehicle_number && !delivery?.carrier_vehicle_number) {
-      issues.push({ field: 'delivery.vehicle', severity: 'warning', message: 'Δεν έχει δηλωθεί όχημα. Συμπληρώστε το πριν τη διακίνηση αν απαιτείται.' });
+    // Only our own vehicle must be on the document; a carrier declares its vehicle when it scans the QR.
+    if (dispatchMethod === SBZ_OWN_MEANS_DISPATCH_METHOD && !delivery?.vehicle_number && !delivery?.carrier_vehicle_number) {
+      issues.push({ field: 'delivery.vehicle', severity: 'warning', message: 'Συμπληρώστε τον αριθμό κυκλοφορίας του οχήματός σας: τυπώνεται στο δελτίο και ελέγχεται στη διακίνηση.' });
     }
     if (dispatchMethod !== SBZ_OWN_MEANS_DISPATCH_METHOD && !delivery?.carrier_name) {
-      issues.push({ field: 'delivery.carrier', severity: 'warning', message: 'Επιλέξτε μεταφορέα (π.χ. το courier) ή ορίστε τρόπο αποστολής «Ίδια μέσα».' });
+      issues.push({ field: 'delivery.carrier', severity: 'warning', message: 'Επιλέξτε μεταφορέα (π.χ. ACS) ή ορίστε τρόπο αποστολής «Ίδια μέσα».' });
     }
   }
 

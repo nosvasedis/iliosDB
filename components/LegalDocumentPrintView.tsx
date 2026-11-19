@@ -62,6 +62,9 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
     .join(', ');
 
   const isOfficialPrint = isOfficialLegalDocumentPrint(document, lines);
+  // Δελτίο αποστολής 9.3: no sale terms, bank details or money columns unless values were entered.
+  const deliveryNoteOnly = document.document_kind === 'delivery_note';
+  const quantitiesOnly = deliveryNoteOnly && lines.every((line) => !Number(line.net_value));
   const footerText = isOfficialPrint
     ? document.status === 'cancelled'
       ? `Το παραστατικό είχε διαβιβαστεί επιτυχώς στη myDATA και στη συνέχεια ακυρώθηκε. MARK ακύρωσης: ${document.cancellation_mark || '-'}`
@@ -223,6 +226,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
             {shouldRenderLinesTable && (
               <LegalPrintLinesTable
+                quantitiesOnly={quantitiesOnly}
                 lines={pageLines}
                 currency={document.currency}
                 startIndex={slice.startIndex}
@@ -236,6 +240,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                     <tr>
                       <td className="p-0 align-top">
                         <LegalPrintTotalsSection
+                          quantitiesOnly={quantitiesOnly}
                           lines={lines}
                           net={document.totals.net}
                           vat={document.totals.vat}
@@ -256,7 +261,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
                           authenticationCode={document.authentication_code}
                           provider={document.provider}
                           documentTypeCode={document.aade_document_type}
-                          revenueClassificationText={revenueClassificationText}
+                          revenueClassificationText={quantitiesOnly ? undefined : revenueClassificationText}
+                          deliveryNoteOnly={deliveryNoteOnly}
                         />
                       </td>
                     </tr>
