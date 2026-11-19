@@ -228,6 +228,22 @@ export const ActionButton = ({
   );
 };
 
+export function DocumentActions({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="@container/document-actions min-w-0">
+      <div
+        role="group"
+        aria-label="Ενέργειες παραστατικού"
+        className="grid grid-cols-1 gap-2 @min-[20rem]/document-actions:grid-cols-2 @min-[36rem]/document-actions:grid-flow-col @min-[36rem]/document-actions:auto-cols-fr @min-[36rem]/document-actions:grid-cols-none [&>button]:min-h-11 [&>button]:min-w-0 [&>button]:px-2.5 [&>button]:leading-snug [&>button:nth-child(3)]:col-span-full @min-[36rem]/document-actions:[&>button:nth-child(3)]:col-span-1 [&_svg]:shrink-0"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export const documentStatusGroupClass = 'flex min-w-0 flex-wrap items-center gap-1.5 [&>*]:min-h-7 [&>*]:rounded-full [&>*]:px-2.5 [&_svg]:shrink-0';
+
 export const Chip = ({ tone = 'slate', className = '', children }: { tone?: Tone | null; className?: string; children: React.ReactNode }) => (
   <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-black ${tone ? chipToneClass[tone] : ''} ${className}`}>
     {children}

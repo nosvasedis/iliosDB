@@ -70,6 +70,8 @@ import {
   Chip,
   chipToneClass,
   cellInputClass,
+  DocumentActions,
+  documentStatusGroupClass,
   EditorSection,
   FieldGroup,
   FieldMessage,
@@ -594,28 +596,34 @@ const WorkspaceToolbar = ({
   total: string;
   actions?: React.ReactNode;
 }) => (
-  <div className="z-20 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xs backdrop-blur-sm supports-backdrop-filter:bg-white/85 sm:p-4 md:sticky md:top-2">
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10">
+  <div className="@container/toolbar z-20 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xs backdrop-blur-sm supports-backdrop-filter:bg-white/85 sm:p-4 2xl:sticky 2xl:top-2">
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 ${actions ? '@min-[72rem]/toolbar:grid-cols-[minmax(0,1fr)_37rem_auto] @min-[72rem]/toolbar:gap-x-5' : ''}`}>
+      <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2.5 sm:gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-linear-to-br from-[#1c2812] via-[#0b1204] to-[#060b00] text-white shadow-md shadow-[#060b00]/15 ring-1 ring-inset ring-white/10 sm:size-11">
           <Icon size={20} strokeWidth={2.25} />
         </span>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h2 className="truncate text-base font-black tracking-tight text-slate-950 sm:text-lg">{title}</h2>
-            {code ? <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] font-black text-slate-500">{code}</span> : null}
-            {badges}
-          </div>
+          <h2 className="text-base font-black leading-tight tracking-tight text-slate-950 sm:text-lg">{title}</h2>
           <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{subtitle}</div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-        <div className="flex items-baseline gap-2 rounded-xl bg-slate-50 px-3 py-1.5 ring-1 ring-slate-200 lg:mr-1 lg:block lg:text-right">
-          <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Σύνολο</div>
-          <div className="text-lg font-black tabular-nums leading-tight text-slate-950">{total}</div>
-        </div>
-        {actions ? <div className="hidden flex-wrap items-center gap-2 md:flex">{actions}</div> : null}
+      <div className={`col-start-2 row-start-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-right sm:px-3 ${actions ? '@min-[72rem]/toolbar:col-start-3 @min-[72rem]/toolbar:row-span-2' : ''}`}>
+        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Σύνολο</div>
+        <div className="whitespace-nowrap text-base font-black tabular-nums leading-tight text-slate-950 sm:text-lg">{total}</div>
       </div>
+      {code || badges ? (
+        <div className={`${documentStatusGroupClass} col-span-full row-start-2 @min-[72rem]/toolbar:col-span-1 @min-[72rem]/toolbar:col-start-1 @min-[72rem]/toolbar:pl-14`}>
+          {code ? <Chip className="font-mono">{code}</Chip> : null}
+          {badges}
+        </div>
+      ) : null}
+      {actions ? (
+        <div className="col-span-full min-w-0 border-t border-slate-100 pt-2.5 @min-[72rem]/toolbar:col-span-1 @min-[72rem]/toolbar:col-start-2 @min-[72rem]/toolbar:row-span-2 @min-[72rem]/toolbar:row-start-1 @min-[72rem]/toolbar:border-0 @min-[72rem]/toolbar:pt-0">
+          <div className="ml-auto max-w-[37rem]">
+            <DocumentActions>{actions}</DocumentActions>
+          </div>
+        </div>
+      ) : null}
     </div>
   </div>
 );
@@ -2592,7 +2600,7 @@ export default function LegalDocumentsPage({
           title={issueBlocked ? `Διορθώστε πρώτα ${validationErrors.length === 1 ? 'το σφάλμα' : `τα ${formatNumber(validationErrors.length)} σφάλματα`} του ελέγχου.` : undefined}
         >
           {submitDocument.isPending || issuingDocument ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          {document.status === 'failed' ? 'Νέα αποστολή · Έκδοση μέσω SBZ' : 'Έκδοση μέσω SBZ'}
+          {document.status === 'failed' ? 'Νέα αποστολή μέσω SBZ' : 'Έκδοση μέσω SBZ'}
         </ActionButton>
       </>
     );
@@ -2698,7 +2706,8 @@ export default function LegalDocumentsPage({
               <button
                 type="button"
                 onClick={scrollToFinalCheck}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-black transition hover:brightness-95 ${validationErrors.length ? chipToneClass.red : issueCount ? chipToneClass.amber : chipToneClass.emerald}`}
+                aria-controls="legal-final-check"
+                className={`inline-flex items-center gap-1 border py-0.5 text-[11px] font-black transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 ${validationErrors.length ? chipToneClass.red : issueCount ? chipToneClass.amber : chipToneClass.emerald}`}
               >
                 {validationErrors.length
                   ? <><XCircle size={11} /> {formatNumber(validationErrors.length)} {validationErrors.length === 1 ? 'σφάλμα' : 'σφάλματα'}</>

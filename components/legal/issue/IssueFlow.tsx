@@ -4,7 +4,7 @@ import type { LegalDocument } from '../../../types';
 import { getLegalDocumentDisplayNumber, getLegalDocumentKindLabel } from '../../../utils/legalDocuments';
 import { SBZ_UNKNOWN_MESSAGE } from '../../../features/legal/sbz';
 import { formatNumber } from '../../../utils/numberFormat';
-import { ActionButton, Chip, iconToneClass } from './ui';
+import { ActionButton, Chip, DocumentActions, documentStatusGroupClass, iconToneClass } from './ui';
 import { DRAFT_ISSUE_SECTION_LABEL, type DraftIssue, type DraftIssueSection } from './draftIssues';
 
 const SECTION_ORDER: DraftIssueSection[] = ['customer', 'document', 'delivery', 'lines', 'issuer'];
@@ -34,10 +34,10 @@ export function IssueReviewCard({
   const tone = errorCount ? 'red' : warningCount ? 'amber' : 'emerald';
 
   return (
-    <section id="legal-final-check" className="scroll-mt-32 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+    <section id="legal-final-check" className="@container/review scroll-mt-6 rounded-2xl border border-slate-200/80 bg-white shadow-xs 2xl:scroll-mt-52">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex items-center gap-2.5">
-          <span className={`grid h-8 w-8 place-items-center rounded-lg ${iconToneClass[tone]}`}><ClipboardCheck size={16} /></span>
+          <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${iconToneClass[tone]}`}><ClipboardCheck size={16} /></span>
           <div>
             <h3 className="text-sm font-black text-slate-900">Έλεγχος & έκδοση</h3>
             <p className="text-xs font-medium text-slate-500">
@@ -49,8 +49,8 @@ export function IssueReviewCard({
             </p>
           </div>
         </div>
-        {editable ? (
-          <div className="flex flex-wrap items-center gap-1.5">
+        {editable && issues.length > 0 ? (
+          <div className={documentStatusGroupClass}>
             {errorCount > 0 && <Chip tone="red"><XCircle size={11} /> {formatNumber(errorCount)} {errorCount === 1 ? 'σφάλμα' : 'σφάλματα'}</Chip>}
             {warningCount > 0 && <Chip tone="amber"><AlertTriangle size={11} /> {formatNumber(warningCount)} {warningCount === 1 ? 'προειδοποίηση' : 'προειδοποιήσεις'}</Chip>}
           </div>
@@ -108,15 +108,14 @@ export function IssueReviewCard({
           </div>
         )}
         {editable && actions ? (
-          <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-start gap-2.5 text-xs font-medium leading-relaxed text-slate-500">
-              <Archive size={16} className="mt-0.5 shrink-0 text-sky-600" />
-              <div>
-                <span className="font-black text-slate-700">Θέλετε να συνεχίσετε αργότερα;</span>{' '}
-                Πατήστε «Αποθήκευση πρόχειρου». Θα το βρείτε στο <span className="font-black text-slate-700">Αρχείο → Πρόχειρα</span> και δεν θα σταλεί στον πάροχο.
-              </div>
+          <div className="grid items-center gap-3 border-t border-slate-100 pt-4 @min-[60rem]/review:grid-cols-[minmax(0,1fr)_37rem] @min-[60rem]/review:gap-5">
+            <p className="flex items-start gap-2 text-xs font-medium leading-relaxed text-slate-500">
+              <Archive size={15} className="mt-0.5 shrink-0 text-slate-400" />
+              <span>Τα αποθηκευμένα πρόχειρα βρίσκονται στο <strong className="font-bold text-slate-700">Αρχείο → Πρόχειρα</strong>.</span>
+            </p>
+            <div className="w-full max-w-[37rem] justify-self-end">
+              <DocumentActions>{actions}</DocumentActions>
             </div>
-            <div className="flex flex-wrap gap-2 xl:justify-end">{actions}</div>
           </div>
         ) : null}
       </div>
