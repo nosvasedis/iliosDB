@@ -67,3 +67,20 @@ describe('documents to partners (Προμηθευτές & Συνεργάτες)'
     expect(validateLegalDocument({ ...draft, lines: [picked] }, [picked]).some((issue) => issue.message.includes('Συνολικό Βάρος'))).toBe(false);
   });
 });
+
+describe('movement documents carry party names and addresses (myDATA 204)', () => {
+  it('sends issuer and counterpart name/address on Τιμολόγιο-ΔΑ and 9.3, not on a plain invoice', async () => {
+    const { buildAadeInvoiceXml } = await import('../../utils/legalDocuments');
+    const { sbzRejectionMessage } = await import('../../features/legal/sbz');
+    const issuerSettings = { ...settings, issuer: { ...settings.issuer, business_name: 'ΑΝΤΩΝΙΑ ΤΣΟΤΟΓΛΟΥ ΕΕ' } };
+    const base = buildManualLegalDocument({ settings: issuerSettings, kind: 'invoice_delivery' });
+    const withPartner = applySupplierToLegalDocument(base, base.lines || [], foundry, issuerSettings).document;
+    const delivery = buildAadeInvoiceXml(withPartner, withPartner.lines);
+    expect(delivery).toContain('<issuer><vatNumber>094360202</vatNumber><country>GR</country><branch>0</branch><name>ΑΝΤΩΝΙΑ ΤΣΟΤΟΓΛΟΥ ΕΕ</name><address><street>ΑΒΕΡΩΦ</street>');
+    expect(delivery).toContain('<name>Χυτήριο Δοκιμής</name><address><street>Θηβών</street>');
+    const plain = buildAadeInvoiceXml({ ...withPartner, document_kind: 'invoice' }, withPartner.lines);
+    expect(plain).not.toContain('<name>');
+    expect(plain).not.toContain('<address>');
+    expect(sbzRejectionMessage({ statusCode: 'ValidationError', errors: [{ code: '204', message: 'Counterpart Name is mandatory' }] })).toContain('Counterpart Name is mandatory');
+  });
+});

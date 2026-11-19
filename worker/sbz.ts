@@ -1,5 +1,5 @@
 import { XMLValidator } from 'fast-xml-parser';
-import { buildSbzInvoiceXml, parseSbzResponse, sbzFailureMessage, SBZ_BASE_URL, SBZ_UNKNOWN_MESSAGE, validateSbzDocument } from '../features/legal/sbz';
+import { buildSbzInvoiceXml, parseSbzResponse, sbzFailureMessage, sbzRejectionMessage, SBZ_BASE_URL, SBZ_UNKNOWN_MESSAGE, validateSbzDocument } from '../features/legal/sbz';
 import { parseTransmittedDocumentsXml, parseAadeResponseXml, normalizeAadeResponseXml, isWholesaleAadeDocumentType, getDocumentKindFromAadeType, groupIncomeClassifications } from '../utils/legalDocuments';
 
 type Env = { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string; SBZ_API_KEY_DEV?: string; SBZ_API_KEY_PROD?: string };
@@ -227,7 +227,7 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
         const success=response.ok && parsed.statusCode==='Success' && complete && !parsed.errors.length;
         const explicitRejection=response.ok && !['','Success','TechnicalError'].includes(parsed.statusCode) && !codes.some(c=>['233','7002','7003'].includes(c));
         const outcome=success?'accepted':explicitRejection?'rejected':'unknown';
-        const error=success?null:outcome==='unknown'?SBZ_UNKNOWN_MESSAGE:sbzFailureMessage(parsed.errors[0]?.code || parsed.statusCode);
+        const error=success?null:outcome==='unknown'?SBZ_UNKNOWN_MESSAGE:sbzRejectionMessage(parsed);
         const result=await finish(claim.operationId,outcome,parsed,response.text,error);
         return json(outcome==='accepted'?result:{error,document:result},outcome==='accepted'?200:409);
       } catch(error) {

@@ -138,6 +138,15 @@ export function sbzFailureMessage(code: string) {
   return messages[code] || 'Ο πάροχος δεν δέχθηκε το παραστατικό. Ελέγξτε τα στοιχεία του ή ζητήστε υποστήριξη.';
 }
 
+/** Rejection text for the user: our explanation when we have one, otherwise the provider's own messages. */
+export function sbzRejectionMessage(parsed: Pick<ReturnType<typeof parseSbzResponse>, 'statusCode' | 'errors'>) {
+  const code = parsed.errors[0]?.code || parsed.statusCode;
+  const known = sbzFailureMessage(code);
+  if (known !== sbzFailureMessage('__unknown__')) return known;
+  const details = [...new Set(parsed.errors.map((error) => error.message.trim()).filter(Boolean))].slice(0, 4);
+  return details.length ? `${known} Αιτία από τον πάροχο: ${details.join(' · ')}` : known;
+}
+
 export function isReservingCreditDocument(document: Pick<LegalDocument, 'document_kind' | 'status' | 'credited_document_id'>) {
   return document.document_kind === 'credit' && Boolean(document.credited_document_id) && document.status !== 'cancelled';
 }

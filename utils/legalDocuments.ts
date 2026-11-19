@@ -17,6 +17,7 @@ import {
   LegalParty,
   LegalPartyAddress,
   LegalSettings,
+  LegalIssuerSettings,
   LegalSystemItem,
   Supplier,
   SupplierLegalProfile,
@@ -2226,14 +2227,21 @@ function buildAddressXml(tag: string, address?: LegalPartyAddress | null): strin
   ].join('')}</${tag}>`;
 }
 
-function buildPartyXml(tag: string, party: LegalParty, includeAddress = true): string {
+/**
+ * Greek parties normally send only ΑΦΜ/country/branch. A movement document (9.3 or
+ * isDeliveryNote=true) must also carry name and address of issuer AND counterpart —
+ * myDATA error 204 otherwise (as on the 9.3 notes it already accepted).
+ */
+function buildPartyXml(tag: string, party: LegalParty, includeAddress = true, movementDocument = false): string {
   const vat = normalizeVatNumber(party.vat_number);
   const greekParty = isGreekParty(party);
+  const name = String((party as LegalIssuerSettings).business_name || party.name || '').trim().slice(0, 200);
   const children = [
     xmlTag('vatNumber', vat),
     xmlTag('country', party.country || 'GR'),
     xmlTag('branch', party.branch ?? 0),
-    includeAddress && !greekParty ? buildAddressXml('address', party.address) : '',
+    movementDocument && name ? xmlTag('name', name) : '',
+    movementDocument || (includeAddress && !greekParty) ? buildAddressXml('address', party.address) : '',
   ].join('');
   return `<${tag}>${children}</${tag}>`;
 }
@@ -2313,8 +2321,8 @@ function buildSummaryXml(document: LegalDocument): string {
 
 export function buildAadeInvoiceXml(document: LegalDocument, lines: LegalDocumentLine[] = document.lines || []): string {
   const invoice = [
-    buildPartyXml('issuer', document.issuer, true),
-    buildPartyXml('counterpart', document.counterpart, true),
+    buildPartyXml('issuer', document.issuer, true, documentIncludesDeliveryNote(document)),
+    buildPartyXml('counterpart', document.counterpart, true, documentIncludesDeliveryNote(document)),
     buildHeaderXml(document),
     buildPaymentXml(document),
     lines.map((line) => buildLineXml(line, document)).join(''),

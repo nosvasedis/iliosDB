@@ -755,6 +755,14 @@ export function buildLegalArchiveRecords(params: {
   });
 }
 
+/**
+ * Not (yet) a fiscal document: a draft, or a send the provider rejected (no MARK).
+ * Both are edited and resent from «Πρόχειρα», not listed among issued documents.
+ */
+export function isUnissuedLegalDocument(document: Pick<LegalDocument, 'status' | 'aade_mark'>): boolean {
+  return document.status === 'draft' || (document.status === 'failed' && !document.aade_mark);
+}
+
 export function filterLegalArchiveRecords(
   records: LegalArchiveRecord[],
   filters: LegalArchiveFilterState,
@@ -765,13 +773,14 @@ export function filterLegalArchiveRecords(
   const dateRange = resolveLegalArchiveDateRange(filters, now);
   const filtered = records.filter((record) => {
     const document = record.document;
+    const unissued = record.source === 'legal' && isUnissuedLegalDocument(document as LegalDocument);
     if (filters.scope === 'drafts') {
-      if (record.source !== 'legal' || document.status !== 'draft') return false;
+      if (!unissued) return false;
     } else if (filters.scope === 'legal') {
-      if (record.source !== 'legal' || document.status === 'draft') return false;
+      if (record.source !== 'legal' || unissued) return false;
     } else if (filters.scope === 'proforma') {
       if (record.source !== 'proforma') return false;
-    } else if (record.source === 'legal' && document.status === 'draft') {
+    } else if (unissued) {
       return false;
     }
     if (queryTokens.length && !queryTokens.every((token) => record.searchText.includes(token))) return false;

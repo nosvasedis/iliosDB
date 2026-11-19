@@ -60,6 +60,7 @@ import {
   createDefaultLegalArchiveFilters,
   filterLegalArchiveRecords,
   getLegalArchiveStats,
+  isUnissuedLegalDocument,
 } from '../../features/legal/archive';
 import { buildLegalFinancialReport } from '../../features/legal/financialReport';
 import {
@@ -887,7 +888,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   );
   const stats = useMemo(() => getLegalArchiveStats(filtered), [filtered]);
   const sourceCounts = useMemo(() => props.records.reduce((counts, record) => {
-    if (record.source === 'legal' && record.document.status === 'draft') counts.drafts += 1;
+    if (record.source === 'legal' && isUnissuedLegalDocument(record.document as LegalDocument)) counts.drafts += 1;
     else counts[record.source] += 1;
     return counts;
   }, { legal: 0, drafts: 0, proforma: 0 }), [props.records]);
@@ -1712,7 +1713,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 sm:flex sm:w-fit">
             {([
               ['legal', 'Παραστατικά', sourceCounts.legal, ReceiptText],
-              ['drafts', 'Πρόχειρα', sourceCounts.drafts, FileClock],
+              ['drafts', 'Πρόχειρα & προς διόρθωση', sourceCounts.drafts, FileClock],
               ['proforma', 'Προτιμολόγια', sourceCounts.proforma, FileText],
             ] as const).map(([scope, label, count, Icon]) => (
               <button
@@ -1734,10 +1735,10 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-slate-600">
             {filters.scope === 'drafts'
-              ? <><span className="font-black text-slate-800">Πρόχειρα παραστατικά</span> · Δεν έχουν εκδοθεί και δεν έχουν σταλεί στον πάροχο. Ανοίξτε τα για επεξεργασία ή υποβολή.</>
+              ? <><span className="font-black text-slate-800">Πρόχειρα & προς διόρθωση</span> · Δεν έχουν ΜΑΡΚ: πρόχειρα που δεν στάλθηκαν και αποστολές που απέρριψε ο πάροχος. Ανοίξτε τα για διόρθωση και νέα αποστολή — δεν δημιουργείται διπλό παραστατικό.</>
               : filters.scope === 'proforma'
                 ? <><span className="font-black text-slate-800">Προτιμολόγια</span> · Εμπορικά έγγραφα χωρίς MARK, χωριστά από τα φορολογικά παραστατικά.</>
-                : <><span className="font-black text-slate-800">Παραστατικά</span> · Εκδοθέντα, υποβληθέντα, αποτυχημένα ή ακυρωμένα. Τα πρόχειρα δεν εμφανίζονται εδώ.</>}
+                : <><span className="font-black text-slate-800">Παραστατικά</span> · Εκδοθέντα, υποβληθέντα ή ακυρωμένα. Πρόχειρα και απορριφθέντα χωρίς ΜΑΡΚ είναι στα «Πρόχειρα».</>}
           </div>
 
           <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(260px,1fr)_220px_auto]">
@@ -1856,6 +1857,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as LegalArchiveFilterState['status'] }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
                 <option value="all">Όλες οι καταστάσεις</option>
                 {filters.scope === 'drafts' && <option value="draft">Πρόχειρα</option>}
+                {filters.scope === 'drafts' && <option value="failed">Απορρίφθηκαν · προς διόρθωση</option>}
                 <option value="submitted">Υποβληθέντα</option>
                 <option value="issued">Εκδοθέντα</option>
                 <option value="failed">Αποτυχημένα</option>
