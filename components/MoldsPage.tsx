@@ -291,10 +291,10 @@ export default function MoldsPage({ products, resourceTab = 'molds', onResourceT
         });
     }, [categoryMolds, searchTerm, locationFilter, quickFilters, sortKey, sortDir]);
 
-    // Next free ascending standard code (L1220 -> L1221); LSTX codes are ignored.
+    // Letter-suffixed codes use the same sequence number as their base code.
     const nextStandardCode = useMemo(() => {
         const max = (molds || []).reduce((acc, m) => {
-            const match = m.code.trim().toUpperCase().match(/^L(\d+)$/);
+            const match = m.code.trim().toUpperCase().match(/^L(\d+)[A-ZΑ-Ω]*$/);
             return match ? Math.max(acc, parseInt(match[1], 10)) : acc;
         }, 0);
         return `L${max + 1}`;
