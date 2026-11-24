@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'worker/worker.js'
+      - 'worker/silverMarket.js'
+      - 'lib/silverMarketContract.ts'
       - 'cloudflare-worker.js'
       - 'wrangler.jsonc'
   workflow_dispatch:

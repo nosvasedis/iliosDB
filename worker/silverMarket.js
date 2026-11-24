@@ -7,6 +7,8 @@ const RANGES = {
   '7d': { providerRange: '7d', days: 7, interval: '1h' },
   '30d': { providerRange: '1m', days: 30, interval: '4h' },
   '90d': { providerRange: '3m', days: 90, interval: '1d' },
+  '6m': { providerRange: '6m', days: 180, interval: '1d' },
+  '1y': { providerRange: '1y', days: 365, interval: '1d' },
 };
 
 const positiveNumber = (value) => Number.isFinite(value) && value > 0;

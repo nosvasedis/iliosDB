@@ -109,4 +109,32 @@ describe('read-only silver market Worker', () => {
       { quotedAt: new Date(sunday).toISOString(), priceEurPerGram: 32 / 1.1 / ounce },
     ]);
   });
+
+  it.each([['6m', 180], ['1y', 365]] as const)('includes the full %s window and uses historical FX at both ends', async (range, days) => {
+    const dateAt = (daysAgo: number) => new Date(now - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    const first = dateAt(days);
+    const tooEarly = dateAt(days + 1);
+    const last = dateAt(0);
+    fetchStub({ upstream: (url) => {
+      if (url.host === 'api.frankfurter.dev') {
+        expect(url.searchParams.get('from')).toBe(dateAt(days + 7));
+        expect(url.searchParams.get('to')).toBe(last);
+        return Response.json([
+          { date: tooEarly, base: 'EUR', quote: 'USD', rate: 1.15 },
+          { date: first, base: 'EUR', quote: 'USD', rate: 1.25 },
+          { date: last, base: 'EUR', quote: 'USD', rate: 1.10 },
+        ]);
+      }
+      expect(url.searchParams.get('range')).toBe(range);
+      return Response.json({ metal: 'XAG', unit: 'USD per troy ounce', range, grain: 'daily', points: [
+        { t: `${tooEarly}T00:00:00Z`, price: 32 }, { t: `${first}T00:00:00Z`, price: 32 }, { t: `${last}T00:00:00Z`, price: 32 },
+      ] });
+    } });
+    const response = await request(`${historyPath}?range=${range}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ range, interval: '1d', stale: false, points: [
+      { quotedAt: `${first}T00:00:00.000Z`, priceEurPerGram: 32 / 1.25 / ounce },
+      { quotedAt: `${last}T00:00:00.000Z`, priceEurPerGram: 32 / 1.10 / ounce },
+    ] });
+  });
 });

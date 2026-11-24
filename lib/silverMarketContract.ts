@@ -1,7 +1,7 @@
 export const SILVER_QUOTE_PATH = '/market/silver/quote';
 export const SILVER_HISTORY_PATH = '/market/silver/history';
 
-export type SilverRange = '24h' | '7d' | '30d' | '90d';
+export type SilverRange = '24h' | '7d' | '30d' | '90d' | '6m' | '1y';
 
 export interface SilverMarketPoint {
   quotedAt: string;
