@@ -6,6 +6,8 @@
 
 import { handleSbzRoute } from './sbz.ts';
 import { handleInspectionRoute } from './inspection.ts';
+import { handleSilverMarket } from './silverMarket.js';
+import { SILVER_HISTORY_PATH, SILVER_QUOTE_PATH } from '../lib/silverMarketContract.ts';
 import { FINANCE_ATTACHMENT_ROUTE, handleFinanceAttachmentRoute } from './financeAttachments.ts';
 import { isInspectionWorkerRouteAllowed } from '../lib/inspectionAllowedTables.ts';
 import {
@@ -1504,6 +1506,12 @@ export default {
 
     try {
       const url = new URL(request.url);
+
+      if (url.pathname === SILVER_QUOTE_PATH || url.pathname === SILVER_HISTORY_PATH) {
+        const access = await verifyApprovedUser(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        return handleSilverMarket(request, url, ctx, CORS_HEADERS);
+      }
 
       if (['/inspection/snapshot', '/inspection/support', '/inspection/customer', '/legal/catalog'].includes(url.pathname)) {
         const access = await verifyAdminAccess(request, env);
