@@ -3153,10 +3153,16 @@ export default function LegalDocumentsPage({
                             </select>
                           </td>
                           <td className="px-1 py-2 text-right">
-                            <input type="number" min="0" step={getLegalLineUnit(line) === 'g' ? '0.0001' : '0.01'} value={getLegalLineDisplayUnitPrice(line)} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, toStoredLegalUnitPrice(item, Number(event.target.value) || 0), Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} title={getLegalLineUnit(line) === 'pcs' ? undefined : `Τιμή ανά ${getLegalLineUnitMeta(getLegalLineUnit(line)).short}`} className={`${cellInputClass} text-right tabular-nums ${line.quantity > 0 && line.net_value === 0 && document.aade_document_type !== '9.3' ? problemClass(lineIssues[0]) : ''}`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
+                            {document.aade_document_type === '9.3' ? (
+                              <span className="inline-flex h-8 w-full items-center justify-end rounded-md bg-slate-50 px-1.5 text-[10px] font-bold text-slate-400" title="Το δελτίο αποστολής 9.3 διαβιβάζεται χωρίς αξίες (μόνο ποσότητες).">Χωρίς αξία</span>
+                            ) : (
+                            <input type="number" min="0" step={getLegalLineUnit(line) === 'g' ? '0.0001' : '0.01'} value={getLegalLineDisplayUnitPrice(line)} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, toStoredLegalUnitPrice(item, Number(event.target.value) || 0), Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} title={getLegalLineUnit(line) === 'pcs' ? undefined : `Τιμή ανά ${getLegalLineUnitMeta(getLegalLineUnit(line)).short}`} className={`${cellInputClass} text-right tabular-nums ${line.quantity > 0 && line.net_value === 0 ? problemClass(lineIssues[0]) : ''}`} aria-label={`Τιμή γραμμής ${formatNumber(line.line_number)}`} />
+                            )}
                           </td>
                           <td className="px-1 py-2 text-right">
+                            {document.aade_document_type === '9.3' ? <span className="inline-flex h-8 w-full items-center justify-end px-1.5 text-[10px] font-bold text-slate-300">—</span> : (
                             <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className={`${cellInputClass} text-right tabular-nums`} aria-label={`Έκπτωση γραμμής ${formatNumber(line.line_number)}`} />
+                            )}
                           </td>
                           <td className="px-1 py-2 text-right">
                             {document.aade_document_type === '9.3' ? (

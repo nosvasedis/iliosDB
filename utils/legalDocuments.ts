@@ -1283,7 +1283,7 @@ function buildLinesFromOrderItems(params: {
   return params.items.map((item, index) => {
     const product = params.products.find((p) => p.sku === item.sku);
     const unitPrice = Number((item as OrderItem).price_at_order ?? (item as OrderShipmentItem).price_at_order ?? 0);
-    const netValue = roundMoney(unitPrice * item.quantity * discountFactor);
+    const netValue = deliveryNoteOnly ? 0 : roundMoney(unitPrice * item.quantity * discountFactor);
     const vatAmount = deliveryNoteOnly ? 0 : roundMoney(netValue * params.vatRate);
     const incomeClassification = resolveLegalIncomeClassification({
       product,
@@ -1300,7 +1300,7 @@ function buildLinesFromOrderItems(params: {
       variant_suffix: item.variant_suffix || null,
       description: getItemDescription(item, product, params.products, params.materials || []),
       quantity: item.quantity,
-      unit_price: roundMoney(unitPrice * discountFactor),
+      unit_price: deliveryNoteOnly ? 0 : roundMoney(unitPrice * discountFactor),
       net_value: netValue,
       vat_category: vatCategory,
       vat_amount: vatAmount,
@@ -1311,8 +1311,8 @@ function buildLinesFromOrderItems(params: {
       source_order_line_key: buildOrderLineKey(item as OrderItem),
       line_id: item.line_id || null,
       source_metadata: {
-        original_unit_price: roundMoney(unitPrice),
-        discount_percent: params.discountPercent || 0,
+        original_unit_price: deliveryNoteOnly ? 0 : roundMoney(unitPrice),
+        discount_percent: deliveryNoteOnly ? 0 : params.discountPercent || 0,
         ...(product ? getInvoiceWeightSourceMetadata(product, params.products, params.materials || []) : {}),
       },
       created_at: new Date().toISOString(),
@@ -1378,10 +1378,11 @@ export function recalculateLegalLine(
     && roundMoney(Number(line.unit_price) || 0) !== storedOriginalUnitPrice
       ? roundMoney(Number(line.unit_price) || 0)
       : storedOriginalUnitPrice;
-  const unitPrice = hasDiscountPricing
+  // myDATA: a Δελτίο Αποστολής 9.3 carries quantities only — netValue/totals must be 0.
+  const unitPrice = deliveryNoteOnly ? 0 : hasDiscountPricing
     ? roundMoney(originalUnitPrice * (1 - discountPercent / 100))
     : originalUnitPrice;
-  const netValue = hasDiscountPricing
+  const netValue = deliveryNoteOnly ? 0 : hasDiscountPricing
     ? roundMoney(quantity * originalUnitPrice * (1 - discountPercent / 100))
     : roundMoney(quantity * unitPrice);
   const vatAmount = roundMoney(netValue * rate);
@@ -1395,7 +1396,9 @@ export function recalculateLegalLine(
     gross_value: roundMoney(netValue + vatAmount),
     measurement_unit: Number(line.measurement_unit) || 1,
     item_code: line.item_code || line.sku,
-    source_metadata: hasDiscountPricing
+    source_metadata: deliveryNoteOnly
+      ? { ...(line.source_metadata || {}), original_unit_price: 0, discount_percent: 0 }
+      : hasDiscountPricing
       ? {
           ...(line.source_metadata || {}),
           original_unit_price: originalUnitPrice,
@@ -2124,6 +2127,9 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     // 9.3 carries no VAT: its lines use category 8 (as on the 9.3 notes already accepted by myDATA).
     if (line.vat_category === 8 && document.aade_document_type !== '9.3') {
       issues.push({ field: `line.${line.line_number}.vat_category`, severity: 'error', message: 'Η κατηγορία ΦΠΑ 8 αφορά λογιστικές εγγραφές και δελτία αποστολής χωρίς αξία ΦΠΑ, όχι τιμολόγια.' });
+    }
+    if (document.aade_document_type === '9.3' && (Number(line.net_value) !== 0 || Number(line.vat_amount) !== 0)) {
+      issues.push({ field: `line.${line.line_number}.net_value`, severity: 'error', message: `Η γραμμή ${line.line_number} του δελτίου αποστολής πρέπει να έχει μηδενική αξία (η myDATA δέχεται μόνο ποσότητες στο 9.3).` });
     }
     if (document.aade_document_type === '9.3' && line.vat_category !== 8) {
       issues.push({ field: `line.${line.line_number}.vat_category`, severity: 'error', message: `Η γραμμή ${line.line_number} του δελτίου αποστολής πρέπει να είναι «Χωρίς ΦΠΑ» (κατηγορία 8).` });
