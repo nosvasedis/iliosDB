@@ -2074,7 +2074,10 @@ const apiMethods = {
     },
 
     /** Ψηφιακό Δελτίο Αποστολής: lifecycle status read from myDATA through the worker (admin only). */
-    getLegalDeliveryStatus: async (documentId: string): Promise<any> => api.callSbz('/legal/delivery-status', { documentId }),
+    getLegalDeliveryStatus: async (target: string | { documentId?: string; qrUrl?: string }): Promise<any> => api.callSbz('/legal/delivery-status', typeof target === 'string' ? { documentId: target } : target),
+
+    /** Ψηφιακό Δελτίο Αποστολής: start / deliver / return (own notes) or receive / reject (scanned notes). */
+    sendLegalDeliveryAction: async (payload: Record<string, unknown>): Promise<any> => api.callSbz('/legal/delivery-action', payload),
 
     callSbz: async (route: string, payload?: unknown, signal?: AbortSignal): Promise<any> => {
         if (isLocalMode || !navigator.onLine) throw new Error('Η ενέργεια απαιτεί σύνδεση στο διαδίκτυο.');

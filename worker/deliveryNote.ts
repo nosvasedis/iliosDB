@@ -30,21 +30,36 @@ export async function handleDeliveryStatusRoute(request: Request, env: Env, cors
   if (request.method !== 'POST') return json({ error: 'Μη επιτρεπόμενη ενέργεια.' }, 405);
   try {
     const payload = JSON.parse(await boundedText(new Response(request.body), 4096) || '{}');
-    if (!uuid.test(String(payload.documentId || ''))) return json({ error: 'Μη έγκυρο παραστατικό.' }, 400);
-    const lookup = await fetchFn(`${env.SUPABASE_URL}/rest/v1/legal_documents?id=eq.${payload.documentId}&select=id,environment,aade_mark,status,document_kind`, {
-      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
-      signal: AbortSignal.timeout(15000),
-    });
-    const [document] = lookup.ok ? JSON.parse(await boundedText(lookup)) : [];
-    if (!document) return json({ error: 'Το παραστατικό δεν βρέθηκε.' }, 404);
-    if (!['delivery_note', 'invoice_delivery'].includes(document.document_kind)) return json({ error: 'Η κατάσταση διακίνησης αφορά μόνο δελτία αποστολής και τιμολόγια-ΔΑ.' }, 400);
-    if (!/^\d+$/.test(String(document.aade_mark || '')) || !['issued', 'cancelled'].includes(document.status)) return json({ error: 'Το παραστατικό δεν έχει ΜΑΡΚ.' }, 400);
-    const environment = document.environment === 'prod' ? 'prod' : 'dev';
+    let environment: 'dev' | 'prod';
+    let query: ['mark' | 'qrUrl', string];
+    if (payload.documentId) {
+      if (!uuid.test(String(payload.documentId))) return json({ error: 'Μη έγκυρο παραστατικό.' }, 400);
+      const lookup = await fetchFn(`${env.SUPABASE_URL}/rest/v1/legal_documents?id=eq.${payload.documentId}&select=id,environment,aade_mark,status,document_kind`, {
+        headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const [document] = lookup.ok ? JSON.parse(await boundedText(lookup)) : [];
+      if (!document) return json({ error: 'Το παραστατικό δεν βρέθηκε.' }, 404);
+      if (!['delivery_note', 'invoice_delivery'].includes(document.document_kind)) return json({ error: 'Η κατάσταση διακίνησης αφορά μόνο δελτία αποστολής και τιμολόγια-ΔΑ.' }, 400);
+      if (!/^\d+$/.test(String(document.aade_mark || '')) || !['issued', 'cancelled'].includes(document.status)) return json({ error: 'Το παραστατικό δεν έχει ΜΑΡΚ.' }, 400);
+      environment = document.environment === 'prod' ? 'prod' : 'dev';
+      query = ['mark', String(document.aade_mark)];
+    } else {
+      // A scanned QR of someone else's note (e.g. goods arriving from a supplier).
+      const qrUrl = String(payload.qrUrl || '').trim();
+      try {
+        if (new URL(qrUrl).protocol !== 'https:' || qrUrl.length > 2048) throw new Error('bad');
+      } catch {
+        return json({ error: 'Το QR δεν είναι έγκυρο QR διακίνησης.' }, 400);
+      }
+      environment = /mydataapidev/i.test(qrUrl) ? 'dev' : 'prod';
+      query = ['qrUrl', qrUrl];
+    }
     const credentials = mydataErpCredentials(env, environment);
     if (!credentials.userId || !credentials.key) return json({ error: `Δεν έχουν οριστεί τα κλειδιά myDATA REST (${environment === 'prod' ? 'Παραγωγή' : 'Δοκιμές'}) στον worker.` }, 503);
 
     const endpoint = new URL(`${MYDATA_DELIVERY_BASE[environment]}/GetDeliveryNoteStatus`);
-    endpoint.searchParams.set('mark', String(document.aade_mark));
+    endpoint.searchParams.set(query[0], query[1]);
     const response = await fetchFn(endpoint.href, {
       method: 'GET',
       redirect: 'manual',

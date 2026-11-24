@@ -33,6 +33,7 @@ import {
   Sparkles,
   Trash2,
   Truck,
+  ScanLine,
   Undo2,
   Users,
   UserCheck,
@@ -75,6 +76,7 @@ import { formatOrderId } from '../../utils/orderUtils';
 import IssuedSkuSearch from './IssuedSkuSearch';
 import LegalFinancialReportModal from './LegalFinancialReportModal';
 import DeliveryStatusModal from './DeliveryStatusModal';
+import BarcodeScanner from '../BarcodeScanner';
 
 const PAGE_SIZE = 50;
 
@@ -1049,6 +1051,16 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   }, [props.records]);
 
   const [deliveryStatusDocument, setDeliveryStatusDocument] = useState<LegalDocument | null>(null);
+  const [scannedDeliveryQr, setScannedDeliveryQr] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  /** A scanned QR: our own note (by its AADE or provider QR) opens its movement; otherwise a supplier's note to receive. */
+  const handleDeliveryQrScan = (raw: string) => {
+    const text = raw.trim();
+    const own = props.records.find((record) => record.source === 'legal'
+      && [(record.document as LegalDocument).provider_mydata_url, (record.document as LegalDocument).qr_url].some((url) => url && url.trim() === text));
+    if (own) setDeliveryStatusDocument(own.document as LegalDocument);
+    else setScannedDeliveryQr(text);
+  };
   const creditEligibleIds = useMemo(() => {
     const legalRecords = props.records.filter((record) => record.source === 'legal');
     const documents = legalRecords.map((record) => record.document as LegalDocument);
@@ -1702,6 +1714,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={() => setScannerOpen(true)}
+                title="Σκανάρετε το QR «Διακίνηση» ενός δελτίου: δικού σας για έναρξη/παράδοση, προμηθευτή για παραλαβή"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-black text-sky-800 shadow-xs transition hover:bg-sky-50"
+              >
+                <ScanLine size={17} /> Σάρωση QR διακίνησης
+              </button>
+              <button
+                type="button"
                 onClick={() => setReportKeys([])}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-black text-emerald-800 shadow-xs transition hover:bg-emerald-50"
               >
@@ -2203,6 +2223,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
       {deliveryStatusDocument && (
         <DeliveryStatusModal document={deliveryStatusDocument} onClose={() => setDeliveryStatusDocument(null)} />
+      )}
+      {scannedDeliveryQr && (
+        <DeliveryStatusModal qrUrl={scannedDeliveryQr} onClose={() => setScannedDeliveryQr(null)} />
+      )}
+      {scannerOpen && (
+        <BarcodeScanner onScan={handleDeliveryQrScan} onClose={() => setScannerOpen(false)} />
       )}
       {reportKeys && (
         <LegalFinancialReportModal

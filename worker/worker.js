@@ -9,6 +9,7 @@ import { handleInspectionRoute } from './inspection.ts';
 import { handleSilverMarket } from './silverMarket.js';
 import { SILVER_HISTORY_PATH, SILVER_QUOTE_PATH } from '../lib/silverMarketContract.ts';
 import { handleDeliveryStatusRoute } from './deliveryNote.ts';
+import { handleDeliveryActionRoute } from './deliveryActions.ts';
 import { FINANCE_ATTACHMENT_ROUTE, handleFinanceAttachmentRoute } from './financeAttachments.ts';
 import { isInspectionWorkerRouteAllowed } from '../lib/inspectionAllowedTables.ts';
 import {
@@ -1519,6 +1520,11 @@ export default {
         const access = await verifyAdminAccess(request, env);
         if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
         return handleDeliveryStatusRoute(request, env, CORS_HEADERS);
+      }
+      if (url.pathname === '/legal/delivery-action') {
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        return handleDeliveryActionRoute(request, env, CORS_HEADERS, access.userId);
       }
       if (['/inspection/snapshot', '/inspection/support', '/inspection/customer', '/legal/catalog'].includes(url.pathname)) {
         const access = await verifyAdminAccess(request, env);
