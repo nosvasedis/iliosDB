@@ -170,6 +170,10 @@ describe('legal document page catalog loading', () => {
     await mount();
     await click(document.counterpart.name!);
     await click('Νέα αποστολή μέσω SBZ');
+    // Final check dialog, shaped by the document type.
+    expect(text()).toContain('Οριστική έκδοση');
+    const issueButton = Array.from(view!.getByRole('dialog').querySelectorAll('button')).find((node) => /^Έκδοση/.test((node.textContent ?? '').trim()))!;
+    await settle(() => { fireEvent.click(issueButton); });
     expect(text()).toContain('Αποστολή στον πάροχο');
     expect(text()).not.toContain('Παλιά απόρριψη');
     expect(mocks.submitDocument).toHaveBeenCalledTimes(1);

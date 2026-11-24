@@ -59,6 +59,7 @@ import DesktopPageHeader, { HeaderPrimaryButton } from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import SystemItemsSettings from './legal/SystemItemsSettings';
 import EnvironmentSwitch from './legal/EnvironmentSwitch';
+import IssueConfirmModal from './legal/issue/IssueConfirmModal';
 import { CounterpartPickerModal, PickerModal, type CounterpartChoice } from './legal/issue/PickerModal';
 import { applyLegalLineUnit, getLegalLineDisplayQuantity, getLegalLineDisplayUnitPrice, getLegalLineUnit, getLegalLineUnitMeta, LEGAL_LINE_UNITS, toStoredLegalQuantity, toStoredLegalUnitPrice, type LegalLineUnit } from '../utils/legalUnits';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
@@ -2183,6 +2184,18 @@ export default function LegalDocumentsPage({
     }
   };
 
+  /** The final-check dialog, shaped by document type (no payment/values on a 9.3). */
+  const [issueConfirm, setIssueConfirm] = useState<{ document: LegalDocument; lines: LegalDocumentLine[]; resolve: (ok: boolean) => void } | null>(null);
+  const askIssueConfirm = (document: LegalDocument, lines: LegalDocumentLine[]) => new Promise<boolean>((resolve) => {
+    setIssueConfirm({ document, lines, resolve });
+  });
+  const closeIssueConfirm = (ok: boolean) => {
+    setIssueConfirm((current) => {
+      current?.resolve(ok);
+      return null;
+    });
+  };
+
   const handleSubmitDraft = async () => {
     if (!draftBundle || validationErrors.length > 0 || issuingRef.current) return;
     if (!isLegalDocumentEditable(draftBundle.document)) {
@@ -2195,23 +2208,7 @@ export default function LegalDocumentsPage({
     if (!(await ensureAadeCredentialsReady())) return;
     const bundle = draftBundle;
     const document = applyIssuerSettingsToDocument(bundle.document, settingsDraft);
-    const deliveryLine = documentIncludesDeliveryNote(document)
-      ? `Διακίνηση: ${[resolveSbzDispatchMethod(document.delivery), resolveLegalCarrierLabel(document.delivery)].filter((value, index, all) => value && all.indexOf(value) === index).join(' · ')}`
-      : 'Χωρίς δελτίο διακίνησης';
-    const confirmed = await confirm({
-      title: 'Οριστική έκδοση',
-      message: [
-        `${getLegalDocumentKindLabel(document.document_kind, document.aade_document_type)} (ΑΑΔΕ ${document.aade_document_type})`,
-        `Πελάτης: ${document.counterpart.name || '—'} · ΑΦΜ ${document.counterpart.vat_number || '—'}`,
-        `Σύνολο: ${money(document.totals.gross)}`,
-        deliveryLine,
-        settingsDraft.environment === 'dev' ? 'Περιβάλλον: Δοκιμές' : 'Περιβάλλον: Παραγωγή',
-        '',
-        'Μετά την έκδοση το παραστατικό δεν αλλάζει. Διόρθωση γίνεται μόνο με πιστωτικό.',
-      ].join('\n'),
-      confirmText: 'Έκδοση',
-      cancelText: 'Πίσω',
-    });
+    const confirmed = await askIssueConfirm(document, bundle.lines);
     if (!confirmed || issuingRef.current) return;
     issuingRef.current = true;
     setIssuingDocument(document);
@@ -2856,7 +2853,9 @@ export default function LegalDocumentsPage({
                 id: 'document',
                 label: 'Παραστατικό & ΦΠΑ',
                 icon: FileText,
-                hint: `${formatIsoDate(document.issue_date)} · ${PAYMENT_METHOD_LABELS[document.payment_method_code] || 'Πληρωμή'}`,
+                hint: isStandaloneDeliveryNote
+                  ? `${formatIsoDate(document.issue_date)} · χωρίς πληρωμή`
+                  : `${formatIsoDate(document.issue_date)} · ${PAYMENT_METHOD_LABELS[document.payment_method_code] || 'Πληρωμή'}`,
                 errors: sectionCounts.document.errors,
                 warnings: sectionCounts.document.warnings,
               },
@@ -5386,6 +5385,15 @@ export default function LegalDocumentsPage({
                 ? 'Χρησιμοποιείται αποθηκευμένος κατάλογος. Η ενημέρωση θα επαναληφθεί αυτόματα.'
                 : 'Δεν ανακτήθηκε ο κατάλογος έκδοσης. Θα γίνει αυτόματα νέα προσπάθεια.'}
         </Notice>
+      )}
+      {issueConfirm && (
+        <IssueConfirmModal
+          document={issueConfirm.document}
+          lines={issueConfirm.lines}
+          environment={issueConfirm.document.environment === 'prod' || issueConfirm.document.environment === 'dev' ? issueConfirm.document.environment : persistedEnvironment}
+          onConfirm={() => closeIssueConfirm(true)}
+          onCancel={() => closeIssueConfirm(false)}
+        />
       )}
       {persistedEnvironment === 'dev' && !isInspectionPresentation && (
         <Notice
