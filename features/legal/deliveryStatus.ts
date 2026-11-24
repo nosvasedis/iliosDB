@@ -16,7 +16,7 @@ export const DELIVERY_STATUS_LABELS: Record<string, { label: string; tone: 'slat
 };
 
 const NAME_TO_CODE: Record<string, string> = {
-  registered: '1', cancelled: '2', intransit: '3', rejected: '4', deliveredbycarrier: '5', faileddelivery: '7', completed: '8', 'intransit(return)': '9', intransitreturn: '9',
+  registered: '1', cancelled: '2', canceled: '2', intransit: '3', rejected: '4', deliveredbycarrier: '5', faileddelivery: '7', completed: '8', intransitreturn: '9',
 };
 
 export const DELIVERY_EVENT_LABELS: Record<string, string> = {
@@ -56,7 +56,9 @@ function resolveStatusCode(raw: unknown): string | null {
   const value = text(raw);
   if (!value) return null;
   if (/^\d+$/.test(value)) return value;
-  return NAME_TO_CODE[value.replace(/\s+/g, '').toLowerCase()] || value;
+  // myDATA answers either the code (3) or the name in any style: InTransit, IN_TRANSIT, IN_TRANSIT_RETURN…
+  const key = value.toLowerCase().replace(/[^a-z]/g, '');
+  return NAME_TO_CODE[key] || value;
 }
 
 export function parseDeliveryNoteStatusXml(xml: string): DeliveryStatusResult {

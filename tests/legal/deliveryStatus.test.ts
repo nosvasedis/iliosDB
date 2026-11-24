@@ -27,6 +27,17 @@ describe('Ψηφιακό Δελτίο Αποστολής status', () => {
     expect(result.events[0].detail).toContain('Όχημα ΙΚΑ1234');
   });
 
+  it('understands status names as myDATA sends them (IN_TRANSIT etc.)', () => {
+    const named = (status: string) => parseDeliveryNoteStatusXml(statusXml.replace('<status>3</status>', `<status>${status}</status>`)).statusCode;
+    expect(named('IN_TRANSIT')).toBe('3');
+    expect(named('InTransit')).toBe('3');
+    expect(named('IN_TRANSIT_RETURN')).toBe('9');
+    expect(named('DELIVERED_BY_CARRIER')).toBe('5');
+    expect(named('FAILED_DELIVERY')).toBe('7');
+    expect(named('COMPLETED')).toBe('8');
+    expect(named('REGISTERED')).toBe('1');
+  });
+
   it('reports AADE errors instead of a status', () => {
     const result = parseDeliveryNoteStatusXml('<ResponseDoc><response><statusCode>ValidationError</statusCode><errors><error><message>Invoice not found</message><code>808</code></error></errors></response></ResponseDoc>');
     expect(result.ok).toBe(false);
