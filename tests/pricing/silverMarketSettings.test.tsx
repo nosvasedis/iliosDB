@@ -99,7 +99,7 @@ describe('silver market settings and overview', () => {
     await screen.findByText('1,300');
     expect(screen.queryByText('Ιστορικό αγοράς')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Πλήρες γράφημα' }));
-    for (const [label, range] of [['24 ώρες', '24h'], ['7 ημέρες', '7d'], ['30 ημέρες', '30d'], ['90 ημέρες', '90d']]) {
+    for (const [label, range] of [['24 ώρες', '24h'], ['7 ημέρες', '7d'], ['30 ημέρες', '30d'], ['90 ημέρες', '90d'], ['6 μήνες', '6m'], ['1 έτος', '1y']]) {
       fireEvent.click(screen.getByRole('button', { name: label }));
       await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`history?range=${range}`), expect.anything()));
       expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('true');

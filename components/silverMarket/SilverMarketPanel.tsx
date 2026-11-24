@@ -10,6 +10,8 @@ const RANGES: Array<{ value: SilverRange; label: string; compact: string }> = [
   { value: '7d', label: '7 ημέρες', compact: '7 ημ.' },
   { value: '30d', label: '30 ημέρες', compact: '30 ημ.' },
   { value: '90d', label: '90 ημέρες', compact: '90 ημ.' },
+  { value: '6m', label: '6 μήνες', compact: '6 μήνες' },
+  { value: '1y', label: '1 έτος', compact: '1 έτος' },
 ];
 const INTERVAL_LABEL = { '15m': 'Ανά 15 λεπτά', '1h': 'Ανά ώρα', '4h': 'Ανά 4 ώρες', '1d': 'Ημερήσια' };
 const QUOTE_MAX_AGE_MS = 5 * 60_000;
@@ -146,7 +148,7 @@ export default function SilverMarketPanel({ savedPrice, controls }: { savedPrice
           <div className="min-w-0 rounded-xl border border-slate-200 p-2.5 sm:p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-slate-900">Ιστορικό αγοράς <span className="font-medium text-slate-500">· €/g</span></h3>
-              <div role="group" aria-label="Περίοδος ιστορικού" className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              <div role="group" aria-label="Περίοδος ιστορικού" className="inline-grid max-w-full grid-cols-3 gap-0.5 rounded-lg bg-slate-100 p-0.5 min-[430px]:grid-cols-6">
                 {RANGES.map((option) => (
                   <button
                     key={option.value} type="button" aria-label={option.label} aria-pressed={range === option.value} onClick={() => setRange(option.value)}
