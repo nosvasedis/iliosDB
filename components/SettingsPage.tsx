@@ -2,10 +2,11 @@ import { useRestartDraft } from '../hooks/useRestartBlocker';
 import { APP_BUILD_ID, requestAppRestart } from '../lib/appUpdates';
 import { formatNumber } from '../utils/numberFormat';
 import PricingRulesSettings from './PricingRulesSettings';
+import SilverMarketPanel from './silverMarket/SilverMarketPanel';
 
 import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Key, Download, Database, RefreshCw, Trash2, HardDrive, Upload, Tag, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare, Coins, MonitorSmartphone, Wrench, ChevronRight, Eye, EyeOff, WifiOff, Cloud, Server, Unplug, Printer, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, Loader2, Settings as SettingsIcon, Key, Download, Database, RefreshCw, Trash2, HardDrive, Upload, Tag, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare, Coins, MonitorSmartphone, Wrench, ChevronRight, Eye, EyeOff, WifiOff, Cloud, Server, Unplug, Printer, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, workerAuthHeaders, GEMINI_API_KEY, api, getLocalImageStoragePreference, setLocalImageStoragePreference, getConnectionSummary, clearConfiguration } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
@@ -287,7 +288,6 @@ export default function SettingsPage() {
         };
     }, [refreshPendingSyncCount]);
 
-    const [isLoadingPrice, setIsLoadingPrice] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [isMaintenanceAction, setIsMaintenanceAction] = useState(false);
@@ -347,35 +347,6 @@ export default function SettingsPage() {
     const silverDelta = isPositive(settings.silver_price_gram) && isPositive(silverBase)
         ? (settings.silver_price_gram - silverBase) / silverBase
         : null;
-
-    const fetchLivePrice = async () => {
-        setIsLoadingPrice(true);
-        try {
-            const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
-                method: 'GET',
-                headers: { ...(await workerAuthHeaders()) }
-            });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch price');
-            }
-
-            const finalPrice = parseFloat(data.price.toFixed(3));
-            // Persist only the price on top of the stored settings, so unsaved edits elsewhere on the page stay a draft.
-            const stored = { ...(settingsData ?? settings), silver_price_gram: finalPrice };
-            await api.updateSettings(stored);
-
-            setSettings(prev => prev ? { ...prev, silver_price_gram: finalPrice } : prev);
-            settingsRestart.markSaved((saved: { settings: GlobalSettings }) => ({ ...saved, settings: { ...saved.settings, silver_price_gram: finalPrice } }));
-            queryClient.setQueryData(['settings'], stored);
-            showToast(`Η τιμή ενημερώθηκε: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
-        } catch (error: any) {
-            showToast(`Σφάλμα: ${error.message}`, 'error');
-        } finally {
-            setIsLoadingPrice(false);
-        }
-    };
 
     const handleSaveSettings = async () => {
         const invalidTab = SETTINGS_TABS.find(tab => tabErrors[tab.id]);
@@ -912,40 +883,31 @@ export default function SettingsPage() {
 
     const renderPricingTab = () => (
         <div className="space-y-6">
-            <SettingsCard
-                icon={TrendingUp}
-                tone="amber"
-                title="Τιμή ασημιού"
-                description="Η τρέχουσα τιμή ανά γραμμάριο που χρησιμοποιείται σε όλους τους υπολογισμούς κόστους."
-                actions={(
-                    <button type="button" onClick={fetchLivePrice} disabled={isLoadingPrice || !isOnline} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50">
-                        {isLoadingPrice ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Λήψη ζωντανής τιμής
-                    </button>
-                )}
-            >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-end">
-                    <NumberField
-                        label="Τιμή ασημιού"
-                        unit="€/g"
-                        step="0.001"
-                        value={settings.silver_price_gram}
-                        invalid={!!silverError}
-                        onChange={value => updateSettings({ silver_price_gram: value })}
-                    />
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <span className="font-medium text-slate-500">Βάση τελευταίου επανυπολογισμού</span>
+            <SilverMarketPanel
+                savedPrice={settingsData?.silver_price_gram}
+                controls={(
+                    <div className="space-y-3">
+                        <NumberField
+                            label="Επεξεργασία τιμής προγράμματος"
+                            unit="€/g"
+                            step="0.001"
+                            value={settings.silver_price_gram}
+                            invalid={!!silverError}
+                            onChange={value => updateSettings({ silver_price_gram: value })}
+                        />
+                        {silverError && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{silverError}</p>}
+                        <div className="border-t border-slate-200 pt-3 text-xs">
+                            <p className="mb-0.5 font-medium text-slate-600">Βάση τελευταίου επανυπολογισμού</p>
                             <span className="font-mono font-bold text-slate-800">{formatDecimal(silverBase, 3)} €/g</span>
+                            {silverDelta !== null && (
+                                <p className={`mt-1 font-semibold ${Math.abs(silverDelta) < 0.0005 ? 'text-slate-600' : silverDelta > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                                    {Math.abs(silverDelta) < 0.0005 ? 'Ίδια με τη βάση του καταλόγου.' : `${silverDelta > 0 ? '+' : ''}${formatDecimal(silverDelta * 100, 1)}% σε σχέση με τη βάση. Ενημερώστε τις τιμές από την «Τιμολόγηση».`}
+                                </p>
+                            )}
                         </div>
-                        {silverDelta !== null && (
-                            <p className={`mt-1 text-xs font-bold ${Math.abs(silverDelta) < 0.0005 ? 'text-slate-500' : silverDelta > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-                                {Math.abs(silverDelta) < 0.0005 ? 'Ίδια με τη βάση του καταλόγου.' : `${silverDelta > 0 ? '+' : ''}${formatDecimal(silverDelta * 100, 1)}% σε σχέση με τη βάση. Ενημερώστε τις τιμές από την «Τιμολόγηση».`}
-                            </p>
-                        )}
                     </div>
-                </div>
-                {silverError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{silverError}</p>}
-            </SettingsCard>
+                )}
+            />
 
             <PricingRulesSettings settings={settings} onChange={setSettings} />
         </div>

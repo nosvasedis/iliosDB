@@ -2,10 +2,10 @@ import OrderCustomerName from '../orders/OrderCustomerName';
 import { formatNumber } from '../../utils/numberFormat';
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
-import { Activity, Factory, Coins, Plus, ScanBarcode, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck } from 'lucide-react';
+import { Activity, Factory, Plus, ScanBarcode, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import DashboardStatCarousel, { type DashboardStatSlide } from '../dashboard/DashboardStatCarousel';
-import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
+import { formatCurrency } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { productionKeys, productionRepository } from '../../features/production';
@@ -13,6 +13,7 @@ import { APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
+import SilverMarketPanel from '../silverMarket/SilverMarketPanel';
 
 interface Props {
     products: Product[];
@@ -114,16 +115,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
             bg: 'bg-amber-500',
             text: 'text-white',
         },
-        {
-            id: 'silver',
-            title: 'Ασήμι',
-            value: `${formatDecimal(settings.silver_price_gram, 2)}€`,
-            sub: 'Τρέχουσα Τιμή',
-            icon: Coins,
-            bg: 'bg-indigo-600',
-            text: 'text-white',
-        },
-    ], [stats, settings.silver_price_gram, showPendingRevenue, showYearRevenue]);
+    ], [stats, showPendingRevenue, showYearRevenue]);
 
     const goToPrevStat = () => setStatSlideIndex(i => (i - 1 + statSlides.length) % statSlides.length);
     const goToNextStat = () => setStatSlideIndex(i => (i + 1) % statSlides.length);
@@ -144,6 +136,8 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                 onPrev={goToPrevStat}
                 onNext={goToNextStat}
             />
+
+            <SilverMarketPanel savedPrice={settings.silver_price_gram} />
 
             {/* Quick Actions Grid */}
             <div>

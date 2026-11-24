@@ -2,14 +2,14 @@ import { useRestartDraft } from '../../hooks/useRestartBlocker';
 import { requestAppRestart } from '../../lib/appUpdates';
 import { formatNumber } from '../../utils/numberFormat';
 import PricingRulesSettings from '../PricingRulesSettings';
+import SilverMarketPanel from '../silverMarket/SilverMarketPanel';
 
 import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase, GEMINI_API_KEY, workerAuthHeaders, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
+import { api, GEMINI_API_KEY } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
-import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, Loader2, Database, Settings } from 'lucide-react';
+import { LogOut, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, Loader2, Database, Settings } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
-import { formatDecimal } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import { downloadBlob } from '../../utils/exportUtils';
 import { BackupExportOptions, BackupProgress, BackupRestoreOptions } from '../../lib/backupConfig';
@@ -31,7 +31,6 @@ export default function MobileSettings() {
     const [localSettings, setLocalSettings] = useState<any>(null);
     const [geminiKey, setGeminiKey] = useState(GEMINI_API_KEY);
     const [isSaving, setIsSaving] = useState(false);
-    const [isLoadingPrice, setIsLoadingPrice] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
     // Backup progress modal state
@@ -72,41 +71,18 @@ export default function MobileSettings() {
             // Use central API method for persistence (local + cloud)
             await api.updateSettings(localSettings);
             settingsRestart.markSaved();
+            void queryClient.invalidateQueries({ queryKey: ['settings'] });
 
             if (geminiKey !== GEMINI_API_KEY) {
                 localStorage.setItem('VITE_GEMINI_API_KEY', geminiKey);
                 requestAppRestart('Οι αλλαγές αποθηκεύτηκαν. Επανεκκινήστε όταν είστε έτοιμοι.');
             } else {
-                queryClient.invalidateQueries({ queryKey: ['settings'] });
                 showToast("Οι ρυθμίσεις αποθηκεύτηκαν.", "success");
             }
         } catch (e) {
             showToast("Σφάλμα αποθήκευσης.", "error");
         } finally {
             setIsSaving(false);
-        }
-    };
-
-    const fetchLivePrice = async () => {
-        setIsLoadingPrice(true);
-        try {
-            const response = await fetch(`${CLOUDFLARE_WORKER_URL}/price/silver`, {
-                method: 'GET',
-                headers: { ...(await workerAuthHeaders()) }
-            });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch price');
-            }
-
-            const finalPrice = parseFloat(data.price.toFixed(3));
-            handleLocalUpdate('silver_price_gram', finalPrice);
-            showToast(`Τιμή: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
-        } catch (error: any) {
-            showToast(`Σφάλμα: ${error.message}`, 'error');
-        } finally {
-            setIsLoadingPrice(false);
         }
     };
 
@@ -257,14 +233,20 @@ export default function MobileSettings() {
                     <div><div className="font-bold text-slate-900">{profile?.full_name || 'Χρήστης'}</div><div className="text-xs text-slate-500">{profile?.email}</div></div>
                 </div>
 
-                {/* Silver Price */}
-                <div className="bg-linear-to-r from-slate-800 to-slate-900 p-4 rounded-2xl text-white shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2"><Coins size={20} className="text-emerald-400" /><span className="font-bold text-sm">Τιμή Ασημιού (€/g)</span></div>
-                        <button onClick={fetchLivePrice} disabled={isLoadingPrice} className="p-1.5 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">{isLoadingPrice ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
-                    </div>
-                    <input type="number" step="0.01" value={localSettings.silver_price_gram} onChange={(e) => handleLocalUpdate('silver_price_gram', parseFloat(e.target.value))} className="bg-white/10 border border-white/20 rounded-xl p-2 text-xl font-mono font-bold w-full outline-hidden focus:bg-white/20 transition-colors" />
-                </div>
+                <SilverMarketPanel
+                    savedPrice={settings?.silver_price_gram}
+                    controls={(
+                        <label className="block text-xs font-semibold text-slate-700">
+                            Επεξεργασία τιμής προγράμματος (€/g)
+                            <input
+                                type="number" inputMode="decimal" step="0.001"
+                                value={Number.isFinite(localSettings.silver_price_gram) ? localSettings.silver_price_gram : ''}
+                                onChange={(e) => handleLocalUpdate('silver_price_gram', e.currentTarget.valueAsNumber)}
+                                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white p-2.5 font-mono text-base font-bold text-slate-900 focus-visible:outline-2 focus-visible:outline-teal-700"
+                            />
+                        </label>
+                    )}
+                />
 
                 {/* API Key */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">

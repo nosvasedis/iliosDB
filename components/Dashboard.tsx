@@ -20,6 +20,7 @@ import { productionKeys, productionRepository } from '../features/production';
 import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
+import SilverMarketPanel from './silverMarket/SilverMarketPanel';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
@@ -432,6 +433,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
             {comparisonLabel && !financeLoading ? (
               <p className="-mt-2 px-1 text-[11px] font-medium text-slate-400">Οι μεταβολές % συγκρίνονται {comparisonLabel}.</p>
             ) : null}
+
+            <SilverMarketPanel savedPrice={settings.silver_price_gram} />
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
               <TrendPanel data={trend} isLoading={financeLoading} className="xl:col-span-8" onOpenAnalytics={() => navigate('analytics')} />
