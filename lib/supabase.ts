@@ -2073,6 +2073,9 @@ const apiMethods = {
         return !!data;
     },
 
+    /** Ψηφιακό Δελτίο Αποστολής: lifecycle status read from myDATA through the worker (admin only). */
+    getLegalDeliveryStatus: async (documentId: string): Promise<any> => api.callSbz('/legal/delivery-status', { documentId }),
+
     callSbz: async (route: string, payload?: unknown, signal?: AbortSignal): Promise<any> => {
         if (isLocalMode || !navigator.onLine) throw new Error('Η ενέργεια απαιτεί σύνδεση στο διαδίκτυο.');
         assertInspectionWorkerRouteAllowed(route);

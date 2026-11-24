@@ -74,6 +74,7 @@ import {
 import { formatOrderId } from '../../utils/orderUtils';
 import IssuedSkuSearch from './IssuedSkuSearch';
 import LegalFinancialReportModal from './LegalFinancialReportModal';
+import DeliveryStatusModal from './DeliveryStatusModal';
 
 const PAGE_SIZE = 50;
 
@@ -1047,6 +1048,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     return map;
   }, [props.records]);
 
+  const [deliveryStatusDocument, setDeliveryStatusDocument] = useState<LegalDocument | null>(null);
   const creditEligibleIds = useMemo(() => {
     const legalRecords = props.records.filter((record) => record.source === 'legal');
     const documents = legalRecords.map((record) => record.document as LegalDocument);
@@ -1228,6 +1230,11 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           {document.status === 'issued' && document.document_kind === 'delivery_note' && document.provider === 'sbz' && (
             <ArchiveActionButton compact={compact} tone="danger" title="Ακύρωση" onClick={() => props.onCancelLegal(document)} disabled={props.mutating}>
               {icon(<Ban size={14} />, 'Ακύρωση')}
+            </ArchiveActionButton>
+          )}
+          {document.status === 'issued' && document.aade_mark && ['delivery_note', 'invoice_delivery'].includes(document.document_kind) && (
+            <ArchiveActionButton compact={compact} tone="check" title="Κατάσταση διακίνησης (myDATA)" onClick={() => setDeliveryStatusDocument(document as LegalDocument)} disabled={props.mutating}>
+              {icon(<Truck size={14} />, 'Διακίνηση')}
             </ArchiveActionButton>
           )}
           {creditEligibleIds.has(document.id) && (
@@ -2194,6 +2201,9 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         </div>
       )}
 
+      {deliveryStatusDocument && (
+        <DeliveryStatusModal document={deliveryStatusDocument} onClose={() => setDeliveryStatusDocument(null)} />
+      )}
       {reportKeys && (
         <LegalFinancialReportModal
           records={props.records}
